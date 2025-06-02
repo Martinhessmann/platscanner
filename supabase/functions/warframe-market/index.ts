@@ -23,6 +23,26 @@ const normalizeItemName = (name: string): string => {
     .replace(/[^a-z0-9_]/g, '');
 };
 
+/**
+ * Handles errors and returns a consistent error response
+ */
+const handleError = (error: Error, status = 500) => {
+  console.error('Error:', error);
+  return new Response(
+    JSON.stringify({ 
+      error: error.message || 'Internal server error',
+      status 
+    }),
+    { 
+      status,
+      headers: {
+        'Content-Type': 'application/json',
+        ...corsHeaders
+      }
+    }
+  );
+};
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -34,16 +54,7 @@ Deno.serve(async (req) => {
     const itemName = url.searchParams.get('item');
 
     if (!itemName) {
-      return new Response(
-        JSON.stringify({ error: 'Item name is required' }),
-        { 
-          status: 400,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        }
-      );
+      return handleError(new Error('Item name is required'), 400);
     }
 
     // Check cache
@@ -60,41 +71,44 @@ Deno.serve(async (req) => {
       );
     }
 
+    // API request headers
     const apiHeaders = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
       'Language': 'en',
       'Platform': 'pc',
-      'User-Agent': 'PlatScanner/1.0'
+      'User-Agent': 'PlatScanner/1.1.0'
     };
 
-    // Fetch item details and orders
-    const [itemResponse, ordersResponse] = await Promise.all([
-      fetch(`${WARFRAME_MARKET_API}/items/${itemName}`, {
-        headers: apiHeaders
-      }),
-      fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, {
-        headers: apiHeaders
-      })
-    ]);
-
-    if (!itemResponse.ok || !ordersResponse.ok) {
-      return new Response(
-        JSON.stringify({ error: 'Item not found' }),
-        { 
-          status: 404,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        }
-      );
+    // Fetch item details and orders with retries
+    let itemResponse, ordersResponse;
+    try {
+      [itemResponse, ordersResponse] = await Promise.all([
+        fetch(`${WARFRAME_MARKET_API}/items/${itemName}`, { headers: apiHeaders }),
+        fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, { headers: apiHeaders })
+      ]);
+    } catch (error) {
+      console.error('Network error:', error);
+      return handleError(new Error('Failed to fetch market data. Please try again.'));
     }
 
-    const [itemData, ordersData] = await Promise.all([
-      itemResponse.json(),
-      ordersResponse.json()
-    ]);
+    // Handle API errors
+    if (!itemResponse.ok || !ordersResponse.ok) {
+      const status = itemResponse.status || ordersResponse.status;
+      return handleError(new Error('Item not found or API error'), status);
+    }
+
+    // Parse responses
+    let itemData, ordersData;
+    try {
+      [itemData, ordersData] = await Promise.all([
+        itemResponse.json(),
+        ordersResponse.json()
+      ]);
+    } catch (error) {
+      console.error('JSON parse error:', error);
+      return handleError(new Error('Invalid response from market API'));
+    }
 
     // Get the item details from the set
     const itemDetails = itemData.payload.item.items_in_set.find((item: any) => 
@@ -133,16 +147,6 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error processing request:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders
-        }
-      }
-    );
+    return handleError(error);
   }
 });
