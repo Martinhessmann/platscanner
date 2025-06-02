@@ -12,6 +12,16 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 const WARFRAME_MARKET_API = 'https://api.warframe.market/v1';
 
+/**
+ * Normalizes item names to match Warframe Market URL format
+ */
+const normalizeItemName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+};
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {

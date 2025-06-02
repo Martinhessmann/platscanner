@@ -6,24 +6,10 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
  * Normalizes item names to match Warframe Market URL format
  */
 const normalizeItemName = (name: string): string => {
-  // Remove "Prime" from the name temporarily to handle special cases
-  let normalized = name.replace(/\s+Prime\s+/i, '_prime_');
-  
-  // Special case handling for Blueprint suffix
-  const hasBlueprint = /blueprint$/i.test(name);
-  normalized = normalized.replace(/\s*blueprint$/i, '');
-
-  // Normalize the remaining string
-  normalized = normalized
+  return name
     .toLowerCase()
-    .replace(/\s*&\s*/g, '_and_')
-    .replace(/[^a-z0-9_]/g, '')
     .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
-
-  // Add blueprint suffix back if it existed
-  return hasBlueprint ? `${normalized}_blueprint` : normalized;
+    .replace(/[^a-z0-9_]/g, '');
 };
 
 /**
@@ -64,7 +50,7 @@ export const fetchPriceData = async (primeParts: PrimePart[]): Promise<PrimePart
         price: data.price,
         volume: data.volume,
         average: data.average,
-        imgUrl: data.thumb,
+        imgUrl: data.thumb ? `https://warframe.market/static/assets/${data.thumb}` : undefined,
         status: 'loaded',
         error: data.price === 0 ? 'No active buy orders' : undefined
       });
