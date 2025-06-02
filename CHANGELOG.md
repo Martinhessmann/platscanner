@@ -19,12 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Better error handling for failed market data requests
 - More informative loading states for each detected item
 
-### Fixed
-- Rate limiting implementation for market data requests
-- Progress tracking for multi-image processing
-- Duplicate detection in image upload queue
-- Queue processing not continuing after first image in production environment
-- Automatic transition between queued images in Supabase production deployment
+### Known Issues
+- Queue processing stops after first image in production environment
+- Automatic transition between queued images not working in Supabase production deployment
+- Rate limiting implementation needs improvement for market data requests
+- Progress tracking inconsistent for multi-image processing
+- Duplicate detection in image upload queue needs refinement
 
 ## [1.1.0] - 2024-03-21
 ### Added
