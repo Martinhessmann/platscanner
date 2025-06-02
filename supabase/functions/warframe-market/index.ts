@@ -112,12 +112,12 @@ Deno.serve(async (req) => {
     const result = {
       name: itemDetails.en.item_name,
       thumb: itemDetails.thumb,
+      ducats: itemDetails.ducats || 0,
       price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
       volume: ordersData.payload.orders.length,
       average: buyOrders.length > 0 
         ? Math.round(buyOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / buyOrders.length) 
-        : 0,
-      ducats: itemDetails.ducats || 0 // Get ducats value from item details
+        : 0
     };
 
     // Cache the result
@@ -133,6 +133,7 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
+    console.error('Error processing request:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
