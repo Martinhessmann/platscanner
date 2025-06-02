@@ -60,23 +60,21 @@ Deno.serve(async (req) => {
       );
     }
 
+    const apiHeaders = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Language': 'en',
+      'Platform': 'pc',
+      'User-Agent': 'PlatScanner/1.0'
+    };
+
     // Fetch item details and orders
     const [itemResponse, ordersResponse] = await Promise.all([
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}`, {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Language': 'en',
-          'Platform': 'pc',
-        }
+        headers: apiHeaders
       }),
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Language': 'en',
-          'Platform': 'pc',
-        }
+        headers: apiHeaders
       })
     ]);
 
