@@ -38,7 +38,7 @@ const HomePage: React.FC = () => {
         status: 'loading'
       }));
 
-      // Update state with detected parts
+      // Update state with detected parts while preserving existing results
       setProcessingState(prev => ({
         ...prev,
         images: new Map(prev.images).set(imageState.id, {
@@ -51,7 +51,7 @@ const HomePage: React.FC = () => {
       // Fetch prices from market API
       const partsWithPrices = await fetchPriceData(parts);
 
-      // Update final results
+      // Update final results while preserving existing ones
       setProcessingState(prev => {
         const newImages = new Map(prev.images);
         const newCombined = new Map(prev.combinedResults);
@@ -63,7 +63,7 @@ const HomePage: React.FC = () => {
           results: partsWithPrices
         });
 
-        // Merge results into combined map
+        // Merge new results with existing ones
         partsWithPrices.forEach(part => {
           const existing = newCombined.get(part.name);
           if (!existing || (part.price && (!existing.price || part.price > existing.price))) {
@@ -110,7 +110,7 @@ const HomePage: React.FC = () => {
         newStates.push(state);
       });
 
-      // Process first image immediately
+      // Process first image immediately while preserving existing results
       if (newStates.length > 0) {
         processImage(newStates[0]);
       }
@@ -127,32 +127,35 @@ const HomePage: React.FC = () => {
   const handleImageRemove = useCallback((id: string) => {
     setProcessingState(prev => {
       const newImages = new Map(prev.images);
-      const newCombined = new Map(prev.combinedResults);
-      
-      // Remove the image's results from combined results
-      const image = newImages.get(id);
-      if (image?.results) {
-        image.results.forEach(part => {
-          newCombined.delete(part.name);
-        });
-      }
-      
-      // Remove the image
+      const imageToRemove = newImages.get(id);
       newImages.delete(id);
-      
+
+      // Recalculate combined results excluding the removed image
+      const newCombined = new Map();
+      newImages.forEach(image => {
+        if (image.results) {
+          image.results.forEach(part => {
+            const existing = newCombined.get(part.name);
+            if (!existing || (part.price && (!existing.price || part.price > existing.price))) {
+              newCombined.set(part.name, part);
+            }
+          });
+        }
+      });
+
       // Update active image if needed
       let newActiveId = prev.activeImageId;
       if (newActiveId === id) {
         const remainingIds = Array.from(newImages.keys());
         newActiveId = remainingIds[0] || null;
       }
-      
+
       return {
         ...prev,
         images: newImages,
         combinedResults: newCombined,
         activeImageId: newActiveId,
-        processedCount: Math.max(0, prev.processedCount - 1),
+        processedCount: Math.max(0, prev.processedCount - (imageToRemove?.status === 'complete' ? 1 : 0)),
         totalCount: Math.max(0, prev.totalCount - 1)
       };
     });
