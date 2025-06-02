@@ -19,6 +19,7 @@ const HomePage: React.FC = () => {
 
   // Process the next image in the queue
   const processNextImage = useCallback(async () => {
+    // Get all queued images
     const queuedImages = Array.from(processingState.images.values())
       .filter(img => img.status === 'queued');
 
@@ -100,7 +101,7 @@ const HomePage: React.FC = () => {
         processedCount: prev.processedCount + 1
       }));
     }
-  }, [processingState.images]);
+  }, []); // Empty dependency array since we access state in the function
 
   // Watch for changes in the queue and process next image
   useEffect(() => {
