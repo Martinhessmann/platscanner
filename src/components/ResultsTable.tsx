@@ -61,44 +61,43 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
       <table className="min-w-full divide-y divide-gray-800">
         <thead className="bg-background-light">
           <tr>
-            <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-200 sm:pl-6">
+            <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-semibold text-gray-200 sm:pl-6">
               <button 
                 onClick={() => handleSort('name')}
-                className="group inline-flex items-center gap-x-2"
+                className="group inline-flex items-center gap-x-1"
               >
                 Item
                 <ArrowUpDown 
-                  size={16} 
+                  size={12} 
                   className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'name' ? 'text-orokin-gold' : ''}`} 
                 />
               </button>
             </th>
-            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-200">
+            <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-gray-200">
               <button 
                 onClick={() => handleSort('price')}
-                className="group inline-flex items-center gap-x-2"
+                className="group inline-flex items-center gap-x-1"
               >
-                Best Buyer
+                Plat
                 <ArrowUpDown 
-                  size={16} 
+                  size={12} 
                   className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'price' ? 'text-orokin-gold' : ''}`} 
                 />
               </button>
             </th>
-            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-200">
+            <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-gray-200">
               <button 
                 onClick={() => handleSort('ducats')}
-                className="group inline-flex items-center gap-x-2"
+                className="group inline-flex items-center gap-x-1"
               >
-                <Coins size={16} className="text-orokin-gold" />
-                Ducats
+                <Coins size={12} className="text-orokin-gold" />
                 <ArrowUpDown 
-                  size={16} 
+                  size={12} 
                   className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'ducats' ? 'text-orokin-gold' : ''}`} 
                 />
               </button>
             </th>
-            <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+            <th scope="col" className="relative py-3 pl-3 pr-4 sm:pr-6">
               <span className="sr-only">Actions</span>
             </th>
           </tr>
@@ -106,29 +105,29 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
         <tbody className="divide-y divide-gray-800 bg-background-card">
           {sortedResults.map((item) => (
             <tr key={item.id} className="hover:bg-background-light transition-colors">
-              <td className="py-4 pl-4 pr-3 text-sm sm:pl-6">
-                <div className="flex items-start gap-3">
+              <td className="py-3 pl-4 pr-3 text-xs sm:pl-6">
+                <div className="flex items-start gap-2">
                   {item.imgUrl ? (
                     <img 
                       src={item.imgUrl} 
                       alt={item.name} 
-                      className="h-10 w-10 flex-shrink-0 rounded bg-background-dark object-cover border border-gray-700" 
+                      className="h-8 w-8 flex-shrink-0 rounded bg-background-dark object-cover border border-gray-700" 
                     />
                   ) : (
-                    <div className="h-10 w-10 flex-shrink-0 rounded bg-background-dark flex items-center justify-center border border-gray-700">
-                      <AlertCircle size={16} className="text-gray-500" />
+                    <div className="h-8 w-8 flex-shrink-0 rounded bg-background-dark flex items-center justify-center border border-gray-700">
+                      <AlertCircle size={14} className="text-gray-500" />
                     </div>
                   )}
                   <span className="font-medium text-white break-words">{item.name}</span>
                 </div>
               </td>
-              <td className="px-3 py-4 text-sm">
+              <td className="px-3 py-3 text-xs">
                 {item.status === 'loading' && (
-                  <div className="h-5 w-20 bg-gray-700 rounded animate-pulse"></div>
+                  <div className="h-4 w-16 bg-gray-700 rounded animate-pulse"></div>
                 )}
                 {item.status === 'error' && (
                   <span className="text-grineer-red flex items-center gap-1">
-                    <AlertCircle size={14} />
+                    <AlertCircle size={12} />
                     Error
                   </span>
                 )}
@@ -136,23 +135,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
                   <div className="break-words">
                     {item.error ? (
                       <span className="text-gray-400 flex items-center gap-1">
-                        <AlertCircle size={14} />
+                        <AlertCircle size={12} />
                         {item.error}
                       </span>
                     ) : (
-                      <div className="space-y-1">
+                      <div className="space-y-0.5">
                         <div>
                           <span className="text-orokin-gold font-semibold">{item.price}</span>
-                          <span className="text-gray-400 ml-1">platinum</span>
                         </div>
                         {item.average && (
-                          <div className="text-gray-400 text-xs">
+                          <div className="text-gray-400 text-[10px]">
                             Avg: {item.average}
-                          </div>
-                        )}
-                        {item.volume && (
-                          <div className="text-gray-400 text-xs">
-                            {item.volume} orders
                           </div>
                         )}
                       </div>
@@ -160,24 +153,23 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
                   </div>
                 )}
               </td>
-              <td className="px-3 py-4 text-sm">
+              <td className="px-3 py-3 text-xs">
                 {item.ducats ? (
                   <div className="flex items-center gap-1">
-                    <Coins size={14} className="text-orokin-gold" />
                     <span className="font-medium">{item.ducats}</span>
                   </div>
                 ) : (
                   <span className="text-gray-400">-</span>
                 )}
               </td>
-              <td className="relative py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+              <td className="relative py-3 pl-3 pr-4 text-right text-xs font-medium sm:pr-6">
                 <a
                   href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-tenno-blue hover:text-tenno-light flex items-center justify-end gap-1 transition-colors"
+                  className="text-tenno-blue hover:text-tenno-light"
                 >
-                  View <ExternalLink size={14} />
+                  <ExternalLink size={14} />
                 </a>
               </td>
             </tr>
