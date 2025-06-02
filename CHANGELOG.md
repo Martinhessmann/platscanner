@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rate limiting implementation for market data requests
 - Progress tracking for multi-image processing
 - Duplicate detection in image upload queue
+- Queue processing not continuing after first image in production environment
+- Automatic transition between queued images in Supabase production deployment
 
 ## [1.1.0] - 2024-03-21
 ### Added
