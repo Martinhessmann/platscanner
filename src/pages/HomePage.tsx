@@ -191,11 +191,10 @@ const HomePage: React.FC = () => {
         {/* Hero section */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl md:text-4xl font-bold mb-3">
-            <span className="text-orokin-gold">Prime Part</span> Scanner
+            <span className="text-orokin-gold">PlatScanner</span> – Warframe Inventory Value Scanner
           </h1>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Upload screenshots of your Warframe inventory and our AI will identify Prime parts 
-            and fetch current market prices to help you maximize your profits.
+            Instantly scan your inventory screenshot and get real-time platinum prices.
           </p>
           
           {!isGeminiConfigured() && (
