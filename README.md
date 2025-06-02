@@ -25,6 +25,71 @@ A powerful AI-powered tool that scans Warframe inventory screenshots to detect i
    - View real-time market prices and trading data
    - Click "View" to see detailed market listings
 
+## Known Issues & Troubleshooting
+
+### Critical Issues
+
+1. **Market Data Fetching**
+   - When an item has no current buy orders, subsequent items fail to fetch
+   - Production API calls return 404 errors for valid items
+   - Market data fetching stops after encountering certain errors
+   - Need to implement proper error recovery and continue processing
+
+2. **Image Processing**
+   - Gemini API detection limit (24/36 items per image)
+   - Multi-image processing needs optimization
+   - Queue management needs improvement
+
+3. **API Integration**
+   - Production environment CORS issues with Warframe Market API
+   - Rate limiting implementation needs refinement
+   - Need to implement proper error recovery
+
+### Troubleshooting Steps
+
+1. **No Market Data**
+   - Check if the item name matches Warframe Market format
+   - Verify the item is currently tradeable
+   - Wait a few minutes and try again (rate limits)
+   - Check for active buy orders
+
+2. **404 Errors**
+   - Development: Uses proxy with proper headers
+   - Production: Direct API calls need CORS handling
+   - Required headers:
+     ```
+     Accept: application/json
+     Content-Type: application/json
+     Language: en
+     Platform: pc
+     ```
+
+3. **Image Recognition**
+   - Use clear, well-lit screenshots
+   - Ensure text is readable
+   - Use default Warframe UI settings
+   - Split large inventories into multiple screenshots
+
+### Planned Improvements
+
+1. **Market Data**
+   - Implement fallback image sources (Warframe Market CDN, GitHub repo)
+   - Add retry mechanism for failed requests
+   - Improve error handling and recovery
+   - Continue processing after non-critical errors
+
+2. **API Integration**
+   - Set up proper CORS handling for production
+   - Implement request queuing and rate limiting
+   - Add request caching and optimization
+   - Improve error handling and recovery
+
+3. **User Experience**
+   - Add progress tracking for multi-image processing
+   - Implement proper error states and messages
+   - Add image preprocessing for better OCR
+   - Improve duplicate detection
+
 ## Technical Details
 
 ### Core Technologies
@@ -119,32 +184,6 @@ VITE_GEMINI_API_KEY=your_api_key_here
 - Maintain responsive design
 - Write meaningful commit messages
 - Add tests for new features
-
-## Troubleshooting
-
-### Common Issues
-
-1. **API Key Issues**
-   - Ensure your Gemini API key is valid
-   - Check if you've reached API limits
-   - Verify the key is properly configured
-
-2. **Image Recognition**
-   - Use clear, well-lit screenshots
-   - Ensure text is readable
-   - Use default Warframe UI settings
-
-3. **Market Data**
-   - Check your internet connection
-   - Verify item names match market format
-   - Wait for rate limit cooldown
-
-### Error Messages
-
-- `"API key not configured"`: Set up your Gemini API key
-- `"Failed to analyze image"`: Try a clearer screenshot
-- `"No active buy orders"`: Item currently has no buyers
-- `"Item not found"`: Item name doesn't match market database
 
 ## License
 
