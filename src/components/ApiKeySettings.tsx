@@ -9,19 +9,32 @@ interface ApiKeySettingsProps {
 const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({ onApiKeyChange, isConfigured }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  // Load stored API key on component mount
   useEffect(() => {
-    const storedKey = sessionStorage.getItem('gemini_api_key');
-    if (storedKey) {
-      setApiKey(storedKey);
+    try {
+      const storedKey = localStorage.getItem('gemini_api_key');
+      if (storedKey) {
+        setApiKey(storedKey);
+        onApiKeyChange(storedKey);
+      }
+    } catch (error) {
+      console.error('Failed to load API key:', error);
+      setError('Failed to load stored API key');
     }
-  }, []);
+  }, [onApiKeyChange]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onApiKeyChange(apiKey);
-    setIsOpen(false);
+    try {
+      onApiKeyChange(apiKey);
+      localStorage.setItem('gemini_api_key', apiKey);
+      setIsOpen(false);
+      setError(null);
+    } catch (error) {
+      console.error('Failed to save API key:', error);
+      setError('Failed to save API key. Please try again.');
+    }
   };
 
   return (
@@ -63,6 +76,9 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({ onApiKeyChange, isConfi
                   placeholder={isConfigured ? '••••••••••••••••' : 'Enter your API key'}
                   className="w-full px-3 py-2 bg-background-dark border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-tenno-blue focus:border-transparent"
                 />
+                {error && (
+                  <p className="mt-2 text-sm text-grineer-red">{error}</p>
+                )}
               </div>
 
               <div className="text-sm text-gray-400 mb-4">
