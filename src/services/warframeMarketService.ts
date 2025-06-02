@@ -50,7 +50,7 @@ export const fetchPriceData = async (primeParts: PrimePart[]): Promise<PrimePart
         price: data.price,
         volume: data.volume,
         average: data.average,
-        imgUrl: data.thumb ? `https://warframe.market/static/assets/${data.thumb}` : undefined,
+        imgUrl: data.thumb && `https://warframe.market/static/assets/${data.thumb}`,
         status: 'loaded',
         error: data.price === 0 ? 'No active buy orders' : undefined
       });

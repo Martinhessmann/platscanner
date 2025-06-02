@@ -97,6 +97,11 @@ Deno.serve(async (req) => {
       ordersResponse.json()
     ]);
 
+    // Get the item details from the set
+    const itemDetails = itemData.payload.item.items_in_set.find((item: any) => 
+      item.url_name === itemName
+    ) || itemData.payload.item.items_in_set[0];
+
     // Process orders
     const buyOrders = ordersData.payload.orders.filter((order: any) => 
       order.order_type === 'buy' && 
@@ -106,8 +111,8 @@ Deno.serve(async (req) => {
     );
 
     const result = {
-      name: itemData.payload.item.item_name,
-      thumb: itemData.payload.item.thumb,
+      name: itemDetails.en.item_name,
+      thumb: itemDetails.thumb,
       price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
       volume: ordersData.payload.orders.length,
       average: buyOrders.length > 0 
