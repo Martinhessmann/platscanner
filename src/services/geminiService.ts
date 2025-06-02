@@ -1,11 +1,36 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+/**
+ * CRITICAL COMPONENT - DO NOT MODIFY WITHOUT REVIEW
+ * 
+ * This service handles all interactions with the Google Gemini Vision API.
+ * It is responsible for:
+ * 1. Managing the API key
+ * 2. Converting images to base64
+ * 3. Analyzing images for item detection
+ * 
+ * Key Dependencies:
+ * - @google/generative-ai
+ * - Session storage for API key persistence
+ * 
+ * Usage Requirements:
+ * - API key must be configured before use
+ * - Only supports image files (PNG, JPG, JPEG, WEBP)
+ * - Images should be clear screenshots of Warframe inventory
+ * 
+ * Error Handling:
+ * - Throws if API key is not configured
+ * - Handles unreadable images gracefully
+ * - Returns empty array for invalid responses
+ */
+
 // Initialize the Gemini API client with a default empty key
 let API_KEY = '';
 let genAI = new GoogleGenerativeAI(API_KEY);
 
 /**
  * Updates the API key and reinitializes the client
+ * CRITICAL: This function must be called before using any other features
  */
 export const setApiKey = (key: string) => {
   API_KEY = key;
@@ -16,6 +41,7 @@ export const setApiKey = (key: string) => {
 
 /**
  * Validates if the API key is properly configured
+ * Returns: boolean indicating if the API is ready to use
  */
 export const isGeminiConfigured = () => {
   return API_KEY && API_KEY.length > 0;
@@ -28,7 +54,8 @@ if (storedKey) {
 }
 
 /**
- * Converts a File object to base64 string
+ * PRIVATE: Converts a File object to base64 string
+ * Do not modify this function as it's critical for image processing
  */
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -48,7 +75,8 @@ const fileToBase64 = (file: File): Promise<string> => {
 };
 
 /**
- * Checks if the response text indicates an unreadable image
+ * PRIVATE: Checks if the response text indicates an unreadable image
+ * Add new error indicators here if needed
  */
 const isErrorResponse = (text: string): boolean => {
   const errorIndicators = [
@@ -68,7 +96,12 @@ const isErrorResponse = (text: string): boolean => {
 };
 
 /**
- * Analyzes an image using Gemini Vision API to detect Prime parts
+ * CRITICAL: Main function for analyzing images
+ * DO NOT modify the prompt or response handling without thorough testing
+ * 
+ * @param imageFile - The screenshot file to analyze
+ * @returns Array of detected item names
+ * @throws Error if API key not configured or analysis fails
  */
 export const analyzeImage = async (imageFile: File) => {
   if (!isGeminiConfigured()) {
@@ -82,7 +115,7 @@ export const analyzeImage = async (imageFile: File) => {
     // Convert image to base64
     const imageBase64 = await fileToBase64(imageFile);
 
-    // Prepare the prompt
+    // CRITICAL: This prompt format is essential for accurate detection
     const prompt = `
       Analyze this Warframe inventory screenshot and list all Prime parts you can identify.
       Only include the exact names of Prime parts, one per line.

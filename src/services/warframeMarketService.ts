@@ -3,7 +3,30 @@ import { PrimePart } from '../types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 /**
- * Normalizes item names to match Warframe Market URL format
+ * CRITICAL COMPONENT - DO NOT MODIFY WITHOUT REVIEW
+ * 
+ * This service handles all interactions with the Warframe Market API via our Edge Function.
+ * It is responsible for:
+ * 1. Normalizing item names
+ * 2. Fetching market data with rate limiting
+ * 3. Processing and formatting price data
+ * 
+ * Key Dependencies:
+ * - Supabase Edge Function for API proxying
+ * - Environment variables for API configuration
+ * 
+ * Rate Limiting:
+ * - Enforces 334ms delay between requests (~3 requests/second)
+ * - Uses sequential processing to prevent API overload
+ * 
+ * Error Handling:
+ * - Returns formatted error objects for failed requests
+ * - Continues processing remaining items if one fails
+ */
+
+/**
+ * CRITICAL: Normalizes item names to match Warframe Market URL format
+ * DO NOT modify without testing against the full item database
  */
 const normalizeItemName = (name: string): string => {
   return name
@@ -14,7 +37,15 @@ const normalizeItemName = (name: string): string => {
 };
 
 /**
- * Fetches market data for multiple prime parts with rate limiting
+ * CRITICAL: Fetches market data for multiple prime parts with rate limiting
+ * 
+ * @param primeParts - Array of PrimePart objects to fetch data for
+ * @returns Updated array with market data
+ * 
+ * IMPORTANT: 
+ * - Maintains rate limiting of 3 requests per second
+ * - Returns partial results if some items fail
+ * - Includes error handling for each item
  */
 export const fetchPriceData = async (primeParts: PrimePart[]): Promise<PrimePart[]> => {
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
