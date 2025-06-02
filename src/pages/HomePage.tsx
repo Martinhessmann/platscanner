@@ -17,23 +17,30 @@ const HomePage: React.FC = () => {
     totalCount: 0
   });
 
-  const processImage = async (imageState: ImageState) => {
+  const processNextImage = useCallback(async () => {
+    const queuedImage = Array.from(processingState.images.values()).find(
+      img => img.status === 'queued'
+    );
+
+    if (!queuedImage) return;
+
     try {
       // Update status to analyzing
       setProcessingState(prev => ({
         ...prev,
-        images: new Map(prev.images).set(imageState.id, {
-          ...imageState,
+        images: new Map(prev.images).set(queuedImage.id, {
+          ...queuedImage,
           status: 'analyzing'
-        })
+        }),
+        activeImageId: queuedImage.id
       }));
 
       // Extract prime parts using Gemini AI
-      const detectedParts = await analyzeImage(imageState.file);
+      const detectedParts = await analyzeImage(queuedImage.file);
       
       // Map the detected part names to PrimePart objects
       const parts: PrimePart[] = detectedParts.map((name, index) => ({
-        id: `${imageState.id}-part-${index}`,
+        id: `${queuedImage.id}-part-${index}`,
         name,
         status: 'loading'
       }));
@@ -41,8 +48,8 @@ const HomePage: React.FC = () => {
       // Update state with detected parts while preserving existing results
       setProcessingState(prev => ({
         ...prev,
-        images: new Map(prev.images).set(imageState.id, {
-          ...imageState,
+        images: new Map(prev.images).set(queuedImage.id, {
+          ...queuedImage,
           status: 'fetching',
           results: parts
         })
@@ -57,8 +64,8 @@ const HomePage: React.FC = () => {
         const newCombined = new Map(prev.combinedResults);
 
         // Update image results
-        newImages.set(imageState.id, {
-          ...imageState,
+        newImages.set(queuedImage.id, {
+          ...queuedImage,
           status: 'complete',
           results: partsWithPrices
         });
@@ -70,6 +77,14 @@ const HomePage: React.FC = () => {
             newCombined.set(part.name, part);
           }
         });
+
+        // Process next image if available
+        const nextImage = Array.from(newImages.values()).find(
+          img => img.status === 'queued'
+        );
+        if (nextImage) {
+          processNextImage();
+        }
 
         return {
           ...prev,
@@ -83,14 +98,17 @@ const HomePage: React.FC = () => {
       console.error('Error processing image:', error);
       setProcessingState(prev => ({
         ...prev,
-        images: new Map(prev.images).set(imageState.id, {
-          ...imageState,
+        images: new Map(prev.images).set(queuedImage.id, {
+          ...queuedImage,
           status: 'error',
           error: error instanceof Error ? error.message : 'Unknown error'
         })
       }));
+
+      // Try processing next image even if current one failed
+      processNextImage();
     }
-  };
+  }, []);
 
   const handleImageUpload = useCallback((files: FileWithPath[]) => {
     setProcessingState(prev => {
@@ -110,9 +128,9 @@ const HomePage: React.FC = () => {
         newStates.push(state);
       });
 
-      // Process first image immediately while preserving existing results
+      // Start processing the first image
       if (newStates.length > 0) {
-        processImage(newStates[0]);
+        processNextImage();
       }
 
       return {
@@ -122,7 +140,7 @@ const HomePage: React.FC = () => {
         totalCount: prev.totalCount + files.length
       };
     });
-  }, []);
+  }, [processNextImage]);
 
   const handleImageRemove = useCallback((id: string) => {
     setProcessingState(prev => {
