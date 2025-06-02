@@ -10,6 +10,7 @@ interface ImageUploaderProps {
   images: Map<string, ImageState>;
   activeImageId: string | null;
   onImageSelect: (id: string) => void;
+  onImageRemove: (id: string) => void;
 }
 
 const ImageUploader: React.FC<ImageUploaderProps> = ({ 
@@ -18,6 +19,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   images,
   activeImageId,
   onImageSelect,
+  onImageRemove
 }) => {
   const [skippedFiles, setSkippedFiles] = useState<string[]>([]);
 
@@ -65,11 +67,6 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
     },
   });
 
-  const removeImage = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    // Implementation needed: Remove image from state
-  };
-
   return (
     <div className="space-y-4">
       {/* Image Queue */}
@@ -109,7 +106,10 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                 </div>
                 {!isProcessing && (
                   <button
-                    onClick={(e) => removeImage(image.id, e)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onImageRemove(image.id);
+                    }}
                     className="absolute top-1 right-1 bg-grineer-red text-white p-1 rounded-full hover:bg-grineer-dark transition-colors"
                   >
                     <X size={12} />

@@ -30,6 +30,51 @@ function App() {
     return `${file.name}-${file.size}-${file.lastModified}`;
   };
 
+  const removeImage = (id: string) => {
+    setProcessingState(prev => {
+      const newImages = new Map(prev.images);
+      const imageToRemove = newImages.get(id);
+      
+      if (!imageToRemove) return prev;
+
+      // Clean up the preview URL
+      URL.revokeObjectURL(imageToRemove.preview);
+      
+      // Remove the image from the map
+      newImages.delete(id);
+
+      // Recalculate combined results
+      const newCombined = new Map<string, PrimePart>();
+      
+      // Rebuild combined results from remaining images
+      Array.from(newImages.values()).forEach(image => {
+        if (image.results) {
+          image.results.forEach(part => {
+            const existing = newCombined.get(part.name);
+            if (!existing || (part.price && (!existing.price || part.price > existing.price))) {
+              newCombined.set(part.name, part);
+            }
+          });
+        }
+      });
+
+      // Update active image if needed
+      let newActiveId = prev.activeImageId;
+      if (id === prev.activeImageId) {
+        const remainingImages = Array.from(newImages.values());
+        newActiveId = remainingImages.length > 0 ? remainingImages[0].id : null;
+      }
+
+      return {
+        ...prev,
+        images: newImages,
+        combinedResults: newCombined,
+        activeImageId: newActiveId,
+        totalCount: prev.totalCount - 1
+      };
+    });
+  };
+
   const processImage = async (imageState: ImageState) => {
     try {
       // Update status to analyzing
@@ -204,6 +249,7 @@ function App() {
                 images={processingState.images}
                 activeImageId={processingState.activeImageId}
                 onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
+                onImageRemove={removeImage}
               />
             </div>
             
