@@ -45,7 +45,7 @@ const HomePage: React.FC = () => {
         status: 'loading'
       }));
 
-      // Update state with detected parts while preserving existing results
+      // Update state with detected parts
       setProcessingState(prev => ({
         ...prev,
         images: new Map(prev.images).set(queuedImage.id, {
@@ -58,7 +58,7 @@ const HomePage: React.FC = () => {
       // Fetch prices from market API
       const partsWithPrices = await fetchPriceData(parts);
 
-      // Update final results while preserving existing ones
+      // Update final results
       setProcessingState(prev => {
         const newImages = new Map(prev.images);
         const newCombined = new Map(prev.combinedResults);
@@ -70,7 +70,7 @@ const HomePage: React.FC = () => {
           results: partsWithPrices
         });
 
-        // Merge new results with existing ones
+        // Merge results into combined map
         partsWithPrices.forEach(part => {
           const existing = newCombined.get(part.name);
           if (!existing || (part.price && (!existing.price || part.price > existing.price))) {
@@ -78,12 +78,12 @@ const HomePage: React.FC = () => {
           }
         });
 
-        // Process next image if available
+        // Find and process next queued image
         const nextImage = Array.from(newImages.values()).find(
           img => img.status === 'queued'
         );
         if (nextImage) {
-          processNextImage();
+          setTimeout(() => processNextImage(), 100); // Add small delay between processing
         }
 
         return {
@@ -106,37 +106,39 @@ const HomePage: React.FC = () => {
       }));
 
       // Try processing next image even if current one failed
-      processNextImage();
+      const nextImage = Array.from(processingState.images.values()).find(
+        img => img.status === 'queued'
+      );
+      if (nextImage) {
+        setTimeout(() => processNextImage(), 100);
+      }
     }
-  }, []);
+  }, [processingState.images]);
 
   const handleImageUpload = useCallback((files: FileWithPath[]) => {
     setProcessingState(prev => {
       const newImages = new Map(prev.images);
-      const newStates: ImageState[] = [];
-
+      
       files.forEach(file => {
         const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        const state: ImageState = {
+        newImages.set(id, {
           id,
           file,
           preview: URL.createObjectURL(file),
           status: 'queued',
           results: []
-        };
-        newImages.set(id, state);
-        newStates.push(state);
+        });
       });
 
-      // Start processing the first image
-      if (newStates.length > 0) {
-        processNextImage();
+      // Start processing if this is the first batch
+      if (prev.images.size === 0 && files.length > 0) {
+        setTimeout(() => processNextImage(), 100);
       }
 
       return {
         ...prev,
         images: newImages,
-        activeImageId: newStates[0]?.id || prev.activeImageId,
+        activeImageId: Array.from(newImages.keys())[0] || prev.activeImageId,
         totalCount: prev.totalCount + files.length
       };
     });
@@ -148,7 +150,7 @@ const HomePage: React.FC = () => {
       const imageToRemove = newImages.get(id);
       newImages.delete(id);
 
-      // Recalculate combined results excluding the removed image
+      // Recalculate combined results
       const newCombined = new Map();
       newImages.forEach(image => {
         if (image.results) {
@@ -187,7 +189,7 @@ const HomePage: React.FC = () => {
 
   return (
     <main className="flex-grow container mx-auto px-4 py-8">
-      <div className="max-w-5xl mx-auto relative">
+      <div className="max-w-5xl mx-auto">
         {/* Hero section */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl md:text-4xl font-bold mb-3">
