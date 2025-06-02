@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import ImageUploader from '../components/ImageUploader';
 import ProcessingAnimation from '../components/ProcessingAnimation';
 import ResultsTable from '../components/ResultsTable';
@@ -17,30 +17,32 @@ const HomePage: React.FC = () => {
     totalCount: 0
   });
 
+  // Process the next image in the queue
   const processNextImage = useCallback(async () => {
-    const queuedImage = Array.from(processingState.images.values()).find(
-      img => img.status === 'queued'
-    );
+    const queuedImages = Array.from(processingState.images.values())
+      .filter(img => img.status === 'queued');
 
-    if (!queuedImage) return;
+    if (queuedImages.length === 0) return;
 
+    const nextImage = queuedImages[0];
+    
     try {
       // Update status to analyzing
       setProcessingState(prev => ({
         ...prev,
-        images: new Map(prev.images).set(queuedImage.id, {
-          ...queuedImage,
+        activeImageId: nextImage.id,
+        images: new Map(prev.images).set(nextImage.id, {
+          ...nextImage,
           status: 'analyzing'
-        }),
-        activeImageId: queuedImage.id
+        })
       }));
 
       // Extract prime parts using Gemini AI
-      const detectedParts = await analyzeImage(queuedImage.file);
+      const detectedParts = await analyzeImage(nextImage.file);
       
       // Map the detected part names to PrimePart objects
       const parts: PrimePart[] = detectedParts.map((name, index) => ({
-        id: `${queuedImage.id}-part-${index}`,
+        id: `${nextImage.id}-part-${index}`,
         name,
         status: 'loading'
       }));
@@ -48,8 +50,8 @@ const HomePage: React.FC = () => {
       // Update state with detected parts
       setProcessingState(prev => ({
         ...prev,
-        images: new Map(prev.images).set(queuedImage.id, {
-          ...queuedImage,
+        images: new Map(prev.images).set(nextImage.id, {
+          ...nextImage,
           status: 'fetching',
           results: parts
         })
@@ -64,8 +66,8 @@ const HomePage: React.FC = () => {
         const newCombined = new Map(prev.combinedResults);
 
         // Update image results
-        newImages.set(queuedImage.id, {
-          ...queuedImage,
+        newImages.set(nextImage.id, {
+          ...nextImage,
           status: 'complete',
           results: partsWithPrices
         });
@@ -77,14 +79,6 @@ const HomePage: React.FC = () => {
             newCombined.set(part.name, part);
           }
         });
-
-        // Find and process next queued image
-        const nextImage = Array.from(newImages.values()).find(
-          img => img.status === 'queued'
-        );
-        if (nextImage) {
-          setTimeout(() => processNextImage(), 100); // Add small delay between processing
-        }
 
         return {
           ...prev,
@@ -98,22 +92,28 @@ const HomePage: React.FC = () => {
       console.error('Error processing image:', error);
       setProcessingState(prev => ({
         ...prev,
-        images: new Map(prev.images).set(queuedImage.id, {
-          ...queuedImage,
+        images: new Map(prev.images).set(nextImage.id, {
+          ...nextImage,
           status: 'error',
           error: error instanceof Error ? error.message : 'Unknown error'
-        })
+        }),
+        processedCount: prev.processedCount + 1
       }));
-
-      // Try processing next image even if current one failed
-      const nextImage = Array.from(processingState.images.values()).find(
-        img => img.status === 'queued'
-      );
-      if (nextImage) {
-        setTimeout(() => processNextImage(), 100);
-      }
     }
   }, [processingState.images]);
+
+  // Watch for changes in the queue and process next image
+  useEffect(() => {
+    const queuedImages = Array.from(processingState.images.values())
+      .filter(img => img.status === 'queued');
+    
+    const processingImages = Array.from(processingState.images.values())
+      .filter(img => ['analyzing', 'fetching'].includes(img.status));
+
+    if (queuedImages.length > 0 && processingImages.length === 0) {
+      processNextImage();
+    }
+  }, [processingState.images, processNextImage]);
 
   const handleImageUpload = useCallback((files: FileWithPath[]) => {
     setProcessingState(prev => {
@@ -121,19 +121,15 @@ const HomePage: React.FC = () => {
       
       files.forEach(file => {
         const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        newImages.set(id, {
+        const state: ImageState = {
           id,
           file,
           preview: URL.createObjectURL(file),
           status: 'queued',
           results: []
-        });
+        };
+        newImages.set(id, state);
       });
-
-      // Start processing if this is the first batch
-      if (prev.images.size === 0 && files.length > 0) {
-        setTimeout(() => processNextImage(), 100);
-      }
 
       return {
         ...prev,
@@ -142,40 +138,37 @@ const HomePage: React.FC = () => {
         totalCount: prev.totalCount + files.length
       };
     });
-  }, [processNextImage]);
+  }, []);
 
   const handleImageRemove = useCallback((id: string) => {
     setProcessingState(prev => {
       const newImages = new Map(prev.images);
-      const imageToRemove = newImages.get(id);
+      const newCombined = new Map(prev.combinedResults);
+      
+      // Remove the image's results from combined results
+      const image = newImages.get(id);
+      if (image?.results) {
+        image.results.forEach(part => {
+          newCombined.delete(part.name);
+        });
+      }
+      
+      // Remove the image
       newImages.delete(id);
-
-      // Recalculate combined results
-      const newCombined = new Map();
-      newImages.forEach(image => {
-        if (image.results) {
-          image.results.forEach(part => {
-            const existing = newCombined.get(part.name);
-            if (!existing || (part.price && (!existing.price || part.price > existing.price))) {
-              newCombined.set(part.name, part);
-            }
-          });
-        }
-      });
-
+      
       // Update active image if needed
       let newActiveId = prev.activeImageId;
       if (newActiveId === id) {
         const remainingIds = Array.from(newImages.keys());
         newActiveId = remainingIds[0] || null;
       }
-
+      
       return {
         ...prev,
         images: newImages,
         combinedResults: newCombined,
         activeImageId: newActiveId,
-        processedCount: Math.max(0, prev.processedCount - (imageToRemove?.status === 'complete' ? 1 : 0)),
+        processedCount: Math.max(0, prev.processedCount - 1),
         totalCount: Math.max(0, prev.totalCount - 1)
       };
     });
@@ -189,14 +182,15 @@ const HomePage: React.FC = () => {
 
   return (
     <main className="flex-grow container mx-auto px-4 py-8">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto relative">
         {/* Hero section */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl md:text-4xl font-bold mb-3">
-            <span className="text-orokin-gold">PlatScanner</span> – Warframe Inventory Value Scanner
+            <span className="text-orokin-gold">Prime Part</span> Scanner
           </h1>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Instantly scan your inventory screenshot and get real-time platinum prices.
+            Upload screenshots of your Warframe inventory and our AI will identify Prime parts 
+            and fetch current market prices to help you maximize your profits.
           </p>
           
           {!isGeminiConfigured() && (
@@ -211,7 +205,7 @@ const HomePage: React.FC = () => {
         {/* Main content area */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left column - Upload */}
-          <div className="lg:col-span-5">
+          <div className="lg:col-span-5 space-y-6">
             <ImageUploader 
               onImageUpload={handleImageUpload}
               isProcessing={isProcessing}
@@ -220,6 +214,25 @@ const HomePage: React.FC = () => {
               onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
               onImageRemove={handleImageRemove}
             />
+
+            {processingState.totalCount > 0 && (
+              <div className="bg-background-card rounded-lg p-4 border border-gray-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-400">Processing Progress</span>
+                  <span className="text-sm text-gray-400">
+                    {processingState.processedCount} / {processingState.totalCount}
+                  </span>
+                </div>
+                <div className="h-2 bg-background-light rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-tenno-blue transition-all duration-300"
+                    style={{ 
+                      width: `${(processingState.processedCount / processingState.totalCount) * 100}%` 
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
           
           {/* Right column - Processing and Results */}
