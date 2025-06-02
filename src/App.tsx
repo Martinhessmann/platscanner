@@ -43,6 +43,16 @@ function App() {
       // Remove the image from the map
       newImages.delete(id);
 
+      // If we're removing a queued image and it's the only one, we need to find the next one to process
+      if (imageToRemove.status === 'queued') {
+        const remainingQueued = Array.from(newImages.values())
+          .filter(img => img.status === 'queued');
+        
+        if (remainingQueued.length > 0) {
+          processImage(remainingQueued[0]);
+        }
+      }
+
       // Recalculate combined results
       const newCombined = new Map<string, PrimePart>();
       
@@ -77,14 +87,20 @@ function App() {
 
   const processImage = async (imageState: ImageState) => {
     try {
-      // Update status to analyzing
-      setProcessingState(prev => ({
-        ...prev,
-        images: new Map(prev.images).set(imageState.id, {
-          ...imageState,
-          status: 'analyzing'
-        })
-      }));
+      // Check if the image still exists in the state before processing
+      setProcessingState(prev => {
+        if (!prev.images.has(imageState.id)) {
+          return prev; // Image was removed, don't process
+        }
+
+        return {
+          ...prev,
+          images: new Map(prev.images).set(imageState.id, {
+            ...imageState,
+            status: 'analyzing'
+          })
+        };
+      });
 
       // Extract prime parts using Gemini AI
       const detectedParts = await analyzeImage(imageState.file);
@@ -97,20 +113,30 @@ function App() {
       }));
 
       // Update state with detected parts
-      setProcessingState(prev => ({
-        ...prev,
-        images: new Map(prev.images).set(imageState.id, {
-          ...imageState,
-          status: 'fetching',
-          results: parts
-        })
-      }));
+      setProcessingState(prev => {
+        if (!prev.images.has(imageState.id)) {
+          return prev; // Image was removed during analysis
+        }
+
+        return {
+          ...prev,
+          images: new Map(prev.images).set(imageState.id, {
+            ...imageState,
+            status: 'fetching',
+            results: parts
+          })
+        };
+      });
 
       // Fetch prices from market API
       const partsWithPrices = await fetchPriceData(parts);
 
       // Update final results
       setProcessingState(prev => {
+        if (!prev.images.has(imageState.id)) {
+          return prev; // Image was removed during price fetching
+        }
+
         const newImages = new Map(prev.images);
         const newCombined = new Map(prev.combinedResults);
 
@@ -146,6 +172,10 @@ function App() {
     } catch (error) {
       console.error('Error processing image:', error);
       setProcessingState(prev => {
+        if (!prev.images.has(imageState.id)) {
+          return prev; // Image was removed during error
+        }
+
         const newImages = new Map(prev.images);
         
         // Update current image with error
@@ -195,8 +225,12 @@ function App() {
         }
       });
 
-      // Process first image immediately if we have new images
-      if (newStates.length > 0) {
+      // Only start processing if there are no images currently being processed
+      const isProcessing = Array.from(prev.images.values()).some(
+        img => img.status === 'analyzing' || img.status === 'fetching'
+      );
+
+      if (newStates.length > 0 && !isProcessing) {
         processImage(newStates[0]);
       }
 
