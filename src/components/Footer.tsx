@@ -1,5 +1,6 @@
 import React from 'react';
 import { Github, ExternalLink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const Footer: React.FC = () => {
   return (
@@ -16,6 +17,24 @@ const Footer: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-4 flex-wrap justify-center">
+            <Link 
+              to="/about"
+              className="text-gray-400 hover:text-orokin-gold transition-colors text-sm"
+            >
+              About
+            </Link>
+            <Link 
+              to="/terms"
+              className="text-gray-400 hover:text-orokin-gold transition-colors text-sm"
+            >
+              Terms
+            </Link>
+            <Link 
+              to="/privacy"
+              className="text-gray-400 hover:text-orokin-gold transition-colors text-sm"
+            >
+              Privacy
+            </Link>
             <a 
               href="https://warframe.market" 
               target="_blank" 
@@ -23,14 +42,6 @@ const Footer: React.FC = () => {
               className="text-gray-400 hover:text-orokin-gold transition-colors text-sm flex items-center gap-1"
             >
               Warframe Market <ExternalLink size={14} />
-            </a>
-            <a 
-              href="https://warframe.com" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-gray-400 hover:text-orokin-gold transition-colors text-sm flex items-center gap-1"
-            >
-              Warframe Official <ExternalLink size={14} />
             </a>
             <a 
               href="https://github.com/Martinhessmann/platscanner" 
