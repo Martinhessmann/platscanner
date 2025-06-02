@@ -5,6 +5,25 @@ All notable changes to PlatScanner will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Added
+- Optimistic results display - items appear in the table as they're detected
+- Real-time market data updates - prices load individually as they're fetched
+- Item quantity detection from inventory screenshots
+- Clickable table rows that link directly to Warframe Market
+- Trading volume display in results table
+
+### Changed
+- Improved results table UI with clearer ducat value display
+- Enhanced market data fetching with individual item processing
+- Better error handling for failed market data requests
+- More informative loading states for each detected item
+
+### Fixed
+- Rate limiting implementation for market data requests
+- Progress tracking for multi-image processing
+- Duplicate detection in image upload queue
+
 ## [1.1.0] - 2024-03-21
 ### Added
 - Ducat values for Prime parts
@@ -27,12 +46,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Image preprocessing for better accuracy
 - [ ] Handle non-inventory screenshots gracefully
 - [ ] Fix unknown.thumb.png image URLs
+- [ ] Improve quantity detection accuracy
 
 ### Market Analysis
 - [ ] Historical price tracking
 - [ ] Trading volume analytics
 - [ ] Market volatility indicators
 - [ ] Price alerts for high-value items
+- [ ] Ducat/platinum value comparison
 
 ### User Experience
 - [ ] Customizable sorting and filtering
@@ -40,3 +61,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [ ] Export functionality
 - [ ] User feedback mechanism
 - [ ] Mobile UI optimizations
+- [ ] Enhanced error messaging
