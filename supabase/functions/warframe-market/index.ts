@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       average: buyOrders.length > 0 
         ? Math.round(buyOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / buyOrders.length) 
         : 0,
-      ducats: itemDetails.ducats || 0
+      ducats: itemDetails.ducats || 0 // Get ducats value from item details
     };
 
     // Cache the result
