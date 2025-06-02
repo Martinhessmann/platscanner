@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Lock, Key, Image, Database, Shield } from 'lucide-react';
+import { ArrowLeft, Lock, Key, Image, Database, Shield, ExternalLink } from 'lucide-react';
 
 const PrivacyPage: React.FC = () => {
   return (
@@ -21,79 +21,84 @@ const PrivacyPage: React.FC = () => {
       <div className="space-y-8 text-gray-300">
         <section>
           <p className="leading-relaxed">
-            Your privacy is important to us. This Privacy Policy explains how we collect, use, and protect your data when you use PlatScanner.
+            We respect your privacy and are committed to protecting it. This policy explains how we handle your data.
           </p>
         </section>
 
         <section>
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <Key className="text-tenno-blue" />
-            API Key Storage
+            Information We Collect
           </h2>
-          <p className="leading-relaxed">
-            Your Google Gemini API key is stored only in your browser's session storage. It is:
-          </p>
-          <ul className="list-disc list-inside space-y-2 mt-4">
-            <li>Never transmitted to our servers</li>
-            <li>Cleared when you close your browser</li>
-            <li>Only used for image analysis requests</li>
-            <li>Never shared with third parties</li>
-          </ul>
+          <div className="space-y-6">
+            <div>
+              <h3 className="font-medium mb-2">Gemini API Key</h3>
+              <p className="leading-relaxed">
+                The key is provided by the user and stored only in the browser's session memory.
+                It is never transmitted or stored on our servers.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-medium mb-2">Image Uploads</h3>
+              <p className="leading-relaxed">
+                Uploaded screenshots are sent to the Google Gemini Vision API for analysis.
+                PlatScanner does not store images.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-medium mb-2">Item Names</h3>
+              <p className="leading-relaxed">
+                Detected item names are queried against the Warframe Market API. 
+                No personal information is attached to these requests.
+              </p>
+            </div>
+          </div>
         </section>
 
         <section>
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Image className="text-corpus-green" />
-            Image Data
+            <Shield className="text-corpus-green" />
+            What We Don't Collect
           </h2>
-          <p className="leading-relaxed">
-            When you upload screenshots:
-          </p>
-          <ul className="list-disc list-inside space-y-2 mt-4">
-            <li>Images are processed locally in your browser</li>
-            <li>Sent directly to Google's Gemini Vision API for analysis</li>
-            <li>Never stored on our servers</li>
-            <li>Automatically removed when you close the page</li>
+          <ul className="list-disc list-inside space-y-2">
+            <li>No names, emails, IP addresses, or user-identifying data is collected</li>
+            <li>No tracking cookies or persistent analytics are used</li>
           </ul>
         </section>
 
         <section>
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <Database className="text-void-purple" />
-            Market Data
+            Data Security
           </h2>
-          <p className="leading-relaxed">
-            When fetching market prices:
-          </p>
-          <ul className="list-disc list-inside space-y-2 mt-4">
-            <li>Only item names are sent to Warframe Market's API</li>
-            <li>Price data is cached briefly for performance</li>
-            <li>No personal information is included in requests</li>
-            <li>All market data is public information</li>
-          </ul>
-        </section>
-
-        <section>
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Shield className="text-orokin-gold" />
-            Data Protection
-          </h2>
-          <p className="leading-relaxed">
-            We take several measures to protect your data:
-          </p>
-          <ul className="list-disc list-inside space-y-2 mt-4">
-            <li>All processing happens in your browser</li>
-            <li>No user accounts or personal data collection</li>
-            <li>No tracking or analytics services</li>
-            <li>No cookies or persistent storage</li>
+          <ul className="list-disc list-inside space-y-2">
+            <li>API keys are stored client-side only</li>
+            <li>No uploaded data is persisted</li>
+            <li>HTTPS is enforced for all traffic</li>
           </ul>
         </section>
 
         <section className="bg-background-card rounded-lg p-6 border border-gray-800">
-          <h2 className="text-xl font-semibold mb-4">Contact Information</h2>
-          <p className="leading-relaxed">
-            For privacy-related questions or concerns, please reach out through our GitHub repository. We take your privacy seriously and will respond to all inquiries promptly.
+          <h2 className="text-xl font-semibold mb-4">Contact & Feedback</h2>
+          <p className="mb-4">
+            If you have questions about your privacy or want to report an issue:
           </p>
+          <div className="flex flex-wrap gap-4">
+            <a 
+              href="https://github.com/Martinhessmann/platscanner/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-background-light rounded-lg text-gray-300 hover:text-white transition-colors"
+            >
+              Report Issues <ExternalLink size={16} />
+            </a>
+            <a 
+              href="mailto:info@martinhessmann.com"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-background-light rounded-lg text-gray-300 hover:text-white transition-colors"
+            >
+              Email Us <ExternalLink size={16} />
+            </a>
+          </div>
         </section>
       </div>
     </div>
