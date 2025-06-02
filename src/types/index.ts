@@ -5,6 +5,7 @@ export interface PrimePart {
   name: string;
   imgUrl?: string;
   price?: number;
+  ducats?: number;
   volume?: number;
   average?: number;
   status: 'loading' | 'loaded' | 'error';
@@ -47,6 +48,7 @@ export interface WarframeMarketItem {
   url_name: string;
   thumb: string;
   item_name: string;
+  ducats?: number;
 }
 
 export interface WarframeMarketResponse {

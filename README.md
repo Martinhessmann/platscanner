@@ -7,10 +7,31 @@ A powerful AI-powered tool that scans Warframe inventory screenshots to detect i
 - 🤖 **AI-Powered Detection**: Uses Google's Gemini Vision API for accurate item recognition
 - 💰 **Real-time Pricing**: Fetches current market data from Warframe Market
 - 📊 **Market Analytics**: Shows current prices, 24h averages, and trading volume
+- 🎯 **Ducat Values**: Compare platinum prices with ducat trading potential
 - 🖼️ **Multi-Image Support**: Process multiple inventory screenshots at once
 - 🔄 **Duplicate Detection**: Automatically skips duplicate screenshots
 - 📱 **Responsive Design**: Works seamlessly on desktop and mobile devices
 - 🎨 **Warframe-Themed UI**: Beautiful interface matching the game's aesthetic
+
+## Roadmap
+
+### 1. Enhanced Item Detection
+- Broader item recognition beyond Prime parts
+- Support for Mods, Arcanes, and other valuable items
+- Image preprocessing for better accuracy
+- Improved handling of non-inventory screenshots
+
+### 2. Market Analysis
+- Ducat price comparison for optimal trading
+- Historical price trends
+- Trading volume analytics
+- Market volatility indicators
+
+### 3. User Experience
+- Customizable sorting and filtering
+- Batch processing improvements
+- Export functionality
+- Price alerts for high-value items
 
 ## Getting Started
 

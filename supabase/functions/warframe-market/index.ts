@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
     }
 
     // Fetch item details and orders
-    const [itemResponse, ordersResponse] = await Promise.all([
+    const [itemResponse, ordersResponse, ducatsResponse] = await Promise.all([
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}`, {
         headers: {
           'Accept': 'application/json',
@@ -71,6 +71,14 @@ Deno.serve(async (req) => {
         }
       }),
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Language': 'en',
+          'Platform': 'pc',
+        }
+      }),
+      fetch(`${WARFRAME_MARKET_API}/tools/ducats`, {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -93,15 +101,21 @@ Deno.serve(async (req) => {
       );
     }
 
-    const [itemData, ordersData] = await Promise.all([
+    const [itemData, ordersData, ducatsData] = await Promise.all([
       itemResponse.json(),
-      ordersResponse.json()
+      ordersResponse.json(),
+      ducatsResponse.ok ? ducatsResponse.json() : { payload: { previous_hour: [] } }
     ]);
 
     // Get the item details from the set
     const itemDetails = itemData.payload.item.items_in_set.find((item: any) => 
       item.url_name === itemName
     ) || itemData.payload.item.items_in_set[0];
+
+    // Get ducat value from ducats endpoint
+    const ducatInfo = ducatsData.payload.previous_hour.find((item: any) => 
+      item.item === itemName
+    );
 
     // Process orders
     const buyOrders = ordersData.payload.orders.filter((order: any) => 
@@ -118,7 +132,8 @@ Deno.serve(async (req) => {
       volume: ordersData.payload.orders.length,
       average: buyOrders.length > 0 
         ? Math.round(buyOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / buyOrders.length) 
-        : 0
+        : 0,
+      ducats: ducatInfo?.ducats || itemDetails.ducats || 0
     };
 
     // Cache the result

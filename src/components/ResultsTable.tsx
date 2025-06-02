@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PrimePart } from '../types';
-import { ArrowUpDown, ExternalLink, AlertCircle } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, AlertCircle, Coins } from 'lucide-react';
 
 interface ResultsTableProps {
   results: PrimePart[];
@@ -8,15 +8,15 @@ interface ResultsTableProps {
 }
 
 const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
-  const [sortField, setSortField] = useState<'price' | 'name'>('price');
+  const [sortField, setSortField] = useState<'price' | 'name' | 'ducats'>('price');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  const handleSort = (field: 'price' | 'name') => {
+  const handleSort = (field: 'price' | 'name' | 'ducats') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
-      setSortDirection(field === 'price' ? 'desc' : 'asc');
+      setSortDirection(field === 'name' ? 'asc' : 'desc');
     }
   };
 
@@ -25,6 +25,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
       const priceA = a.price || 0;
       const priceB = b.price || 0;
       return sortDirection === 'asc' ? priceA - priceB : priceB - priceA;
+    } else if (sortField === 'ducats') {
+      const ducatsA = a.ducats || 0;
+      const ducatsB = b.ducats || 0;
+      return sortDirection === 'asc' ? ducatsA - ducatsB : ducatsB - ducatsA;
     } else {
       return sortDirection === 'asc' 
         ? a.name.localeCompare(b.name)
@@ -78,6 +82,19 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
                 <ArrowUpDown 
                   size={16} 
                   className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'price' ? 'text-orokin-gold' : ''}`} 
+                />
+              </button>
+            </th>
+            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-200">
+              <button 
+                onClick={() => handleSort('ducats')}
+                className="group inline-flex items-center gap-x-2"
+              >
+                <Coins size={16} className="text-orokin-gold" />
+                Ducats
+                <ArrowUpDown 
+                  size={16} 
+                  className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'ducats' ? 'text-orokin-gold' : ''}`} 
                 />
               </button>
             </th>
@@ -141,6 +158,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
                       </div>
                     )}
                   </div>
+                )}
+              </td>
+              <td className="px-3 py-4 text-sm">
+                {item.ducats ? (
+                  <div className="flex items-center gap-1">
+                    <Coins size={14} className="text-orokin-gold" />
+                    <span className="font-medium">{item.ducats}</span>
+                  </div>
+                ) : (
+                  <span className="text-gray-400">-</span>
                 )}
               </td>
               <td className="relative py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
