@@ -8,6 +8,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const normalizeItemName = (name: string): string => {
   return name
     .toLowerCase()
+    .replace(/\s*&\s*/g, '_and_') // Replace & with 'and'
     .replace(/\s+/g, '_')
     .replace(/[^a-z0-9_]/g, '');
 };

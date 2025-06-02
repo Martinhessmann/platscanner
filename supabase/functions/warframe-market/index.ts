@@ -18,6 +18,7 @@ const WARFRAME_MARKET_API = 'https://api.warframe.market/v1';
 const normalizeItemName = (name: string): string => {
   return name
     .toLowerCase()
+    .replace(/\s*&\s*/g, '_and_') // Replace & with 'and'
     .replace(/\s+/g, '_')
     .replace(/[^a-z0-9_]/g, '');
 };
