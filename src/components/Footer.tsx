@@ -33,10 +33,11 @@ const Footer: React.FC = () => {
               Warframe Official <ExternalLink size={14} />
             </a>
             <a 
-              href="https://github.com" 
+              href="https://github.com/Martinhessmann/platscanner" 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-orokin-gold transition-colors"
+              title="View source on GitHub"
             >
               <Github size={20} />
             </a>
