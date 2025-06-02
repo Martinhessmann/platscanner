@@ -25,6 +25,8 @@ export const fetchPriceData = async (primeParts: PrimePart[]): Promise<PrimePart
   for (const part of primeParts) {
     try {
       const normalizedName = normalizeItemName(part.name);
+      console.log(`Fetching data for: ${part.name} (${normalizedName})`);
+
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/warframe-market?item=${normalizedName}`,
         {
@@ -36,6 +38,7 @@ export const fetchPriceData = async (primeParts: PrimePart[]): Promise<PrimePart
 
       if (!response.ok) {
         const error = await response.json();
+        console.error(`Error fetching ${part.name}:`, error);
         updatedParts.push({
           ...part,
           status: 'loaded',
@@ -45,10 +48,12 @@ export const fetchPriceData = async (primeParts: PrimePart[]): Promise<PrimePart
       }
 
       const data = await response.json();
+      console.log(`Raw data for ${part.name}:`, data);
       
       updatedParts.push({
         ...part,
         price: data.price,
+        ducats: data.ducats,
         volume: data.volume,
         average: data.average,
         imgUrl: data.thumb && `https://warframe.market/static/assets/${data.thumb}`,
