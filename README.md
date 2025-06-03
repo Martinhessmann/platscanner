@@ -213,8 +213,10 @@ The `netlify.toml` file includes:
 - Node.js 18+
 - npm or yarn
 - Google Gemini API key
+- Supabase account (optional, for Edge Functions)
+- Netlify account (for deployment)
 
-### Setup
+### Local Development
 
 ```bash
 # Install dependencies
@@ -222,12 +224,50 @@ npm install
 
 # Start development server
 npm run dev
+```
 
+### Build and Deploy
+
+```bash
 # Build for production
 npm run build
 
-# Preview production build
+# Preview production build locally
 npm run preview
+
+# Deploy to Netlify
+netlify deploy --prod
+```
+
+### Supabase Edge Functions (Optional)
+
+```bash
+# Install Supabase CLI
+brew install supabase/tap/supabase   # macOS
+# OR
+npm install -g supabase-cli          # Other platforms
+
+# Login to Supabase
+supabase login
+
+# Link project (replace PROJECT_REF with your Supabase project reference)
+supabase link --project-ref PROJECT_REF
+
+# Deploy Edge Functions
+supabase functions deploy warframe-market
+```
+
+### Environment Variables
+
+Create a `.env` file in the root directory:
+
+```env
+# Required
+VITE_GEMINI_API_KEY=your_api_key_here
+
+# Optional (for Supabase Edge Functions)
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 ### Project Structure
@@ -241,11 +281,78 @@ src/
 └── main.tsx          # Application entry
 ```
 
-### Environment Variables
+### Available Scripts
 
-```env
-VITE_GEMINI_API_KEY=your_api_key_here
-```
+| Command | Description |
+|---------|-------------|
+| `npm install` | Install project dependencies |
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
+| `npm run format` | Format code with Prettier |
+| `npm run type-check` | Run TypeScript checks |
+
+### Deployment Checklist
+
+1. **Prepare for deployment**
+   ```bash
+   # Update dependencies
+   npm install
+
+   # Run type checks
+   npm run type-check
+
+   # Build project
+   npm run build
+   ```
+
+2. **Deploy to Netlify**
+   ```bash
+   # Deploy to preview URL
+   netlify deploy
+
+   # Deploy to production
+   netlify deploy --prod
+   ```
+
+3. **Verify deployment**
+   - Check the deployment URL
+   - Verify environment variables
+   - Test core functionality
+   - Check console for errors
+
+### Troubleshooting
+
+If you encounter issues:
+
+1. **Development server not starting**
+   ```bash
+   # Clear npm cache
+   npm cache clean --force
+
+   # Remove node_modules and reinstall
+   rm -rf node_modules
+   npm install
+   ```
+
+2. **Build errors**
+   ```bash
+   # Clear build cache
+   rm -rf dist
+
+   # Rebuild
+   npm run build
+   ```
+
+3. **Deployment issues**
+   ```bash
+   # Check Netlify status
+   netlify status
+
+   # Check Netlify logs
+   netlify logs
+   ```
 
 ## Contributing
 

@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2024-03-06
+### Fixed
+- **Market Data API Integration**: Enhanced error handling and logging for market data fetching
+  - Added detailed response logging for better debugging
+  - Improved error messages for API failures
+  - Added User-Agent header for better API tracking
+  - Fixed JSON parsing issues with malformed responses
+- **Documentation**: Improved development and deployment documentation
+  - Added comprehensive command reference
+  - Included Supabase Edge Function setup guide
+  - Added detailed deployment checklist
+  - Enhanced troubleshooting section
+
+### Technical Improvements
+- Enhanced error handling in warframeMarketService
+- Added Supabase temp files to .gitignore
+- Improved build and deployment process documentation
+- Better separation of development and production configurations
+
 ## [1.2.1] - 2024-12-30
 ### Fixed
 - **Production Deployment Issues**: Resolved critical CSP violations preventing market data fetching
