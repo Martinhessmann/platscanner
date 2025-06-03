@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
 import { PrimePart } from '../types';
-import { ArrowUpDown, ExternalLink, AlertCircle, Coins } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw } from 'lucide-react';
 
 interface ResultsTableProps {
   results: PrimePart[];
-  isLoading: boolean;
+  isLoading?: boolean; // Made optional since we handle individual item loading
+  onRemoveItem?: (itemName: string) => void; // For persistent inventory management
+  onRefreshItem?: (itemName: string) => void; // For individual price refresh
+  showActionButtons?: boolean; // Whether to show action buttons (remove, refresh)
 }
 
-const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
+const ResultsTable: React.FC<ResultsTableProps> = ({
+  results,
+  isLoading = false,
+  onRemoveItem,
+  onRefreshItem,
+  showActionButtons = false
+}) => {
   const [sortField, setSortField] = useState<'price' | 'name' | 'ducats'>('price');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
@@ -30,13 +39,14 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
       const ducatsB = b.ducats || 0;
       return sortDirection === 'asc' ? ducatsA - ducatsB : ducatsB - ducatsA;
     } else {
-      return sortDirection === 'asc' 
+      return sortDirection === 'asc'
         ? a.name.localeCompare(b.name)
         : b.name.localeCompare(a.name);
     }
   });
 
-  if (isLoading) {
+  // Only show skeleton loading for initial load, not for price refresh
+  if (isLoading && results.length === 0) {
     return (
       <div className="animate-pulse">
         <div className="h-10 bg-background-card rounded mb-4"></div>
@@ -62,38 +72,38 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
         <thead className="bg-background-light">
           <tr>
             <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-semibold text-gray-200 sm:pl-6">
-              <button 
+              <button
                 onClick={() => handleSort('name')}
                 className="group inline-flex items-center gap-x-1"
               >
                 Item
-                <ArrowUpDown 
-                  size={12} 
-                  className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'name' ? 'text-orokin-gold' : ''}`} 
+                <ArrowUpDown
+                  size={12}
+                  className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'name' ? 'text-orokin-gold' : ''}`}
                 />
               </button>
             </th>
             <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-gray-200">
-              <button 
+              <button
                 onClick={() => handleSort('price')}
                 className="group inline-flex items-center gap-x-1"
               >
                 Plat
-                <ArrowUpDown 
-                  size={12} 
-                  className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'price' ? 'text-orokin-gold' : ''}`} 
+                <ArrowUpDown
+                  size={12}
+                  className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'price' ? 'text-orokin-gold' : ''}`}
                 />
               </button>
             </th>
             <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-gray-200">
-              <button 
+              <button
                 onClick={() => handleSort('ducats')}
                 className="group inline-flex items-center gap-x-1"
               >
                 <Coins size={12} className="text-orokin-gold" />
-                <ArrowUpDown 
-                  size={12} 
-                  className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'ducats' ? 'text-orokin-gold' : ''}`} 
+                <ArrowUpDown
+                  size={12}
+                  className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'ducats' ? 'text-orokin-gold' : ''}`}
                 />
               </button>
             </th>
@@ -108,10 +118,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
               <td className="py-3 pl-4 pr-3 text-xs sm:pl-6">
                 <div className="flex items-start gap-2">
                   {item.imgUrl ? (
-                    <img 
-                      src={item.imgUrl} 
-                      alt={item.name} 
-                      className="h-8 w-8 flex-shrink-0 rounded bg-background-dark object-cover border border-gray-700" 
+                    <img
+                      src={item.imgUrl}
+                      alt={item.name}
+                      className="h-8 w-8 flex-shrink-0 rounded bg-background-dark object-cover border border-gray-700"
                     />
                   ) : (
                     <div className="h-8 w-8 flex-shrink-0 rounded bg-background-dark flex items-center justify-center border border-gray-700">
@@ -163,14 +173,39 @@ const ResultsTable: React.FC<ResultsTableProps> = ({ results, isLoading }) => {
                 )}
               </td>
               <td className="relative py-3 pl-3 pr-4 text-right text-xs font-medium sm:pr-6">
-                <a
-                  href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-tenno-blue hover:text-tenno-light"
-                >
-                  <ExternalLink size={14} />
-                </a>
+                <div className="flex items-center justify-end gap-2">
+                  {showActionButtons && onRefreshItem && (
+                    <button
+                      onClick={() => onRefreshItem(item.name)}
+                      disabled={item.status === 'loading'}
+                      className={`transition-colors ${
+                        item.status === 'loading'
+                          ? 'text-gray-500 cursor-not-allowed'
+                          : 'text-tenno-blue hover:text-tenno-light'
+                      }`}
+                      title="Refresh price"
+                    >
+                      <RefreshCw size={14} className={item.status === 'loading' ? 'animate-spin' : ''} />
+                    </button>
+                  )}
+                  {showActionButtons && onRemoveItem && (
+                    <button
+                      onClick={() => onRemoveItem(item.name)}
+                      className="text-grineer-red hover:text-red-400 transition-colors"
+                      title="Remove from inventory"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                  <a
+                    href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-tenno-blue hover:text-tenno-light"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
               </td>
             </tr>
           ))}

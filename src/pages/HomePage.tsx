@@ -3,19 +3,42 @@ import ImageUploader from '../components/ImageUploader';
 import ProcessingAnimation from '../components/ProcessingAnimation';
 import ResultsTable from '../components/ResultsTable';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
-import { fetchPriceData } from '../services/warframeMarketService';
+import { fetchPriceData, fetchSinglePriceData } from '../services/warframeMarketService';
+import {
+  saveToInventory,
+  loadInventory,
+  removeFromInventory,
+  clearInventory,
+  updateInventoryPrices,
+  getInventoryStats,
+  InventoryItem
+} from '../services/inventoryService';
 import { ImageState, PrimePart, ProcessingState } from '../types';
 import InfoCard from '../components/InfoCard';
 import { FileWithPath } from 'react-dropzone';
+import { RefreshCw, Package, Trash2, Archive } from 'lucide-react';
 
 const HomePage: React.FC = () => {
   const [processingState, setProcessingState] = useState<ProcessingState>({
     activeImageId: null,
     images: new Map(),
-    combinedResults: new Map(),
+    combinedResults: new Map(), // Keep for compatibility, but won't be used
     processedCount: 0,
     totalCount: 0
   });
+
+  const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
+  const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
+
+  // Story #3: Persistent Inventory State
+  const [persistentInventory, setPersistentInventory] = useState<InventoryItem[]>([]);
+  const [showInventory, setShowInventory] = useState(true); // Show by default
+
+  // Load persistent inventory on component mount
+  useEffect(() => {
+    const inventory = loadInventory();
+    setPersistentInventory(inventory.items);
+  }, []);
 
   // Process the next image in the queue
   const processNextImage = useCallback(async () => {
@@ -48,46 +71,72 @@ const HomePage: React.FC = () => {
             status: 'loading'
           }));
 
-          // Update state with detected parts and change to fetching
+                    // Filter out items already in inventory to avoid duplicates
+          const currentInventory = loadInventory();
+          const existingItemNames = new Set(currentInventory.items.map(item => item.name));
+          const newParts = parts.filter(part => !existingItemNames.has(part.name));
+
+          console.log(`Detected ${parts.length} items, ${newParts.length} are new, ${parts.length - newParts.length} already in inventory`);
+
+          if (newParts.length === 0) {
+            // No new items to process
+            setProcessingState(current => ({
+              ...current,
+              images: new Map(current.images).set(nextImage.id, {
+                ...nextImage,
+                status: 'complete',
+                results: []
+              }),
+              processedCount: current.processedCount + 1
+            }));
+            return;
+          }
+
+          // Update status to fetching for new items only
           setProcessingState(current => ({
             ...current,
             images: new Map(current.images).set(nextImage.id, {
               ...nextImage,
               status: 'fetching',
-              results: parts
+              results: newParts
             })
           }));
 
-          // Fetch prices from market API
-          const partsWithPrices = await fetchPriceData(parts);
+          // Fetch prices individually and update inventory as they come in
+          const sessionId = `scan_${Date.now()}`;
+          const processedParts: PrimePart[] = [];
 
-          // Update final results
-          setProcessingState(final => {
-            const newImages = new Map(final.images);
-            const newCombined = new Map(final.combinedResults);
+          for (const part of newParts) {
+            try {
+              // Fetch price for individual item
+              const partWithPrice = await fetchSinglePriceData(part);
+              processedParts.push(partWithPrice);
 
-            // Update image results
-            newImages.set(nextImage.id, {
+              // Add to inventory immediately as it's processed
+              saveToInventory([partWithPrice], sessionId);
+
+              // Update local inventory state
+              const updatedInventory = loadInventory();
+              setPersistentInventory(updatedInventory.items);
+
+              console.log(`Added ${partWithPrice.name} to inventory with price ${partWithPrice.price}`);
+            } catch (error) {
+              console.error(`Failed to process ${part.name}:`, error);
+              const errorPart = { ...part, status: 'error' as const, error: 'Failed to fetch price' };
+              processedParts.push(errorPart);
+            }
+          }
+
+          // Mark image as complete
+          setProcessingState(final => ({
+            ...final,
+            images: new Map(final.images).set(nextImage.id, {
               ...nextImage,
               status: 'complete',
-              results: partsWithPrices
-            });
-
-            // Merge results into combined map
-            partsWithPrices.forEach(part => {
-              const existing = newCombined.get(part.name);
-              if (!existing || (part.price && (!existing.price || part.price > existing.price))) {
-                newCombined.set(part.name, part);
-              }
-            });
-
-            return {
-              ...final,
-              images: newImages,
-              combinedResults: newCombined,
-              processedCount: final.processedCount + 1
-            };
-          });
+              results: processedParts
+            }),
+            processedCount: final.processedCount + 1
+          }));
 
         } catch (error) {
           console.error('Error processing image:', error);
@@ -172,15 +221,6 @@ const HomePage: React.FC = () => {
   const handleImageRemove = useCallback((id: string) => {
     setProcessingState(prev => {
       const newImages = new Map(prev.images);
-      const newCombined = new Map(prev.combinedResults);
-
-      // Remove the image's results from combined results
-      const image = newImages.get(id);
-      if (image?.results) {
-        image.results.forEach(part => {
-          newCombined.delete(part.name);
-        });
-      }
 
       // Remove the image
       newImages.delete(id);
@@ -195,7 +235,6 @@ const HomePage: React.FC = () => {
       return {
         ...prev,
         images: newImages,
-        combinedResults: newCombined,
         activeImageId: newActiveId,
         processedCount: Math.max(0, prev.processedCount - 1),
         totalCount: Math.max(0, prev.totalCount - 1)
@@ -208,6 +247,100 @@ const HomePage: React.FC = () => {
     : null;
 
   const isProcessing = activeImage?.status === 'analyzing' || activeImage?.status === 'fetching';
+
+    // Removed old handleRefreshPrices - using individual refresh and inventory refresh instead
+
+  // Story #3: Inventory Management Functions
+  const handleRemoveFromInventory = useCallback((itemName: string) => {
+    removeFromInventory(itemName);
+    setPersistentInventory(prev => prev.filter(item => item.name !== itemName));
+  }, []);
+
+  const handleClearInventory = useCallback(() => {
+    clearInventory();
+    setPersistentInventory([]);
+  }, []);
+
+  // Individual item price refresh
+  const handleRefreshSingleItem = useCallback(async (itemName: string) => {
+    const item = persistentInventory.find(item => item.name === itemName);
+    if (!item) return;
+
+    // Update item to loading state
+    setPersistentInventory(prev =>
+      prev.map(inventoryItem =>
+        inventoryItem.name === itemName
+          ? { ...inventoryItem, status: 'loading' as const }
+          : inventoryItem
+      )
+    );
+
+    try {
+      // Fetch updated price for single item
+      const updatedItem = await fetchSinglePriceData(item);
+
+      // Update persistent storage
+      updateInventoryPrices([updatedItem]);
+
+      // Update local state
+      setPersistentInventory(prev =>
+        prev.map(inventoryItem =>
+          inventoryItem.name === itemName
+            ? { ...inventoryItem, ...updatedItem, addedAt: inventoryItem.addedAt }
+            : inventoryItem
+        )
+      );
+    } catch (error) {
+      console.error(`Failed to refresh ${itemName}:`, error);
+
+      // Set error state
+      setPersistentInventory(prev =>
+        prev.map(inventoryItem =>
+          inventoryItem.name === itemName
+            ? {
+                ...inventoryItem,
+                status: 'error' as const,
+                error: 'Failed to refresh price'
+              }
+            : inventoryItem
+        )
+      );
+    }
+  }, [persistentInventory]);
+
+  const handleRefreshInventoryPrices = useCallback(async () => {
+    if (persistentInventory.length === 0 || isRefreshingPrices) {
+      return;
+    }
+
+    setIsRefreshingPrices(true);
+
+    try {
+      // Convert inventory items to PrimePart array
+      const itemsToRefresh: PrimePart[] = persistentInventory.map(item => ({
+        ...item,
+        status: 'loading'
+      }));
+
+      // Fetch updated prices
+      const updatedItems = await fetchPriceData(itemsToRefresh);
+
+      // Update persistent inventory
+      updateInventoryPrices(updatedItems);
+
+      // Update local state
+      const updatedInventory = loadInventory();
+      setPersistentInventory(updatedInventory.items);
+
+      setLastPriceRefresh(new Date());
+    } catch (error) {
+      console.error('Error refreshing inventory prices:', error);
+    } finally {
+      setIsRefreshingPrices(false);
+    }
+  }, [persistentInventory, isRefreshingPrices]);
+
+  const inventoryStats = getInventoryStats();
 
   return (
     <main className="flex-grow container mx-auto px-4 py-8">
@@ -285,29 +418,81 @@ const HomePage: React.FC = () => {
               </div>
             )}
 
-            {processingState.combinedResults.size > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold">
-                    Detected Items
-                    <span className="ml-2 text-sm font-normal text-gray-400">
-                      ({processingState.combinedResults.size} items)
+                        {/* Story #3: Persistent Inventory Section */}
+            <div className="bg-background-card rounded-lg border border-gray-800 p-4 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowInventory(!showInventory)}
+                    className="flex items-center gap-2 text-xl font-semibold hover:text-orokin-gold transition-colors"
+                  >
+                    <Package size={24} />
+                    My Inventory
+                    <span className="text-sm font-normal text-gray-400">
+                      ({persistentInventory.length} items)
                     </span>
-                  </h2>
+                  </button>
 
-                  {activeImage?.status === 'complete' && (
-                    <div className="px-3 py-1 rounded-full bg-corpus-green/20 text-corpus-green text-xs font-medium">
-                      Scan Complete
+                  {persistentInventory.length > 0 && (
+                    <div className="text-sm text-gray-400 space-x-4">
+                      <span className="text-orokin-gold font-medium">{inventoryStats.totalValue}p</span>
+                      <span className="text-yellow-500">{inventoryStats.totalDucats} ducats</span>
                     </div>
                   )}
                 </div>
 
-                <ResultsTable
-                  results={Array.from(processingState.combinedResults.values())}
-                  isLoading={isProcessing}
-                />
+                {persistentInventory.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleRefreshInventoryPrices}
+                      disabled={isRefreshingPrices}
+                      className={`flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                        isRefreshingPrices
+                          ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                          : 'bg-tenno-blue hover:bg-tenno-light text-white'
+                      }`}
+                    >
+                      <RefreshCw
+                        size={14}
+                        className={isRefreshingPrices ? 'animate-spin' : ''}
+                      />
+                      Refresh All
+                    </button>
+
+                    <button
+                      onClick={handleClearInventory}
+                      className="flex items-center gap-1 px-3 py-2 rounded text-sm font-medium bg-grineer-red hover:bg-red-600 text-white transition-colors"
+                    >
+                      <Trash2 size={14} />
+                      Clear All
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+
+              {persistentInventory.length === 0 ? (
+                <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">
+                  <Package size={48} className="mx-auto text-gray-500 mb-3" />
+                  <p className="text-gray-400 mb-2">Your inventory is empty</p>
+                  <p className="text-sm text-gray-500">Upload screenshots to start building your inventory</p>
+                </div>
+              ) : showInventory ? (
+                <ResultsTable
+                  results={persistentInventory}
+                  onRemoveItem={handleRemoveFromInventory}
+                  onRefreshItem={handleRefreshSingleItem}
+                  showActionButtons={true}
+                />
+              ) : (
+                <div className="text-center p-4">
+                  <p className="text-gray-400 text-sm">
+                    Click "My Inventory" to view your {persistentInventory.length} items
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Current Scan section removed - using persistent inventory instead */}
 
             {/* How it Works */}
             <InfoCard />

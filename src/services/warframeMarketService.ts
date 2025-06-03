@@ -204,3 +204,46 @@ export const fetchPriceData = async (primeParts: PrimePart[]): Promise<PrimePart
 
   return updatedParts;
 };
+
+/**
+ * CRITICAL: Fetches market data for a single prime part
+ *
+ * @param primePart - Single PrimePart object to fetch data for
+ * @returns Updated PrimePart with market data
+ */
+export const fetchSinglePriceData = async (primePart: PrimePart): Promise<PrimePart> => {
+  const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
+
+  try {
+    const normalizedName = normalizeItemName(primePart.name);
+    console.log(`Fetching data for: ${primePart.name} (${normalizedName})`);
+
+    let data;
+    if (useSupabase) {
+      data = await fetchViaSupabase(normalizedName);
+    } else {
+      data = await fetchViaDirect(normalizedName);
+    }
+
+    console.log(`Raw data for ${primePart.name}:`, data);
+
+    return {
+      ...primePart,
+      price: data.price,
+      ducats: data.ducats,
+      volume: data.volume,
+      average: data.average,
+      imgUrl: data.thumb && `https://warframe.market/static/assets/${data.thumb}`,
+      status: 'loaded' as const,
+      error: data.price === 0 ? 'No active buy orders' : undefined
+    };
+
+  } catch (error) {
+    console.error(`Failed to fetch item details for ${primePart.name}:`, error);
+    return {
+      ...primePart,
+      status: 'error' as const,
+      error: error instanceof Error ? error.message : 'Failed to fetch market data'
+    };
+  }
+};

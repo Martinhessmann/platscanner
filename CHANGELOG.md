@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Story #1: Real-time Item Display** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
+  - **Individual Price Loading**: Each item's price loads and displays immediately when fetched
+  - **No Batch Processing**: Prices appear one by one as they're retrieved from the market API
+  - **Instant Inventory Updates**: Items added to persistent inventory as soon as processed
+  - **Smooth UX**: No waiting for entire scan to complete before seeing any results
+  - **Skip Duplicates**: Items already in inventory are automatically skipped during new scans
+
+- **Story #3: Persistent Inventory Management** ⭐⭐⭐⭐ ✅ **COMPLETED**
+  - **My Inventory**: Single source of truth for all scanned items with persistent localStorage storage
+  - **Auto-save**: New items automatically added to inventory as they're processed
+  - **Individual Actions**: Per-item refresh and remove buttons for granular control
+  - **Bulk Operations**: "Refresh All" and "Clear All" buttons for inventory management
+  - **Enhanced Statistics**: Prominent value and ducats totals with visual highlighting
+  - **Smart Duplicate Handling**: Existing items automatically skipped in new scans
+  - **Always Visible**: Inventory section always shown, collapsed when empty
+  - **Streamlined UI**: Removed redundant "Current Scan" section in favor of persistent inventory
+
+- **Fresh Price Updates**: Refresh market prices without re-uploading screenshots ⭐⭐⭐⭐⭐
+  - "Refresh Prices" button replaces "Scan Complete" state for better UX
+  - Skip image analysis and directly fetch current market data for stored items
+  - Show timestamp of last price refresh for transparency
+  - Maintain item quantities and detection results during refresh
+  - **Preserve UI State**: List order, user scroll position, and sorting maintained during refresh
+  - **Individual Item Loading**: Granular loading states per item prevent jarring UI changes
+  - Animated refresh icon with loading states
+  - Comprehensive error handling with graceful fallback to error state
+  - Rate-limited market data fetching preserves API guidelines
+
+### Technical Improvements
+- **Streamlined Architecture**: Removed redundant `combinedResults` state in favor of persistent inventory
+- **Individual API Calls**: Added `fetchSinglePriceData` function for per-item price refresh
+- **Smart Duplicate Detection**: Filter existing inventory items during new scans to prevent duplication
+- **Progressive Enhancement**: Items appear in inventory immediately as they're processed
+- **Simplified State Management**: Single source of truth eliminates state synchronization issues
+- **Enhanced UI Controls**: Individual refresh buttons with loading states per item
+- **Improved User Flow**: Removed confusing "Current Scan" vs "My Inventory" duality
+- **Performance Optimization**: Rate limiting with individual price fetching prevents API overload
+
 ## [1.2.2] - 2024-03-06
 ### Fixed
 - **Market Data API Integration**: Enhanced error handling and logging for market data fetching
@@ -128,18 +167,20 @@ Acceptance Criteria:
 - Maintain smooth scrolling and UI responsiveness during updates
 ```
 
-#### Story #2: Fresh Price Updates ⭐⭐⭐⭐⭐
+#### Story #2: Fresh Price Updates ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
 **Complexity**: 🔧🔧 (Medium) | **Usefulness**: ⭐⭐⭐⭐⭐ (Essential)
 ```
 As a frequent trader, I want to refresh market prices without re-uploading screenshots
 so that I can get current prices for items I've already scanned.
 
 Acceptance Criteria:
-- "Refresh Prices" button replaces "Scan Complete" state
-- Skip image analysis, directly fetch current market data for stored items
-- Show updated timestamp for last price refresh
-- Maintain item quantities and detection results
-- Handle API failures gracefully with retry options
+✅ "Refresh Prices" button replaces "Scan Complete" state
+✅ Skip image analysis, directly fetch current market data for stored items
+✅ Show updated timestamp for last price refresh
+✅ Maintain item quantities and detection results
+✅ Handle API failures gracefully with retry options
+
+COMPLETED: Added in [Unreleased] - Ready for v1.3.0 release
 ```
 
 #### Story #3: Persistent Inventory ⭐⭐⭐⭐
@@ -300,26 +341,27 @@ Technical Requirements:
 
 ### 📊 Complete Priority Matrix
 
-| Story | Feature | Usefulness | Complexity | Priority | Est. Dev Time |
-|-------|---------|------------|------------|----------|---------------|
-| #1 | Real-time Item Display | ⭐⭐⭐⭐⭐ | 🔧🔧 | 🚀 High | 3-5 days |
-| #2 | Fresh Price Updates | ⭐⭐⭐⭐⭐ | 🔧🔧 | 🚀 High | 2-3 days |
-| #3 | Persistent Inventory | ⭐⭐⭐⭐ | 🔧🔧🔧 | 🚀 High | 5-7 days |
-| #4 | Multi-Image Processing | ⭐⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 4-6 days |
-| #5 | Enhanced Error Feedback | ⭐⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 3-4 days |
-| #6 | Customizable Results | ⭐⭐⭐ | 🔧🔧 | 📈 Medium | 2-4 days |
-| #7 | Mobile Optimization | ⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 5-7 days |
-| #8 | Extended Item Support | ⭐⭐⭐⭐⭐ | 🔧🔧🔧🔧🔧 | 🔮 Future | 3-4 weeks |
-| #9 | Advanced Market Analytics | ⭐⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 2-3 weeks |
-| #10 | Smart Image Processing | ⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 1-2 weeks |
-| #11 | Smart Error Recovery | ⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 1-2 weeks |
+| Story | Feature | Usefulness | Complexity | Priority | Status |
+|-------|---------|------------|------------|----------|--------|
+| #1 | Real-time Item Display | ⭐⭐⭐⭐⭐ | 🔧🔧 | 🚀 High | 📋 Planned |
+| #2 | Fresh Price Updates | ⭐⭐⭐⭐⭐ | 🔧🔧 | 🚀 High | ✅ **COMPLETED** |
+| #3 | Persistent Inventory | ⭐⭐⭐⭐ | 🔧🔧🔧 | 🚀 High | 📋 Planned |
+| #4 | Multi-Image Processing | ⭐⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 📋 Planned |
+| #5 | Enhanced Error Feedback | ⭐⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 📋 Planned |
+| #6 | Customizable Results | ⭐⭐⭐ | 🔧🔧 | 📈 Medium | 📋 Planned |
+| #7 | Mobile Optimization | ⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 📋 Planned |
+| #8 | Extended Item Support | ⭐⭐⭐⭐⭐ | 🔧🔧🔧🔧🔧 | 🔮 Future | 📋 Planned |
+| #9 | Advanced Market Analytics | ⭐⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 📋 Planned |
+| #10 | Smart Image Processing | ⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 📋 Planned |
+| #11 | Smart Error Recovery | ⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 📋 Planned |
 
-### 🎯 Recommended Development Sprint Plan
+### 🎯 Updated Development Sprint Plan
 
-**Sprint 1 (Week 1)**: Real-time Item Display + Fresh Price Updates
-**Sprint 2 (Week 2)**: Persistent Inventory + Enhanced Error Feedback
-**Sprint 3 (Week 3)**: Multi-Image Processing + Bug fixes
-**Sprint 4+ (Future)**: Extended Item Support (requires research & model training)
+**Sprint 1 (Completed)**: ✅ Fresh Price Updates - **DELIVERED**
+**Sprint 2 (Next)**: Real-time Item Display + Persistent Inventory
+**Sprint 3 (Week 3)**: Enhanced Error Feedback + Multi-Image Processing
+**Sprint 4 (Week 4)**: Customizable Results + Mobile Optimization
+**Sprint 5+ (Future)**: Extended Item Support (requires research & model training)
 
 ### 💡 Technical Implementation Notes
 
