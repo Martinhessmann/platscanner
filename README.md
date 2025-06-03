@@ -27,6 +27,63 @@ A powerful AI-powered tool that scans Warframe inventory screenshots to detect i
 - Improved TypeScript type safety
 - More robust state management patterns
 
+## Deployment
+
+The application is deployed on Netlify with continuous deployment from the main branch.
+
+### Production URL
+- [PlatScanner App](https://platscanner.netlify.app)
+
+### Deployment Setup
+
+1. **Prerequisites**
+   ```bash
+   # Install Netlify CLI globally
+   npm install -g netlify-cli
+   ```
+
+2. **Deploy Process**
+   ```bash
+   # Login to Netlify
+   netlify login
+
+   # Initialize Netlify project
+   netlify init
+
+   # Deploy to production
+   netlify deploy --prod
+   ```
+
+3. **Environment Variables**
+   - Configure in Netlify Dashboard:
+     - Site settings > Environment variables
+     - Required variables:
+       - `VITE_GEMINI_API_KEY` (if providing a default key)
+
+4. **Build Configuration**
+   - Build command: `npm run build`
+   - Publish directory: `dist`
+   - Node version: 18+
+
+### Netlify Configuration
+
+The `netlify.toml` file includes:
+- Build settings
+- SPA routing configuration
+- Security headers
+- CSP (Content Security Policy) settings
+
+### Continuous Deployment
+- Automatic deployments on push to main branch
+- Preview deployments for pull requests
+- Deploy previews available for review
+
+### Custom Domain Setup (Optional)
+1. Go to Netlify Dashboard > Site settings > Domain management
+2. Add custom domain
+3. Configure DNS settings
+4. HTTPS is automatically enabled
+
 ## Getting Started
 
 1. **API Key Setup**
