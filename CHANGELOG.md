@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2024-12-30
+### Fixed
+- **Production Deployment Issues**: Resolved critical CSP violations preventing market data fetching
+  - Fixed Content Security Policy to allow blob URLs for image previews
+  - Added support for iconify.design SVG icons in CSP
+  - Enabled Supabase domain connections for Edge Function API calls
+  - Added comprehensive connect-src directive for all required domains
+- **API Proxy Configuration**: Implemented robust fallback strategy for market data
+  - Primary: Supabase Edge Function (when environment variables available)
+  - Fallback: Direct API calls via Netlify proxy configuration
+  - Added proper error handling for both methods
+- **Netlify Deployment**: Enhanced deployment configuration
+  - Added Netlify proxy redirects for Warframe Market API
+  - Improved security headers configuration
+  - Added comprehensive troubleshooting documentation
+
+### Added
+- **Deployment Documentation**: Complete Netlify deployment guide
+  - Step-by-step deployment instructions
+  - Environment variable configuration
+  - Custom domain setup
+  - Troubleshooting section for common production issues
+- **Production Monitoring**: Enhanced error tracking and logging
+  - Better CSP violation reporting
+  - Improved API error handling
+  - Fallback mechanism status logging
+
+### Technical Improvements
+- Enhanced Content Security Policy for production security
+- Dual API strategy (Supabase + Netlify proxy) for reliability
+- Improved TypeScript type safety in market service
+- Better separation of development and production configurations
+
 ## [1.2.0] - 2024-03-22
 ### Fixed
 - **API Key Configuration**: Fixed critical issue where API key settings weren't being properly saved and validated
