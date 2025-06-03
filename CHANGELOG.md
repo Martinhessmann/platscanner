@@ -111,25 +111,219 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Progress tracking inconsistent for multi-image processing
 - Duplicate detection in image upload queue needs refinement
 
-## Open Issues / TODOs
-### Item Detection
-- [ ] Support for non-Prime items (Mods, Arcanes, etc.)
-- [ ] Image preprocessing for better accuracy
-- [ ] Handle non-inventory screenshots gracefully
-- [ ] Fix unknown.thumb.png image URLs
-- [ ] Improve quantity detection accuracy
+## Development Roadmap & User Stories
 
-### Market Analysis
-- [ ] Historical price tracking
-- [ ] Trading volume analytics
-- [ ] Market volatility indicators
-- [ ] Price alerts for high-value items
-- [ ] Ducat/platinum value comparison
+### 🚀 High Priority (High Usefulness + Low-Medium Complexity)
 
-### User Experience
-- [ ] Customizable sorting and filtering
-- [ ] Batch processing improvements
-- [ ] Export functionality
-- [ ] User feedback mechanism
-- [ ] Mobile UI optimizations
-- [ ] Enhanced error messaging
+#### Story #1: Real-time Item Display ⭐⭐⭐⭐⭐
+**Complexity**: 🔧🔧 (Medium) | **Usefulness**: ⭐⭐⭐⭐⭐ (Essential)
+```
+As a Warframe trader, I want to see detected items appear immediately as they're found
+so that I can start reviewing valuable items while the rest are still being processed.
+
+Acceptance Criteria:
+- Items appear in results table as soon as detected (before market data fetch)
+- Show loading state for market price while item details are visible
+- No need to wait for entire batch to complete before seeing results
+- Maintain smooth scrolling and UI responsiveness during updates
+```
+
+#### Story #2: Fresh Price Updates ⭐⭐⭐⭐⭐
+**Complexity**: 🔧🔧 (Medium) | **Usefulness**: ⭐⭐⭐⭐⭐ (Essential)
+```
+As a frequent trader, I want to refresh market prices without re-uploading screenshots
+so that I can get current prices for items I've already scanned.
+
+Acceptance Criteria:
+- "Refresh Prices" button replaces "Scan Complete" state
+- Skip image analysis, directly fetch current market data for stored items
+- Show updated timestamp for last price refresh
+- Maintain item quantities and detection results
+- Handle API failures gracefully with retry options
+```
+
+#### Story #3: Persistent Inventory ⭐⭐⭐⭐
+**Complexity**: 🔧🔧🔧 (Medium-High) | **Usefulness**: ⭐⭐⭐⭐ (Very Useful)
+```
+As a trader managing multiple sales, I want my scanned inventory to persist across sessions
+so that I can track what I've sold without re-scanning every time.
+
+Acceptance Criteria:
+- Items saved to localStorage/IndexedDB after scanning
+- "My Inventory" section shows previously scanned items
+- "Mark as Sold" button to remove items from inventory
+- "Clear All" option to reset inventory
+- Import/export functionality for inventory backup
+```
+
+### 📈 Medium Priority (Good Balance of Usefulness & Complexity)
+
+#### Story #4: Multi-Image Concurrent Processing ⭐⭐⭐⭐
+**Complexity**: 🔧🔧🔧 (Medium-High) | **Usefulness**: ⭐⭐⭐⭐ (Very Useful)
+```
+As a user with large inventories, I want to see results from my first screenshot
+while subsequent screenshots are still being analyzed
+so that I can start making trading decisions immediately.
+
+Acceptance Criteria:
+- Display results from completed screenshots immediately
+- Show progress indicator for remaining screenshots in queue
+- Allow interaction with completed results while processing continues
+- Prevent blocking UI during batch processing
+```
+
+#### Story #5: Enhanced Error Feedback ⭐⭐⭐⭐
+**Complexity**: 🔧🔧🔧 (Medium-High) | **Usefulness**: ⭐⭐⭐⭐ (Very Useful)
+```
+As a user, I want clear feedback when image analysis fails
+so that I understand what went wrong and how to fix it.
+
+Acceptance Criteria:
+- Toast notifications for different error types
+- Specific messages: "No items detected", "Invalid screenshot", "API error"
+- Suggestions for screenshot improvement (proper inventory view, lighting, etc.)
+- Console logs with error codes for debugging
+- Retry mechanisms for temporary failures
+```
+
+#### Story #6: Customizable Results Table ⭐⭐⭐
+**Complexity**: 🔧🔧 (Medium) | **Usefulness**: ⭐⭐⭐ (Useful)
+```
+As a trader with specific preferences, I want to sort and filter my results
+so that I can focus on the most relevant trading opportunities.
+
+Acceptance Criteria:
+- Sort by any column (name, price, ducats, volume, quantity)
+- Filter by item type, price range, ducat value
+- Save sort/filter preferences
+- Quick filters for "High Value", "Quick Sale", "Ducat Efficient"
+- Export filtered results to CSV/JSON
+```
+
+#### Story #7: Mobile-Optimized Interface ⭐⭐⭐
+**Complexity**: 🔧🔧🔧 (Medium-High) | **Usefulness**: ⭐⭐⭐ (Useful)
+```
+As a mobile user, I want a responsive interface that works well on my phone
+so that I can scan inventory while away from my computer.
+
+Acceptance Criteria:
+- Touch-friendly upload interface
+- Responsive table design with horizontal scrolling
+- Mobile-optimized image preview
+- Simplified navigation for smaller screens
+- Fast loading on mobile connections
+```
+
+### 🔮 Future Enhancements (High Complexity but High Value)
+
+#### Story #8: Extended Item Support ⭐⭐⭐⭐⭐
+**Complexity**: 🔧🔧🔧🔧🔧 (Very High) | **Usefulness**: ⭐⭐⭐⭐⭐ (Game-changing)
+```
+As a comprehensive trader, I want to scan all sellable items in my inventory
+so that I can maximize my trading opportunities beyond just Prime parts.
+
+Acceptance Criteria:
+- Support Arcanes, Mods, Rivens, Relics, regular weapon parts
+- Different detection models for each item type
+- Category filtering in results
+- Specialized market data for each item type
+- User feedback system to improve detection accuracy
+
+Technical Requirements:
+- Multiple AI models or enhanced single model
+- Extended Warframe Market API integration
+- New item categorization system
+- Enhanced image preprocessing
+```
+
+#### Story #9: Advanced Market Analytics ⭐⭐⭐⭐
+**Complexity**: 🔧🔧🔧🔧 (High) | **Usefulness**: ⭐⭐⭐⭐ (Very Useful)
+```
+As a serious trader, I want historical price data and market analytics
+so that I can make informed decisions about when to buy and sell items.
+
+Acceptance Criteria:
+- Historical price charts for each item
+- Price trend indicators (rising/falling/stable)
+- Trading volume analytics
+- Market volatility indicators
+- Price alerts for target values
+- Ducat/platinum efficiency calculator
+- Best time to sell recommendations
+
+Technical Requirements:
+- Historical price data storage
+- Charting library integration
+- Real-time price monitoring
+- Notification system
+```
+
+#### Story #10: Smart Image Processing ⭐⭐⭐
+**Complexity**: 🔧🔧🔧🔧 (High) | **Usefulness**: ⭐⭐⭐ (Useful)
+```
+As a user with varying screenshot quality, I want the system to handle imperfect images
+so that I don't need to retake screenshots for minor issues.
+
+Acceptance Criteria:
+- Automatic image preprocessing (brightness, contrast, sharpening)
+- Handle non-inventory screenshots gracefully with helpful messages
+- Improve quantity detection accuracy across different UI scales
+- Fix unknown.thumb.png image URL issues
+- Support different inventory layouts and themes
+
+Technical Requirements:
+- Image preprocessing pipeline
+- Enhanced computer vision models
+- Better error detection and user guidance
+- Support for different Warframe UI themes
+```
+
+#### Story #11: Smart Error Recovery System ⭐⭐⭐
+**Complexity**: 🔧🔧🔧🔧 (High) | **Usefulness**: ⭐⭐⭐ (Useful)
+```
+As a developer and user, I want comprehensive error handling with recovery options
+so that temporary issues don't break the entire scanning process.
+
+Acceptance Criteria:
+- Global error boundary with user-friendly messages
+- Automatic retry with exponential backoff
+- Fallback mechanisms for API failures
+- Error reporting to help improve the service
+- Graceful degradation when services are unavailable
+
+Technical Requirements:
+- Error boundary components
+- Retry logic with circuit breaker pattern
+- Error tracking service integration
+- Fallback UI states
+```
+
+### 📊 Complete Priority Matrix
+
+| Story | Feature | Usefulness | Complexity | Priority | Est. Dev Time |
+|-------|---------|------------|------------|----------|---------------|
+| #1 | Real-time Item Display | ⭐⭐⭐⭐⭐ | 🔧🔧 | 🚀 High | 3-5 days |
+| #2 | Fresh Price Updates | ⭐⭐⭐⭐⭐ | 🔧🔧 | 🚀 High | 2-3 days |
+| #3 | Persistent Inventory | ⭐⭐⭐⭐ | 🔧🔧🔧 | 🚀 High | 5-7 days |
+| #4 | Multi-Image Processing | ⭐⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 4-6 days |
+| #5 | Enhanced Error Feedback | ⭐⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 3-4 days |
+| #6 | Customizable Results | ⭐⭐⭐ | 🔧🔧 | 📈 Medium | 2-4 days |
+| #7 | Mobile Optimization | ⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 5-7 days |
+| #8 | Extended Item Support | ⭐⭐⭐⭐⭐ | 🔧🔧🔧🔧🔧 | 🔮 Future | 3-4 weeks |
+| #9 | Advanced Market Analytics | ⭐⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 2-3 weeks |
+| #10 | Smart Image Processing | ⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 1-2 weeks |
+| #11 | Smart Error Recovery | ⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 1-2 weeks |
+
+### 🎯 Recommended Development Sprint Plan
+
+**Sprint 1 (Week 1)**: Real-time Item Display + Fresh Price Updates
+**Sprint 2 (Week 2)**: Persistent Inventory + Enhanced Error Feedback
+**Sprint 3 (Week 3)**: Multi-Image Processing + Bug fixes
+**Sprint 4+ (Future)**: Extended Item Support (requires research & model training)
+
+### 💡 Technical Implementation Notes
+
+- **Real-time Display**: Modify state management to append items as detected
+- **Persistent Storage**: Use IndexedDB with Dexie.js for large data sets
+- **Error Handling**: Implement React Error Boundaries + toast notifications
+- **Extended Items**: May require partnership with Warframe Market for broader API support
