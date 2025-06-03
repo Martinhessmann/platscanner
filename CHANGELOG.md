@@ -7,7 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+## [1.3.0]
+### Fixed
 - **Story #1: Real-time Item Display** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
   - **Individual Price Loading**: Each item's price loads and displays immediately when fetched
   - **No Batch Processing**: Prices appear one by one as they're retrieved from the market API
