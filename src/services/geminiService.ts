@@ -5,19 +5,33 @@ let genAI = new GoogleGenerativeAI(API_KEY);
 
 export const setApiKey = (key: string) => {
   try {
+    if (!key || key.trim().length === 0) {
+      throw new Error('Invalid API key');
+    }
+
+    // Test the API key by creating a new instance
+    const testGenAI = new GoogleGenerativeAI(key);
+
+    // If successful, update the global instances
     API_KEY = key;
-    genAI = new GoogleGenerativeAI(API_KEY);
-    // Store in local storage instead of session storage
+    genAI = testGenAI;
+
+    // Store in local storage
     localStorage.setItem('gemini_api_key', key);
     return true;
   } catch (error) {
-    console.error('Failed to store API key:', error);
-    return false;
+    console.error('Failed to set API key:', error);
+    // Clear invalid key
+    API_KEY = '';
+    localStorage.removeItem('gemini_api_key');
+    throw error;
   }
 };
 
 export const isGeminiConfigured = () => {
-  return API_KEY && API_KEY.length > 0;
+  // Check both the in-memory key and localStorage
+  const storedKey = localStorage.getItem('gemini_api_key');
+  return Boolean(API_KEY) || Boolean(storedKey);
 };
 
 // Load API key from local storage on init
@@ -28,6 +42,8 @@ try {
   }
 } catch (error) {
   console.error('Failed to load stored API key:', error);
+  // Clear invalid key
+  localStorage.removeItem('gemini_api_key');
 }
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -57,8 +73,8 @@ const isErrorResponse = (text: string): boolean => {
     'not a valid',
     'not readable',
   ];
-  
-  return errorIndicators.some(indicator => 
+
+  return errorIndicators.some(indicator =>
     text.toLowerCase().includes(indicator.toLowerCase())
   );
 };

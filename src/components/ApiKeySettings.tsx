@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, X, Key } from 'lucide-react';
 
 interface ApiKeySettingsProps {
-  onApiKeyChange: (key: string) => void;
+  onApiKeyChange: (key: string) => Promise<void>;
   isConfigured: boolean;
 }
 
@@ -10,13 +10,18 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({ onApiKeyChange, isConfi
   const [isOpen, setIsOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     try {
       const storedKey = localStorage.getItem('gemini_api_key');
       if (storedKey) {
         setApiKey(storedKey);
-        onApiKeyChange(storedKey);
+        onApiKeyChange(storedKey).catch(err => {
+          console.error('Failed to restore API key:', err);
+          setError('Stored API key is invalid. Please enter a new one.');
+          setApiKey('');
+        });
       }
     } catch (error) {
       console.error('Failed to load API key:', error);
@@ -24,16 +29,21 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({ onApiKeyChange, isConfi
     }
   }, [onApiKeyChange]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
+
     try {
-      onApiKeyChange(apiKey);
-      localStorage.setItem('gemini_api_key', apiKey);
+      await onApiKeyChange(apiKey);
       setIsOpen(false);
       setError(null);
     } catch (error) {
       console.error('Failed to save API key:', error);
-      setError('Failed to save API key. Please try again.');
+      setError(error instanceof Error ? error.message : 'Failed to save API key. Please try again.');
+      setApiKey('');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -58,6 +68,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({ onApiKeyChange, isConfi
               <button
                 onClick={() => setIsOpen(false)}
                 className="text-gray-400 hover:text-white transition-colors"
+                disabled={isSubmitting}
               >
                 <X size={20} />
               </button>
@@ -75,6 +86,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({ onApiKeyChange, isConfi
                   onChange={(e) => setApiKey(e.target.value)}
                   placeholder={isConfigured ? '••••••••••••••••' : 'Enter your API key'}
                   className="w-full px-3 py-2 bg-background-dark border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-tenno-blue focus:border-transparent"
+                  disabled={isSubmitting}
                 />
                 {error && (
                   <p className="mt-2 text-sm text-grineer-red">{error}</p>
@@ -97,14 +109,16 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({ onApiKeyChange, isConfi
                   type="button"
                   onClick={() => setIsOpen(false)}
                   className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-tenno-blue text-white rounded hover:bg-tenno-dark transition-colors"
+                  className="px-4 py-2 bg-tenno-blue text-white rounded hover:bg-tenno-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isSubmitting}
                 >
-                  Save
+                  {isSubmitting ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>

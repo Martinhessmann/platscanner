@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -6,13 +6,25 @@ import HomePage from './pages/HomePage';
 import AboutPage from './pages/AboutPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
+import { isGeminiConfigured, setApiKey } from './services/geminiService';
 
 function App() {
-  const [isConfigured, setIsConfigured] = useState(false);
+  const [isConfigured, setIsConfigured] = useState(isGeminiConfigured());
 
-  const handleApiKeyChange = (key: string) => {
-    setIsConfigured(true);
-    // Additional API key handling logic can be added here
+  useEffect(() => {
+    // Check configuration status on mount
+    setIsConfigured(isGeminiConfigured());
+  }, []);
+
+  const handleApiKeyChange = async (key: string) => {
+    try {
+      await setApiKey(key);
+      setIsConfigured(true);
+    } catch (error) {
+      console.error('Failed to set API key:', error);
+      setIsConfigured(false);
+      throw error; // Re-throw to be handled by the UI
+    }
   };
 
   return (

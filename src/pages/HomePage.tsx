@@ -19,95 +19,108 @@ const HomePage: React.FC = () => {
 
   // Process the next image in the queue
   const processNextImage = useCallback(async () => {
-    // Get all queued images
-    const queuedImages = Array.from(processingState.images.values())
-      .filter(img => img.status === 'queued');
+    setProcessingState(prev => {
+      // Get all queued images from current state
+      const queuedImages = Array.from(prev.images.values())
+        .filter(img => img.status === 'queued');
 
-    if (queuedImages.length === 0) return;
+      if (queuedImages.length === 0) return prev;
 
-    const nextImage = queuedImages[0];
-    
-    try {
-      // Update status to analyzing
-      setProcessingState(prev => ({
-        ...prev,
-        activeImageId: nextImage.id,
-        images: new Map(prev.images).set(nextImage.id, {
-          ...nextImage,
-          status: 'analyzing'
-        })
-      }));
+      const nextImage = queuedImages[0];
 
-      // Extract prime parts using Gemini AI
-      const detectedParts = await analyzeImage(nextImage.file);
-      
-      // Map the detected part names to PrimePart objects
-      const parts: PrimePart[] = detectedParts.map((name, index) => ({
-        id: `${nextImage.id}-part-${index}`,
-        name,
-        status: 'loading'
-      }));
-
-      // Update state with detected parts
-      setProcessingState(prev => ({
-        ...prev,
-        images: new Map(prev.images).set(nextImage.id, {
-          ...nextImage,
-          status: 'fetching',
-          results: parts
-        })
-      }));
-
-      // Fetch prices from market API
-      const partsWithPrices = await fetchPriceData(parts);
-
-      // Update final results
-      setProcessingState(prev => {
-        const newImages = new Map(prev.images);
-        const newCombined = new Map(prev.combinedResults);
-
-        // Update image results
-        newImages.set(nextImage.id, {
-          ...nextImage,
-          status: 'complete',
-          results: partsWithPrices
-        });
-
-        // Merge results into combined map
-        partsWithPrices.forEach(part => {
-          const existing = newCombined.get(part.name);
-          if (!existing || (part.price && (!existing.price || part.price > existing.price))) {
-            newCombined.set(part.name, part);
-          }
-        });
-
-        return {
-          ...prev,
-          images: newImages,
-          combinedResults: newCombined,
-          processedCount: prev.processedCount + 1
-        };
+      // Start processing immediately by updating status
+      const newImages = new Map(prev.images);
+      newImages.set(nextImage.id, {
+        ...nextImage,
+        status: 'analyzing'
       });
 
-    } catch (error) {
-      console.error('Error processing image:', error);
-      setProcessingState(prev => ({
-        ...prev,
-        images: new Map(prev.images).set(nextImage.id, {
-          ...nextImage,
-          status: 'error',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }),
-        processedCount: prev.processedCount + 1
-      }));
-    }
-  }, []); // Empty dependency array since we access state in the function
+      // Trigger async processing
+      (async () => {
+        try {
+          // Extract prime parts using Gemini AI
+          const detectedParts = await analyzeImage(nextImage.file);
 
-  // Watch for changes in the queue and process next image
+          // Map the detected part names to PrimePart objects
+          const parts: PrimePart[] = detectedParts.map((name, index) => ({
+            id: `${nextImage.id}-part-${index}`,
+            name,
+            status: 'loading'
+          }));
+
+          // Update state with detected parts and change to fetching
+          setProcessingState(current => ({
+            ...current,
+            images: new Map(current.images).set(nextImage.id, {
+              ...nextImage,
+              status: 'fetching',
+              results: parts
+            })
+          }));
+
+          // Fetch prices from market API
+          const partsWithPrices = await fetchPriceData(parts);
+
+          // Update final results
+          setProcessingState(final => {
+            const newImages = new Map(final.images);
+            const newCombined = new Map(final.combinedResults);
+
+            // Update image results
+            newImages.set(nextImage.id, {
+              ...nextImage,
+              status: 'complete',
+              results: partsWithPrices
+            });
+
+            // Merge results into combined map
+            partsWithPrices.forEach(part => {
+              const existing = newCombined.get(part.name);
+              if (!existing || (part.price && (!existing.price || part.price > existing.price))) {
+                newCombined.set(part.name, part);
+              }
+            });
+
+            return {
+              ...final,
+              images: newImages,
+              combinedResults: newCombined,
+              processedCount: final.processedCount + 1
+            };
+          });
+
+        } catch (error) {
+          console.error('Error processing image:', error);
+          setProcessingState(errorState => ({
+            ...errorState,
+            images: new Map(errorState.images).set(nextImage.id, {
+              ...nextImage,
+              status: 'error',
+              error: error instanceof Error ? error.message : 'Unknown error'
+            }),
+            processedCount: errorState.processedCount + 1
+          }));
+        }
+      })();
+
+      return {
+        ...prev,
+        activeImageId: nextImage.id,
+        images: newImages
+      };
+    });
+  }, []); // Keep empty dependency array since we use functional setState
+
+      // Watch for changes in the queue and process next image
   useEffect(() => {
+    // Don't start processing if API key is not configured
+    if (!isGeminiConfigured()) {
+      return;
+    }
+
     const queuedImages = Array.from(processingState.images.values())
       .filter(img => img.status === 'queued');
-    
+
     const processingImages = Array.from(processingState.images.values())
       .filter(img => ['analyzing', 'fetching'].includes(img.status));
 
@@ -116,10 +129,25 @@ const HomePage: React.FC = () => {
     }
   }, [processingState.images, processNextImage]);
 
+  // Start processing when API key becomes available
+  useEffect(() => {
+    if (isGeminiConfigured()) {
+      const queuedImages = Array.from(processingState.images.values())
+        .filter(img => img.status === 'queued');
+
+      const processingImages = Array.from(processingState.images.values())
+        .filter(img => ['analyzing', 'fetching'].includes(img.status));
+
+      if (queuedImages.length > 0 && processingImages.length === 0) {
+        processNextImage();
+      }
+    }
+  }, [processNextImage]); // This will trigger when the component mounts or when processNextImage changes
+
   const handleImageUpload = useCallback((files: FileWithPath[]) => {
     setProcessingState(prev => {
       const newImages = new Map(prev.images);
-      
+
       files.forEach(file => {
         const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const state: ImageState = {
@@ -145,7 +173,7 @@ const HomePage: React.FC = () => {
     setProcessingState(prev => {
       const newImages = new Map(prev.images);
       const newCombined = new Map(prev.combinedResults);
-      
+
       // Remove the image's results from combined results
       const image = newImages.get(id);
       if (image?.results) {
@@ -153,17 +181,17 @@ const HomePage: React.FC = () => {
           newCombined.delete(part.name);
         });
       }
-      
+
       // Remove the image
       newImages.delete(id);
-      
+
       // Update active image if needed
       let newActiveId = prev.activeImageId;
       if (newActiveId === id) {
         const remainingIds = Array.from(newImages.keys());
         newActiveId = remainingIds[0] || null;
       }
-      
+
       return {
         ...prev,
         images: newImages,
@@ -175,7 +203,7 @@ const HomePage: React.FC = () => {
     });
   }, []);
 
-  const activeImage = processingState.activeImageId 
+  const activeImage = processingState.activeImageId
     ? processingState.images.get(processingState.activeImageId)
     : null;
 
@@ -190,10 +218,10 @@ const HomePage: React.FC = () => {
             <span className="text-orokin-gold">Prime Part</span> Scanner
           </h1>
           <p className="text-gray-400 max-w-2xl mx-auto">
-            Upload screenshots of your Warframe inventory and our AI will identify Prime parts 
+            Upload screenshots of your Warframe inventory and our AI will identify Prime parts
             and fetch current market prices to help you maximize your profits.
           </p>
-          
+
           {!isGeminiConfigured() && (
             <div className="mt-4 p-4 bg-background-card rounded-lg border border-yellow-500/20">
               <p className="text-yellow-500 text-sm">
@@ -202,12 +230,12 @@ const HomePage: React.FC = () => {
             </div>
           )}
         </div>
-        
+
         {/* Main content area */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left column - Upload */}
           <div className="lg:col-span-5 space-y-6">
-            <ImageUploader 
+            <ImageUploader
               onImageUpload={handleImageUpload}
               isProcessing={isProcessing}
               images={processingState.images}
@@ -225,17 +253,17 @@ const HomePage: React.FC = () => {
                   </span>
                 </div>
                 <div className="h-2 bg-background-light rounded-full overflow-hidden">
-                  <div 
+                  <div
                     className="h-full bg-tenno-blue transition-all duration-300"
-                    style={{ 
-                      width: `${(processingState.processedCount / processingState.totalCount) * 100}%` 
+                    style={{
+                      width: `${(processingState.processedCount / processingState.totalCount) * 100}%`
                     }}
                   />
                 </div>
               </div>
             )}
           </div>
-          
+
           {/* Right column - Processing and Results */}
           <div className="lg:col-span-7 space-y-6">
             {!activeImage && processingState.images.size === 0 && (
@@ -246,13 +274,17 @@ const HomePage: React.FC = () => {
                 </p>
               </div>
             )}
-            
+
             {isProcessing && (
               <div className="bg-background-card rounded-lg border border-gray-800 p-6">
-                <ProcessingAnimation stage={activeImage?.status || 'analyzing'} />
+                <ProcessingAnimation stage={
+                  activeImage?.status === 'analyzing' ? 'analyzing' :
+                  activeImage?.status === 'fetching' ? 'fetching' :
+                  'analyzing'
+                } />
               </div>
             )}
-            
+
             {processingState.combinedResults.size > 0 && (
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -262,15 +294,15 @@ const HomePage: React.FC = () => {
                       ({processingState.combinedResults.size} items)
                     </span>
                   </h2>
-                  
+
                   {activeImage?.status === 'complete' && (
                     <div className="px-3 py-1 rounded-full bg-corpus-green/20 text-corpus-green text-xs font-medium">
                       Scan Complete
                     </div>
                   )}
                 </div>
-                
-                <ResultsTable 
+
+                <ResultsTable
                   results={Array.from(processingState.combinedResults.values())}
                   isLoading={isProcessing}
                 />

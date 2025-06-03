@@ -12,6 +12,35 @@ A powerful AI-powered tool that scans Warframe inventory screenshots to detect i
 - 🔄 **Duplicate Detection**: Automatically skips duplicate screenshots
 - 📱 **Responsive Design**: Works seamlessly on desktop and mobile devices
 - 🎨 **Warframe-Themed UI**: Beautiful interface matching the game's aesthetic
+- ⚡ **Reliable Processing**: Robust queue system with automatic error handling
+
+## Recent Updates (v1.2.0)
+
+### ✅ Fixed Critical Issues
+- **API Key Configuration**: Settings now save properly and warning messages disappear correctly
+- **Queue Processing**: Images automatically progress through processing stages without getting stuck
+- **State Management**: Improved reliability with better error handling and state synchronization
+
+### 🔧 Technical Improvements
+- Enhanced queue processing with proper async handling
+- Better error messages and loading states
+- Improved TypeScript type safety
+- More robust state management patterns
+
+## Getting Started
+
+1. **API Key Setup**
+   - Visit [Google AI Studio](https://aistudio.google.com/app/apikey) to get your Gemini API key
+   - Click the settings icon in PlatScanner
+   - Enter your API key (stored securely in local storage)
+   - The warning message will disappear once a valid key is configured
+
+2. **Using PlatScanner**
+   - Take screenshots of your Warframe inventory
+   - Upload them to PlatScanner (drag & drop or click to browse)
+   - Watch as images automatically progress: Queued → Analyzing → Fetching → Complete
+   - View real-time market prices and trading data
+   - Click "View" to see detailed market listings
 
 ## Roadmap
 
@@ -32,19 +61,6 @@ A powerful AI-powered tool that scans Warframe inventory screenshots to detect i
 - Batch processing improvements
 - Export functionality
 - Price alerts for high-value items
-
-## Getting Started
-
-1. **API Key Setup**
-   - Visit [Google AI Studio](https://aistudio.google.com/app/apikey) to get your Gemini API key
-   - Click the settings icon in PlatScanner
-   - Enter your API key (stored securely in session storage)
-
-2. **Using PlatScanner**
-   - Take screenshots of your Warframe inventory
-   - Upload them to PlatScanner (drag & drop or click to browse)
-   - View real-time market prices and trading data
-   - Click "View" to see detailed market listings
 
 ## Technical Details
 
@@ -69,6 +85,7 @@ A powerful AI-powered tool that scans Warframe inventory screenshots to detect i
 - Used for image analysis and item detection
 - Processes images in base64 format
 - Implements rate limiting and error handling
+- Robust validation and error recovery
 
 #### Warframe Market API
 - Fetches real-time market data
@@ -78,11 +95,20 @@ A powerful AI-powered tool that scans Warframe inventory screenshots to detect i
 
 ### Performance Optimizations
 
-- Image processing queue management
-- Market data caching (5-minute TTL)
-- Automatic duplicate detection
-- Lazy loading of components
-- Optimized re-renders
+- **Queue Management**: Improved processing queue with proper state handling
+- **Error Recovery**: Automatic retry logic and graceful error handling
+- **State Management**: Functional state updates prevent race conditions
+- **Market Data Caching**: 5-minute TTL to reduce API calls
+- **Duplicate Detection**: Automatic duplicate image detection
+- **Lazy Loading**: Optimized component loading and re-renders
+
+### Reliability Features
+
+- **Robust Queue Processing**: Images automatically progress through processing stages
+- **Error Handling**: Comprehensive error handling with user-friendly messages
+- **State Persistence**: API keys and settings persist across sessions
+- **Validation**: Input validation and API key verification
+- **Recovery**: Automatic recovery from processing errors
 
 ## Development
 
@@ -140,6 +166,7 @@ VITE_GEMINI_API_KEY=your_api_key_here
 - Maintain responsive design
 - Write meaningful commit messages
 - Add tests for new features
+- Ensure proper error handling
 
 ## License
 
@@ -155,3 +182,7 @@ MIT License - See [LICENSE](LICENSE) file for details
 ## Support
 
 For issues and feature requests, please use the GitHub issue tracker.
+
+---
+
+**Version 1.2.0** - Now with improved reliability and robust queue processing!
