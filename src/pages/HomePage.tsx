@@ -1,24 +1,30 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import ImageUploader from '../components/ImageUploader';
 import ProcessingAnimation from '../components/ProcessingAnimation';
-import ResultsTable from '../components/ResultsTable';
+import InventorySection from '../components/InventorySection';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
 import { fetchPriceData, fetchSinglePriceData } from '../services/warframeMarketService';
 import {
   saveToInventory,
   loadInventory,
   removeFromInventory,
-  clearInventory,
+  clearInventoryByCategory,
   updateInventoryPrices,
   getInventoryStats,
+  getCategorizedInventory,
   InventoryItem
 } from '../services/inventoryService';
-import { ImageState, PrimePart, ProcessingState } from '../types';
+import { ImageState, DetectedItem, ProcessingState } from '../types';
 import InfoCard from '../components/InfoCard';
 import { FileWithPath } from 'react-dropzone';
-import { RefreshCw, Package, Trash2, Archive } from 'lucide-react';
+import { RefreshCw, Package, Trash2, Archive, Zap, Key } from 'lucide-react';
 
-const HomePage: React.FC = () => {
+interface HomePageProps {
+  isConfigured: boolean;
+  onOpenSettings: () => void;
+}
+
+const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => {
   const [processingState, setProcessingState] = useState<ProcessingState>({
     activeImageId: null,
     images: new Map(),
@@ -29,15 +35,18 @@ const HomePage: React.FC = () => {
 
   const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
+  const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
 
-  // Story #3: Persistent Inventory State
-  const [persistentInventory, setPersistentInventory] = useState<InventoryItem[]>([]);
-  const [showInventory, setShowInventory] = useState(true); // Show by default
+  // Story #3 & #8: Categorized Persistent Inventory State
+  const [categorizedInventory, setCategorizedInventory] = useState({
+    prime_parts: [] as InventoryItem[],
+    relics: [] as InventoryItem[]
+  });
 
   // Load persistent inventory on component mount
   useEffect(() => {
-    const inventory = loadInventory();
-    setPersistentInventory(inventory.items);
+    const inventory = getCategorizedInventory();
+    setCategorizedInventory(inventory);
   }, []);
 
   // Process the next image in the queue
@@ -61,24 +70,17 @@ const HomePage: React.FC = () => {
       // Trigger async processing
       (async () => {
         try {
-          // Extract prime parts using Gemini AI
-          const detectedParts = await analyzeImage(nextImage.file);
+          // Extract items using Gemini AI (now supports both Prime parts and Relics)
+          const detectedItems = await analyzeImage(nextImage.file);
 
-          // Map the detected part names to PrimePart objects
-          const parts: PrimePart[] = detectedParts.map((name, index) => ({
-            id: `${nextImage.id}-part-${index}`,
-            name,
-            status: 'loading'
-          }));
-
-                    // Filter out items already in inventory to avoid duplicates
+          // Filter out items already in inventory to avoid duplicates
           const currentInventory = loadInventory();
           const existingItemNames = new Set(currentInventory.items.map(item => item.name));
-          const newParts = parts.filter(part => !existingItemNames.has(part.name));
+          const newItems = detectedItems.filter(item => !existingItemNames.has(item.name));
 
-          console.log(`Detected ${parts.length} items, ${newParts.length} are new, ${parts.length - newParts.length} already in inventory`);
+          console.log(`Detected ${detectedItems.length} items, ${newItems.length} are new, ${detectedItems.length - newItems.length} already in inventory`);
 
-          if (newParts.length === 0) {
+          if (newItems.length === 0) {
             // No new items to process
             setProcessingState(current => ({
               ...current,
@@ -98,32 +100,32 @@ const HomePage: React.FC = () => {
             images: new Map(current.images).set(nextImage.id, {
               ...nextImage,
               status: 'fetching',
-              results: newParts
+              results: newItems
             })
           }));
 
           // Fetch prices individually and update inventory as they come in
           const sessionId = `scan_${Date.now()}`;
-          const processedParts: PrimePart[] = [];
+          const processedItems: DetectedItem[] = [];
 
-          for (const part of newParts) {
+          for (const item of newItems) {
             try {
               // Fetch price for individual item
-              const partWithPrice = await fetchSinglePriceData(part);
-              processedParts.push(partWithPrice);
+              const itemWithPrice = await fetchSinglePriceData(item);
+              processedItems.push(itemWithPrice);
 
               // Add to inventory immediately as it's processed
-              saveToInventory([partWithPrice], sessionId);
+              saveToInventory([itemWithPrice], sessionId);
 
               // Update local inventory state
-              const updatedInventory = loadInventory();
-              setPersistentInventory(updatedInventory.items);
+              const updatedInventory = getCategorizedInventory();
+              setCategorizedInventory(updatedInventory);
 
-              console.log(`Added ${partWithPrice.name} to inventory with price ${partWithPrice.price}`);
+              console.log(`Added ${itemWithPrice.name} to inventory with price ${itemWithPrice.price}`);
             } catch (error) {
-              console.error(`Failed to process ${part.name}:`, error);
-              const errorPart = { ...part, status: 'error' as const, error: 'Failed to fetch price' };
-              processedParts.push(errorPart);
+              console.error(`Failed to process ${item.name}:`, error);
+              const errorItem = { ...item, status: 'error' as const, error: 'Failed to fetch price' };
+              processedItems.push(errorItem);
             }
           }
 
@@ -133,7 +135,7 @@ const HomePage: React.FC = () => {
             images: new Map(final.images).set(nextImage.id, {
               ...nextImage,
               status: 'complete',
-              results: processedParts
+              results: processedItems
             }),
             processedCount: final.processedCount + 1
           }));
@@ -158,9 +160,9 @@ const HomePage: React.FC = () => {
         images: newImages
       };
     });
-  }, []); // Keep empty dependency array since we use functional setState
+  }, []);
 
-      // Watch for changes in the queue and process next image
+  // Watch for changes in the queue and process next image
   useEffect(() => {
     // Don't start processing if API key is not configured
     if (!isGeminiConfigured()) {
@@ -248,32 +250,43 @@ const HomePage: React.FC = () => {
 
   const isProcessing = activeImage?.status === 'analyzing' || activeImage?.status === 'fetching';
 
-    // Removed old handleRefreshPrices - using individual refresh and inventory refresh instead
-
   // Story #3: Inventory Management Functions
   const handleRemoveFromInventory = useCallback((itemName: string) => {
     removeFromInventory(itemName);
-    setPersistentInventory(prev => prev.filter(item => item.name !== itemName));
+    setCategorizedInventory(prev => ({
+      ...prev,
+      prime_parts: prev.prime_parts.filter(item => item.name !== itemName),
+      relics: prev.relics.filter(item => item.name !== itemName)
+    }));
   }, []);
 
-  const handleClearInventory = useCallback(() => {
-    clearInventory();
-    setPersistentInventory([]);
+  const handleClearInventory = useCallback((category: 'prime_parts' | 'relics') => {
+    clearInventoryByCategory(category);
+    setCategorizedInventory(prev => ({
+      ...prev,
+      [category]: []
+    }));
   }, []);
 
   // Individual item price refresh
   const handleRefreshSingleItem = useCallback(async (itemName: string) => {
-    const item = persistentInventory.find(item => item.name === itemName);
+    // Find item in either category
+    const primeItem = categorizedInventory.prime_parts.find(item => item.name === itemName);
+    const relicItem = categorizedInventory.relics.find(item => item.name === itemName);
+    const item = primeItem || relicItem;
+    const category = primeItem ? 'prime_parts' : 'relics';
+
     if (!item) return;
 
     // Update item to loading state
-    setPersistentInventory(prev =>
-      prev.map(inventoryItem =>
+    setCategorizedInventory(prev => ({
+      ...prev,
+      [category]: prev[category].map(inventoryItem =>
         inventoryItem.name === itemName
           ? { ...inventoryItem, status: 'loading' as const }
           : inventoryItem
       )
-    );
+    }));
 
     try {
       // Fetch updated price for single item
@@ -283,19 +296,21 @@ const HomePage: React.FC = () => {
       updateInventoryPrices([updatedItem]);
 
       // Update local state
-      setPersistentInventory(prev =>
-        prev.map(inventoryItem =>
+      setCategorizedInventory(prev => ({
+        ...prev,
+        [category]: prev[category].map(inventoryItem =>
           inventoryItem.name === itemName
             ? { ...inventoryItem, ...updatedItem, addedAt: inventoryItem.addedAt }
             : inventoryItem
         )
-      );
+      }));
     } catch (error) {
       console.error(`Failed to refresh ${itemName}:`, error);
 
       // Set error state
-      setPersistentInventory(prev =>
-        prev.map(inventoryItem =>
+      setCategorizedInventory(prev => ({
+        ...prev,
+        [category]: prev[category].map(inventoryItem =>
           inventoryItem.name === itemName
             ? {
                 ...inventoryItem,
@@ -304,67 +319,47 @@ const HomePage: React.FC = () => {
               }
             : inventoryItem
         )
-      );
+      }));
     }
-  }, [persistentInventory]);
+  }, [categorizedInventory]);
 
-  const handleRefreshInventoryPrices = useCallback(async () => {
-    if (persistentInventory.length === 0 || isRefreshingPrices) {
+  // Category-specific refresh handlers
+  const handleRefreshCategoryPrices = useCallback(async (category: 'prime_parts' | 'relics') => {
+    const items = categorizedInventory[category];
+    if (items.length === 0 || refreshingCategories.has(category)) {
       return;
     }
 
-    setIsRefreshingPrices(true);
+    setRefreshingCategories(prev => new Set(prev).add(category));
 
     try {
-      // Convert inventory items to PrimePart array
-      const itemsToRefresh: PrimePart[] = persistentInventory.map(item => ({
-        ...item,
-        status: 'loading'
-      }));
-
       // Fetch updated prices
-      const updatedItems = await fetchPriceData(itemsToRefresh);
+      const updatedItems = await fetchPriceData(items);
 
       // Update persistent inventory
       updateInventoryPrices(updatedItems);
 
       // Update local state
-      const updatedInventory = loadInventory();
-      setPersistentInventory(updatedInventory.items);
+      const updatedInventory = getCategorizedInventory();
+      setCategorizedInventory(updatedInventory);
 
       setLastPriceRefresh(new Date());
     } catch (error) {
-      console.error('Error refreshing inventory prices:', error);
+      console.error(`Error refreshing ${category} prices:`, error);
     } finally {
-      setIsRefreshingPrices(false);
+      setRefreshingCategories(prev => {
+        const updated = new Set(prev);
+        updated.delete(category);
+        return updated;
+      });
     }
-  }, [persistentInventory, isRefreshingPrices]);
+  }, [categorizedInventory, refreshingCategories]);
 
   const inventoryStats = getInventoryStats();
 
   return (
-    <main className="flex-grow container mx-auto px-4 py-8">
-      <div className="max-w-5xl mx-auto relative">
-        {/* Hero section */}
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl md:text-4xl font-bold mb-3">
-            <span className="text-orokin-gold">Prime Part</span> Scanner
-          </h1>
-          <p className="text-gray-400 max-w-2xl mx-auto">
-            Upload screenshots of your Warframe inventory and our AI will identify Prime parts
-            and fetch current market prices to help you maximize your profits.
-          </p>
-
-          {!isGeminiConfigured() && (
-            <div className="mt-4 p-4 bg-background-card rounded-lg border border-yellow-500/20">
-              <p className="text-yellow-500 text-sm">
-                Please configure your Gemini API key using the settings icon in the top-right corner to enable AI scanning.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Main content area */}
+    <main className="min-h-screen bg-background-dark">
+      <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left column - Upload */}
           <div className="lg:col-span-5 space-y-6">
@@ -401,10 +396,32 @@ const HomePage: React.FC = () => {
           <div className="lg:col-span-7 space-y-6">
             {!activeImage && processingState.images.size === 0 && (
               <div className="bg-background-card rounded-lg border border-gray-800 p-6 text-center">
-                <h2 className="text-xl font-semibold mb-2">Ready to Scan</h2>
-                <p className="text-gray-400">
-                  Upload screenshots of your Warframe inventory to begin scanning for Prime parts.
-                </p>
+                {isConfigured ? (
+                  <>
+                    <h2 className="text-xl font-semibold mb-2">Ready to Scan</h2>
+                    <p className="text-gray-400">
+                      Upload screenshots of your Warframe inventory to begin scanning for Prime parts and Void relics.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Key size={48} className="mx-auto text-orokin-gold mb-3" />
+                    <h2 className="text-xl font-semibold mb-2">API Key Required</h2>
+                    <p className="text-gray-400 mb-4">
+                      Please add your Gemini API key to start scanning your inventory.
+                    </p>
+                    <button
+                      onClick={onOpenSettings}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-tenno-blue hover:bg-tenno-light text-white rounded-lg transition-colors"
+                    >
+                      <Key size={16} />
+                      Add API Key
+                    </button>
+                    <p className="text-xs text-gray-500 mt-3">
+                      Your API key is stored securely in your browser and never transmitted to our servers.
+                    </p>
+                  </>
+                )}
               </div>
             )}
 
@@ -418,84 +435,66 @@ const HomePage: React.FC = () => {
               </div>
             )}
 
-                        {/* Story #3: Persistent Inventory Section */}
-            <div className="bg-background-card rounded-lg border border-gray-800 p-4 mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setShowInventory(!showInventory)}
-                    className="flex items-center gap-2 text-xl font-semibold hover:text-orokin-gold transition-colors"
-                  >
+            {/* Story #8: Categorized Inventory Sections */}
+            {(categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0) && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold flex items-center gap-2">
                     <Package size={24} />
                     My Inventory
                     <span className="text-sm font-normal text-gray-400">
-                      ({persistentInventory.length} items)
+                      ({inventoryStats.totalItems} items)
                     </span>
-                  </button>
-
-                  {persistentInventory.length > 0 && (
-                    <div className="text-sm text-gray-400 space-x-4">
-                      <span className="text-orokin-gold font-medium">{inventoryStats.totalValue}p</span>
-                      <span className="text-yellow-500">{inventoryStats.totalDucats} ducats</span>
-                    </div>
-                  )}
-                </div>
-
-                {persistentInventory.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleRefreshInventoryPrices}
-                      disabled={isRefreshingPrices}
-                      className={`flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                        isRefreshingPrices
-                          ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                          : 'bg-tenno-blue hover:bg-tenno-light text-white'
-                      }`}
-                    >
-                      <RefreshCw
-                        size={14}
-                        className={isRefreshingPrices ? 'animate-spin' : ''}
-                      />
-                      Refresh All
-                    </button>
-
-                    <button
-                      onClick={handleClearInventory}
-                      className="flex items-center gap-1 px-3 py-2 rounded text-sm font-medium bg-grineer-red hover:bg-red-600 text-white transition-colors"
-                    >
-                      <Trash2 size={14} />
-                      Clear All
-                    </button>
+                  </h2>
+                  <div className="text-sm text-gray-400 space-x-4">
+                    <span className="text-orokin-gold font-medium">{inventoryStats.totalValue}p</span>
+                    <span className="text-yellow-500">{inventoryStats.totalDucats} ducats</span>
                   </div>
-                )}
-              </div>
-
-              {persistentInventory.length === 0 ? (
-                <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">
-                  <Package size={48} className="mx-auto text-gray-500 mb-3" />
-                  <p className="text-gray-400 mb-2">Your inventory is empty</p>
-                  <p className="text-sm text-gray-500">Upload screenshots to start building your inventory</p>
                 </div>
-              ) : showInventory ? (
-                <ResultsTable
-                  results={persistentInventory}
-                  onRemoveItem={handleRemoveFromInventory}
+
+                {/* Prime Parts Section */}
+                <InventorySection
+                  category="prime_parts"
+                  title="Prime Parts"
+                  icon={<Package size={20} className="text-orokin-gold" />}
+                  items={categorizedInventory.prime_parts}
+                  totalValue={inventoryStats.byCategory.prime_parts.value}
+                  totalDucats={inventoryStats.byCategory.prime_parts.ducats}
+                  isRefreshing={refreshingCategories.has('prime_parts')}
+                  onRefreshAll={() => handleRefreshCategoryPrices('prime_parts')}
+                  onClearAll={() => handleClearInventory('prime_parts')}
                   onRefreshItem={handleRefreshSingleItem}
-                  showActionButtons={true}
+                  onRemoveItem={handleRemoveFromInventory}
                 />
-              ) : (
-                <div className="text-center p-4">
-                  <p className="text-gray-400 text-sm">
-                    Click "My Inventory" to view your {persistentInventory.length} items
-                  </p>
-                </div>
-              )}
-            </div>
 
-            {/* Current Scan section removed - using persistent inventory instead */}
+                {/* Void Relics Section */}
+                <InventorySection
+                  category="relics"
+                  title="Void Relics"
+                  icon={<Zap size={20} className="text-purple-400" />}
+                  items={categorizedInventory.relics}
+                  totalValue={inventoryStats.byCategory.relics.value}
+                  totalDucats={inventoryStats.byCategory.relics.ducats}
+                  isRefreshing={refreshingCategories.has('relics')}
+                  onRefreshAll={() => handleRefreshCategoryPrices('relics')}
+                  onClearAll={() => handleClearInventory('relics')}
+                  onRefreshItem={handleRefreshSingleItem}
+                  onRemoveItem={handleRemoveFromInventory}
+                />
+              </div>
+            )}
+
+            {/* Empty state */}
+            {categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && (
+              <div className="bg-background-card rounded-lg border border-gray-800 p-6 text-center">
+                <Package size={48} className="mx-auto text-gray-500 mb-3" />
+                <p className="text-gray-400 mb-2">Your inventory is empty</p>
+                <p className="text-sm text-gray-500">Upload screenshots to start building your inventory</p>
+              </div>
+            )}
 
             {/* How it Works */}
-            <InfoCard />
+            <InfoCard isConfigured={isConfigured} onOpenSettings={onOpenSettings} />
           </div>
         </div>
       </div>

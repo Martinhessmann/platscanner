@@ -1,15 +1,31 @@
 // Purpose: Handle persistent inventory storage and management
 // Supports Story #3: Persistent Inventory across sessions
+// Extended for Story #8: Support for multiple item categories (Prime Parts, Relics, etc.)
 
-import { PrimePart } from '../types';
+import { DetectedItem, PrimePart, VoidRelic, ItemCategory } from '../types';
 
 const INVENTORY_STORAGE_KEY = 'platscanner_inventory';
 const LAST_SCAN_STORAGE_KEY = 'platscanner_last_scan';
 
-export interface InventoryItem extends PrimePart {
+export interface InventoryItem {
+  id: string;
+  name: string;
+  category: ItemCategory;
+  imgUrl?: string;
+  price?: number;
+  ducats?: number;
+  volume?: number;
+  average?: number;
+  status: 'loading' | 'loaded' | 'error';
+  error?: string;
   addedAt: Date;
   lastUpdated: Date;
   scanSession?: string; // Which scan session this item came from
+}
+
+export interface CategorizedInventory {
+  prime_parts: InventoryItem[];
+  relics: InventoryItem[];
 }
 
 export interface InventoryStorage {
@@ -21,12 +37,12 @@ export interface InventoryStorage {
 /**
  * Save detected items to persistent inventory
  */
-export const saveToInventory = (items: PrimePart[], sessionId?: string): void => {
+export const saveToInventory = (items: DetectedItem[], sessionId?: string): void => {
   try {
     const currentInventory = loadInventory();
     const now = new Date();
 
-    // Convert PrimeParts to InventoryItems
+    // Convert DetectedItems to InventoryItems
     const inventoryItems: InventoryItem[] = items.map(item => ({
       ...item,
       addedAt: now,
@@ -104,6 +120,18 @@ export const loadInventory = (): InventoryStorage => {
 };
 
 /**
+ * Get inventory organized by category
+ */
+export const getCategorizedInventory = (): CategorizedInventory => {
+  const inventory = loadInventory();
+
+  return {
+    prime_parts: inventory.items.filter(item => item.category === 'prime_parts'),
+    relics: inventory.items.filter(item => item.category === 'relics')
+  };
+};
+
+/**
  * Remove item from persistent inventory
  */
 export const removeFromInventory = (itemName: string): void => {
@@ -136,9 +164,29 @@ export const clearInventory = (): void => {
 };
 
 /**
+ * Clear inventory by category
+ */
+export const clearInventoryByCategory = (category: ItemCategory): void => {
+  try {
+    const currentInventory = loadInventory();
+    const updatedItems = currentInventory.items.filter(item => item.category !== category);
+
+    const updatedInventory: InventoryStorage = {
+      ...currentInventory,
+      items: updatedItems,
+      lastScanDate: new Date()
+    };
+
+    localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(updatedInventory));
+  } catch (error) {
+    console.error('Failed to clear category inventory:', error);
+  }
+};
+
+/**
  * Update prices for items in persistent inventory
  */
-export const updateInventoryPrices = (updatedItems: PrimePart[]): void => {
+export const updateInventoryPrices = (updatedItems: DetectedItem[]): void => {
   try {
     const currentInventory = loadInventory();
     const now = new Date();
@@ -177,16 +225,32 @@ export const getInventoryStats = (): {
   totalValue: number;
   totalDucats: number;
   lastScanDate: Date;
+  byCategory: Record<ItemCategory, { count: number; value: number; ducats: number }>;
 } => {
   const inventory = loadInventory();
+  const categorized = getCategorizedInventory();
 
   const totalValue = inventory.items.reduce((sum, item) => sum + (item.price || 0), 0);
   const totalDucats = inventory.items.reduce((sum, item) => sum + (item.ducats || 0), 0);
+
+  const byCategory: Record<ItemCategory, { count: number; value: number; ducats: number }> = {
+    prime_parts: {
+      count: categorized.prime_parts.length,
+      value: categorized.prime_parts.reduce((sum, item) => sum + (item.price || 0), 0),
+      ducats: categorized.prime_parts.reduce((sum, item) => sum + (item.ducats || 0), 0)
+    },
+    relics: {
+      count: categorized.relics.length,
+      value: categorized.relics.reduce((sum, item) => sum + (item.price || 0), 0),
+      ducats: categorized.relics.reduce((sum, item) => sum + (item.ducats || 0), 0)
+    }
+  };
 
   return {
     totalItems: inventory.items.length,
     totalValue,
     totalDucats,
-    lastScanDate: inventory.lastScanDate
+    lastScanDate: inventory.lastScanDate,
+    byCategory
   };
 };

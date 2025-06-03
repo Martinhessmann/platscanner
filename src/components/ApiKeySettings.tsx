@@ -4,17 +4,31 @@ import { Settings, X, Key } from 'lucide-react';
 interface ApiKeySettingsProps {
   onApiKeyChange: (key: string) => Promise<void>;
   isConfigured: boolean;
+  openSettings?: boolean;
+  onOpenSettingsHandled?: () => void;
 }
 
-const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({ onApiKeyChange, isConfigured }) => {
+const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
+  onApiKeyChange,
+  isConfigured,
+  openSettings = false,
+  onOpenSettingsHandled
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    if (openSettings) {
+      setIsOpen(true);
+      onOpenSettingsHandled?.();
+    }
+  }, [openSettings, onOpenSettingsHandled]);
+
+  useEffect(() => {
     try {
-      const storedKey = localStorage.getItem('gemini_api_key');
+      const storedKey = localStorage.getItem('platscanner_gemini_api_key');
       if (storedKey) {
         setApiKey(storedKey);
         onApiKeyChange(storedKey).catch(err => {

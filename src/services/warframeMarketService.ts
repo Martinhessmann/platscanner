@@ -1,4 +1,4 @@
-import { PrimePart } from '../types';
+import { DetectedItem } from '../types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -156,7 +156,7 @@ const fetchViaDirect = async (normalizedName: string) => {
  * - Includes error handling for each item
  * - Uses Supabase Edge Function when available, fallback to direct API calls
  */
-export const fetchPriceData = async (primeParts: PrimePart[]): Promise<PrimePart[]> => {
+export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<DetectedItem[]> => {
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   const RATE_LIMIT_DELAY = 334; // ~3 requests per second
 
@@ -211,7 +211,7 @@ export const fetchPriceData = async (primeParts: PrimePart[]): Promise<PrimePart
  * @param primePart - Single PrimePart object to fetch data for
  * @returns Updated PrimePart with market data
  */
-export const fetchSinglePriceData = async (primePart: PrimePart): Promise<PrimePart> => {
+export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<DetectedItem> => {
   const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
 
   try {

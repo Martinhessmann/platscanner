@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { PrimePart } from '../types';
+import { DetectedItem } from '../types';
 import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw } from 'lucide-react';
 
 interface ResultsTableProps {
-  results: PrimePart[];
+  results: DetectedItem[];
   isLoading?: boolean; // Made optional since we handle individual item loading
   onRemoveItem?: (itemName: string) => void; // For persistent inventory management
   onRefreshItem?: (itemName: string) => void; // For individual price refresh

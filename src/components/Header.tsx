@@ -3,11 +3,18 @@ import { ScanLine, Zap, Settings } from 'lucide-react';
 import ApiKeySettings from './ApiKeySettings';
 
 interface HeaderProps {
-  onApiKeyChange: (key: string) => void;
+  onApiKeyChange: (key: string) => Promise<void>;
   isConfigured: boolean;
+  openSettings?: boolean;
+  onOpenSettingsHandled?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onApiKeyChange, isConfigured }) => {
+const Header: React.FC<HeaderProps> = ({
+  onApiKeyChange,
+  isConfigured,
+  openSettings = false,
+  onOpenSettingsHandled
+}) => {
   return (
     <header className="bg-gradient-to-r from-background-dark to-background-light py-4 px-6 shadow-md border-b border-orokin-gold/20">
       <div className="container mx-auto flex items-center justify-between">
@@ -23,10 +30,12 @@ const Header: React.FC<HeaderProps> = ({ onApiKeyChange, isConfigured }) => {
             <p className="text-xs text-gray-400 -mt-1">Inventory Value Scanner</p>
           </div>
         </div>
-        
-        <ApiKeySettings 
+
+        <ApiKeySettings
           onApiKeyChange={onApiKeyChange}
           isConfigured={isConfigured}
+          openSettings={openSettings}
+          onOpenSettingsHandled={onOpenSettingsHandled}
         />
       </div>
     </header>

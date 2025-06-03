@@ -7,8 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2024-12-31
+
+### Added
+- **API Key Configuration UX Enhancement** ⭐⭐⭐⭐⭐
+  - **Smart Onboarding**: When API key is not configured, show helpful prompt instead of "Ready to Scan"
+  - **One-Click Setup**: Direct link from main interface to open settings overlay
+  - **Contextual Help**: InfoCard shows API key setup as step 0 when not configured
+  - **Clear Call-to-Action**: "Add API Key" button with key icon for visual clarity
+  - **Privacy Assurance**: Reminder that API key is stored securely in browser only
+
+- **Story #8: Extended Item Support - Void Relics** ⭐⭐⭐⭐⭐ ✅ **PHASE 1 COMPLETED**
+  - **Void Relic Detection**: AI now detects Void Relics (Lith, Meso, Neo, Axi) from inventory screenshots
+  - **Semi-Transparent Filtering**: Specifically ignores faded/semi-transparent relics (unowned relics)
+  - **Separate Inventory Sections**: Independent toggleable sections for Prime Parts and Void Relics
+  - **Category-Specific Actions**: Individual refresh and clear buttons for each item category
+  - **Enhanced Item Categorization**: Complete type system supporting multiple item categories
+  - **Market Data Integration**: Void relics fetch pricing data from Warframe Market API
+  - **Smart Detection Pattern**: Recognizes standard relic naming pattern (Era + Letter + Number)
+  - **Individual Section Controls**: Each category can be refreshed, cleared, and collapsed independently
+
+- **Story #1: Real-time Item Display** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
+  - **Individual Price Loading**: Each item's price loads and displays immediately when fetched
+  - **No Batch Processing**: Prices appear one by one as they're retrieved from the market API
+  - **Instant Inventory Updates**: Items added to persistent inventory as soon as processed
+  - **Smooth UX**: No waiting for entire scan to complete before seeing any results
+  - **Skip Duplicates**: Items already in inventory are automatically skipped during new scans
+
+- **Story #3: Persistent Inventory Management** ⭐⭐⭐⭐ ✅ **COMPLETED**
+  - **My Inventory**: Single source of truth for all scanned items with persistent localStorage storage
+  - **Auto-save**: New items automatically added to inventory as they're processed
+  - **Individual Actions**: Per-item refresh and remove buttons for granular control
+  - **Bulk Operations**: "Refresh All" and "Clear All" buttons for inventory management
+  - **Enhanced Statistics**: Prominent value and ducats totals with visual highlighting
+  - **Smart Duplicate Handling**: Existing items automatically skipped in new scans
+  - **Always Visible**: Inventory section always shown, collapsed when empty
+  - **Streamlined UI**: Removed redundant "Current Scan" section in favor of persistent inventory
+
+- **Fresh Price Updates**: Refresh market prices without re-uploading screenshots ⭐⭐⭐⭐⭐
+  - "Refresh Prices" button replaces "Scan Complete" state for better UX
+  - Skip image analysis and directly fetch current market data for stored items
+  - Show timestamp of last price refresh for transparency
+  - Maintain item quantities and detection results during refresh
+  - **Preserve UI State**: List order, user scroll position, and sorting maintained during refresh
+  - **Individual Item Loading**: Granular loading states per item prevent jarring UI changes
+  - Animated refresh icon with loading states
+  - Comprehensive error handling with graceful fallback to error state
+  - Rate-limited market data fetching preserves API guidelines
+
+### Technical Improvements
+- **Extended Type System**: Added BaseItem, VoidRelic interfaces with category-based typing
+- **Categorized Inventory Service**: Enhanced storage system with category-specific operations
+- **Improved AI Detection**: Updated Gemini prompts to handle multiple item types with specific filtering rules
+- **Component Architecture**: New InventorySection component for modular category display
+- **Enhanced Error Handling**: Category-specific error states and retry mechanisms
+- **Performance Optimization**: Individual category refresh to prevent unnecessary API calls
+- **UI/UX Enhancement**: Separate visual sections with appropriate icons and color coding
+- **Smart State Management**: Programmatic settings overlay with prop threading through component tree
+- **Contextual Interface**: Dynamic UI adaptation based on API key configuration status
+
+### Known Limitations
+- **Relic Rarity Detection**: Currently defaults to 'intact' - enhanced rarity detection planned for future updates
+- **Market Data Coverage**: Some relics may not have active market listings
+- **Semi-Transparent Detection**: AI filtering for faded relics - effectiveness may vary based on screenshot quality
+
 ## [1.3.0]
-### Fixed
+### Added
 - **Story #1: Real-time Item Display** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
   - **Individual Price Loading**: Each item's price loads and displays immediately when fetched
   - **No Batch Processing**: Prices appear one by one as they're retrieved from the market API

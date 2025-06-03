@@ -10,6 +10,7 @@ import { isGeminiConfigured, setApiKey } from './services/geminiService';
 
 function App() {
   const [isConfigured, setIsConfigured] = useState(isGeminiConfigured());
+  const [openSettings, setOpenSettings] = useState(false);
 
   useEffect(() => {
     // Check configuration status on mount
@@ -18,8 +19,12 @@ function App() {
 
   const handleApiKeyChange = async (key: string) => {
     try {
-      await setApiKey(key);
-      setIsConfigured(true);
+      const success = setApiKey(key);
+      if (success) {
+        setIsConfigured(true);
+      } else {
+        throw new Error('Failed to set API key');
+      }
     } catch (error) {
       console.error('Failed to set API key:', error);
       setIsConfigured(false);
@@ -27,12 +32,33 @@ function App() {
     }
   };
 
+  const handleOpenSettings = () => {
+    setOpenSettings(true);
+  };
+
+  const handleOpenSettingsHandled = () => {
+    setOpenSettings(false);
+  };
+
   return (
     <BrowserRouter>
       <div className="flex flex-col min-h-screen bg-background-dark text-white">
-        <Header onApiKeyChange={handleApiKeyChange} isConfigured={isConfigured} />
+        <Header
+          onApiKeyChange={handleApiKeyChange}
+          isConfigured={isConfigured}
+          openSettings={openSettings}
+          onOpenSettingsHandled={handleOpenSettingsHandled}
+        />
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route
+            path="/"
+            element={
+              <HomePage
+                isConfigured={isConfigured}
+                onOpenSettings={handleOpenSettings}
+              />
+            }
+          />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />

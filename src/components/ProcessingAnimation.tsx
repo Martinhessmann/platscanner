@@ -42,9 +42,9 @@ const ProcessingAnimation: React.FC<ProcessingAnimationProps> = ({ stage }) => {
         {stage === 'fetching' && "Fetching Market Prices"}
         {stage === 'complete' && "Processing Complete"}
       </h3>
-      
+
       <p className="text-gray-400 text-center max-w-md">
-        {stage === 'analyzing' && "Gemini AI is scanning your inventory for Prime parts..."}
+        {stage === 'analyzing' && "Gemini AI is scanning your inventory for Prime parts and Void relics..."}
         {stage === 'fetching' && "Retrieving current market prices from Warframe Market..."}
         {stage === 'complete' && "Your results are ready to view!"}
       </p>
