@@ -340,6 +340,11 @@ Technical Requirements:
 - Extended Warframe Market API integration
 - New item categorization system
 - Enhanced image preprocessing
+
+NOTES:
+- ⚠️ Arcanes and Mods have complex "update level" systems (ranks, fusion levels)
+- 🔧 Detection complexity varies significantly by item type
+- 📊 Market data structure differs between item categories
 ```
 
 #### Story #9: Advanced Market Analytics ⭐⭐⭐⭐
@@ -404,29 +409,87 @@ Technical Requirements:
 - Fallback UI states
 ```
 
+#### Story #12: Smart Quantity & Duplicate Management ⭐⭐⭐⭐
+**Complexity**: 🔧🔧🔧 (Medium-High) | **Usefulness**: ⭐⭐⭐⭐ (Very Useful)
+```
+As a trader with multiple copies of items, I want the system to detect quantities
+and calculate total values while considering market demand limitations.
+
+Acceptance Criteria:
+- Detect duplicate items and show quantities
+- Calculate total value (quantity × price)
+- Show market depth warnings when quantity exceeds demand
+- Smart recommendations: "Market can absorb X items at full price"
+- Batch selling suggestions with price tiering
+
+Technical Requirements:
+- Enhanced image recognition for quantity detection
+- Market depth analysis from order books
+- Smart pricing algorithms considering volume
+
+CHALLENGES:
+- 🔍 Quantity detection requires OCR precision improvements
+- 📈 Market depth calculation needs order book analysis
+- ⚖️ Highest bidders may not want full quantities
+- 💡 Price recommendations need complex market modeling
+```
+
+#### Story #13: Set Completion Detection ⭐⭐⭐⭐⭐
+**Complexity**: 🔧🔧🔧🔧🔧 (Very High) | **Usefulness**: ⭐⭐⭐⭐⭐ (Game-changing)
+```
+As a collector and trader, I want to see which Prime sets I can complete
+so that I can prioritize farming missing pieces or selling complete sets.
+
+Acceptance Criteria:
+- Detect complete Prime sets (Warframe, Weapon)
+- Show missing pieces for incomplete sets
+- Calculate set value vs individual part values
+- Recommend "complete vs sell parts" strategies
+- Track set completion progress over time
+
+Technical Requirements:
+- Complete Prime set database integration
+- Set relationship mapping (what makes a complete set)
+- Cross-reference inventory against set requirements
+- Value comparison algorithms (set vs parts)
+
+CHALLENGES:
+- 🗄️ Requires deep Warframe knowledge database
+- 🔗 Set definitions available in Warframe Market API but complex to parse
+- 🧩 Automatic detection of "what makes a set" is non-trivial
+- 📊 Dynamic set pricing vs individual parts analysis
+- 🎯 Some sets have variants (Prime vs regular vs Vaulted status)
+```
+
 ### 📊 Complete Priority Matrix
 
 | Story | Feature | Usefulness | Complexity | Priority | Status |
 |-------|---------|------------|------------|----------|--------|
-| #1 | Real-time Item Display | ⭐⭐⭐⭐⭐ | 🔧🔧 | 🚀 High | 📋 Planned |
+| #1 | Real-time Item Display | ⭐⭐⭐⭐⭐ | 🔧🔧 | 🚀 High | ✅ **COMPLETED** |
 | #2 | Fresh Price Updates | ⭐⭐⭐⭐⭐ | 🔧🔧 | 🚀 High | ✅ **COMPLETED** |
-| #3 | Persistent Inventory | ⭐⭐⭐⭐ | 🔧🔧🔧 | 🚀 High | 📋 Planned |
+| #3 | Persistent Inventory | ⭐⭐⭐⭐ | 🔧🔧🔧 | 🚀 High | ✅ **COMPLETED** |
 | #4 | Multi-Image Processing | ⭐⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 📋 Planned |
 | #5 | Enhanced Error Feedback | ⭐⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 📋 Planned |
 | #6 | Customizable Results | ⭐⭐⭐ | 🔧🔧 | 📈 Medium | 📋 Planned |
 | #7 | Mobile Optimization | ⭐⭐⭐ | 🔧🔧🔧 | 📈 Medium | 📋 Planned |
-| #8 | Extended Item Support | ⭐⭐⭐⭐⭐ | 🔧🔧🔧🔧🔧 | 🔮 Future | 📋 Planned |
+| #8 | Extended Item Support | ⭐⭐⭐⭐⭐ | 🔧🔧🔧🔧🔧 | 🔮 Future | ✅ **PHASE 1 COMPLETED** (Relics) |
 | #9 | Advanced Market Analytics | ⭐⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 📋 Planned |
 | #10 | Smart Image Processing | ⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 📋 Planned |
 | #11 | Smart Error Recovery | ⭐⭐⭐ | 🔧🔧🔧🔧 | 🔮 Future | 📋 Planned |
+| #12 | Smart Quantity & Duplicate Management | ⭐⭐⭐⭐ | 🔧🔧🔧 | 🔮 Future | 📋 Planned |
+| #13 | Set Completion Detection | ⭐⭐⭐⭐⭐ | 🔧🔧🔧🔧🔧 | 🔮 Future | 📋 Planned |
 
 ### 🎯 Updated Development Sprint Plan
 
 **Sprint 1 (Completed)**: ✅ Fresh Price Updates - **DELIVERED**
-**Sprint 2 (Next)**: Real-time Item Display + Persistent Inventory
-**Sprint 3 (Week 3)**: Enhanced Error Feedback + Multi-Image Processing
-**Sprint 4 (Week 4)**: Customizable Results + Mobile Optimization
-**Sprint 5+ (Future)**: Extended Item Support (requires research & model training)
+**Sprint 2 (Completed)**: ✅ Real-time Item Display + Persistent Inventory - **DELIVERED**
+**Sprint 3 (Completed)**: ✅ Void Relic Detection + API Key UX - **DELIVERED**
+**Sprint 4 (Next)**: Enhanced Error Feedback + Multi-Image Processing
+**Sprint 5 (Future)**: Customizable Results + Mobile Optimization
+**Sprint 6+ (Research Phase)**:
+- Extended Item Support (Arcanes/Mods - requires complex update level detection)
+- Smart Quantity Management (market depth analysis challenges)
+- Set Completion Detection (requires deep Warframe knowledge database)
 
 ### 💡 Technical Implementation Notes
 
