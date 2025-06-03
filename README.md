@@ -84,6 +84,33 @@ The `netlify.toml` file includes:
 3. Configure DNS settings
 4. HTTPS is automatically enabled
 
+### Troubleshooting Production Issues
+
+#### Fixed Issues (v1.2.1)
+1. **CSP Violations**: Updated Content Security Policy to allow:
+   - `blob:` URLs for image previews
+   - `https://api.iconify.design` for SVG icons
+   - `connect-src` directive for API calls
+
+2. **API Proxy Issues**: Implemented fallback strategy:
+   - Primary: Supabase Edge Function (when env vars available)
+   - Fallback: Direct API calls via Netlify proxy
+   - Added proper error handling for both methods
+
+3. **CORS Issues**: Added Netlify proxy configuration:
+   ```toml
+   [[redirects]]
+     from = "/api/warframe-market/*"
+     to = "https://api.warframe.market/v1/:splat"
+     status = 200
+     force = true
+   ```
+
+#### Common Production Issues
+- **"Unexpected token '<'" error**: Usually indicates API proxy issues
+- **CSP violations**: Check browser console for blocked resources
+- **Images not loading**: Verify CSP allows necessary domains
+
 ## Getting Started
 
 1. **API Key Setup**
