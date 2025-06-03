@@ -63,54 +63,85 @@ const fetchViaSupabase = async (normalizedName: string) => {
  * Fetches market data using direct API calls via Netlify proxy
  */
 const fetchViaDirect = async (normalizedName: string) => {
-  const [itemResponse, ordersResponse] = await Promise.all([
-    fetch(`/api/warframe-market/items/${normalizedName}`, {
-      headers: {
-        'Accept': 'application/json',
-        'Language': 'en',
-        'Platform': 'pc'
-      }
-    }),
-    fetch(`/api/warframe-market/items/${normalizedName}/orders`, {
-      headers: {
-        'Accept': 'application/json',
-        'Language': 'en',
-        'Platform': 'pc'
-      }
-    })
-  ]);
-
-  if (!itemResponse.ok || !ordersResponse.ok) {
-    throw new Error('Item not found or API error');
-  }
-
-  const [itemData, ordersData] = await Promise.all([
-    itemResponse.json(),
-    ordersResponse.json()
-  ]);
-
-  // Process the data similar to the edge function
-  const itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
-    item.url_name === normalizedName
-  ) || itemData.payload.item.items_in_set[0];
-
-  const buyOrders = ordersData.payload.orders.filter((order: any) =>
-    order.order_type === 'buy' &&
-    ['online', 'ingame'].includes(order.user.status) &&
-    !order.user.banned &&
-    order.visible
-  );
-
-  return {
-    name: itemDetails.en.item_name,
-    thumb: itemDetails.thumb,
-    ducats: itemDetails.ducats || 0,
-    price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
-    volume: ordersData.payload.orders.length,
-    average: buyOrders.length > 0
-      ? Math.round(buyOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / buyOrders.length)
-      : 0
+  const headers = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'Language': 'en',
+    'Platform': 'pc',
+    'User-Agent': 'PlatScanner/1.2.1'
   };
+
+  try {
+    // Fetch item details first
+    const itemResponse = await fetch(`/api/warframe-market/items/${normalizedName}`, { headers });
+
+    if (!itemResponse.ok) {
+      throw new Error(`Item API error: ${itemResponse.status}`);
+    }
+
+    let itemData;
+    try {
+      const text = await itemResponse.text();
+      console.log('Raw item response:', text);
+      itemData = JSON.parse(text);
+    } catch (e) {
+      console.error('Failed to parse item response:', e);
+      throw new Error('Invalid item data format');
+    }
+
+    if (!itemData?.payload?.item?.items_in_set) {
+      console.error('Unexpected item data structure:', itemData);
+      throw new Error('Invalid item data structure');
+    }
+
+    // Fetch orders
+    const ordersResponse = await fetch(`/api/warframe-market/items/${normalizedName}/orders`, { headers });
+
+    if (!ordersResponse.ok) {
+      throw new Error(`Orders API error: ${ordersResponse.status}`);
+    }
+
+    let ordersData;
+    try {
+      const text = await ordersResponse.text();
+      console.log('Raw orders response:', text);
+      ordersData = JSON.parse(text);
+    } catch (e) {
+      console.error('Failed to parse orders response:', e);
+      throw new Error('Invalid orders data format');
+    }
+
+    // Process the data
+    const itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
+      item.url_name === normalizedName
+    ) || itemData.payload.item.items_in_set[0];
+
+    if (!itemDetails?.en?.item_name) {
+      console.error('Item details missing required fields:', itemDetails);
+      throw new Error('Item details not found');
+    }
+
+    const buyOrders = ordersData.payload.orders.filter((order: any) =>
+      order.order_type === 'buy' &&
+      ['online', 'ingame'].includes(order.user.status) &&
+      !order.user.banned &&
+      order.visible
+    );
+
+    return {
+      name: itemDetails.en.item_name,
+      thumb: itemDetails.thumb,
+      ducats: itemDetails.ducats || 0,
+      price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
+      volume: ordersData.payload.orders.length,
+      average: buyOrders.length > 0
+        ? Math.round(buyOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / buyOrders.length)
+        : 0
+    };
+  } catch (error) {
+    console.error('Error in fetchViaDirect:', error);
+    throw error;
+  }
 };
 
 /**
