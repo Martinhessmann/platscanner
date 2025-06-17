@@ -58,7 +58,7 @@ const TermsPage: React.FC = () => {
         <section>
           <h2 className="text-xl font-semibold mb-4">Intellectual Property</h2>
           <ul className="list-disc list-inside space-y-2">
-            <li>Prime Parts Plat Scanner's codebase, design, and branding are © by the developer</li>
+            <li>Prime Parts Plat Scanner's codebase, design, and branding are © Martin Heßmann (<a href="https://martinhessmann.com" target="_blank" rel="noopener noreferrer" className="text-orokin-gold hover:underline">martinhessmann.com</a>)</li>
             <li>Warframe® and all related trademarks belong to Digital Extremes Ltd.</li>
             <li>Warframe Market data is provided under their publicly available API terms</li>
           </ul>

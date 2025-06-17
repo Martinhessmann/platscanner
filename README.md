@@ -371,6 +371,12 @@ If you encounter issues:
 - Add tests for new features
 - Ensure proper error handling
 
+## Author
+
+**Martin Heßmann**
+- Website: [martinhessmann.com](https://martinhessmann.com)
+- GitHub: [@Martinhessmann](https://github.com/Martinhessmann)
+
 ## License
 
 MIT License - See [LICENSE](LICENSE) file for details

@@ -14,6 +14,9 @@ const Footer: React.FC = () => {
             <p className="text-gray-500 text-xs">
               Warframe and the Warframe logo are trademarks of Digital Extremes Ltd.
             </p>
+            <p className="text-gray-500 text-xs">
+              © Martin Heßmann • <a href="https://martinhessmann.com" target="_blank" rel="noopener noreferrer" className="hover:text-orokin-gold transition-colors">martinhessmann.com</a>
+            </p>
           </div>
 
           <div className="flex items-center gap-4 flex-wrap justify-center">
