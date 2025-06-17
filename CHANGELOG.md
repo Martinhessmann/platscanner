@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2024-12-31
+
+### Fixed
+- **Sorting Functionality** ⭐⭐⭐⭐
+  - Fixed sorting dropdown not working due to event propagation issues
+  - Added proper `preventDefault()` and `stopPropagation()` to all sort handlers
+  - Added React key to force re-render when sorting changes
+  - Enhanced debug logging to help troubleshoot sorting issues
+  - Reverted overly high z-index values that prevented dropdown clickability
+
+### Improved
+- **Mobile-First UX Enhancements** ⭐⭐⭐⭐⭐
+  - **3-Dots Action Menu**: Replaced hover-based action buttons with mobile-friendly meatball menu
+    - Always visible action trigger (no hover required)
+    - Clear labeled actions: "Refresh price" and "Remove"
+    - Touch-friendly dropdown with proper spacing
+    - Auto-close on action selection or outside tap
+  - **Sticky Category Headers**: Made Prime Parts and Void Relics headers properly sticky
+    - Restructured component hierarchy to enable global sticky positioning
+    - Headers now stick to viewport top when scrolling through long lists
+    - Always shows current category context with totals and quick actions
+    - Increased z-index to `z-20` for proper layering above content
+  - **Clickable Collapsed Sections**: "Tap to view X items" text now expands sections
+    - Full-width clickable area with hover feedback
+    - Smooth hover transitions for better visual feedback
+    - Consistent interaction patterns across the interface
+
+### Removed
+- **Redundant UI Elements**
+  - Removed sticky header from individual ResultsTable components
+  - Eliminated "My Inventory" summary section that provided no additional value
+  - Streamlined interface focuses on category-specific information
+
+### Enhanced
+- **Subtle Button Design** ⭐⭐⭐⭐
+  - **Refresh Button**: 10% opacity blue background (`bg-tenno-blue/10`) with full-color text and subtle border
+  - **Clear Button**: 10% opacity red background (`bg-grineer-red/10`) with full-color text and subtle border
+  - Hover states with 20% opacity for better visual hierarchy
+  - Less visually aggressive while maintaining clear functionality
+
+### Technical Improvements
+- Enhanced event handling with proper propagation control
+- Improved component structure for better sticky positioning
+- Added React keys for reliable re-rendering during state changes
+- Better z-index management across UI layers
+- Comprehensive debug logging for troubleshooting
+
 ## [1.4.0] - 2024-12-31
 
 ### Added
