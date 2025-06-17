@@ -9,7 +9,7 @@ const Footer: React.FC = () => {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-center md:text-left">
             <p className="text-gray-400 text-sm">
-              <span className="text-orokin-gold">Prime Parts Plat Scanner</span> is not affiliated with Digital Extremes Ltd.
+              <span className="text-orokin-gold">Prime Parts Scanner</span> is not affiliated with Digital Extremes Ltd.
             </p>
             <p className="text-gray-500 text-xs">
               Warframe and the Warframe logo are trademarks of Digital Extremes Ltd.

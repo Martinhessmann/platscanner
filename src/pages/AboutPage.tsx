@@ -13,7 +13,7 @@ const AboutPage: React.FC = () => {
         Back to Scanner
       </Link>
 
-      <h1 className="text-3xl font-bold mb-8">About Prime Parts Plat Scanner</h1>
+      <h1 className="text-3xl font-bold mb-8">About Prime Parts Scanner</h1>
 
       <div className="space-y-8">
         <section>
@@ -22,7 +22,7 @@ const AboutPage: React.FC = () => {
             What It Does
           </h2>
           <p className="text-gray-300 leading-relaxed">
-            Upload a screenshot of your inventory — Prime Parts Plat Scanner will detect all recognizable items using advanced AI,
+            Upload a screenshot of your inventory — Prime Parts Scanner will detect all recognizable items using advanced AI,
             then fetch live platinum prices from the Warframe Market API.
           </p>
         </section>
@@ -71,7 +71,7 @@ const AboutPage: React.FC = () => {
           <h2 className="text-xl font-semibold mb-4">Technology</h2>
           <div className="space-y-4">
             <p className="text-gray-300">
-              Prime Parts Plat Scanner is built with modern web technologies:
+              Prime Parts Scanner is built with modern web technologies:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-300">
               <li>React & TypeScript</li>
@@ -88,7 +88,7 @@ const AboutPage: React.FC = () => {
             Contribute
           </h2>
           <p className="text-gray-300 mb-4">
-            Prime Parts Plat Scanner is open source. You can contribute to the project on GitHub:
+            Prime Parts Scanner is open source. You can contribute to the project on GitHub:
           </p>
           <div className="flex flex-wrap gap-4">
             <a
@@ -113,7 +113,7 @@ const AboutPage: React.FC = () => {
         <section className="bg-background-card rounded-lg p-6 border border-gray-800">
           <h2 className="text-xl font-semibold mb-4">Legal Notice</h2>
           <p className="text-gray-300 leading-relaxed">
-            Prime Parts Plat Scanner is not affiliated with Digital Extremes Ltd. Warframe® and all related trademarks
+            Prime Parts Scanner is not affiliated with Digital Extremes Ltd. Warframe® and all related trademarks
             are the property of Digital Extremes Ltd. Warframe Market data is used under their publicly
             available API terms.
           </p>

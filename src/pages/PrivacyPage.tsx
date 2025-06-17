@@ -42,7 +42,7 @@ const PrivacyPage: React.FC = () => {
               <h3 className="font-medium mb-2">Image Uploads</h3>
               <p className="leading-relaxed">
                 Uploaded screenshots are sent to the Google Gemini Vision API for analysis.
-                Prime Parts Plat Scanner does not store images.
+                Prime Parts Scanner does not store images.
               </p>
             </div>
             <div>

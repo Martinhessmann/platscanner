@@ -25,9 +25,9 @@ const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-white">
-              <span className="text-orokin-gold">Prime Parts Plat Scanner</span>
+              <span className="text-orokin-gold">Prime Parts Scanner</span>
             </h1>
-            <p className="text-xs text-gray-400 -mt-1">Inventory Value Scanner</p>
+            <p className="text-xs text-gray-400 -mt-1">AI Warframe Inventory Calculator</p>
           </div>
         </div>
 

@@ -37,6 +37,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
   const [fetchingProgress, setFetchingProgress] = useState<{ current: number; total: number } | undefined>(undefined);
+  const [categoryProgress, setCategoryProgress] = useState<{ category: string; current: number; total: number } | undefined>(undefined);
 
   // Story #3 & #8: Categorized Persistent Inventory State
   const [categorizedInventory, setCategorizedInventory] = useState({
@@ -356,19 +357,63 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
     }
 
     setRefreshingCategories(prev => new Set(prev).add(category));
+    setCategoryProgress({ category, current: 0, total: items.length });
+
+    // Set all items in category to loading state first
+    setCategorizedInventory(prev => ({
+      ...prev,
+      [category]: prev[category].map(item => ({ ...item, status: 'loading' as const }))
+    }));
 
     try {
-      // Fetch updated prices
-      const updatedItems = await fetchPriceData(items);
+      const updatedItems: InventoryItem[] = [];
+
+      // Process items one by one to provide progress feedback
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        console.log(`>>> [HomePage] Category refresh processing ${i + 1}/${items.length}: ${item.name} <<<`);
+
+        try {
+          const updatedItem = await fetchSinglePriceData(item);
+          updatedItems.push({
+            ...updatedItem,
+            addedAt: item.addedAt,
+            lastUpdated: Date.now()
+          });
+          console.log(`>>> [HomePage] Category refresh updated: ${updatedItem.name}, status: ${updatedItem.status}, price: ${updatedItem.price} <<<`);
+        } catch (error) {
+          console.error(`Failed to fetch price for ${item.name}:`, error);
+          updatedItems.push({
+            ...item,
+            status: 'error',
+            error: 'Failed to fetch price',
+            lastUpdated: Date.now()
+          });
+        }
+
+        // Update progress
+        setCategoryProgress({ category, current: i + 1, total: items.length });
+
+        // Update state progressively as items are processed
+        setCategorizedInventory(prev => {
+          const newState = { ...prev };
+          const updatedItem = updatedItems[updatedItems.length - 1];
+
+          newState[category] = prev[category].map(inventoryItem =>
+            inventoryItem.name === updatedItem.name
+              ? { ...inventoryItem, ...updatedItem, addedAt: inventoryItem.addedAt }
+              : inventoryItem
+          );
+
+          return newState;
+        });
+      }
 
       // Update persistent inventory
       updateInventoryPrices(updatedItems);
 
-      // Update local state
-      const updatedInventory = getCategorizedInventory();
-      setCategorizedInventory(updatedInventory);
-
       setLastPriceRefresh(new Date());
+      console.log(`>>> [HomePage] Category refresh completed for ${updatedItems.length} items <<<`);
     } catch (error) {
       console.error(`Error refreshing ${category} prices:`, error);
     } finally {
@@ -377,6 +422,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         updated.delete(category);
         return updated;
       });
+      setCategoryProgress(undefined);
     }
   }, [categorizedInventory, refreshingCategories]);
 
@@ -545,6 +591,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
                   totalValue={inventoryStats.byCategory.prime_parts.value}
                   totalDucats={inventoryStats.byCategory.prime_parts.ducats}
                   isRefreshing={refreshingCategories.has('prime_parts')}
+                  progress={categoryProgress?.category === 'prime_parts' ? categoryProgress : undefined}
                   onRefreshAll={() => handleRefreshCategoryPrices('prime_parts')}
                   onClearAll={() => handleClearInventory('prime_parts')}
                   onRefreshItem={handleRefreshSingleItem}
@@ -560,6 +607,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
                   totalValue={inventoryStats.byCategory.relics.value}
                   totalDucats={inventoryStats.byCategory.relics.ducats}
                   isRefreshing={refreshingCategories.has('relics')}
+                  progress={categoryProgress?.category === 'relics' ? categoryProgress : undefined}
                   onRefreshAll={() => handleRefreshCategoryPrices('relics')}
                   onClearAll={() => handleClearInventory('relics')}
                   onRefreshItem={handleRefreshSingleItem}

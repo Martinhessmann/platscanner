@@ -1,4 +1,4 @@
-# Prime Parts Plat Scanner
+# Prime Parts Scanner
 
 A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots to detect items and fetch their current market prices. Built with React, Tailwind CSS, and Google's Gemini Vision API.
 
@@ -44,7 +44,7 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 The application is deployed on Netlify with continuous deployment from the main branch.
 
 ### Production URL
-- [Prime Parts Plat Scanner App](https://platscanner.netlify.app)
+- [Prime Parts Scanner App](https://platscanner.netlify.app)
 
 ### Deployment Setup
 
@@ -127,13 +127,13 @@ The `netlify.toml` file includes:
 
 1. **API Key Setup**
    - Visit [Google AI Studio](https://aistudio.google.com/app/apikey) to get your Gemini API key
-   - Click the settings icon in Prime Parts Plat Scanner
+   - Click the settings icon in Prime Parts Scanner
    - Enter your API key (stored securely in local storage)
    - The warning message will disappear once a valid key is configured
 
-2. **Using Prime Parts Plat Scanner**
+2. **Using Prime Parts Scanner**
    - Take screenshots of your Warframe inventory
-   - Upload them to Prime Parts Plat Scanner (drag & drop or click to browse)
+   - Upload them to Prime Parts Scanner (drag & drop or click to browse)
    - Watch as images automatically progress: Queued → Analyzing → Fetching → Complete
    - View real-time market prices and trading data
    - Click "View" to see detailed market listings

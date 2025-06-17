@@ -21,14 +21,14 @@ const TermsPage: React.FC = () => {
       <div className="space-y-8 text-gray-300">
         <section>
           <p className="leading-relaxed">
-            By accessing or using Prime Parts Plat Scanner, you agree to these terms of use.
+            By accessing or using Prime Parts Scanner, you agree to these terms of use.
           </p>
         </section>
 
         <section>
           <h2 className="text-xl font-semibold mb-4">Description of Service</h2>
           <p className="leading-relaxed">
-            Prime Parts Plat Scanner is a web-based application that allows users to upload screenshots of their
+            Prime Parts Scanner is a web-based application that allows users to upload screenshots of their
             Warframe inventory to analyze item content and retrieve current market pricing information
             via external APIs.
           </p>
@@ -58,7 +58,7 @@ const TermsPage: React.FC = () => {
         <section>
           <h2 className="text-xl font-semibold mb-4">Intellectual Property</h2>
           <ul className="list-disc list-inside space-y-2">
-            <li>Prime Parts Plat Scanner's codebase, design, and branding are © Martin Heßmann (<a href="https://martinhessmann.com" target="_blank" rel="noopener noreferrer" className="text-orokin-gold hover:underline">martinhessmann.com</a>)</li>
+            <li>Prime Parts Scanner's codebase, design, and branding are © Martin Heßmann (<a href="https://martinhessmann.com" target="_blank" rel="noopener noreferrer" className="text-orokin-gold hover:underline">martinhessmann.com</a>)</li>
             <li>Warframe® and all related trademarks belong to Digital Extremes Ltd.</li>
             <li>Warframe Market data is provided under their publicly available API terms</li>
           </ul>
@@ -77,7 +77,7 @@ const TermsPage: React.FC = () => {
 
             <div className="bg-background-light p-4 rounded-lg">
               <p className="font-medium mb-2">Limitation of Liability</p>
-              <p>We are not liable for any damages or losses that may arise from using (or being unable to use) Prime Parts Plat Scanner.</p>
+              <p>We are not liable for any damages or losses that may arise from using (or being unable to use) Prime Parts Scanner.</p>
             </div>
           </div>
         </section>

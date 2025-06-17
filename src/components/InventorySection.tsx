@@ -15,6 +15,7 @@ interface InventorySectionProps {
   totalValue: number;
   totalDucats: number;
   isRefreshing: boolean;
+  progress?: { category: string; current: number; total: number };
   onRefreshAll: () => void;
   onClearAll: () => void;
   onRefreshItem: (itemName: string) => void;
@@ -40,6 +41,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   totalValue,
   totalDucats,
   isRefreshing,
+  progress,
   onRefreshAll,
   onClearAll,
   onRefreshItem,
@@ -50,6 +52,13 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   if (items.length === 0) {
     return null; // Don't render empty sections
   }
+
+  const getRefreshButtonText = () => {
+    if (isRefreshing && progress) {
+      return `${progress.current}/${progress.total}`;
+    }
+    return 'Refresh';
+  };
 
   return (
     <div className="mb-2">
@@ -74,6 +83,11 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               </h3>
               <p className="text-xs text-gray-400">
                 {items.length} item{items.length !== 1 ? 's' : ''}
+                {isRefreshing && progress && (
+                  <span className="text-tenno-blue ml-2">
+                    • Refreshing {progress.current}/{progress.total}
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -109,7 +123,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
                 size={14}
                 className={isRefreshing ? 'animate-spin' : ''}
               />
-              Refresh
+              {getRefreshButtonText()}
             </button>
 
             <button
@@ -120,6 +134,26 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               <Trash2 size={14} />
               Clear
             </button>
+          </div>
+        )}
+
+        {/* Progress bar - show when refreshing */}
+        {isRefreshing && progress && (
+          <div className="mt-3 pt-3 border-t border-gray-700/50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-400">Refreshing prices...</span>
+              <span className="text-xs text-gray-400">
+                {progress.current} / {progress.total}
+              </span>
+            </div>
+            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-tenno-blue transition-all duration-300"
+                style={{
+                  width: `${(progress.current / progress.total) * 100}%`
+                }}
+              />
+            </div>
           </div>
         )}
       </div>
