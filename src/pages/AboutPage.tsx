@@ -5,15 +5,15 @@ import { ArrowLeft, Zap, Shield, Cpu, Github, ExternalLink } from 'lucide-react'
 const AboutPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
-      <Link 
-        to="/" 
+      <Link
+        to="/"
         className="inline-flex items-center gap-2 text-gray-400 hover:text-orokin-gold transition-colors mb-8"
       >
         <ArrowLeft size={16} />
         Back to Scanner
       </Link>
 
-      <h1 className="text-3xl font-bold mb-8">About PlatScanner</h1>
+      <h1 className="text-3xl font-bold mb-8">About Prime Parts Plat Scanner</h1>
 
       <div className="space-y-8">
         <section>
@@ -22,7 +22,7 @@ const AboutPage: React.FC = () => {
             What It Does
           </h2>
           <p className="text-gray-300 leading-relaxed">
-            Upload a screenshot of your inventory — PlatScanner will detect all recognizable items using advanced AI, 
+            Upload a screenshot of your inventory — Prime Parts Plat Scanner will detect all recognizable items using advanced AI,
             then fetch live platinum prices from the Warframe Market API.
           </p>
         </section>
@@ -62,7 +62,7 @@ const AboutPage: React.FC = () => {
             Our Mission
           </h2>
           <p className="text-gray-300 leading-relaxed">
-            To help Tenno make smarter market decisions, reduce inventory clutter, and get more platinum 
+            To help Tenno make smarter market decisions, reduce inventory clutter, and get more platinum
             for the gear they don't need.
           </p>
         </section>
@@ -71,7 +71,7 @@ const AboutPage: React.FC = () => {
           <h2 className="text-xl font-semibold mb-4">Technology</h2>
           <div className="space-y-4">
             <p className="text-gray-300">
-              PlatScanner is built with modern web technologies:
+              Prime Parts Plat Scanner is built with modern web technologies:
             </p>
             <ul className="list-disc list-inside space-y-2 text-gray-300">
               <li>React & TypeScript</li>
@@ -88,10 +88,10 @@ const AboutPage: React.FC = () => {
             Contribute
           </h2>
           <p className="text-gray-300 mb-4">
-            PlatScanner is open source. You can contribute to the project on GitHub:
+            Prime Parts Plat Scanner is open source. You can contribute to the project on GitHub:
           </p>
           <div className="flex flex-wrap gap-4">
-            <a 
+            <a
               href="https://github.com/Martinhessmann/platscanner/issues"
               target="_blank"
               rel="noopener noreferrer"
@@ -99,7 +99,7 @@ const AboutPage: React.FC = () => {
             >
               Report Issues <ExternalLink size={16} />
             </a>
-            <a 
+            <a
               href="https://github.com/Martinhessmann/platscanner"
               target="_blank"
               rel="noopener noreferrer"
@@ -113,8 +113,8 @@ const AboutPage: React.FC = () => {
         <section className="bg-background-card rounded-lg p-6 border border-gray-800">
           <h2 className="text-xl font-semibold mb-4">Legal Notice</h2>
           <p className="text-gray-300 leading-relaxed">
-            PlatScanner is not affiliated with Digital Extremes Ltd. Warframe® and all related trademarks 
-            are the property of Digital Extremes Ltd. Warframe Market data is used under their publicly 
+            Prime Parts Plat Scanner is not affiliated with Digital Extremes Ltd. Warframe® and all related trademarks
+            are the property of Digital Extremes Ltd. Warframe Market data is used under their publicly
             available API terms.
           </p>
         </section>

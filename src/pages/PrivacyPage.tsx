@@ -5,8 +5,8 @@ import { ArrowLeft, Lock, Key, Image, Database, Shield, ExternalLink } from 'luc
 const PrivacyPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
-      <Link 
-        to="/" 
+      <Link
+        to="/"
         className="inline-flex items-center gap-2 text-gray-400 hover:text-orokin-gold transition-colors mb-8"
       >
         <ArrowLeft size={16} />
@@ -42,13 +42,13 @@ const PrivacyPage: React.FC = () => {
               <h3 className="font-medium mb-2">Image Uploads</h3>
               <p className="leading-relaxed">
                 Uploaded screenshots are sent to the Google Gemini Vision API for analysis.
-                PlatScanner does not store images.
+                Prime Parts Plat Scanner does not store images.
               </p>
             </div>
             <div>
               <h3 className="font-medium mb-2">Item Names</h3>
               <p className="leading-relaxed">
-                Detected item names are queried against the Warframe Market API. 
+                Detected item names are queried against the Warframe Market API.
                 No personal information is attached to these requests.
               </p>
             </div>
@@ -84,7 +84,7 @@ const PrivacyPage: React.FC = () => {
             If you have questions about your privacy or want to report an issue:
           </p>
           <div className="flex flex-wrap gap-4">
-            <a 
+            <a
               href="https://github.com/Martinhessmann/platscanner/issues"
               target="_blank"
               rel="noopener noreferrer"
@@ -92,7 +92,7 @@ const PrivacyPage: React.FC = () => {
             >
               Report Issues <ExternalLink size={16} />
             </a>
-            <a 
+            <a
               href="mailto:info@martinhessmann.com"
               className="inline-flex items-center gap-2 px-4 py-2 bg-background-light rounded-lg text-gray-300 hover:text-white transition-colors"
             >

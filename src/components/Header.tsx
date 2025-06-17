@@ -25,7 +25,7 @@ const Header: React.FC<HeaderProps> = ({
           </div>
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-white">
-              <span className="text-orokin-gold">PlatScanner</span>
+              <span className="text-orokin-gold">Prime Parts Plat Scanner</span>
             </h1>
             <p className="text-xs text-gray-400 -mt-1">Inventory Value Scanner</p>
           </div>

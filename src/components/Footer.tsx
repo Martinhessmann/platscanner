@@ -9,43 +9,43 @@ const Footer: React.FC = () => {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="text-center md:text-left">
             <p className="text-gray-400 text-sm">
-              <span className="text-orokin-gold">PlatScanner</span> is not affiliated with Digital Extremes Ltd.
+              <span className="text-orokin-gold">Prime Parts Plat Scanner</span> is not affiliated with Digital Extremes Ltd.
             </p>
             <p className="text-gray-500 text-xs">
               Warframe and the Warframe logo are trademarks of Digital Extremes Ltd.
             </p>
           </div>
-          
+
           <div className="flex items-center gap-4 flex-wrap justify-center">
-            <Link 
+            <Link
               to="/about"
               className="text-gray-400 hover:text-orokin-gold transition-colors text-sm"
             >
               About
             </Link>
-            <Link 
+            <Link
               to="/terms"
               className="text-gray-400 hover:text-orokin-gold transition-colors text-sm"
             >
               Terms
             </Link>
-            <Link 
+            <Link
               to="/privacy"
               className="text-gray-400 hover:text-orokin-gold transition-colors text-sm"
             >
               Privacy
             </Link>
-            <a 
-              href="https://warframe.market" 
-              target="_blank" 
+            <a
+              href="https://warframe.market"
+              target="_blank"
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-orokin-gold transition-colors text-sm flex items-center gap-1"
             >
               Warframe Market <ExternalLink size={14} />
             </a>
-            <a 
-              href="https://github.com/Martinhessmann/platscanner" 
-              target="_blank" 
+            <a
+              href="https://github.com/Martinhessmann/platscanner"
+              target="_blank"
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-orokin-gold transition-colors"
               title="View source on GitHub"
