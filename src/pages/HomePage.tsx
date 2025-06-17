@@ -473,7 +473,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
           });
         }
 
-        setFetchingProgress({ current: i + 1, total: allItems.length });
+        // Update progress less frequently to reduce flickering (every 5 items or at the end)
+        if (i % 5 === 0 || i === allItems.length - 1) {
+          setFetchingProgress({ current: i + 1, total: allItems.length });
+        }
       }
 
       // Update persistent storage
@@ -496,7 +499,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
     }
   }, [categorizedInventory]);
 
-  const inventoryStats = useMemo(() => getInventoryStats(), []);
+  const inventoryStats = useMemo(() => getInventoryStats(), [categorizedInventory]);
 
   return (
     <main className="min-h-screen bg-background-dark">
