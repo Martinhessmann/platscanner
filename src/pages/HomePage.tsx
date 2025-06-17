@@ -17,7 +17,7 @@ import {
 import { ImageState, DetectedItem, ProcessingState } from '../types';
 import InfoCard from '../components/InfoCard';
 import { FileWithPath } from 'react-dropzone';
-import { RefreshCw, Package, Trash2, Archive, Zap, Key } from 'lucide-react';
+import { RefreshCw, Package, Trash2, Archive, Zap, Key, Coins } from 'lucide-react';
 
 interface HomePageProps {
   isConfigured: boolean;
@@ -359,10 +359,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
   return (
     <main className="min-h-screen bg-background-dark">
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="max-w-screen-2xl mx-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-5 lg:gap-4">
           {/* Left column - Upload */}
-          <div className="lg:col-span-5 space-y-6">
+          <div className="lg:col-span-2 space-y-3 p-3 lg:p-4">
             <ImageUploader
               onImageUpload={handleImageUpload}
               isProcessing={isProcessing}
@@ -373,14 +373,14 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             />
 
             {processingState.totalCount > 0 && (
-              <div className="bg-background-card rounded-lg p-4 border border-gray-800">
+              <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl p-3 border border-gray-700/50">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-400">Processing Progress</span>
-                  <span className="text-sm text-gray-400">
+                  <span className="text-xs text-gray-400">Processing Progress</span>
+                  <span className="text-xs text-gray-400">
                     {processingState.processedCount} / {processingState.totalCount}
                   </span>
                 </div>
-                <div className="h-2 bg-background-light rounded-full overflow-hidden">
+                <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-tenno-blue transition-all duration-300"
                     style={{
@@ -393,21 +393,21 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
           </div>
 
           {/* Right column - Processing and Results */}
-          <div className="lg:col-span-7 space-y-6">
+          <div className="lg:col-span-3 space-y-3 p-3 lg:p-4">
             {!activeImage && processingState.images.size === 0 && (
-              <div className="bg-background-card rounded-lg border border-gray-800 p-6 text-center">
+              <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
                 {isConfigured ? (
                   <>
-                    <h2 className="text-xl font-semibold mb-2">Ready to Scan</h2>
-                    <p className="text-gray-400">
+                    <h2 className="text-lg font-semibold mb-2">Ready to Scan</h2>
+                    <p className="text-gray-400 text-sm">
                       Upload screenshots of your Warframe inventory to begin scanning for Prime parts and Void relics.
                     </p>
                   </>
                 ) : (
                   <>
-                    <Key size={48} className="mx-auto text-orokin-gold mb-3" />
-                    <h2 className="text-xl font-semibold mb-2">API Key Required</h2>
-                    <p className="text-gray-400 mb-4">
+                    <Key size={40} className="mx-auto text-orokin-gold mb-3" />
+                    <h2 className="text-lg font-semibold mb-2">API Key Required</h2>
+                    <p className="text-gray-400 mb-4 text-sm">
                       Please add your Gemini API key to start scanning your inventory.
                     </p>
                     <button
@@ -426,7 +426,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             )}
 
             {isProcessing && (
-              <div className="bg-background-card rounded-lg border border-gray-800 p-6">
+              <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
                 <ProcessingAnimation stage={
                   activeImage?.status === 'analyzing' ? 'analyzing' :
                   activeImage?.status === 'fetching' ? 'fetching' :
@@ -437,18 +437,28 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
             {/* Story #8: Categorized Inventory Sections */}
             {(categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0) && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold flex items-center gap-2">
-                    <Package size={24} />
-                    My Inventory
-                    <span className="text-sm font-normal text-gray-400">
-                      ({inventoryStats.totalItems} items)
-                    </span>
-                  </h2>
-                  <div className="text-sm text-gray-400 space-x-4">
-                    <span className="text-orokin-gold font-medium">{inventoryStats.totalValue}p</span>
-                    <span className="text-yellow-500">{inventoryStats.totalDucats} ducats</span>
+              <div className="space-y-2">
+                <div className="bg-gray-900/50 backdrop-blur-sm p-3 rounded-xl border border-gray-700/50 sticky top-0 z-10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Package size={20} />
+                      <div>
+                        <h2 className="text-lg font-semibold">My Inventory</h2>
+                        <p className="text-xs text-gray-400">
+                          {inventoryStats.totalItems} items
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center justify-end gap-1 mb-1">
+                        <Zap size={14} className="text-gray-300" />
+                        <span className="text-lg font-bold text-gray-300">{inventoryStats.totalValue}</span>
+                      </div>
+                      <div className="flex items-center justify-end gap-1">
+                        <Coins size={10} className="text-yellow-500" />
+                        <span className="text-xs text-yellow-500">{inventoryStats.totalDucats}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -486,10 +496,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
             {/* Empty state */}
             {categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && (
-              <div className="bg-background-card rounded-lg border border-gray-800 p-6 text-center">
-                <Package size={48} className="mx-auto text-gray-500 mb-3" />
+              <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
+                <Package size={40} className="mx-auto text-gray-500 mb-3" />
                 <p className="text-gray-400 mb-2">Your inventory is empty</p>
-                <p className="text-sm text-gray-500">Upload screenshots to start building your inventory</p>
+                <p className="text-xs text-gray-500">Upload screenshots to start building your inventory</p>
               </div>
             )}
 

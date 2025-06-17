@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { DetectedItem } from '../types';
-import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap } from 'lucide-react';
 
 interface ResultsTableProps {
   results: DetectedItem[];
-  isLoading?: boolean; // Made optional since we handle individual item loading
-  onRemoveItem?: (itemName: string) => void; // For persistent inventory management
-  onRefreshItem?: (itemName: string) => void; // For individual price refresh
-  showActionButtons?: boolean; // Whether to show action buttons (remove, refresh)
+  isLoading?: boolean;
+  onRemoveItem?: (itemName: string) => void;
+  onRefreshItem?: (itemName: string) => void;
+  showActionButtons?: boolean;
 }
 
 const ResultsTable: React.FC<ResultsTableProps> = ({
@@ -19,39 +19,55 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
 }) => {
   const [sortField, setSortField] = useState<'price' | 'name' | 'ducats'>('price');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [showSortOptions, setShowSortOptions] = useState(false);
 
   const handleSort = (field: 'price' | 'name' | 'ducats') => {
+    console.log(`>>> [ResultsTable] Sort clicked: ${field}, current: ${sortField}, direction: ${sortDirection} <<<`);
+
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
       setSortDirection(field === 'name' ? 'asc' : 'desc');
     }
+    setShowSortOptions(false);
+
+    console.log(`>>> [ResultsTable] Sort applied: field=${field}, direction=${sortDirection === 'asc' ? 'desc' : 'asc'} <<<`);
   };
 
   const sortedResults = [...results].sort((a, b) => {
     if (sortField === 'price') {
       const priceA = a.price || 0;
       const priceB = b.price || 0;
-      return sortDirection === 'asc' ? priceA - priceB : priceB - priceA;
+      const result = sortDirection === 'asc' ? priceA - priceB : priceB - priceA;
+      return result;
     } else if (sortField === 'ducats') {
       const ducatsA = a.ducats || 0;
       const ducatsB = b.ducats || 0;
-      return sortDirection === 'asc' ? ducatsA - ducatsB : ducatsB - ducatsA;
+      const result = sortDirection === 'asc' ? ducatsA - ducatsB : ducatsB - ducatsA;
+      return result;
     } else {
-      return sortDirection === 'asc'
+      const result = sortDirection === 'asc'
         ? a.name.localeCompare(b.name)
         : b.name.localeCompare(a.name);
+      return result;
     }
   });
 
-  // Only show skeleton loading for initial load, not for price refresh
+  // Debug logging
+  console.log(`>>> [ResultsTable] Sorting by ${sortField} ${sortDirection}, first 3 items:`,
+    sortedResults.slice(0, 3).map(item => ({
+      name: item.name,
+      price: item.price,
+      ducats: item.ducats
+    }))
+  );
+
   if (isLoading && results.length === 0) {
     return (
-      <div className="animate-pulse">
-        <div className="h-10 bg-background-card rounded mb-4"></div>
-        {[1, 2, 3, 4, 5].map(i => (
-          <div key={i} className="h-16 bg-background-card rounded mb-2 opacity-60"></div>
+      <div className="grid grid-cols-2 gap-2 p-2 animate-pulse">
+        {[1, 2, 3, 4, 5, 6].map(i => (
+          <div key={i} className="bg-gray-800 rounded-lg h-32 opacity-60"></div>
         ))}
       </div>
     );
@@ -59,158 +75,203 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
 
   if (results.length === 0) {
     return (
-      <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">
+      <div className="text-center p-8 m-4 border border-dashed border-gray-700 rounded-lg">
         <p className="text-gray-400">No items detected yet.</p>
         <p className="text-sm text-gray-500 mt-1">Upload a screenshot to analyze your inventory.</p>
       </div>
     );
   }
 
+  const getSortLabel = () => {
+    const direction = sortDirection === 'asc' ? '↑' : '↓';
+    switch (sortField) {
+      case 'price': return `Plat ${direction}`;
+      case 'ducats': return `Ducats ${direction}`;
+      case 'name': return `Name ${direction}`;
+    }
+  };
+
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-800 bg-background-card">
-      <table className="min-w-full divide-y divide-gray-800">
-        <thead className="bg-background-light">
-          <tr>
-            <th scope="col" className="py-3 pl-4 pr-3 text-left text-xs font-semibold text-gray-200 sm:pl-6">
+    <div className="w-full">
+      {/* Mobile-first sort header */}
+      <div className="flex items-center justify-between p-3 bg-gray-900/50 sticky top-0 z-50 backdrop-blur-sm">
+        <div className="text-sm text-gray-400">
+          {results.length} item{results.length !== 1 ? 's' : ''}
+        </div>
+        <div className="relative">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowSortOptions(!showSortOptions);
+            }}
+            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+          >
+            <Filter size={14} />
+            {getSortLabel()}
+          </button>
+
+          {showSortOptions && (
+            <div className="absolute right-0 top-full mt-1 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-50 min-w-32">
               <button
-                onClick={() => handleSort('name')}
-                className="group inline-flex items-center gap-x-1"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSort('price');
+                }}
+                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-t-lg flex items-center gap-2"
               >
-                Item
-                <ArrowUpDown
-                  size={12}
-                  className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'name' ? 'text-orokin-gold' : ''}`}
-                />
+                <Zap size={12} className="text-gray-300" />
+                Plat {sortField === 'price' && (sortDirection === 'asc' ? '↑' : '↓')}
               </button>
-            </th>
-            <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-gray-200">
               <button
-                onClick={() => handleSort('price')}
-                className="group inline-flex items-center gap-x-1"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSort('ducats');
+                }}
+                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
               >
-                Plat
-                <ArrowUpDown
-                  size={12}
-                  className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'price' ? 'text-orokin-gold' : ''}`}
-                />
+                <Coins size={12} className="text-yellow-500" />
+                Ducats {sortField === 'ducats' && (sortDirection === 'asc' ? '↑' : '↓')}
               </button>
-            </th>
-            <th scope="col" className="px-3 py-3 text-left text-xs font-semibold text-gray-200">
               <button
-                onClick={() => handleSort('ducats')}
-                className="group inline-flex items-center gap-x-1"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSort('name');
+                }}
+                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-lg flex items-center gap-2"
               >
-                <Coins size={12} className="text-orokin-gold" />
-                <ArrowUpDown
-                  size={12}
-                  className={`text-gray-400 group-hover:text-orokin-gold transition-colors ${sortField === 'ducats' ? 'text-orokin-gold' : ''}`}
-                />
+                Name {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
               </button>
-            </th>
-            <th scope="col" className="relative py-3 pl-3 pr-4 sm:pr-6">
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-800 bg-background-card">
-          {sortedResults.map((item) => (
-            <tr key={item.id} className="hover:bg-background-light transition-colors">
-              <td className="py-3 pl-4 pr-3 text-xs sm:pl-6">
-                <div className="flex items-start gap-2">
-                  {item.imgUrl ? (
-                    <img
-                      src={item.imgUrl}
-                      alt={item.name}
-                      className="h-8 w-8 flex-shrink-0 rounded bg-background-dark object-cover border border-gray-700"
-                    />
-                  ) : (
-                    <div className="h-8 w-8 flex-shrink-0 rounded bg-background-dark flex items-center justify-center border border-gray-700">
-                      <AlertCircle size={14} className="text-gray-500" />
-                    </div>
-                  )}
-                  <span className="font-medium text-white break-words">{item.name}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile-first 50/50 grid cards */}
+      <div key={`${sortField}-${sortDirection}`} className="grid grid-cols-2 gap-2 p-2">
+        {sortedResults.map((item) => (
+          <div
+            key={item.id}
+            className="bg-gray-800/50 rounded-lg overflow-hidden border border-gray-700/50 hover:border-orokin-gold/30 transition-all duration-200 relative group"
+          >
+            {/* Item image and main info */}
+            <div className="relative">
+              {item.imgUrl ? (
+                <img
+                  src={item.imgUrl}
+                  alt={item.name}
+                  className="w-full h-20 object-cover bg-gray-900"
+                />
+              ) : (
+                <div className="w-full h-20 bg-gray-900 flex items-center justify-center">
+                  <AlertCircle size={20} className="text-gray-500" />
                 </div>
-              </td>
-              <td className="px-3 py-3 text-xs">
-                {item.status === 'loading' && (
-                  <div className="h-4 w-16 bg-gray-700 rounded animate-pulse"></div>
-                )}
-                {item.status === 'error' && (
-                  <span className="text-grineer-red flex items-center gap-1">
-                    <AlertCircle size={12} />
-                    Error
-                  </span>
-                )}
-                {item.status === 'loaded' && (
-                  <div className="break-words">
-                    {item.error ? (
-                      <span className="text-gray-400 flex items-center gap-1">
-                        <AlertCircle size={12} />
-                        {item.error}
-                      </span>
-                    ) : (
-                      <div className="space-y-0.5">
-                        <div>
-                          <span className="text-orokin-gold font-semibold">{item.price}</span>
-                        </div>
-                        {item.average && (
-                          <div className="text-gray-400 text-[10px]">
-                            Avg: {item.average}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </td>
-              <td className="px-3 py-3 text-xs">
-                {item.ducats ? (
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium">{item.ducats}</span>
-                  </div>
-                ) : (
-                  <span className="text-gray-400">-</span>
-                )}
-              </td>
-              <td className="relative py-3 pl-3 pr-4 text-right text-xs font-medium sm:pr-6">
-                <div className="flex items-center justify-end gap-2">
-                  {showActionButtons && onRefreshItem && (
+              )}
+
+              {/* Action buttons overlay - only show on hover for cleaner look */}
+              {showActionButtons && (
+                <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {onRefreshItem && (
                     <button
                       onClick={() => onRefreshItem(item.name)}
                       disabled={item.status === 'loading'}
-                      className={`transition-colors ${
+                      className={`p-1.5 rounded-md backdrop-blur-sm bg-black/50 transition-colors ${
                         item.status === 'loading'
                           ? 'text-gray-500 cursor-not-allowed'
                           : 'text-tenno-blue hover:text-tenno-light'
                       }`}
                       title="Refresh price"
                     >
-                      <RefreshCw size={14} className={item.status === 'loading' ? 'animate-spin' : ''} />
+                      <RefreshCw size={12} className={item.status === 'loading' ? 'animate-spin' : ''} />
                     </button>
                   )}
-                  {showActionButtons && onRemoveItem && (
+                  {onRemoveItem && (
                     <button
                       onClick={() => onRemoveItem(item.name)}
-                      className="text-grineer-red hover:text-red-400 transition-colors"
+                      className="p-1.5 rounded-md backdrop-blur-sm bg-black/50 text-grineer-red hover:text-red-400 transition-colors"
                       title="Remove from inventory"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={12} />
                     </button>
                   )}
-                  <a
-                    href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-tenno-blue hover:text-tenno-light"
-                  >
-                    <ExternalLink size={14} />
-                  </a>
                 </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              )}
+
+              {/* Price overlay */}
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
+                {item.status === 'loading' && (
+                  <div className="h-4 w-16 bg-gray-700 rounded animate-pulse"></div>
+                )}
+                {item.status === 'error' && (
+                  <span className="text-grineer-red flex items-center gap-1 text-xs">
+                    <AlertCircle size={10} />
+                    Error
+                  </span>
+                )}
+                {item.status === 'loaded' && (
+                  <div className="flex items-center justify-between">
+                    {item.error ? (
+                      <span className="text-gray-400 flex items-center gap-1 text-xs">
+                        <AlertCircle size={10} />
+                        {item.error}
+                      </span>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3">
+                          {/* Platinum - Large and Silver */}
+                          <div className="flex items-center gap-1">
+                            <Zap size={14} className="text-gray-300" />
+                            <span className="text-gray-300 font-bold text-xl">{item.price}</span>
+                          </div>
+                          {/* Ducats - Smaller and Yellow */}
+                          {item.ducats && (
+                            <div className="flex items-center gap-1">
+                              <Coins size={10} className="text-yellow-500" />
+                              <span className="text-yellow-500 text-sm font-medium">{item.ducats}</span>
+                            </div>
+                          )}
+                        </div>
+                        <a
+                          href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-tenno-blue hover:text-tenno-light p-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink size={12} />
+                        </a>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Item name and details */}
+            <div className="p-2">
+              <h3 className="font-medium text-white text-sm leading-tight line-clamp-2 mb-1">
+                {item.name}
+              </h3>
+              {item.status === 'loaded' && item.average && !item.error && (
+                <div className="text-gray-400 text-xs">
+                  Avg: {item.average}
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tap outside to close sort options */}
+      {showSortOptions && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowSortOptions(false)}
+        />
+      )}
     </div>
   );
 };

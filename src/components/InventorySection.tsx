@@ -2,7 +2,7 @@
 // Supports Story #8: Extended Item Support with separate sections for different item types
 
 import React, { useState } from 'react';
-import { RefreshCw, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { RefreshCw, Trash2, ChevronDown, ChevronRight, Zap, Coins } from 'lucide-react';
 import { InventoryItem } from '../services/inventoryService';
 import { ItemCategory } from '../types';
 import ResultsTable from './ResultsTable';
@@ -52,66 +52,79 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   }
 
   return (
-    <div className="bg-background-card rounded-lg border border-gray-800 p-4 mb-4">
-      <div className="flex items-center justify-between mb-4">
+    <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-xl overflow-hidden mb-2">
+      {/* Mobile-first header */}
+      <div className="bg-gray-900/50 p-3">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-3 text-lg font-semibold hover:text-orokin-gold transition-colors group"
+          className="flex items-center justify-between w-full text-left group"
         >
-          {isExpanded ? (
-            <ChevronDown size={20} className="text-gray-400 group-hover:text-orokin-gold" />
-          ) : (
-            <ChevronRight size={20} className="text-gray-400 group-hover:text-orokin-gold" />
-          )}
-          {icon}
-          {title}
-          <span className="text-sm font-normal text-gray-400">
-            ({items.length} items)
-          </span>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {isExpanded ? (
+                <ChevronDown size={16} className="text-gray-400 group-hover:text-orokin-gold transition-colors" />
+              ) : (
+                <ChevronRight size={16} className="text-gray-400 group-hover:text-orokin-gold transition-colors" />
+              )}
+              {icon}
+            </div>
+            <div>
+              <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
+                {title}
+              </h3>
+              <p className="text-xs text-gray-400">
+                {items.length} item{items.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="flex items-center justify-end gap-1 mb-1">
+              <Zap size={14} className="text-gray-300" />
+              <span className="text-lg font-bold text-gray-300">{totalValue}</span>
+            </div>
+            {category === 'prime_parts' && (
+              <div className="flex items-center justify-end gap-1">
+                <Coins size={10} className="text-yellow-500" />
+                <span className="text-xs text-yellow-500">{totalDucats}</span>
+              </div>
+            )}
+          </div>
         </button>
 
-        <div className="flex items-center gap-4">
-          {items.length > 0 && (
-            <div className="text-sm text-gray-400 space-x-4">
-              <span className="text-orokin-gold font-medium">{totalValue}p</span>
-              {category === 'prime_parts' && (
-                <span className="text-yellow-500">{totalDucats} ducats</span>
-              )}
-            </div>
-          )}
+        {/* Action buttons - only show when expanded */}
+        {isExpanded && items.length > 0 && (
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-700/50">
+            <button
+              onClick={onRefreshAll}
+              disabled={isRefreshing}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex-1 justify-center ${
+                isRefreshing
+                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                  : 'bg-tenno-blue hover:bg-tenno-light text-white'
+              }`}
+              title={`Refresh all ${getCategoryDisplayName(category).toLowerCase()}`}
+            >
+              <RefreshCw
+                size={14}
+                className={isRefreshing ? 'animate-spin' : ''}
+              />
+              Refresh
+            </button>
 
-          {items.length > 0 && isExpanded && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={onRefreshAll}
-                disabled={isRefreshing}
-                className={`flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                  isRefreshing
-                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                    : 'bg-tenno-blue hover:bg-tenno-light text-white'
-                }`}
-                title={`Refresh all ${getCategoryDisplayName(category).toLowerCase()}`}
-              >
-                <RefreshCw
-                  size={14}
-                  className={isRefreshing ? 'animate-spin' : ''}
-                />
-                Refresh
-              </button>
-
-              <button
-                onClick={onClearAll}
-                className="flex items-center gap-1 px-3 py-2 rounded text-sm font-medium bg-grineer-red hover:bg-red-600 text-white transition-colors"
-                title={`Clear all ${getCategoryDisplayName(category).toLowerCase()}`}
-              >
-                <Trash2 size={14} />
-                Clear
-              </button>
-            </div>
-          )}
-        </div>
+            <button
+              onClick={onClearAll}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-grineer-red hover:bg-red-600 text-white transition-colors flex-1 justify-center"
+              title={`Clear all ${getCategoryDisplayName(category).toLowerCase()}`}
+            >
+              <Trash2 size={14} />
+              Clear
+            </button>
+          </div>
+        )}
       </div>
 
+      {/* Content */}
       {isExpanded && (
         <ResultsTable
           results={items}
@@ -122,9 +135,9 @@ const InventorySection: React.FC<InventorySectionProps> = ({
       )}
 
       {!isExpanded && (
-        <div className="text-center p-2">
+        <div className="text-center p-3 bg-gray-900/30">
           <p className="text-gray-400 text-sm">
-            Click to view {items.length} {getCategoryDisplayName(category).toLowerCase()}
+            Tap to view {items.length} {getCategoryDisplayName(category).toLowerCase()}
           </p>
         </div>
       )}
