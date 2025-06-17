@@ -1,9 +1,9 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import ImageUploader from '../components/ImageUploader';
 import ProcessingAnimation from '../components/ProcessingAnimation';
 import InventorySection from '../components/InventorySection';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
-import { fetchPriceData, fetchSinglePriceData } from '../services/warframeMarketService';
+import { fetchPriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
 import {
   saveToInventory,
   loadInventory,
@@ -117,7 +117,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             const item = newItems[index];
             try {
               // Fetch price for individual item
-              const itemWithPrice = await fetchSinglePriceData(item);
+              const itemWithPrice = await fetchSinglePriceOnly(item);
               processedItems.push(itemWithPrice);
 
               // Add to inventory immediately as it's processed
@@ -312,7 +312,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
     try {
       // Fetch updated price for single item
-      const updatedItem = await fetchSinglePriceData(item);
+      const updatedItem = await fetchSinglePriceOnly(item);
 
       console.log(`>>> [HomePage] Fetched updated item: ${updatedItem.name}, status: ${updatedItem.status}, price: ${updatedItem.price} <<<`);
 
@@ -374,11 +374,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         console.log(`>>> [HomePage] Category refresh processing ${i + 1}/${items.length}: ${item.name} <<<`);
 
         try {
-          const updatedItem = await fetchSinglePriceData(item);
+          const updatedItem = await fetchSinglePriceOnly(item);
           updatedItems.push({
             ...updatedItem,
             addedAt: item.addedAt,
-            lastUpdated: Date.now()
+            lastUpdated: new Date(Date.now())
           });
           console.log(`>>> [HomePage] Category refresh updated: ${updatedItem.name}, status: ${updatedItem.status}, price: ${updatedItem.price} <<<`);
         } catch (error) {
@@ -387,35 +387,36 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             ...item,
             status: 'error',
             error: 'Failed to fetch price',
-            lastUpdated: Date.now()
+            lastUpdated: new Date(Date.now())
           });
         }
 
-        // Update progress
-        setCategoryProgress({ category, current: i + 1, total: items.length });
-
-        // Update state progressively as items are processed
-        setCategorizedInventory(prev => {
-          const newState = { ...prev };
-          const updatedItem = updatedItems[updatedItems.length - 1];
-
-          newState[category] = prev[category].map(inventoryItem =>
-            inventoryItem.name === updatedItem.name
-              ? { ...inventoryItem, ...updatedItem, addedAt: inventoryItem.addedAt }
-              : inventoryItem
-          );
-
-          return newState;
-        });
+        // Update progress less frequently to reduce flickering (every 3 items or at the end)
+        if (i % 3 === 0 || i === items.length - 1) {
+          setCategoryProgress({ category, current: i + 1, total: items.length });
+        }
       }
 
       // Update persistent inventory
       updateInventoryPrices(updatedItems);
 
+      // Update local state with all processed items at once (prevents flickering)
+      setCategorizedInventory(prev => ({
+        ...prev,
+        [category]: prev[category].map(inventoryItem => {
+          const updatedItem = updatedItems.find(updated => updated.name === inventoryItem.name);
+          return updatedItem ? { ...inventoryItem, ...updatedItem, addedAt: inventoryItem.addedAt } : inventoryItem;
+        })
+      }));
+
       setLastPriceRefresh(new Date());
       console.log(`>>> [HomePage] Category refresh completed for ${updatedItems.length} items <<<`);
     } catch (error) {
       console.error(`Error refreshing ${category} prices:`, error);
+
+      // Reload from persistent storage on error to prevent empty inventory
+      const updatedInventory = getCategorizedInventory();
+      setCategorizedInventory(updatedInventory);
     } finally {
       setRefreshingCategories(prev => {
         const updated = new Set(prev);
@@ -455,11 +456,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         console.log(`>>> [HomePage] Bulk refresh processing ${i + 1}/${allItems.length}: ${item.name} <<<`);
 
         try {
-          const updatedItem = await fetchSinglePriceData(item);
+          const updatedItem = await fetchSinglePriceOnly(item);
           updatedItems.push({
             ...updatedItem,
             addedAt: item.addedAt,
-            lastUpdated: Date.now()
+            lastUpdated: new Date(Date.now())
           });
           console.log(`>>> [HomePage] Bulk refresh updated: ${updatedItem.name}, status: ${updatedItem.status}, price: ${updatedItem.price} <<<`);
         } catch (error) {
@@ -468,7 +469,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             ...item,
             status: 'error',
             error: 'Failed to fetch price',
-            lastUpdated: Date.now()
+            lastUpdated: new Date(Date.now())
           });
         }
 
@@ -479,8 +480,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
       updateInventoryPrices(updatedItems);
 
       // Update state with all fetched items
-      const primeUpdatedItems = updatedItems.filter(item => item.category === 'prime');
-      const relicUpdatedItems = updatedItems.filter(item => item.category === 'relic');
+      const primeUpdatedItems = updatedItems.filter(item => item.category === 'prime_parts');
+      const relicUpdatedItems = updatedItems.filter(item => item.category === 'relics');
 
       setCategorizedInventory({
         prime_parts: primeUpdatedItems,
@@ -495,7 +496,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
     }
   }, [categorizedInventory]);
 
-  const inventoryStats = getInventoryStats();
+  const inventoryStats = useMemo(() => getInventoryStats(), []);
 
   return (
     <main className="min-h-screen bg-background-dark">
@@ -512,10 +513,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
               onImageRemove={handleImageRemove}
             />
 
-            {processingState.totalCount > 0 && (
+            {/* Only show processing progress for actual image analysis, not price refreshes */}
+            {processingState.totalCount > 0 && isProcessing && (
               <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl p-3 border border-gray-700/50">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400">Processing Progress</span>
+                  <span className="text-xs text-gray-400">Image Processing</span>
                   <span className="text-xs text-gray-400">
                     {processingState.processedCount} / {processingState.totalCount}
                   </span>

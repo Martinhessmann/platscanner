@@ -206,7 +206,58 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
 };
 
 /**
- * CRITICAL: Fetches market data for a single prime part
+ * OPTIMIZED: Fetches only price data for a single prime part (preserves images)
+ *
+ * Use this for: Price refreshes, inventory updates
+ * Performance: Faster - only updates price fields, preserves existing imgUrl
+ *
+ * @param primePart - Single PrimePart object to fetch prices for
+ * @returns Updated PrimePart with new price data but preserved image
+ */
+export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<DetectedItem> => {
+  const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
+
+  try {
+    const normalizedName = normalizeItemName(primePart.name);
+    console.log(`Fetching price data for: ${primePart.name} (${normalizedName})`);
+
+    let data;
+    if (useSupabase) {
+      data = await fetchViaSupabase(normalizedName);
+    } else {
+      data = await fetchViaDirect(normalizedName);
+    }
+
+    console.log(`Raw price data for ${primePart.name}:`, data);
+
+    return {
+      ...primePart,
+      // Only update price-related fields, preserve existing imgUrl
+      price: data.price,
+      ducats: data.ducats,
+      volume: data.volume,
+      average: data.average,
+      status: 'loaded' as const,
+      error: data.price === 0 ? 'No active buy orders' : undefined
+      // imgUrl is preserved from existing primePart
+    };
+
+  } catch (error) {
+    console.error(`Failed to fetch price data for ${primePart.name}:`, error);
+    return {
+      ...primePart,
+      status: 'error' as const,
+      error: error instanceof Error ? error.message : 'Failed to fetch market data'
+      // imgUrl is preserved from existing primePart
+    };
+  }
+};
+
+/**
+ * COMPLETE: Fetches market data for a single prime part (includes images)
+ *
+ * Use this for: Initial scans, new items that need images
+ * Performance: Slower - fetches everything including imgUrl
  *
  * @param primePart - Single PrimePart object to fetch data for
  * @returns Updated PrimePart with market data
