@@ -3,9 +3,13 @@ import { Scan, Sparkles, Zap } from 'lucide-react';
 
 interface ProcessingAnimationProps {
   stage: 'analyzing' | 'fetching' | 'complete';
+  progress?: {
+    current: number;
+    total: number;
+  };
 }
 
-const ProcessingAnimation: React.FC<ProcessingAnimationProps> = ({ stage }) => {
+const ProcessingAnimation: React.FC<ProcessingAnimationProps> = ({ stage, progress }) => {
   return (
     <div className="flex flex-col items-center justify-center py-8">
       <div className="relative w-24 h-24 mb-6">
@@ -39,7 +43,7 @@ const ProcessingAnimation: React.FC<ProcessingAnimationProps> = ({ stage }) => {
       {/* Status text */}
       <h3 className="text-xl font-semibold text-white mb-2">
         {stage === 'analyzing' && "Analyzing Screenshot"}
-        {stage === 'fetching' && "Fetching Market Prices"}
+        {stage === 'fetching' && `Fetching Market Prices${progress ? ` (${progress.current}/${progress.total})` : ''}`}
         {stage === 'complete' && "Processing Complete"}
       </h3>
 

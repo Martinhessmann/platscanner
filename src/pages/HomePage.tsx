@@ -36,6 +36,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
   const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
+  const [fetchingProgress, setFetchingProgress] = useState<{ current: number; total: number } | undefined>(undefined);
 
   // Story #3 & #8: Categorized Persistent Inventory State
   const [categorizedInventory, setCategorizedInventory] = useState({
@@ -104,11 +105,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             })
           }));
 
+          // Initialize progress tracking
+          setFetchingProgress({ current: 0, total: newItems.length });
+
           // Fetch prices individually and update inventory as they come in
           const sessionId = `scan_${Date.now()}`;
           const processedItems: DetectedItem[] = [];
 
-          for (const item of newItems) {
+          for (let index = 0; index < newItems.length; index++) {
+            const item = newItems[index];
             try {
               // Fetch price for individual item
               const itemWithPrice = await fetchSinglePriceData(item);
@@ -121,13 +126,22 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
               const updatedInventory = getCategorizedInventory();
               setCategorizedInventory(updatedInventory);
 
-              console.log(`Added ${itemWithPrice.name} to inventory with price ${itemWithPrice.price}`);
+              // Update progress after processing each item
+              setFetchingProgress({ current: index + 1, total: newItems.length });
+
+              console.log(`Added ${itemWithPrice.name} to inventory with price ${itemWithPrice.price} (${index + 1}/${newItems.length})`);
             } catch (error) {
               console.error(`Failed to process ${item.name}:`, error);
               const errorItem = { ...item, status: 'error' as const, error: 'Failed to fetch price' };
               processedItems.push(errorItem);
+
+              // Update progress even for failed items
+              setFetchingProgress({ current: index + 1, total: newItems.length });
             }
           }
+
+          // Clear progress tracking when done
+          setFetchingProgress(undefined);
 
           // Mark image as complete
           setProcessingState(final => ({
@@ -270,13 +284,20 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
   // Individual item price refresh
   const handleRefreshSingleItem = useCallback(async (itemName: string) => {
+    console.log(`>>> [HomePage] Refreshing single item: ${itemName} <<<`);
+
     // Find item in either category
     const primeItem = categorizedInventory.prime_parts.find(item => item.name === itemName);
     const relicItem = categorizedInventory.relics.find(item => item.name === itemName);
     const item = primeItem || relicItem;
     const category = primeItem ? 'prime_parts' : 'relics';
 
-    if (!item) return;
+    if (!item) {
+      console.log(`>>> [HomePage] Item not found: ${itemName} <<<`);
+      return;
+    }
+
+    console.log(`>>> [HomePage] Current item status: ${item.status}, price: ${item.price} <<<`);
 
     // Update item to loading state
     setCategorizedInventory(prev => ({
@@ -292,10 +313,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
       // Fetch updated price for single item
       const updatedItem = await fetchSinglePriceData(item);
 
+      console.log(`>>> [HomePage] Fetched updated item: ${updatedItem.name}, status: ${updatedItem.status}, price: ${updatedItem.price} <<<`);
+
       // Update persistent storage
       updateInventoryPrices([updatedItem]);
 
-      // Update local state
+      // Update local state - preserve addedAt and merge new data
       setCategorizedInventory(prev => ({
         ...prev,
         [category]: prev[category].map(inventoryItem =>
@@ -304,6 +327,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             : inventoryItem
         )
       }));
+
+      console.log(`>>> [HomePage] Updated local state for: ${itemName} <<<`);
     } catch (error) {
       console.error(`Failed to refresh ${itemName}:`, error);
 
@@ -354,6 +379,75 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
       });
     }
   }, [categorizedInventory, refreshingCategories]);
+
+  // Refresh all market prices
+  const handleRefreshPrices = useCallback(async () => {
+    console.log('>>> [HomePage] Starting bulk price refresh <<<');
+
+    const allItems = [...categorizedInventory.prime_parts, ...categorizedInventory.relics];
+
+    if (allItems.length === 0) {
+      console.log('>>> [HomePage] No items to refresh <<<');
+      return;
+    }
+
+    console.log(`>>> [HomePage] Found ${allItems.length} items to refresh <<<`);
+    setFetchingProgress({ current: 0, total: allItems.length });
+    setProcessingState('fetching');
+
+    // Set all items to loading state first
+    setCategorizedInventory(prev => ({
+      prime_parts: prev.prime_parts.map(item => ({ ...item, status: 'loading' as const })),
+      relics: prev.relics.map(item => ({ ...item, status: 'loading' as const }))
+    }));
+
+    try {
+      const updatedItems: InventoryItem[] = [];
+
+      for (let i = 0; i < allItems.length; i++) {
+        const item = allItems[i];
+        console.log(`>>> [HomePage] Bulk refresh processing ${i + 1}/${allItems.length}: ${item.name} <<<`);
+
+        try {
+          const updatedItem = await fetchSinglePriceData(item);
+          updatedItems.push({
+            ...updatedItem,
+            addedAt: item.addedAt,
+            lastUpdated: Date.now()
+          });
+          console.log(`>>> [HomePage] Bulk refresh updated: ${updatedItem.name}, status: ${updatedItem.status}, price: ${updatedItem.price} <<<`);
+        } catch (error) {
+          console.error(`Failed to fetch price for ${item.name}:`, error);
+          updatedItems.push({
+            ...item,
+            status: 'error',
+            error: 'Failed to fetch price',
+            lastUpdated: Date.now()
+          });
+        }
+
+        setFetchingProgress({ current: i + 1, total: allItems.length });
+      }
+
+      // Update persistent storage
+      updateInventoryPrices(updatedItems);
+
+      // Update state with all fetched items
+      const primeUpdatedItems = updatedItems.filter(item => item.category === 'prime');
+      const relicUpdatedItems = updatedItems.filter(item => item.category === 'relic');
+
+      setCategorizedInventory({
+        prime_parts: primeUpdatedItems,
+        relics: relicUpdatedItems
+      });
+      console.log(`>>> [HomePage] Bulk refresh completed for ${updatedItems.length} items <<<`);
+    } catch (error) {
+      console.error('Failed to refresh prices:', error);
+    } finally {
+      setProcessingState('idle');
+      setFetchingProgress({ current: 0, total: 0 });
+    }
+  }, [categorizedInventory]);
 
   const inventoryStats = getInventoryStats();
 
@@ -427,11 +521,14 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
             {isProcessing && (
               <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
-                <ProcessingAnimation stage={
-                  activeImage?.status === 'analyzing' ? 'analyzing' :
-                  activeImage?.status === 'fetching' ? 'fetching' :
-                  'analyzing'
-                } />
+                <ProcessingAnimation
+                  stage={
+                    activeImage?.status === 'analyzing' ? 'analyzing' :
+                    activeImage?.status === 'fetching' ? 'fetching' :
+                    'analyzing'
+                  }
+                  progress={activeImage?.status === 'fetching' ? fetchingProgress : undefined}
+                />
               </div>
             )}
 
