@@ -101,7 +101,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex-1 justify-center ${
                 isRefreshing
                   ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                  : 'bg-tenno-blue hover:bg-tenno-light text-white'
+                  : 'bg-tenno-blue/10 hover:bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/20'
               }`}
               title={`Refresh all ${getCategoryDisplayName(category).toLowerCase()}`}
             >
@@ -114,7 +114,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
 
             <button
               onClick={onClearAll}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-grineer-red hover:bg-red-600 text-white transition-colors flex-1 justify-center"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-grineer-red/10 hover:bg-grineer-red/20 text-grineer-red border border-grineer-red/20 transition-colors flex-1 justify-center"
               title={`Clear all ${getCategoryDisplayName(category).toLowerCase()}`}
             >
               <Trash2 size={14} />
@@ -137,11 +137,14 @@ const InventorySection: React.FC<InventorySectionProps> = ({
       )}
 
       {!isExpanded && (
-        <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl text-center p-3">
-          <p className="text-gray-400 text-sm">
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl text-center p-3 hover:bg-gray-800/50 transition-colors"
+        >
+          <p className="text-gray-400 text-sm hover:text-gray-300 transition-colors">
             Tap to view {items.length} {getCategoryDisplayName(category).toLowerCase()}
           </p>
-        </div>
+        </button>
       )}
     </div>
   );
