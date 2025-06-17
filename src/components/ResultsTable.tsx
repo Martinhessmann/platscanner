@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DetectedItem } from '../types';
-import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical } from 'lucide-react';
 
 interface ResultsTableProps {
   results: DetectedItem[];
@@ -20,6 +20,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const [sortField, setSortField] = useState<'price' | 'name' | 'ducats'>('price');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSortOptions, setShowSortOptions] = useState(false);
+  const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
 
   const handleSort = (field: 'price' | 'name' | 'ducats') => {
     console.log(`>>> [ResultsTable] Sort clicked: ${field}, current: ${sortField}, direction: ${sortDirection} <<<`);
@@ -94,7 +95,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   return (
     <div className="w-full">
       {/* Mobile-first sort header */}
-      <div className="flex items-center justify-between p-3 bg-gray-900/50 sticky top-0 z-50 backdrop-blur-sm">
+      <div className="flex items-center justify-between p-3 bg-gray-900/50">
         <div className="text-sm text-gray-400">
           {results.length} item{results.length !== 1 ? 's' : ''}
         </div>
@@ -171,31 +172,58 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                 </div>
               )}
 
-              {/* Action buttons overlay - only show on hover for cleaner look */}
-              {showActionButtons && (
-                <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  {onRefreshItem && (
-                    <button
-                      onClick={() => onRefreshItem(item.name)}
-                      disabled={item.status === 'loading'}
-                      className={`p-1.5 rounded-md backdrop-blur-sm bg-black/50 transition-colors ${
-                        item.status === 'loading'
-                          ? 'text-gray-500 cursor-not-allowed'
-                          : 'text-tenno-blue hover:text-tenno-light'
-                      }`}
-                      title="Refresh price"
-                    >
-                      <RefreshCw size={12} className={item.status === 'loading' ? 'animate-spin' : ''} />
-                    </button>
-                  )}
-                  {onRemoveItem && (
-                    <button
-                      onClick={() => onRemoveItem(item.name)}
-                      className="p-1.5 rounded-md backdrop-blur-sm bg-black/50 text-grineer-red hover:text-red-400 transition-colors"
-                      title="Remove from inventory"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+              {/* 3-dots meatball menu for mobile-friendly actions */}
+              {showActionButtons && (onRefreshItem || onRemoveItem) && (
+                <div className="absolute top-1 right-1">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setActiveActionMenu(activeActionMenu === item.id ? null : item.id);
+                    }}
+                    className="p-1.5 rounded-md backdrop-blur-sm bg-black/50 text-gray-300 hover:text-white transition-colors"
+                    title="Actions"
+                  >
+                    <MoreVertical size={12} />
+                  </button>
+
+                  {/* Action dropdown menu */}
+                  {activeActionMenu === item.id && (
+                    <div className="absolute right-0 top-full mt-1 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-50 min-w-32">
+                      {onRefreshItem && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onRefreshItem(item.name);
+                            setActiveActionMenu(null);
+                          }}
+                          disabled={item.status === 'loading'}
+                          className={`w-full text-left px-3 py-2 text-sm rounded-t-lg flex items-center gap-2 transition-colors ${
+                            item.status === 'loading'
+                              ? 'text-gray-500 cursor-not-allowed'
+                              : 'text-tenno-blue hover:bg-gray-700'
+                          }`}
+                        >
+                          <RefreshCw size={12} className={item.status === 'loading' ? 'animate-spin' : ''} />
+                          Refresh price
+                        </button>
+                      )}
+                      {onRemoveItem && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onRemoveItem(item.name);
+                            setActiveActionMenu(null);
+                          }}
+                          className="w-full text-left px-3 py-2 text-sm text-grineer-red hover:bg-gray-700 rounded-b-lg flex items-center gap-2 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -270,6 +298,14 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
         <div
           className="fixed inset-0 z-40"
           onClick={() => setShowSortOptions(false)}
+        />
+      )}
+
+      {/* Tap outside to close action menu */}
+      {activeActionMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setActiveActionMenu(null)}
         />
       )}
     </div>

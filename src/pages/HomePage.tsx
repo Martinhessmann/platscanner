@@ -438,29 +438,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             {/* Story #8: Categorized Inventory Sections */}
             {(categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0) && (
               <div className="space-y-2">
-                <div className="bg-gray-900/50 backdrop-blur-sm p-3 rounded-xl border border-gray-700/50 sticky top-0 z-10">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Package size={20} />
-                      <div>
-                        <h2 className="text-lg font-semibold">My Inventory</h2>
-                        <p className="text-xs text-gray-400">
-                          {inventoryStats.totalItems} items
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center justify-end gap-1 mb-1">
-                        <Zap size={14} className="text-gray-300" />
-                        <span className="text-lg font-bold text-gray-300">{inventoryStats.totalValue}</span>
-                      </div>
-                      <div className="flex items-center justify-end gap-1">
-                        <Coins size={10} className="text-yellow-500" />
-                        <span className="text-xs text-yellow-500">{inventoryStats.totalDucats}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Prime Parts Section */}
                 <InventorySection

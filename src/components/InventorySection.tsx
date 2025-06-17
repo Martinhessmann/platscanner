@@ -52,9 +52,9 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   }
 
   return (
-    <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 rounded-xl overflow-hidden mb-2">
-      {/* Mobile-first header */}
-      <div className="bg-gray-900/50 p-3">
+    <div className="mb-2">
+      {/* Mobile-first sticky header */}
+      <div className="bg-gray-900/50 backdrop-blur-sm p-3 rounded-t-xl border border-gray-700/50 border-b-0 sticky top-0 z-20">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="flex items-center justify-between w-full text-left group"
@@ -126,16 +126,18 @@ const InventorySection: React.FC<InventorySectionProps> = ({
 
       {/* Content */}
       {isExpanded && (
-        <ResultsTable
-          results={items}
-          onRemoveItem={onRemoveItem}
-          onRefreshItem={onRefreshItem}
-          showActionButtons={true}
-        />
+        <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl overflow-hidden">
+          <ResultsTable
+            results={items}
+            onRemoveItem={onRemoveItem}
+            onRefreshItem={onRefreshItem}
+            showActionButtons={true}
+          />
+        </div>
       )}
 
       {!isExpanded && (
-        <div className="text-center p-3 bg-gray-900/30">
+        <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl text-center p-3">
           <p className="text-gray-400 text-sm">
             Tap to view {items.length} {getCategoryDisplayName(category).toLowerCase()}
           </p>
