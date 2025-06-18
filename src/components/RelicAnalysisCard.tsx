@@ -71,10 +71,10 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
       case 'SELL':
         return {
           action: 'SELL',
-          color: 'text-red-400',
-          bgColor: 'bg-red-900/20 border-red-700/50',
-          priorityColors: { text: 'LOW PRIORITY', bg: 'bg-red-900/30' },
-          icon: <Coins size={16} className="text-red-400" />
+          color: 'text-green-400', // GREEN: Selling is the profitable choice!
+          bgColor: 'bg-green-900/20 border-green-700/50',
+          priorityColors: { text: 'text-green-400', bg: 'bg-green-900/30' },
+          icon: <Coins size={16} className="text-green-400" />
         };
       case 'REFINE_THEN_OPEN':
         return {

@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.5.1] - 2025-01-02
 
+### Fixed
+- **🚨 CRITICAL: Relic Market Price vs Expected Value Logic** ⭐⭐⭐⭐⭐ ✅ **FIXED**
+  - **Issue**: Relics recommended "OPEN" even when direct market sale was more profitable
+  - **Example**: Lith W1 Relic showed "Expected: 3.0p, OPEN" but market buyers offered 5p for the intact relic
+  - **Root Cause**: `calculateRelicValueAnalysis()` hardcoded `directSalePrice = 0` instead of using actual market data
+  - **Solution**: Pass relic's market price into analysis function and properly compare against expected drop value
+  - **Impact**: Now correctly recommends "SELL" when market price exceeds expected value (e.g., 5p market vs 3p expected = +2p profit by selling)
+
+- **🎨 Logical Color Scheme for Recommendations** ⭐⭐⭐⭐ ✅ **IMPROVED**
+  - **Issue**: SELL recommendations displayed in RED (suggesting bad/dangerous) while OPEN was GREEN
+  - **Logic Fix**: Both SELL and OPEN now use GREEN when they're the profitable choice
+  - **Color Meaning**: GREEN = profitable decision, YELLOW = refine first, GRAY = no clear profit
+  - **Impact**: Color now indicates decision quality, not action type - less confusing UX
+
 ### Enhanced
 - **🎯 Relic Decision UI/UX Overhaul** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
   - **Clear Decision-Making Interface**: Replaced confusing "7 exp" display with intuitive relic analysis cards

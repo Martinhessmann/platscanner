@@ -123,9 +123,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
                 // For relics, fetch basic price data AND calculate relic value analysis
                 const basicItem = await fetchSinglePriceData(item);
 
-                // Calculate relic value analysis using the actual detected rarity
+                // Calculate relic value analysis using the actual detected rarity and market price
                 const relicItem = item as VoidRelic;
-                const relicAnalysis = await calculateRelicValueAnalysis(item.name, relicItem.rarity || 'intact');
+                const relicAnalysis = await calculateRelicValueAnalysis(
+                  item.name,
+                  relicItem.rarity || 'intact',
+                  basicItem.price || 0
+                );
 
                 if (relicAnalysis) {
                   processedItem = {
@@ -347,9 +351,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         // For relics, fetch basic price data AND calculate relic value analysis
         const basicItem = await fetchSinglePriceOnly(item);
 
-        // Calculate relic value analysis using the actual detected rarity
+        // Calculate relic value analysis using the actual detected rarity and market price
         const relicItem = item as VoidRelic;
-        const relicAnalysis = await calculateRelicValueAnalysis(itemName, relicItem.rarity || 'intact');
+        const relicAnalysis = await calculateRelicValueAnalysis(
+          itemName,
+          relicItem.rarity || 'intact',
+          basicItem.price || 0
+        );
 
         if (relicAnalysis) {
           updatedItem = {
@@ -437,9 +445,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             // For relics, fetch basic price data AND calculate relic value analysis
             const basicItem = await fetchSinglePriceOnly(item);
 
-            // Calculate relic value analysis using the actual detected rarity
+            // Calculate relic value analysis using the actual detected rarity and market price
             const relicItem = item as VoidRelic;
-            const relicAnalysis = await calculateRelicValueAnalysis(item.name, relicItem.rarity || 'intact');
+            const relicAnalysis = await calculateRelicValueAnalysis(
+              item.name,
+              relicItem.rarity || 'intact',
+              basicItem.price || 0
+            );
 
             if (relicAnalysis) {
               updatedItem = {
@@ -548,9 +560,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             // For relics, fetch basic price data AND calculate relic value analysis
             const basicItem = await fetchSinglePriceOnly(item);
 
-            // Calculate relic value analysis using the actual detected rarity
+            // Calculate relic value analysis using the actual detected rarity and market price
             const relicItem = item as VoidRelic;
-            const relicAnalysis = await calculateRelicValueAnalysis(item.name, relicItem.rarity || 'intact');
+            const relicAnalysis = await calculateRelicValueAnalysis(
+              item.name,
+              relicItem.rarity || 'intact',
+              basicItem.price || 0
+            );
 
             if (relicAnalysis) {
               updatedItem = {

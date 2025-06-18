@@ -260,7 +260,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                               {item.recommendation && (
                                 <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
                                   item.recommendation === 'OPEN' ? 'bg-green-900/50 text-green-400' :
-                                  item.recommendation === 'SELL' ? 'bg-red-900/50 text-red-400' :
+                                  item.recommendation === 'SELL' ? 'bg-green-900/50 text-green-400' :
                                   'bg-yellow-900/50 text-yellow-400'
                                 }`}>
                                   {item.recommendation === 'REFINE_THEN_OPEN' ? 'REFINE' : item.recommendation}
