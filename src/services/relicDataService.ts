@@ -133,19 +133,48 @@ export const getRelicDropsByName = async (relicName: string, rarity: VoidRelic['
     console.log(`>>> [Relic Lookup] Selected relic name: "${relic.name}" <<<`);
     console.log(`>>> [Relic Lookup] Raw rewards data:`, relic.rewards.map((r: any) => `${r.item.name}: ${r.chance}% (${r.rarity})`));
 
-    // Convert to our internal RelicRewardItem format
-    const baseDrops = relic.rewards.map((reward: any) => ({
-      itemName: reward.item.name,
-      rarity: reward.rarity.charAt(0).toUpperCase() + reward.rarity.slice(1) as 'Common' | 'Uncommon' | 'Rare',
-      dropChance: reward.chance,
-      warframeMarketUrlName: reward.item.warframeMarket?.urlName || '',
-    }));
+    // Convert to our internal RelicRewardItem format with proper rarity mapping
+    const baseDrops = relic.rewards.map((reward: any) => {
+      // Determine rarity based on drop chance rather than label
+      // In the game, there are 3 Common items (25.33%), 2 Uncommon items (11%), and 1 Rare item (2%)
+      let normalizedRarity: 'Common' | 'Uncommon' | 'Rare';
+
+      // First check the drop chance to determine actual rarity
+      if (Math.abs(reward.chance - 25.33) < 0.1) {
+        normalizedRarity = 'Common'; // ~25.33% items are actually Common
+      } else if (Math.abs(reward.chance - 11) < 0.1) {
+        normalizedRarity = 'Uncommon'; // ~11% items are actually Uncommon
+      } else if (Math.abs(reward.chance - 2) < 0.1) {
+        normalizedRarity = 'Rare'; // ~2% items are actually Rare
+      } else {
+        // Fallback to the labeled rarity if drop chance doesn't match expected values
+        const rawRarity = reward.rarity.toLowerCase();
+        if (rawRarity === 'rare') {
+          normalizedRarity = 'Rare';
+        } else if (rawRarity === 'uncommon') {
+          normalizedRarity = 'Uncommon';
+        } else {
+          normalizedRarity = 'Common';
+        }
+      }
+
+      return {
+        itemName: reward.item.name,
+        rarity: normalizedRarity,
+        dropChance: reward.chance, // Original drop chance from JSON (will be overridden by adjustDropChances)
+        warframeMarketUrlName: reward.item.warframeMarket?.urlName || '',
+      };
+    });
+
+    // Log the rarities before adjustment
+    console.log(`>>> [Relic Lookup] Base drops with rarities:`,
+      baseDrops.map((r: any) => `${r.itemName} (${r.rarity}) - Original: ${r.dropChance}%`));
 
     // Apply the correct drop chances based on refinement level
     const adjustedDrops = adjustDropChances(baseDrops, rarity);
 
     console.log(`>>> [Relic Lookup] Adjusted drops for ${rarity}:`,
-      adjustedDrops.map((r: any) => `${r.itemName} (${r.dropChance}%) -> ${r.warframeMarketUrlName}`));
+      adjustedDrops.map((r: any) => `${r.itemName} (${r.rarity}: ${r.dropChance}%) -> ${r.warframeMarketUrlName}`));
 
     return adjustedDrops;
   } catch (error) {

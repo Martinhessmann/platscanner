@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **Radiant**: Common=16.67%, Uncommon=20%, Rare=10%
   - **Impact**: All relics now show correct drop chances regardless of JSON data inconsistencies
 
+- **🚨 CRITICAL: Common/Uncommon Rarity Confusion** ⭐⭐⭐⭐ ✅ **FIXED**
+  - **Issue**: Common and Uncommon items were displaying the same drop chances and colors
+  - **Root Cause**: In the JSON data, items were labeled as either "Rare" or "Uncommon", but none as "Common"
+  - **Solution**: Now identify rarity based on drop chance percentage rather than label:
+    - ~25.33% chance = Common (bronze color)
+    - ~11% chance = Uncommon (silver color)
+    - ~2% chance = Rare (gold color)
+  - **Impact**: Items now correctly display with appropriate rarity colors and drop chances
+
 - **🎨 Logical Color Scheme for Recommendations** ⭐⭐⭐⭐ ✅ **IMPROVED**
   - **Issue**: SELL recommendations displayed in RED (suggesting bad/dangerous) while OPEN was GREEN
   - **Logic Fix**: Both SELL and OPEN now use GREEN when they're the profitable choice
