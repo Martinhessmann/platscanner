@@ -39,6 +39,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
   const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
   const [fetchingProgress, setFetchingProgress] = useState<{ current: number; total: number } | undefined>(undefined);
   const [categoryProgress, setCategoryProgress] = useState<{ category: string; current: number; total: number } | undefined>(undefined);
+  const [shouldStopProcessing, setShouldStopProcessing] = useState(false);
 
   // Story #3 & #8: Categorized Persistent Inventory State
   const [categorizedInventory, setCategorizedInventory] = useState({
@@ -51,6 +52,58 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
     const inventory = getCategorizedInventory();
     setCategorizedInventory(inventory);
   }, []);
+
+  // Stop processing function
+  const stopProcessing = useCallback(() => {
+    setShouldStopProcessing(true);
+
+    // Update any active image to complete status
+    if (processingState.activeImageId) {
+      setProcessingState(prev => {
+        const activeImage = prev.images.get(prev.activeImageId!);
+        if (activeImage && (activeImage.status === 'analyzing' || activeImage.status === 'fetching')) {
+          const newImages = new Map(prev.images);
+          newImages.set(prev.activeImageId!, {
+            ...activeImage,
+            status: 'complete',
+            error: 'Processing stopped by user'
+          });
+
+          return {
+            ...prev,
+            images: newImages,
+            processedCount: prev.processedCount + 1
+          };
+        }
+        return prev;
+      });
+    }
+
+    // Clear any category refreshes
+    if (refreshingCategories.size > 0) {
+      setRefreshingCategories(new Set());
+      setCategoryProgress(undefined);
+
+      // Reload inventory from storage to get consistent state
+      const inventory = getCategorizedInventory();
+      setCategorizedInventory(inventory);
+    }
+
+    // Clear bulk refresh state
+    if (isRefreshingPrices) {
+      setIsRefreshingPrices(false);
+      setFetchingProgress(undefined);
+
+      // Reload inventory from storage
+      const inventory = getCategorizedInventory();
+      setCategorizedInventory(inventory);
+    }
+
+    // Reset stop flag after a short delay
+    setTimeout(() => {
+      setShouldStopProcessing(false);
+    }, 500);
+  }, [processingState.activeImageId, refreshingCategories, isRefreshingPrices]);
 
   // Process the next image in the queue
   const processNextImage = useCallback(async () => {
@@ -75,6 +128,21 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         try {
           // Extract items using Gemini AI (now supports both Prime parts and Relics)
           const detectedItems = await analyzeImage(nextImage.file);
+
+          // Check if processing was stopped
+          if (shouldStopProcessing) {
+            setProcessingState(current => ({
+              ...current,
+              images: new Map(current.images).set(nextImage.id, {
+                ...nextImage,
+                status: 'complete',
+                error: 'Processing stopped by user',
+                results: []
+              }),
+              processedCount: current.processedCount + 1
+            }));
+            return;
+          }
 
           // Filter out items already in inventory to avoid duplicates
           const currentInventory = loadInventory();
@@ -114,7 +182,32 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
           const sessionId = `scan_${Date.now()}`;
           const processedItems: DetectedItem[] = [];
 
-                    for (let index = 0; index < newItems.length; index++) {
+          for (let index = 0; index < newItems.length; index++) {
+            // Check if processing was stopped
+            if (shouldStopProcessing) {
+              setProcessingState(current => ({
+                ...current,
+                images: new Map(current.images).set(nextImage.id, {
+                  ...nextImage,
+                  status: 'complete',
+                  error: 'Processing stopped by user',
+                  results: processedItems
+                }),
+                processedCount: current.processedCount + 1
+              }));
+
+              // Save any items processed so far
+              if (processedItems.length > 0) {
+                saveToInventory(processedItems, sessionId);
+                const updatedInventory = getCategorizedInventory();
+                setCategorizedInventory(updatedInventory);
+              }
+
+              // Clear progress tracking
+              setFetchingProgress(undefined);
+              return;
+            }
+
             const item = newItems[index];
             try {
               let processedItem: DetectedItem;
@@ -209,7 +302,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         images: newImages
       };
     });
-  }, []);
+  }, [shouldStopProcessing]);
 
   // Watch for changes in the queue and process next image
   useEffect(() => {
@@ -423,6 +516,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
     setRefreshingCategories(prev => new Set(prev).add(category));
     setCategoryProgress({ category, current: 0, total: items.length });
+    setShouldStopProcessing(false); // Reset stop flag
 
     // Set all items in category to loading state first
     setCategorizedInventory(prev => ({
@@ -435,6 +529,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
       // Process items one by one to provide progress feedback
       for (let i = 0; i < items.length; i++) {
+        // Check if processing was stopped
+        if (shouldStopProcessing) {
+          console.log(`>>> [HomePage] Category refresh stopped by user at item ${i+1}/${items.length} <<<`);
+          break;
+        }
+
         const item = items[i];
         console.log(`>>> [HomePage] Category refresh processing ${i + 1}/${items.length}: ${item.name} <<<`);
 
@@ -495,17 +595,19 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         }
       }
 
-      // Update persistent inventory
-      updateInventoryPrices(updatedItems);
+      // Update persistent inventory with processed items
+      if (updatedItems.length > 0) {
+        updateInventoryPrices(updatedItems);
 
-      // Update local state with all processed items at once (prevents flickering)
-      setCategorizedInventory(prev => ({
-        ...prev,
-        [category]: prev[category].map(inventoryItem => {
-          const updatedItem = updatedItems.find(updated => updated.name === inventoryItem.name);
-          return updatedItem ? { ...inventoryItem, ...updatedItem, addedAt: inventoryItem.addedAt } : inventoryItem;
-        })
-      }));
+        // Update local state with all processed items at once (prevents flickering)
+        setCategorizedInventory(prev => ({
+          ...prev,
+          [category]: prev[category].map(inventoryItem => {
+            const updatedItem = updatedItems.find(updated => updated.name === inventoryItem.name);
+            return updatedItem ? { ...inventoryItem, ...updatedItem, addedAt: inventoryItem.addedAt } : inventoryItem;
+          })
+        }));
+      }
 
       setLastPriceRefresh(new Date());
       console.log(`>>> [HomePage] Category refresh completed for ${updatedItems.length} items <<<`);
@@ -523,7 +625,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
       });
       setCategoryProgress(undefined);
     }
-  }, [categorizedInventory, refreshingCategories]);
+  }, [categorizedInventory, refreshingCategories, shouldStopProcessing]);
 
   // Refresh all market prices
   const handleRefreshPrices = useCallback(async () => {
@@ -539,6 +641,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
     console.log(`>>> [HomePage] Found ${allItems.length} items to refresh <<<`);
     setFetchingProgress({ current: 0, total: allItems.length });
     setIsRefreshingPrices(true);
+    setShouldStopProcessing(false); // Reset stop flag
 
     // Set all items to loading state first
     setCategorizedInventory(prev => ({
@@ -550,6 +653,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
       const updatedItems: InventoryItem[] = [];
 
       for (let i = 0; i < allItems.length; i++) {
+        // Check if processing was stopped
+        if (shouldStopProcessing) {
+          console.log(`>>> [HomePage] Bulk refresh stopped by user at item ${i+1}/${allItems.length} <<<`);
+          break;
+        }
+
         const item = allItems[i];
         console.log(`>>> [HomePage] Bulk refresh processing ${i + 1}/${allItems.length}: ${item.name} <<<`);
 
@@ -610,17 +719,19 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         }
       }
 
-      // Update persistent storage
-      updateInventoryPrices(updatedItems);
+      // Update persistent storage with processed items
+      if (updatedItems.length > 0) {
+        updateInventoryPrices(updatedItems);
 
-      // Update state with all fetched items
-      const primeUpdatedItems = updatedItems.filter(item => item.category === 'prime_parts');
-      const relicUpdatedItems = updatedItems.filter(item => item.category === 'relics');
+        // Update state with all fetched items
+        const primeUpdatedItems = updatedItems.filter(item => item.category === 'prime_parts');
+        const relicUpdatedItems = updatedItems.filter(item => item.category === 'relics');
 
-      setCategorizedInventory({
-        prime_parts: primeUpdatedItems,
-        relics: relicUpdatedItems
-      });
+        setCategorizedInventory({
+          prime_parts: primeUpdatedItems,
+          relics: relicUpdatedItems
+        });
+      }
       console.log(`>>> [HomePage] Bulk refresh completed for ${updatedItems.length} items <<<`);
     } catch (error) {
       console.error('Failed to refresh prices:', error);
@@ -628,7 +739,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
       setIsRefreshingPrices(false);
       setFetchingProgress({ current: 0, total: 0 });
     }
-  }, [categorizedInventory]);
+  }, [categorizedInventory, shouldStopProcessing]);
 
   const inventoryStats = useMemo(() => getInventoryStats(), [categorizedInventory]);
 
@@ -692,6 +803,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
                     'analyzing'
                   }
                   progress={activeImage?.status === 'fetching' ? fetchingProgress : undefined}
+                  onStop={stopProcessing}
+                  canStop={activeImage?.status === 'fetching'}
                 />
               </div>
             )}

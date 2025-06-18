@@ -1,5 +1,5 @@
 import React from 'react';
-import { Scan, Sparkles, Zap } from 'lucide-react';
+import { Scan, Sparkles, Zap, XCircle } from 'lucide-react';
 
 interface ProcessingAnimationProps {
   stage: 'analyzing' | 'fetching' | 'complete';
@@ -7,9 +7,16 @@ interface ProcessingAnimationProps {
     current: number;
     total: number;
   };
+  onStop?: () => void;
+  canStop?: boolean;
 }
 
-const ProcessingAnimation: React.FC<ProcessingAnimationProps> = ({ stage, progress }) => {
+const ProcessingAnimation: React.FC<ProcessingAnimationProps> = ({
+  stage,
+  progress,
+  onStop,
+  canStop = false
+}) => {
   return (
     <div className="flex flex-col items-center justify-center py-8">
       <div className="relative w-24 h-24 mb-6">
@@ -52,6 +59,18 @@ const ProcessingAnimation: React.FC<ProcessingAnimationProps> = ({ stage, progre
         {stage === 'fetching' && "Retrieving current market prices from Warframe Market..."}
         {stage === 'complete' && "Your results are ready to view!"}
       </p>
+
+      {/* Stop button - only show during fetching and if canStop is true */}
+      {stage === 'fetching' && canStop && onStop && (
+        <button
+          onClick={onStop}
+          className="mt-4 flex items-center gap-2 px-4 py-2 bg-grineer-red/20 hover:bg-grineer-red/40 border border-grineer-red/50 text-grineer-red rounded-lg transition-colors"
+          title="Stop processing"
+        >
+          <XCircle size={16} />
+          <span>Stop Processing</span>
+        </button>
+      )}
     </div>
   );
 };
