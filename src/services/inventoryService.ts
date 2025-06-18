@@ -280,12 +280,16 @@ export const calculateRelicValueAnalysis = async (relicName: string, rarity: Voi
   expectedProfit: number;
 } | null> => {
   try {
+    console.log(`>>> [Relic Analysis] Starting analysis for: ${relicName} (${rarity}) <<<`);
+
     const relicDrops = await getRelicDropsByName(relicName);
 
     if (!relicDrops || relicDrops.length === 0) {
-      console.warn(`No drop data found for relic: ${relicName}`);
+      console.warn(`>>> [Relic Analysis] No drop data found for relic: ${relicName} <<<`);
       return null;
     }
+
+    console.log(`>>> [Relic Analysis] Found ${relicDrops.length} potential drops:`, relicDrops.map(d => `${d.itemName} (${d.dropChance}%)`));
 
     // Fetch prices for all potential drops using batch API
     const validDrops = relicDrops.filter(drop => drop.warframeMarketUrlName);
@@ -347,7 +351,7 @@ export const calculateRelicValueAnalysis = async (relicName: string, rarity: Voi
       expectedProfit = (expectedDropValue * 1.2) - directSalePrice; // Adjust expected profit if refined
     }
 
-    return {
+    const result = {
       relicDrops: dropsWithPrices,
       minDropValue,
       maxDropValue,
@@ -356,8 +360,17 @@ export const calculateRelicValueAnalysis = async (relicName: string, rarity: Voi
       recommendation,
       expectedProfit: parseFloat(expectedProfit.toFixed(2)),
     };
+
+    console.log(`>>> [Relic Analysis] Completed for ${relicName}:`, {
+      expectedValue: result.expectedDropValue,
+      minMax: `${result.minDropValue}-${result.maxDropValue}`,
+      recommendation: result.recommendation,
+      dropPrices: dropsWithPrices.map(d => `${d.itemName}: ${d.currentPrice}p`)
+    });
+
+    return result;
   } catch (error) {
-    console.error('Failed to calculate relic value analysis:', error);
+    console.error('>>> [Relic Analysis] Failed:', error);
     return null;
   }
 };

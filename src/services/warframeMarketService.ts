@@ -235,17 +235,23 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
  */
 export const fetchBatchPriceData = async (itemNames: string[]): Promise<any[]> => {
   const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
+  const isDevMode = __DEV_MODE__ === 'true';
 
-  if (!useSupabase) {
-    // Fallback to sequential calls if no Supabase
-    console.warn('No Supabase configuration, falling back to sequential calls for batch request');
+  console.log(`>>> [Batch Request] ${itemNames.length} items - Supabase: ${useSupabase ? 'available' : 'not configured'} - Dev Mode: ${isDevMode} <<<`);
+
+  // In development mode, force direct API calls for easier debugging
+  if (!useSupabase || isDevMode) {
+    console.log(`>>> [Batch Request] Using direct API calls (${isDevMode ? 'dev mode override' : 'no Supabase config'}) <<<`);
     const results = [];
-    for (const itemName of itemNames) {
+    for (let i = 0; i < itemNames.length; i++) {
+      const itemName = itemNames[i];
       try {
+        console.log(`>>> [Batch Direct] Fetching ${i + 1}/${itemNames.length}: ${itemName} <<<`);
         const data = await fetchViaDirect(itemName);
         results.push(data);
+        console.log(`>>> [Batch Direct] Success: ${itemName} = ${data.price}p <<<`);
       } catch (error) {
-        console.error(`Failed to fetch ${itemName}:`, error);
+        console.error(`>>> [Batch Direct] Failed: ${itemName}:`, error);
         results.push({
           name: itemName,
           price: 0,
@@ -255,16 +261,17 @@ export const fetchBatchPriceData = async (itemNames: string[]): Promise<any[]> =
       // Add delay between requests
       await new Promise(resolve => setTimeout(resolve, 334));
     }
+    console.log(`>>> [Batch Direct] Completed: ${results.length} items processed <<<`);
     return results;
   }
 
   try {
-    console.log(`Fetching batch data for ${itemNames.length} items via Supabase`);
+    console.log(`>>> [Batch Supabase] Fetching ${itemNames.length} items via Edge Function <<<`);
     const results = await fetchBatchViaSupabase(itemNames);
-    console.log(`Batch fetch completed:`, results);
+    console.log(`>>> [Batch Supabase] Completed:`, results);
     return results;
   } catch (error) {
-    console.error('Batch fetch failed:', error);
+    console.error('>>> [Batch Supabase] Failed:', error);
     throw error;
   }
 };

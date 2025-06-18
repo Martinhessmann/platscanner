@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Github, ExternalLink } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const Footer: React.FC = () => {
+  // Debug logging for version info
+  useEffect(() => {
+    console.log(`>>> [App Version] Frontend: v${__APP_VERSION__} (${__GIT_HASH__}) - Built: ${__BUILD_TIMESTAMP__} <<<`);
+    console.log(`>>> [Environment] Development Mode: ${__DEV_MODE__} <<<`);
+    console.log(`>>> [Config] Supabase URL: ${import.meta.env.VITE_SUPABASE_URL ? 'configured' : 'not configured'} <<<`);
+  }, []);
+
   return (
     <footer className="bg-background-dark py-4 px-6 border-t border-orokin-gold/20">
       <div className="container mx-auto">
@@ -16,6 +23,9 @@ const Footer: React.FC = () => {
             </p>
             <p className="text-gray-500 text-xs">
               © Martin Heßmann • <a href="https://martinhessmann.com" target="_blank" rel="noopener noreferrer" className="hover:text-orokin-gold transition-colors">martinhessmann.com</a>
+            </p>
+            <p className="text-gray-600 text-xs mt-1">
+              v{__APP_VERSION__} ({__GIT_HASH__}) {__DEV_MODE__ === 'true' && <span className="text-yellow-500">• DEV</span>}
             </p>
           </div>
 
