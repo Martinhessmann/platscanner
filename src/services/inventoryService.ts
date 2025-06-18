@@ -318,7 +318,11 @@ export const getInventoryStats = (): {
  * Calculate relic value analysis on-demand for UI display
  * This ensures fresh market data and doesn't bloat the stored inventory
  */
-export const calculateRelicValueAnalysis = async (relicName: string, rarity: VoidRelic['rarity'] = 'intact'): Promise<{
+export const calculateRelicValueAnalysis = async (
+  relicName: string,
+  rarity: VoidRelic['rarity'] = 'intact',
+  directSalePrice: number = 0
+): Promise<{
   relicDrops: RelicRewardItem[];
   minDropValue: number;
   maxDropValue: number;
@@ -328,7 +332,7 @@ export const calculateRelicValueAnalysis = async (relicName: string, rarity: Voi
   expectedProfit: number;
 } | null> => {
   try {
-    console.log(`>>> [Relic Analysis] Starting analysis for: ${relicName} (${rarity}) <<<`);
+    console.log(`>>> [Relic Analysis] Starting analysis for: ${relicName} (${rarity}) with market price: ${directSalePrice}p <<<`);
 
     const relicDrops = await getRelicDropsByName(relicName, rarity);
 
@@ -384,19 +388,24 @@ export const calculateRelicValueAnalysis = async (relicName: string, rarity: Voi
       expectedDropValue += (drop.currentPrice || 0) * (drop.dropChance / 100);
     });
 
-    // Placeholder for direct sale price (this needs to be fetched separately if available)
-    // For now, assume it's 0 or can be fetched from warframeMarketService if relic itself is tradable
-    const directSalePrice = 0; // TODO: Fetch actual relic price if available
-
-    // Determine recommendation (simplified for Phase 1)
+    // Determine recommendation by comparing expected value vs direct sale price
     let recommendation: VoidRelic['recommendation'] = 'OPEN';
     let expectedProfit = expectedDropValue - directSalePrice;
 
+    console.log(`>>> [Relic Analysis] Comparison: Expected ${expectedDropValue.toFixed(2)}p vs Market Sale ${directSalePrice}p <<<`);
+
     if (directSalePrice > expectedDropValue) {
       recommendation = 'SELL';
-    } else if (rarity !== 'radiant' && expectedDropValue * 1.2 > directSalePrice) { // Example logic for refine
+      expectedProfit = directSalePrice - expectedDropValue; // Profit from selling instead of opening
+      console.log(`>>> [Relic Analysis] SELL recommendation: +${expectedProfit.toFixed(2)}p profit by selling <<<`);
+    } else if (rarity !== 'radiant' && expectedDropValue * 1.2 > directSalePrice) {
+      // Example logic for refine: if upgrading could increase expected value significantly
       recommendation = 'REFINE_THEN_OPEN';
-      expectedProfit = (expectedDropValue * 1.2) - directSalePrice; // Adjust expected profit if refined
+      expectedProfit = (expectedDropValue * 1.2) - directSalePrice; // Estimated profit if refined first
+      console.log(`>>> [Relic Analysis] REFINE_THEN_OPEN recommendation: +${expectedProfit.toFixed(2)}p profit after refining <<<`);
+    } else {
+      recommendation = 'OPEN';
+      console.log(`>>> [Relic Analysis] OPEN recommendation: +${expectedProfit.toFixed(2)}p profit by opening <<<`);
     }
 
     const result = {
@@ -411,8 +420,10 @@ export const calculateRelicValueAnalysis = async (relicName: string, rarity: Voi
 
     console.log(`>>> [Relic Analysis] Completed for ${relicName}:`, {
       expectedValue: result.expectedDropValue,
-      minMax: `${result.minDropValue}-${result.maxDropValue}`,
+      directSalePrice: result.directSalePrice,
+      profit: result.expectedProfit,
       recommendation: result.recommendation,
+      minMax: `${result.minDropValue}-${result.maxDropValue}`,
       dropPrices: dropsWithPrices.map(d => `${d.itemName}: ${d.currentPrice}p`)
     });
 

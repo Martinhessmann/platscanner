@@ -38,35 +38,23 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
     );
   }
 
-    const hasProfit = (relic.expectedProfit || 0) > 0;
+  const hasProfit = (relic.expectedProfit || 0) > 0;
   const profitPercentage = relic.directSalePrice && relic.directSalePrice > 0
     ? Math.round(((relic.expectedDropValue - relic.directSalePrice) / relic.directSalePrice) * 100)
     : 0;
 
-  // Helper function for better expected value display
+  // Improved helper function for better expected value display with proper precision
   const formatExpectedValue = (value: number): string => {
-    if (value >= 1) {
-      return Math.round(value).toString();
+    if (value >= 10) {
+      return value.toFixed(1); // e.g., "12.5p"
+    } else if (value >= 1) {
+      return value.toFixed(1); // e.g., "3.2p"
     } else if (value >= 0.1) {
-      return value.toFixed(1);
+      return value.toFixed(2); // e.g., "0.65p"
     } else if (value > 0) {
-      return '< 0.1';
+      return '< 0.1'; // For very small amounts
     } else {
       return '0';
-    }
-  };
-
-  // Priority indicator based on expected value
-  const getPriorityIndicator = () => {
-    const expectedValue = relic.expectedDropValue || 0;
-    if (expectedValue >= 5) {
-      return { text: 'HIGH PRIORITY', color: 'text-green-400', bg: 'bg-green-900/30' };
-    } else if (expectedValue >= 1) {
-      return { text: 'MEDIUM PRIORITY', color: 'text-yellow-400', bg: 'bg-yellow-900/30' };
-    } else if (expectedValue > 0.1) {
-      return { text: 'LOW PRIORITY', color: 'text-blue-400', bg: 'bg-blue-900/30' };
-    } else {
-      return { text: 'MINIMAL VALUE', color: 'text-gray-400', bg: 'bg-gray-900/30' };
     }
   };
 
@@ -77,37 +65,54 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
           action: 'OPEN',
           color: 'text-green-400',
           bgColor: 'bg-green-900/20 border-green-700/50',
-          icon: <Dices size={16} className="text-green-400" />,
-          description: 'Opening is more profitable than selling'
+          priorityColors: { text: 'HIGH PRIORITY', bg: 'bg-green-900/30' },
+          icon: <Dices size={16} className="text-green-400" />
         };
       case 'SELL':
         return {
           action: 'SELL',
           color: 'text-red-400',
           bgColor: 'bg-red-900/20 border-red-700/50',
-          icon: <Coins size={16} className="text-red-400" />,
-          description: 'Direct sale is more profitable'
+          priorityColors: { text: 'LOW PRIORITY', bg: 'bg-red-900/30' },
+          icon: <Coins size={16} className="text-red-400" />
         };
       case 'REFINE_THEN_OPEN':
         return {
-          action: 'REFINE → OPEN',
+          action: 'OPEN',
           color: 'text-yellow-400',
           bgColor: 'bg-yellow-900/20 border-yellow-700/50',
-          icon: <TrendingUp size={16} className="text-yellow-400" />,
-          description: 'Refine to higher tier first, then open'
+          priorityColors: { text: 'MEDIUM PRIORITY', bg: 'bg-yellow-900/30' },
+          icon: <Dices size={16} className="text-yellow-400" />
         };
       default:
         return {
           action: 'OPEN',
           color: 'text-gray-400',
           bgColor: 'bg-gray-900/20 border-gray-700/50',
-          icon: <Dices size={16} className="text-gray-400" />,
-          description: 'Analysis incomplete'
+          priorityColors: { text: 'MINIMAL VALUE', bg: 'bg-gray-900/30' },
+          icon: <Dices size={16} className="text-gray-400" />
         };
     }
   };
 
+  // Priority indicator based on expected value using card's color scheme
+  const getPriorityIndicator = () => {
+    const expectedValue = relic.expectedDropValue || 0;
+    const config = getRecommendationConfig();
+
+    if (expectedValue >= 5) {
+      return { text: 'HIGH PRIORITY', bg: 'bg-green-900/30' };
+    } else if (expectedValue >= 1) {
+      return { text: 'MEDIUM PRIORITY', bg: 'bg-yellow-900/30' };
+    } else if (expectedValue > 0.1) {
+      return { text: 'LOW PRIORITY', bg: 'bg-red-900/30' };
+    } else {
+        return { text: 'MINIMAL VALUE', bg: 'bg-gray-900/30' };
+    }
+  };
+
   const config = getRecommendationConfig();
+  const priority = getPriorityIndicator();
 
   return (
     <div className={`rounded-lg border transition-all duration-200 ${config.bgColor}`}>
@@ -120,15 +125,15 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
               <Zap size={14} className="text-orange-400" />
               <span className="text-white font-semibold">Expected: {formatExpectedValue(relic.expectedDropValue)}p</span>
             </div>
-                         {relic.directSalePrice && relic.directSalePrice > 0 && (
-               <>
-                 <span className="text-gray-500">vs</span>
-                 <div className="flex items-center gap-1">
-                   <Coins size={14} className="text-gray-400" />
-                   <span className="text-gray-300">Sell: {relic.directSalePrice}p</span>
-                 </div>
-               </>
-             )}
+            {relic.directSalePrice && relic.directSalePrice > 0 && (
+              <>
+                <span className="text-gray-500">vs</span>
+                <div className="flex items-center gap-1">
+                  <Coins size={14} className="text-gray-400" />
+                  <span className="text-gray-300">Sell: {relic.directSalePrice}p</span>
+                </div>
+              </>
+            )}
           </div>
           {onOpenMarket && (
             <button
@@ -156,7 +161,7 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
           </div>
         )}
 
-        {/* Recommendation & Priority */}
+        {/* Simple Recommendation & Range */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {config.icon}
@@ -166,7 +171,7 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400">
-              Range: {relic.minDropValue}p - {relic.maxDropValue}p
+              Range: {formatExpectedValue(relic.minDropValue || 0)}p - {formatExpectedValue(relic.maxDropValue || 0)}p
             </span>
             <button
               onClick={() => setShowDetails(!showDetails)}
@@ -179,14 +184,9 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
         </div>
 
         {/* Priority Indicator */}
-        <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getPriorityIndicator().bg} ${getPriorityIndicator().color}`}>
-          {getPriorityIndicator().text}
+        <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${priority.bg} ${priority.text}`}>
+          {priority.text}
         </div>
-
-        {/* Quick Description */}
-        <p className="text-xs text-gray-400">
-          {config.description}
-        </p>
       </div>
 
       {/* Detailed Drop Analysis (Expandable) */}
@@ -222,7 +222,7 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
                         {drop.dropChance}%
                       </span>
                       <span className="text-white font-medium min-w-8">
-                        {drop.currentPrice || 0}p
+                        {formatExpectedValue(drop.currentPrice || 0)}p
                       </span>
                     </div>
                   </div>

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2025-01-02
+
 ### Enhanced
 - **🎯 Relic Decision UI/UX Overhaul** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
   - **Clear Decision-Making Interface**: Replaced confusing "7 exp" display with intuitive relic analysis cards
@@ -19,11 +21,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Profit Calculations**: Shows exact profit amounts and percentage gains for opening vs selling
 
 - **📊 Improved Expected Value Display & Prioritization** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
-  - **Precise Low-Value Display**: Shows "0.5p" instead of misleading "0p" for values like 0.49p
-  - **Smart Value Formatting**: Values ≥1p rounded, 0.1-1p show one decimal, <0.1p show "< 0.1p"
-  - **Priority Indicators**: Color-coded priority badges (HIGH/MEDIUM/LOW/MINIMAL) based on expected value
-  - **Better Decision Guidance**: Users can quickly identify which relics to open first
-  - **Consistent Formatting**: Applied to main display, profit calculations, and weighted expected value
+  - **Better Decimal Precision**: Shows 1-2 decimal places for values 0-10p (e.g., "3.2p", "0.65p") instead of misleading rounded integers
+  - **Smart Value Formatting**: Values ≥10p show one decimal, 1-10p show one decimal, 0.1-1p show two decimals, <0.1p show "< 0.1p"
+  - **Priority Colors Match Cards**: Priority indicators now use same color scheme as their recommendation card borders
+  - **Better Decision Guidance**: Users can quickly identify which relics to open first with clearer value distinctions
+  - **Consistent Formatting**: Applied improved precision to main display, profit calculations, drop analysis, and weighted expected value
+
+- **🧹 Simplified UI Elements** ⭐⭐⭐⭐ ✅ **COMPLETED**
+  - **Removed Redundant Text**: Eliminated "REFINE → OPEN" and "Refine to higher tier first, then open" since all recommendations are essentially "refine to max first"
+  - **Cleaner Action Display**: Simplified to just "OPEN" or "SELL" recommendations with color-coded icons
+  - **Reduced Visual Noise**: Removed redundant description text that provided no additional decision-making value
+  - **Streamlined Information**: Focus on essential data (expected value, profit, priority) for faster decision-making
 
 - **🔍 Enhanced Semi-transparent Detection** ⭐⭐⭐⭐ ✅ **IMPROVED**
   - **Eye Icon Detection**: Added specific instruction to exclude relics with eye icons in corner
