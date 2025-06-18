@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2025-01-03
+
 ### Fixed
 - **🚨 CRITICAL: Relic Market Price vs Expected Value Logic** ⭐⭐⭐⭐⭐ ✅ **FIXED**
   - **Issue**: Relics recommended "OPEN" even when direct market sale was more profitable
@@ -59,41 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **New Colors**: 🥇 Gold for Rare, 🥈 Silver for Uncommon, 🥉 Bronze for Common
   - **Impact**: More intuitive visual understanding of drop rarities than random colors
 
-### Enhanced
-- **🎯 Relic Decision UI/UX Overhaul** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
-  - **Clear Decision-Making Interface**: Replaced confusing "7 exp" display with intuitive relic analysis cards
-  - **Dedicated Relic Components**: New `RelicAnalysisCard` and `RelicResultsTable` designed specifically for decision-making
-  - **Prominent Recommendations**: Large, color-coded action recommendations (OPEN/SELL/REFINE)
-  - **Expected vs Sale Comparison**: Clear "Expected: 67p vs Sell: 15p = +52p profit" display
-  - **Expandable Drop Analysis**: Click to view detailed breakdown of all 6 potential drops with individual prices
-  - **Smart Sorting**: Relic-specific sorting by Expected Value, Recommendation priority, and Name
-  - **Visual Decision Guidance**: Color-coded borders and icons matching recommendation type
-  - **Profit Calculations**: Shows exact profit amounts and percentage gains for opening vs selling
-
-- **📊 Improved Expected Value Display & Prioritization** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
-  - **Better Decimal Precision**: Shows 1-2 decimal places for values 0-10p (e.g., "3.2p", "0.65p") instead of misleading rounded integers
-  - **Smart Value Formatting**: Values ≥10p show one decimal, 1-10p show one decimal, 0.1-1p show two decimals, <0.1p show "< 0.1p"
-  - **Priority Colors Match Cards**: Priority indicators now use same color scheme as their recommendation card borders
-  - **Better Decision Guidance**: Users can quickly identify which relics to open first with clearer value distinctions
-  - **Consistent Formatting**: Applied improved precision to main display, profit calculations, drop analysis, and weighted expected value
-
-- **🧹 Simplified UI Elements** ⭐⭐⭐⭐ ✅ **COMPLETED**
-  - **Removed Redundant Text**: Eliminated "REFINE → OPEN" and "Refine to higher tier first, then open" since all recommendations are essentially "refine to max first"
-  - **Cleaner Action Display**: Simplified to just "OPEN" or "SELL" recommendations with color-coded icons
-  - **Reduced Visual Noise**: Removed redundant description text that provided no additional decision-making value
-  - **Streamlined Information**: Focus on essential data (expected value, profit, priority) for faster decision-making
-
-- **🔍 Enhanced Semi-transparent Detection** ⭐⭐⭐⭐ ✅ **IMPROVED**
-  - **Eye Icon Detection**: Added specific instruction to exclude relics with eye icons in corner
-  - **Icon vs Text Focus**: Emphasizes analyzing relic icon opacity, not just text visibility
-  - **Stricter Guidelines**: "When in doubt, EXCLUDE the relic rather than include it"
-  - **Visual Comparison**: Instructions to compare relic brightness to Prime part icons
-
-### Technical Improvements
-- **Component Specialization**: Separate UI components for Prime Parts vs Void Relics
-- **Enhanced Type Safety**: Proper TypeScript typing for relic-specific properties
-- **Improved UX Patterns**: Expandable details, clear visual hierarchy, mobile-friendly design
-- **Decision-Focused Design**: UI specifically optimized for "Should I open, refine, or sell?" workflow
+## [1.5.1] - 2025-01-02
 
 ### Fixed
 - **🚨 CRITICAL: Analysis Data Lost in Persistent Storage** ⭐⭐⭐⭐⭐ ✅ **FIXED**
