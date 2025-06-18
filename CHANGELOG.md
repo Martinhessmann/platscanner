@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **🎨 Local Relic Images** ⭐⭐⭐⭐ ✅ **IMPROVED**
+  - **Enhancement**: Added local relic images for all era + refinement combinations
+  - **Source**: High-quality images from WFCD/warframe-items repository
+  - **Implementation**: New utility function `getRelicImagePath` for consistent image paths
+  - **Impact**: Proper visual distinction between refinement levels (Intact, Exceptional, Flawless, Radiant)
+  - **Reliability**: No more "unknown.thumb.png" placeholders from Warframe Market
+
 ## [1.6.0] - 2025-01-03
 
 ### Fixed
@@ -366,7 +374,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Individual Item Loading**: Granular loading states per item prevent jarring UI changes
   - Animated refresh icon with loading states
   - Comprehensive error handling with graceful fallback to error state
-  - Rate-limited market data fetching preserves API guidelines
+  - Rate limiting with individual price fetching prevents API overload
 
 ### Technical Improvements
 - **Streamlined Architecture**: Removed redundant `combinedResults` state in favor of persistent inventory

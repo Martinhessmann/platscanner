@@ -14,6 +14,7 @@ import {
   Package,
   ArrowRight
 } from 'lucide-react';
+import { getRelicImagePath } from '../lib/relicUtils';
 
 interface RelicAnalysisCardProps {
   relic: VoidRelic;
@@ -113,28 +114,45 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
 
   const config = getRecommendationConfig();
   const priority = getPriorityIndicator();
+  const relicImagePath = getRelicImagePath(relic.name, relic.rarity);
 
   return (
     <div className={`rounded-lg border transition-all duration-200 ${config.bgColor}`}>
       {/* Main Analysis Display */}
       <div className="p-3 space-y-3">
-        {/* Expected Value vs Direct Sale */}
+        {/* Relic Image and Expected Value vs Direct Sale */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <Zap size={14} className="text-orange-400" />
-              <span className="text-white font-semibold">Expected: {formatExpectedValue(relic.expectedDropValue)}p</span>
+            {/* Relic Image */}
+            <div className="w-12 h-12 rounded-md overflow-hidden bg-gray-900/50 flex items-center justify-center">
+              <img
+                src={relicImagePath}
+                alt={`${relic.name} (${relic.rarity || 'intact'})`}
+                className="w-10 h-10 object-contain"
+                onError={(e) => {
+                  // Fallback to a default image if the specific one fails to load
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/images/relics/unknown.png';
+                }}
+              />
             </div>
-            {relic.directSalePrice && relic.directSalePrice > 0 && (
-              <>
-                <span className="text-gray-500">vs</span>
+
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1">
+                <Zap size={14} className="text-orange-400" />
+                <span className="text-white font-semibold">Expected: {formatExpectedValue(relic.expectedDropValue)}p</span>
+              </div>
+
+              {relic.directSalePrice && relic.directSalePrice > 0 && (
                 <div className="flex items-center gap-1">
+                  <span className="text-gray-500">vs</span>
                   <Coins size={14} className="text-gray-400" />
                   <span className="text-gray-300">Sell: {relic.directSalePrice}p</span>
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </div>
+
           {onOpenMarket && (
             <button
               onClick={onOpenMarket}

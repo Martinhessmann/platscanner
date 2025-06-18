@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { VoidRelic } from '../types';
 import { Filter, Zap, TrendingUp, Coins, MoreVertical, RefreshCw, Trash2 } from 'lucide-react';
 import RelicAnalysisCard from './RelicAnalysisCard';
+import { getRelicImagePath } from '../lib/relicUtils';
 
 interface RelicResultsTableProps {
   results: VoidRelic[];
@@ -159,17 +160,16 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
             <div className="flex items-stretch gap-2">
               {/* Relic image */}
               <div className="w-16 h-16 bg-gray-900 rounded-lg border border-gray-700 flex-shrink-0 overflow-hidden">
-                {relic.imgUrl ? (
-                  <img
-                    src={relic.imgUrl}
-                    alt={relic.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Coins size={20} className="text-gray-500" />
-                  </div>
-                )}
+                <img
+                  src={getRelicImagePath(relic.name, relic.rarity)}
+                  alt={`${relic.name} (${relic.rarity || 'intact'})`}
+                  className="w-full h-full object-contain"
+                  onError={(e) => {
+                    // Fallback to a default image if the specific one fails to load
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/images/relics/unknown.png';
+                  }}
+                />
               </div>
 
               {/* Relic info and analysis */}
