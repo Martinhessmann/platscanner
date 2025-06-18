@@ -39,6 +39,31 @@ const normalizeItemName = (name: string): string => {
 };
 
 /**
+ * Smart relic market lookup: Try refined relic first, fallback to base relic
+ * Some relics have separate market entries for refinement levels (e.g., Axi Y1 Radiant vs Intact)
+ */
+const getRelicMarketNames = (relicName: string): string[] => {
+  const names = [];
+
+  // Try the refined relic first (e.g., "axi_y1_relic_radiant")
+  names.push(normalizeItemName(relicName));
+
+  // Fallback to base relic (e.g., "axi_y1_relic")
+  if (relicName.includes('Relic')) {
+    let baseRelicName = relicName;
+    baseRelicName = baseRelicName.replace(/\s+\[(Intact|Exceptional|Flawless|Radiant)\]$/, ''); // Remove [Radiant]
+    baseRelicName = baseRelicName.replace(/\s+\((Intact|Exceptional|Flawless|Radiant)\)$/, ''); // Remove (Radiant)
+
+    const baseNormalized = normalizeItemName(baseRelicName);
+    if (baseNormalized !== names[0]) {
+      names.push(baseNormalized);
+    }
+  }
+
+  return names;
+};
+
+/**
  * Fetches market data using Supabase Edge Function
  */
 const fetchViaSupabase = async (normalizedName: string) => {
@@ -57,6 +82,28 @@ const fetchViaSupabase = async (normalizedName: string) => {
   }
 
   return await response.json();
+};
+
+/**
+ * Smart relic market fetch: Try refined first, fallback to base relic
+ */
+const fetchRelicViaSupabase = async (relicName: string) => {
+  const marketNames = getRelicMarketNames(relicName);
+
+  for (const marketName of marketNames) {
+    try {
+      console.log(`>>> [Smart Relic Fetch] Trying: ${marketName} <<<`);
+      const data = await fetchViaSupabase(marketName);
+      console.log(`>>> [Smart Relic Fetch] Success with: ${marketName} <<<`);
+      return data;
+    } catch (error) {
+      console.log(`>>> [Smart Relic Fetch] Failed ${marketName}, trying next... <<<`);
+      continue;
+    }
+  }
+
+  // If all attempts failed, throw the last error
+  throw new Error(`No market data found for relic: ${relicName}`);
 };
 
 /**
@@ -289,13 +336,19 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
   const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
 
   try {
-    const normalizedName = normalizeItemName(primePart.name);
-    console.log(`Fetching price data for: ${primePart.name} (${normalizedName})`);
+    console.log(`Fetching price data for: ${primePart.name}`);
 
     let data;
     if (useSupabase) {
-      data = await fetchViaSupabase(normalizedName);
+      // Use smart relic lookup for relics, normal lookup for others
+      if (primePart.name.includes('Relic')) {
+        data = await fetchRelicViaSupabase(primePart.name);
+      } else {
+        const normalizedName = normalizeItemName(primePart.name);
+        data = await fetchViaSupabase(normalizedName);
+      }
     } else {
+      const normalizedName = normalizeItemName(primePart.name);
       data = await fetchViaDirect(normalizedName);
     }
 
@@ -337,13 +390,19 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
   const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
 
   try {
-    const normalizedName = normalizeItemName(primePart.name);
-    console.log(`Fetching data for: ${primePart.name} (${normalizedName})`);
+    console.log(`Fetching data for: ${primePart.name}`);
 
     let data;
     if (useSupabase) {
-      data = await fetchViaSupabase(normalizedName);
+      // Use smart relic lookup for relics, normal lookup for others
+      if (primePart.name.includes('Relic')) {
+        data = await fetchRelicViaSupabase(primePart.name);
+      } else {
+        const normalizedName = normalizeItemName(primePart.name);
+        data = await fetchViaSupabase(normalizedName);
+      }
     } else {
+      const normalizedName = normalizeItemName(primePart.name);
       data = await fetchViaDirect(normalizedName);
     }
 

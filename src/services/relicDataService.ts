@@ -42,9 +42,10 @@ export const getRelicDropsByName = async (relicName: string, rarity: VoidRelic['
     console.log(`>>> [Relic Lookup] Searching for: "${relicName}" with rarity: "${rarity}" <<<`);
     const allRelics = await loadRelicsData();
 
-    // Convert "Lith L2 Relic" to "Lith L2" for base matching
+    // Convert "Lith L2 Relic" or "Neo W2 Relic [Radiant]" to "Neo W2" for base matching
     let baseRelicName = relicName.replace(/\s+Relic$/, ''); // Remove " Relic" suffix
-    baseRelicName = baseRelicName.replace(/\s+(Intact|Exceptional|Flawless|Radiant)$/, ''); // Remove any existing refinement level
+    baseRelicName = baseRelicName.replace(/\s+(Intact|Exceptional|Flawless|Radiant)$/, ''); // Remove space-separated refinement
+    baseRelicName = baseRelicName.replace(/\s+\[(Intact|Exceptional|Flawless|Radiant)\]$/, ''); // Remove bracket-enclosed refinement
     console.log(`>>> [Relic Lookup] Base name extracted: "${baseRelicName}" <<<`);
 
     // Construct the exact relic name with the specified refinement level

@@ -23,6 +23,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Color Meaning**: GREEN = profitable decision, YELLOW = refine first, GRAY = no clear profit
   - **Impact**: Color now indicates decision quality, not action type - less confusing UX
 
+- **🚨 CRITICAL: Radiant/Refined Relic Analysis Failing** ⭐⭐⭐⭐⭐ ✅ **FIXED**
+  - **Issue**: All refined relics (Radiant, Exceptional, Flawless) showed "Analysis unavailable"
+  - **Root Cause #1**: AI returned `"Neo W2 Relic [Radiant]"` but regex only handled `(Radiant)` parentheses, not `[Radiant]` brackets
+  - **Root Cause #2**: Name parsing in `relicDataService` couldn't extract base name from `"Neo W2 Relic [Radiant]"`
+  - **Root Cause #3**: Market API tried to fetch `"neo_w2_relic_radiant"` which doesn't exist (refined relics use base relic price)
+  - **Solution**: Enhanced regex patterns, improved name parsing, and strip refinement levels for market lookup
+  - **Impact**: Radiant relics now show proper analysis with correct expected values and recommendations
+
+- **🧠 Smart Relic Market Pricing** ⭐⭐⭐⭐ ✅ **IMPROVED**
+  - **Discovery**: Some relics have separate market entries for refinement levels (e.g., Axi Y1 Radiant=7p vs Intact=5p)
+  - **Solution**: Smart market lookup tries refined relic first (`"axi_y1_relic_radiant"`), falls back to base (`"axi_y1_relic"`)
+  - **Impact**: Refined relics now show accurate market prices when separate listings exist
+  - **Future Enhancement**: Calculate refinement investment analysis (100 void traces cost vs price difference)
+
 ### Enhanced
 - **🎯 Relic Decision UI/UX Overhaul** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
   - **Clear Decision-Making Interface**: Replaced confusing "7 exp" display with intuitive relic analysis cards
@@ -584,6 +598,31 @@ Acceptance Criteria:
 ```
 
 ### 🔮 Future Enhancements (High Complexity but High Value)
+
+#### Story #14: Refinement Investment Analysis ⭐⭐⭐⭐⭐
+**Complexity**: 🔧🔧🔧 (Medium-High) | **Usefulness**: ⭐⭐⭐⭐⭐ (Game-changing)
+```
+As a strategic trader, I want to see if refining relics before selling is profitable
+so that I can optimize my void trace investment decisions.
+
+Acceptance Criteria:
+- Calculate refinement costs (25/50/100 void traces for Exceptional/Flawless/Radiant)
+- Compare refined market price vs intact market price
+- Show "REFINE THEN SELL" recommendation when profitable
+- Factor in void trace market value or farming time
+- Display breakeven analysis and profit projections
+- Consider refinement success rates and batch optimization
+
+Technical Requirements:
+- Void trace cost database (25→50→100 traces)
+- Market price comparison logic for all refinement levels
+- Investment return calculations
+- Enhanced recommendation engine
+
+Example Output:
+"Intact: 5p → Radiant: 7p = +2p gain for 100 traces"
+"Recommendation: REFINE THEN SELL (+2p profit, 200% ROI)"
+```
 
 #### Story #8: Extended Item Support ⭐⭐⭐⭐⭐
 **Complexity**: 🔧🔧🔧🔧🔧 (Very High) | **Usefulness**: ⭐⭐⭐⭐⭐ (Game-changing)

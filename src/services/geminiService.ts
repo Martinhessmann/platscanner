@@ -98,8 +98,8 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
       let relicName = line;
       let rarity: VoidRelic['rarity'] = 'intact'; // default
 
-      // Regex to capture the relic name and optional refinement level in parentheses
-      const relicRegex = /(.*) \((Intact|Exceptional|Flawless|Radiant)\)/;
+      // Regex to capture the relic name and optional refinement level in parentheses OR square brackets
+      const relicRegex = /(.*) [\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/;
       const match = line.match(relicRegex);
 
       if (match) {
