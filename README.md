@@ -9,35 +9,34 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 - 📊 **Market Analytics**: Shows current prices, 24h averages, and trading volume
 - 🎯 **Ducat Values**: Compare platinum prices with ducat trading potential
 - 🖼️ **Multi-Image Support**: Process multiple inventory screenshots at once
-- 🔄 **Duplicate Detection**: Automatically skips duplicate screenshots
-- 📱 **Responsive Design**: Works seamlessly on desktop and mobile devices
+- 🔄 **Smart Refresh System**: Update prices without re-uploading screenshots
+- 📦 **Persistent Inventory**: Your scanned items save automatically across sessions
+- 🎮 **Extended Item Support**: Scan both Prime Parts and Void Relics
+- 📱 **Mobile-First Design**: Optimized interface with touch-friendly controls
 - 🎨 **Warframe-Themed UI**: Beautiful interface matching the game's aesthetic
 - ⚡ **Reliable Processing**: Robust queue system with automatic error handling
 - 🚀 **Production Ready**: Deployed with enterprise-grade security and performance
 
-## Recent Updates (v1.2.1)
+## Recent Updates (v1.4.2)
 
-### ✅ Production Deployment Complete
-- **Fully Functional**: App now working perfectly in production environment
-- **Market Data**: Successfully fetching real-time prices and ducat values
-- **Image Processing**: AI analysis and market data retrieval working seamlessly
-- **Security**: Enhanced Content Security Policy for safe browsing
+### ✅ Critical Refresh Functionality Fixed
+- **Perfect Inventory Persistence**: Fixed category filtering bug that caused empty inventory during refresh
+- **Smart Price-Only Updates**: Preserves images while fetching fresh market data
+- **Eliminated Flickering**: Batched updates and optimized state management for smooth UX
+- **Enhanced Progress Indicators**: Real-time category-specific progress with meaningful counters
 
-### 🔧 Technical Improvements
-1. **CSP Fixes**: Resolved all Content Security Policy violations
-   - Image previews working (blob URLs allowed)
-   - SVG icons displaying correctly (iconify.design allowed)
-   - API connections secure and functional
+### 🚀 Major Feature Completions
+1. **Void Relic Support**: Now detects and prices Void Relics alongside Prime Parts
+2. **Persistent Inventory Management**: Auto-saving inventory with individual item controls
+3. **Real-time Item Display**: Items appear immediately as they're processed
+4. **Mobile-First Interface**: Touch-friendly 3-dots menus and sticky category headers
+5. **Smart API Key Onboarding**: Contextual setup guidance when API key isn't configured
 
-2. **Robust API Strategy**: Dual fallback system implemented
-   - Primary: Supabase Edge Function for optimal performance
-   - Fallback: Netlify proxy for maximum reliability
-   - Automatic detection and switching between methods
-
-3. **Enhanced Deployment**: Production-ready configuration
-   - Netlify deployment with custom domain
-   - Comprehensive security headers
-   - Optimized build and caching strategies
+### 🔧 Technical Excellence
+- **Dual Function Strategy**: `fetchSinglePriceData()` for scans, `fetchSinglePriceOnly()` for refreshes
+- **Performance Optimized**: Reduced API calls, batched updates, memoized calculations
+- **Enhanced Error Recovery**: Automatic fallback to persistent storage on refresh failures
+- **Clean UI Architecture**: Removed obsolete progress indicators, streamlined interface
 
 ## Deployment
 
@@ -96,33 +95,6 @@ The `netlify.toml` file includes:
 3. Configure DNS settings
 4. HTTPS is automatically enabled
 
-### Troubleshooting Production Issues
-
-#### Fixed Issues (v1.2.1)
-1. **CSP Violations**: Updated Content Security Policy to allow:
-   - `blob:` URLs for image previews
-   - `https://api.iconify.design` for SVG icons
-   - `connect-src` directive for API calls
-
-2. **API Proxy Issues**: Implemented fallback strategy:
-   - Primary: Supabase Edge Function (when env vars available)
-   - Fallback: Direct API calls via Netlify proxy
-   - Added proper error handling for both methods
-
-3. **CORS Issues**: Added Netlify proxy configuration:
-   ```toml
-   [[redirects]]
-     from = "/api/warframe-market/*"
-     to = "https://api.warframe.market/v1/:splat"
-     status = 200
-     force = true
-   ```
-
-#### Common Production Issues
-- **"Unexpected token '<'" error**: Usually indicates API proxy issues
-- **CSP violations**: Check browser console for blocked resources
-- **Images not loading**: Verify CSP allows necessary domains
-
 ## Getting Started
 
 1. **API Key Setup**
@@ -136,27 +108,8 @@ The `netlify.toml` file includes:
    - Upload them to Prime Parts Scanner (drag & drop or click to browse)
    - Watch as images automatically progress: Queued → Analyzing → Fetching → Complete
    - View real-time market prices and trading data
+   - Use category-specific refresh buttons to update prices
    - Click "View" to see detailed market listings
-
-## Roadmap
-
-### 1. Enhanced Item Detection
-- Broader item recognition beyond Prime parts
-- Support for Mods, Arcanes, and other valuable items
-- Image preprocessing for better accuracy
-- Improved handling of non-inventory screenshots
-
-### 2. Market Analysis
-- Ducat price comparison for optimal trading
-- Historical price trends
-- Trading volume analytics
-- Market volatility indicators
-
-### 3. User Experience
-- Customizable sorting and filtering
-- Batch processing improvements
-- Export functionality
-- Price alerts for high-value items
 
 ## Technical Details
 
@@ -171,7 +124,8 @@ The `netlify.toml` file includes:
 ### Key Components
 
 - `ImageUploader`: Handles image upload with preview and duplicate detection
-- `ResultsTable`: Displays detected items with market data
+- `InventorySection`: Displays categorized items (Prime Parts, Void Relics) with individual controls
+- `ResultsTable`: Shows detected items with market data and sorting capabilities
 - `ProcessingAnimation`: Shows AI analysis and market data fetching status
 - `ApiKeySettings`: Manages Gemini API key configuration
 
@@ -191,20 +145,21 @@ The `netlify.toml` file includes:
 
 ### Performance Optimizations
 
-- **Queue Management**: Improved processing queue with proper state handling
-- **Error Recovery**: Automatic retry logic and graceful error handling
-- **State Management**: Functional state updates prevent race conditions
+- **Smart Refresh System**: Price-only updates preserve images and improve speed
+- **Batched State Updates**: Reduced flickering with optimized re-render cycles
+- **Memoized Calculations**: Inventory statistics cached to prevent unnecessary recalculations
+- **Category-Specific Progress**: Granular progress tracking prevents UI confusion
+- **Persistent Storage**: Auto-saving inventory with error recovery mechanisms
 - **Market Data Caching**: 5-minute TTL to reduce API calls
 - **Duplicate Detection**: Automatic duplicate image detection
-- **Lazy Loading**: Optimized component loading and re-renders
 
 ### Reliability Features
 
 - **Robust Queue Processing**: Images automatically progress through processing stages
 - **Error Handling**: Comprehensive error handling with user-friendly messages
-- **State Persistence**: API keys and settings persist across sessions
+- **State Persistence**: API keys and inventory persist across sessions
+- **Smart Recovery**: Automatic fallback to persistent storage on refresh failures
 - **Validation**: Input validation and API key verification
-- **Recovery**: Automatic recovery from processing errors
 
 ## Development
 
@@ -394,4 +349,4 @@ For issues and feature requests, please use the GitHub issue tracker.
 
 ---
 
-**Version 1.2.1** - Production deployment complete with enhanced security and reliability!
+**Version 1.4.2** - Enhanced refresh system with perfect inventory persistence and mobile-first UX!

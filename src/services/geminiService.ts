@@ -95,15 +95,26 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
     }
     // Check if it's a Void Relic
     else if (line.includes('Relic') || /\b(Lith|Meso|Neo|Axi)\s+[A-Z]\d+/.test(line)) {
-      // Extract rarity if mentioned
+      let relicName = line;
       let rarity: VoidRelic['rarity'] = 'intact'; // default
-      if (line.toLowerCase().includes('exceptional')) rarity = 'exceptional';
-      else if (line.toLowerCase().includes('flawless')) rarity = 'flawless';
-      else if (line.toLowerCase().includes('radiant')) rarity = 'radiant';
+
+      // Regex to capture the relic name and optional refinement level in parentheses
+      const relicRegex = /(.*) \((Intact|Exceptional|Flawless|Radiant)\)/;
+      const match = line.match(relicRegex);
+
+      if (match) {
+        relicName = match[1].trim(); // Capture the name before the parentheses
+        const detectedRarity = match[2].toLowerCase(); // Capture the rarity string
+        // Ensure the captured rarity is a valid type
+        if (detectedRarity === 'intact' || detectedRarity === 'exceptional' || detectedRarity === 'flawless' || detectedRarity === 'radiant') {
+          rarity = detectedRarity;
+        }
+      }
+      // If no match, relicName remains the original line, and rarity remains 'intact' (default)
 
       const relicItem: VoidRelic = {
         id: `relic-${Date.now()}-${index}`,
-        name: line,
+        name: relicName, // Use the extracted name without rarity
         category: 'relics',
         rarity,
         status: 'loading'
@@ -127,23 +138,22 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     const prompt = `
       Analyze this Warframe inventory screenshot and identify items from the following categories:
 
-      1. PRIME PARTS: Any items with "Prime" in the name
-      2. VOID RELICS: Items that are Void Relics (Lith, Meso, Neo, Axi followed by a letter and number)
+      1. PRIME PARTS: Any items with "Prime" in the name.
+      2. VOID RELICS: Items that are Void Relics (Lith, Meso, Neo, Axi followed by a letter and number).
 
       CRITICAL INSTRUCTIONS FOR RELICS:
-      - ONLY detect relics that are clearly visible and NOT semi-transparent/faded
-      - Semi-transparent or faded relics should be IGNORED (these are relics the player doesn't own)
-      - Only include relics that are fully opaque and clearly visible in the inventory
-      - Look for pattern: "Lith/Meso/Neo/Axi [Letter][Number] Relic" (e.g., "Lith A1 Relic", "Neo Z3 Relic")
+      - ONLY detect relics that are clearly visible, fully opaque, and NOT semi-transparent/faded. Semi-transparent or faded relics must be EXCLUDED as they represent unowned items.
+      - For each detected Void Relic, if a refinement level is visible (Intact, Exceptional, Flawless, Radiant), include it in parentheses after the relic's name. If no refinement level is visible, assume 'Intact'.
+      - Look for pattern: "Lith/Meso/Neo/Axi [Letter][Number] Relic" (e.g., "Lith A1 Relic", "Neo Z3 Relic").
 
       List each detected item on a separate line with the exact name.
-      Do not include any additional text, explanations, or categories.
+      Do not include any additional text, explanations, or categories outside of the specified format.
 
       Example format:
       Mirage Prime Blueprint
       Kronen Prime Blade
-      Lith A1 Relic
-      Neo Z3 Relic
+      Lith A1 Relic (Radiant)
+      Neo Z3 Relic (Intact)
     `;
 
     const result = await model.generateContent([

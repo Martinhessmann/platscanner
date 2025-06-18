@@ -22,6 +22,13 @@ export interface PrimePart extends BaseItem {
 export interface VoidRelic extends BaseItem {
   category: 'relics';
   rarity?: 'intact' | 'exceptional' | 'flawless' | 'radiant';
+  relicDrops?: RelicRewardItem[];
+  minDropValue?: number;
+  maxDropValue?: number;
+  expectedDropValue?: number;
+  directSalePrice?: number;
+  recommendation?: 'OPEN' | 'SELL' | 'REFINE_THEN_OPEN';
+  expectedProfit?: number;
 }
 
 export type DetectedItem = PrimePart | VoidRelic;
@@ -70,4 +77,12 @@ export interface WarframeMarketResponse {
     orders: WarframeMarketOrder[];
     item?: WarframeMarketItem;
   };
+}
+
+export interface RelicRewardItem {
+  itemName: string;
+  rarity: 'Common' | 'Uncommon' | 'Rare';
+  dropChance: number;
+  warframeMarketUrlName: string;
+  currentPrice?: number;
 }
