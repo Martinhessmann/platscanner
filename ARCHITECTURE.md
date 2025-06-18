@@ -9,11 +9,12 @@
 - **Deployment**: Auto-deploy on push to `main` branch
 - **Build**: `npm run build` → `dist/` folder
 
-### Backend: Supabase Edge Functions (Optional)
+### Backend: Supabase Edge Functions
 - **Purpose**: API proxy for Warframe Market API calls
 - **Location**: `supabase/functions/warframe-market/`
-- **Deployment**: Manual via `supabase functions deploy warframe-market`
-- **Fallback**: Direct API calls when Supabase unavailable
+- **Deployment**: CLI via `supabase functions deploy warframe-market`
+- **Status**: ✅ Active (Version 10)
+- **Features**: Batch API support, caching, CORS handling, rate limiting
 
 ## 🔄 Data Flow
 
@@ -109,11 +110,28 @@ netlify deploy --prod
 
 ### Backend (Supabase Edge Functions)
 ```bash
-# CLI deployment (requires Docker)
-supabase functions deploy warframe-market
+# Prerequisites
+# 1. Docker Desktop must be running
+open -a Docker
 
-# Alternative: Copy code to Supabase Dashboard
+# 2. Supabase CLI installed
+brew install supabase/tap/supabase
+
+# Deploy Edge Function
+supabase functions deploy warframe-market
 ```
+
+**✅ Verified Working**: CLI deployment successfully deploys the warframe-market function
+- **Function Size**: ~638kB bundled
+- **Current Version**: 10 (Active)
+- **Dashboard**: https://supabase.com/dashboard/project/dbhdxrdjlwgclblmoypj/functions
+
+### Edge Function Features
+- **Batch API Support**: Handles up to 10 items per request for relic analysis
+- **Smart Caching**: 5-minute TTL to reduce Warframe Market API calls
+- **CORS Handling**: Proper headers for cross-origin requests
+- **Error Recovery**: Comprehensive error handling with fallbacks
+- **Rate Limiting**: Respects Warframe Market API limits (3 req/sec)
 
 ## ⚡ Performance Optimizations
 
@@ -186,8 +204,10 @@ console.log('[Relic Analysis] Starting analysis for:', relicName)
 - **Rate Limiting**: Warframe Market API limits (3 req/sec)
 - **Image Quality**: Detection accuracy depends on screenshot quality
 - **Browser Storage**: Limited by LocalStorage capacity
+- **Docker Requirement**: Supabase CLI deployment requires Docker Desktop
 
 ### Future Improvements
+- **GitHub Actions**: Automated Edge Function deployment
 - **Enhanced AI Prompts**: More reliable item detection
 - **Caching Layer**: Redis/Upstash for better performance
 - **Real-time Updates**: WebSocket integration

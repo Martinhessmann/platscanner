@@ -77,14 +77,37 @@ Recommendation: REFINE (+167% ROI, 5p gain for 100 traces)
 - **Forma & Resources**: Detect tradeable resources and consumables
 - **Weapon Parts**: Non-prime weapons with market value
 
-### 🎨 UI/UX Improvements
+### 🎨 UI/UX Major Overhaul
+**Priority**: ⭐⭐⭐⭐ | **Complexity**: 🔧🔧🔧
+
+#### Multi-Page Architecture & SEO
+- **Separate Tool Pages**: Dedicated routes for Prime Parts vs Void Relics
+  - `/prime-parts` - "Warframe Prime Parts Scanner"
+  - `/void-relics` - "Warframe Void Relic Analyzer"
+  - Better SEO targeting and specialized meta descriptions
+- **Landing Page**: SEO-optimized home page showcasing both tools
+- **Blog/Guides Section**: Trading guides, market analysis, screenshot tips
+- **Tool-Specific Content**: Focused landing pages for each scanner type
+
+#### Desktop Layout Optimization
+- **Sidebar Navigation**: Tool switcher, quick actions, contextual help
+- **Better Screen Utilization**: Use full desktop width effectively
+- **Multi-Column Layout**: Upload area + live results + inventory management
+- **Responsive Grid System**: Adaptive layout for different screen sizes
+
+#### Upload Area & Status Cleanup
+- **Streamlined Upload Zone**: Larger, cleaner drag & drop area
+- **Better Visual Feedback**: Clear processing states without clutter
+- **Simplified Status Messages**: Less verbose, more iconography
+- **Contextual Help**: On-demand guidance instead of persistent boxes
+
+### 🔍 SEO & Content Strategy
 **Priority**: ⭐⭐⭐ | **Complexity**: 🔧🔧
 
-- **Dark/Light Theme Toggle**: User preference for interface themes
-- **Customizable Dashboards**: Drag-and-drop interface layouts
-- **Mobile App**: Progressive Web App with native-like experience
-- **Keyboard Shortcuts**: Power user efficiency improvements
-- **Export Options**: CSV, PDF, JSON export for inventory data
+- **Content Marketing**: Weekly market analysis, trading guides
+- **Tool-Specific SEO**: Separate optimization for each scanner
+- **Educational Content**: Screenshot tips, trading strategies
+- **Community Features**: User-generated guides and tips
 
 ## 🔬 Research & Experimental
 
@@ -141,10 +164,11 @@ Recommendation: REFINE (+167% ROI, 5p gain for 100 traces)
 | REFINE Status | ⭐⭐⭐⭐⭐ | 🔧🔧🔧 | 2-3 weeks | 🚀 High |
 | Gemini Overhaul | ⭐⭐⭐⭐⭐ | 🔧🔧🔧🔧 | 4-6 weeks | 🚀 High |
 | Multi-Relic Analysis | ⭐⭐⭐⭐⭐ | 🔧🔧🔧🔧 | 3-4 weeks | 🚀 High |
+| UI/UX Overhaul | ⭐⭐⭐⭐ | 🔧🔧🔧 | 4-5 weeks | 📈 Medium |
+| SEO & Multi-Page | ⭐⭐⭐⭐ | 🔧🔧🔧 | 3-4 weeks | 📈 Medium |
 | Set Completion | ⭐⭐⭐⭐ | 🔧🔧🔧 | 2-3 weeks | 📈 Medium |
 | Market Analytics | ⭐⭐⭐⭐ | 🔧🔧🔧🔧 | 4-5 weeks | 📈 Medium |
 | Enhanced Detection | ⭐⭐⭐ | 🔧🔧🔧🔧 | 6-8 weeks | 📈 Medium |
-| UI/UX Improvements | ⭐⭐⭐ | 🔧🔧 | 2-4 weeks | 📈 Medium |
 | AI-Powered Insights | ⭐⭐⭐ | 🔧🔧🔧🔧🔧 | 8-12 weeks | 🔬 Research |
 
 ## 🎯 Next Sprint Recommendations
@@ -161,7 +185,17 @@ Recommendation: REFINE (+167% ROI, 5p gain for 100 traces)
 - Multi-relic market optimization
 - Advanced bulk sale calculations
 
-**Sprint 4+ (Future phases)**:
+**Sprint 4 (UI/UX Focus)**:
+- Desktop layout optimization
+- Upload area cleanup and better screen utilization
+- Multi-page architecture planning
+
+**Sprint 5 (SEO & Growth)**:
+- Separate tool pages implementation
+- Blog/guides content strategy
+- SEO optimization for both scanners
+
+**Sprint 6+ (Future phases)**:
 - Set completion detection
 - Historical market analytics
 - Extended item type support
