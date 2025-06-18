@@ -102,15 +102,24 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
       const relicRegex = /(.*) [\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/;
       const match = line.match(relicRegex);
 
+      console.log(`>>> [AI Parsing] Processing relic line: "${line}" <<<`);
+      console.log(`>>> [AI Parsing] Regex match result:`, match);
+
       if (match) {
         relicName = match[1].trim(); // Capture the name before the parentheses
         const detectedRarity = match[2].toLowerCase(); // Capture the rarity string
+        console.log(`>>> [AI Parsing] Extracted name: "${relicName}", rarity: "${detectedRarity}" <<<`);
+
         // Ensure the captured rarity is a valid type
         if (detectedRarity === 'intact' || detectedRarity === 'exceptional' || detectedRarity === 'flawless' || detectedRarity === 'radiant') {
           rarity = detectedRarity;
         }
+      } else {
+        console.log(`>>> [AI Parsing] No regex match found, defaulting to intact <<<`);
       }
       // If no match, relicName remains the original line, and rarity remains 'intact' (default)
+
+      console.log(`>>> [AI Parsing] Final result - name: "${relicName}", rarity: "${rarity}" <<<`);
 
       const relicItem: VoidRelic = {
         id: `relic-${Date.now()}-${index}`,

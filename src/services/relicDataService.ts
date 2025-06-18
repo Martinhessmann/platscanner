@@ -88,6 +88,8 @@ export const getRelicDropsByName = async (relicName: string, rarity: VoidRelic['
     }
 
     console.log(`>>> [Relic Lookup] Found ${relic.rewards.length} rewards for ${relicName} <<<`);
+    console.log(`>>> [Relic Lookup] Selected relic name: "${relic.name}" <<<`);
+    console.log(`>>> [Relic Lookup] Raw rewards data:`, relic.rewards.map((r: any) => `${r.item.name}: ${r.chance}% (${r.rarity})`));
 
     // Convert to our internal RelicRewardItem format
     const converted = relic.rewards.map((reward: any) => ({

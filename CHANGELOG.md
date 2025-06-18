@@ -37,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Impact**: Refined relics now show accurate market prices when separate listings exist
   - **Future Enhancement**: Calculate refinement investment analysis (100 void traces cost vs price difference)
 
+- **🚨 CRITICAL: Wrong Drop Chances for Refined Relics** ⭐⭐⭐⭐⭐ ✅ **DEBUGGING**
+  - **Issue**: Radiant relics showed 2% Rare drops instead of correct 10% (using Intact drop chances)
+  - **Root Cause**: AI parsing or rarity parameter not being passed correctly to analysis function
+  - **Solution**: Added comprehensive debug logging to trace the rarity parameter flow
+  - **Impact**: Will identify where the rarity information is being lost in the pipeline
+
+- **🎨 Intuitive Rarity Color Scheme** ⭐⭐⭐⭐ ✅ **IMPROVED**
+  - **Enhancement**: Updated drop rarity indicators to use medal colors
+  - **New Colors**: 🥇 Gold for Rare, 🥈 Silver for Uncommon, 🥉 Bronze for Common
+  - **Impact**: More intuitive visual understanding of drop rarities than random colors
+
 ### Enhanced
 - **🎯 Relic Decision UI/UX Overhaul** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
   - **Clear Decision-Making Interface**: Replaced confusing "7 exp" display with intuitive relic analysis cards

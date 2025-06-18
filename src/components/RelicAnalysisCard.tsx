@@ -206,11 +206,11 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
                     className="flex items-center justify-between text-xs py-1"
                   >
                     <div className="flex items-center gap-2">
-                      <span
+                                            <span
                         className={`w-2 h-2 rounded-full ${
-                          drop.rarity === 'Rare' ? 'bg-yellow-500' :
-                          drop.rarity === 'Uncommon' ? 'bg-blue-400' :
-                          'bg-gray-500'
+                          drop.rarity === 'Rare' ? 'bg-yellow-400' : // 🥇 Gold for Rare
+                          drop.rarity === 'Uncommon' ? 'bg-slate-400' : // 🥈 Silver for Uncommon
+                          'bg-amber-700' // 🥉 Bronze for Common
                         }`}
                       />
                       <span className="text-gray-300 truncate max-w-32">
