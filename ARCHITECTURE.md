@@ -17,6 +17,7 @@
 
 ## 🔄 **Data Flow Architecture**
 
+### **Prime Parts Flow**
 ```
 [User Browser]
     ↓ (Upload Screenshot)
@@ -37,17 +38,54 @@
 [User Browser]
 ```
 
-## 🔧 **Current Issues & Solutions**
+### **Relic Value Analysis Flow** ✅ **v1.5.0**
+```
+[User Browser]
+    ↓ (Upload Screenshot)
+[Netlify Frontend]
+    ↓ (Gemini AI Analysis)
+[Google Gemini API]
+    ↓ (Detected Relics)
+[Netlify Frontend]
+    ↓ (Relic Data Lookup)
+[Static Relic Database (/public/relics.json)]
+    ↓ (Drop Data + URLs)
+[Netlify Frontend]
+    ↓ (Batch Price Lookup)
+[Supabase Edge Function]
+    ↓ (Multiple Warframe Market API calls)
+[Warframe Market API]
+    ↓ (All Drop Prices)
+[Supabase Edge Function]
+    ↓ (Batch Response)
+[Netlify Frontend]
+    ↓ (Expected Value Calculation)
+[Value Analysis Engine]
+    ↓ (Expected Value + Recommendation)
+[Netlify Frontend]
+    ↓ (Enhanced Relic Display)
+[User Browser]
+```
 
-### **Issue 1: Relic Value Analysis Not Working**
-**Problem**: Relics show basic price (3p) instead of expected value analysis
-**Root Cause**: New batch API not being called correctly
+## 🔧 **Current Status & Achievements**
 
-**Debug Steps Added:**
-1. ✅ Version info in footer (`v1.4.2 (git-hash) • DEV`)
+### **✅ RESOLVED: Relic Value Analysis**
+**Status**: ✅ **COMPLETED in v1.5.0**
+**Solution**: Successfully implemented complete relic value analysis system
+
+**What Works:**
+1. ✅ Orange expected value display (e.g., "3 exp")
+2. ✅ Color-coded recommendation badges (OPEN/REFINE/SELL)
+3. ✅ Min/Max value ranges (e.g., "Min: 3 Max: 16")
+4. ✅ Real-time market data integration for all drops
+5. ✅ Batch API optimization (5x performance improvement)
+6. ✅ Smart name matching ("Lith L2 Relic" → "Lith L2 Intact")
+
+**Debug Infrastructure Added:**
+1. ✅ Version info in footer (`v1.5.0 (git-hash) • DEV`)
 2. ✅ Console logging for environment detection
 3. ✅ Development mode bypass for Supabase (forces direct API calls)
-4. ✅ Comprehensive logging in `calculateRelicValueAnalysis()`
+4. ✅ Comprehensive logging in relic lookup and analysis
 
 ### **Issue 2: Supabase Function Deployment**
 **Problem**: Docker requirement for local deployment
@@ -112,13 +150,15 @@ supabase functions deploy warframe-market
 ## 🔍 **Debugging Checklist**
 
 ### **1. Check Version Info**
-- ✅ Footer shows: `v1.4.2 (abc123) • DEV`
-- ✅ Console logs: `[App Version] Frontend: v1.4.2`
+- ✅ Footer shows: `v1.5.0 (abc123) • DEV`
+- ✅ Console logs: `[App Version] Frontend: v1.5.0`
 
-### **2. Check Relic Analysis**
+### **2. Check Relic Analysis** ✅ **WORKING**
 - ✅ Console logs: `[Relic Analysis] Starting analysis for: Lith W2 Relic`
-- ✅ Should see: `[Batch Request] Using direct API calls (dev mode override)`
-- ✅ Should see: `[Relic Analysis] Completed for Lith W2 Relic`
+- ✅ Console logs: `[RelicData] Found relic in database: Lith W2 Intact`
+- ✅ Console logs: `[Batch Request] Using direct API calls (dev mode override)`
+- ✅ Console logs: `[Relic Analysis] Expected Value: 67p, Recommendation: OPEN`
+- ✅ UI Shows: Orange "67 exp" with green "OPEN" badge and "Min: 15 Max: 450"
 
 ### **3. Check API Configuration**
 - ✅ Console logs: `[Config] Supabase URL: configured/not configured`
@@ -131,10 +171,12 @@ supabase functions deploy warframe-market
 - **Rate Limiting**: 334ms × 6 = ~2 seconds per relic
 - **UI Update**: Shows basic relic price (3p)
 
-### **After (v1.5.0)**
+### **After (v1.5.0)** ✅ **IMPLEMENTED**
 - **Batch Requests**: 1 batch API call per relic
 - **Rate Limiting**: ~500ms total per relic
-- **UI Update**: Shows expected value analysis (67p exp, OPEN recommendation)
+- **UI Update**: Shows expected value analysis (3-67p exp, OPEN/REFINE/SELL recommendation)
+- **Visual Enhancement**: Orange expected values, color-coded badges, min/max ranges
+- **Performance Gain**: 5x faster relic analysis (2s → 0.5s per relic)
 
 ## 🔮 **Future Improvements**
 

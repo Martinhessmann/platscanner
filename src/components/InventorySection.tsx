@@ -4,8 +4,9 @@
 import React, { useState } from 'react';
 import { RefreshCw, Trash2, ChevronDown, ChevronRight, Zap, Coins } from 'lucide-react';
 import { InventoryItem } from '../services/inventoryService';
-import { ItemCategory } from '../types';
+import { ItemCategory, VoidRelic } from '../types';
 import ResultsTable from './ResultsTable';
+import RelicResultsTable from './RelicResultsTable';
 
 interface InventorySectionProps {
   category: ItemCategory;
@@ -161,12 +162,21 @@ const InventorySection: React.FC<InventorySectionProps> = ({
       {/* Content */}
       {isExpanded && (
         <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl overflow-hidden">
-          <ResultsTable
-            results={items}
-            onRemoveItem={onRemoveItem}
-            onRefreshItem={onRefreshItem}
-            showActionButtons={true}
-          />
+          {category === 'relics' ? (
+            <RelicResultsTable
+              results={items as VoidRelic[]}
+              onRemoveItem={onRemoveItem}
+              onRefreshItem={onRefreshItem}
+              showActionButtons={true}
+            />
+          ) : (
+            <ResultsTable
+              results={items}
+              onRemoveItem={onRemoveItem}
+              onRefreshItem={onRefreshItem}
+              showActionButtons={true}
+            />
+          )}
         </div>
       )}
 
