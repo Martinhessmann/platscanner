@@ -45,6 +45,7 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 ### Prerequisites
 - Node.js 18+
 - Google Gemini API key
+- Docker Desktop (for Supabase Edge Function deployment)
 
 ### Installation
 ```bash
@@ -72,6 +73,26 @@ npm run build    # Build for production
 npm run preview  # Preview production build
 npm run lint     # Run ESLint
 ```
+
+### Supabase Edge Function Deployment
+
+The app uses Supabase Edge Functions in production for improved performance and API rate limiting. To deploy:
+
+```bash
+# 1. Ensure Docker Desktop is running
+open -a Docker
+
+# 2. Install Supabase CLI (if not already installed)
+brew install supabase/tap/supabase
+
+# 3. Deploy the Edge Function
+supabase functions deploy warframe-market
+```
+
+**✅ Verified Working**: The CLI deployment process successfully deploys the warframe-market function
+- **Current Status**: Active (Version 10)
+- **Function Features**: Batch API support, smart caching, CORS handling, rate limiting
+- **Development**: App works with direct API calls when Supabase is unavailable
 
 ## 📖 Documentation
 
