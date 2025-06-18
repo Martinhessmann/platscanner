@@ -15,7 +15,7 @@ import {
   calculateRelicValueAnalysis,
   InventoryItem
 } from '../services/inventoryService';
-import { ImageState, DetectedItem, ProcessingState } from '../types';
+import { ImageState, DetectedItem, ProcessingState, VoidRelic } from '../types';
 import InfoCard from '../components/InfoCard';
 import { FileWithPath } from 'react-dropzone';
 import { RefreshCw, Package, Trash2, Archive, Zap, Key, Coins } from 'lucide-react';
@@ -114,15 +114,44 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
           const sessionId = `scan_${Date.now()}`;
           const processedItems: DetectedItem[] = [];
 
-          for (let index = 0; index < newItems.length; index++) {
+                    for (let index = 0; index < newItems.length; index++) {
             const item = newItems[index];
-                          try {
-                // Fetch price AND image for individual item (initial scan)
-                const itemWithPrice = await fetchSinglePriceData(item);
-              processedItems.push(itemWithPrice);
+            try {
+              let processedItem: DetectedItem;
+
+              if (item.category === 'relics') {
+                // For relics, fetch basic price data AND calculate relic value analysis
+                const basicItem = await fetchSinglePriceData(item);
+
+                // Calculate relic value analysis using the actual detected rarity
+                const relicItem = item as VoidRelic;
+                const relicAnalysis = await calculateRelicValueAnalysis(item.name, relicItem.rarity || 'intact');
+
+                if (relicAnalysis) {
+                  processedItem = {
+                    ...basicItem,
+                    category: 'relics' as const,
+                    rarity: relicItem.rarity,
+                    minDropValue: relicAnalysis.minDropValue,
+                    maxDropValue: relicAnalysis.maxDropValue,
+                    expectedDropValue: relicAnalysis.expectedDropValue,
+                    recommendation: relicAnalysis.recommendation,
+                    expectedProfit: relicAnalysis.expectedProfit,
+                    directSalePrice: relicAnalysis.directSalePrice,
+                    relicDrops: relicAnalysis.relicDrops
+                  };
+                } else {
+                  processedItem = basicItem;
+                }
+              } else {
+                // For prime parts, just fetch basic price data
+                processedItem = await fetchSinglePriceData(item);
+              }
+
+              processedItems.push(processedItem);
 
               // Add to inventory immediately as it's processed
-              saveToInventory([itemWithPrice], sessionId);
+              saveToInventory([processedItem], sessionId);
 
               // Update local inventory state
               const updatedInventory = getCategorizedInventory();
@@ -131,7 +160,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
               // Update progress after processing each item
               setFetchingProgress({ current: index + 1, total: newItems.length });
 
-              console.log(`Added ${itemWithPrice.name} to inventory with price ${itemWithPrice.price} (${index + 1}/${newItems.length})`);
+              console.log(`Added ${processedItem.name} to inventory with price ${processedItem.price} (${index + 1}/${newItems.length})`);
             } catch (error) {
               console.error(`Failed to process ${item.name}:`, error);
               const errorItem = { ...item, status: 'error' as const, error: 'Failed to fetch price' };
@@ -318,8 +347,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         // For relics, fetch basic price data AND calculate relic value analysis
         const basicItem = await fetchSinglePriceOnly(item);
 
-        // Calculate relic value analysis
-        const relicAnalysis = await calculateRelicValueAnalysis(itemName, 'intact'); // Default to intact for now
+        // Calculate relic value analysis using the actual detected rarity
+        const relicItem = item as VoidRelic;
+        const relicAnalysis = await calculateRelicValueAnalysis(itemName, relicItem.rarity || 'intact');
 
         if (relicAnalysis) {
           updatedItem = {
@@ -407,8 +437,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             // For relics, fetch basic price data AND calculate relic value analysis
             const basicItem = await fetchSinglePriceOnly(item);
 
-            // Calculate relic value analysis
-            const relicAnalysis = await calculateRelicValueAnalysis(item.name, 'intact'); // Default to intact for now
+            // Calculate relic value analysis using the actual detected rarity
+            const relicItem = item as VoidRelic;
+            const relicAnalysis = await calculateRelicValueAnalysis(item.name, relicItem.rarity || 'intact');
 
             if (relicAnalysis) {
               updatedItem = {
@@ -517,8 +548,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             // For relics, fetch basic price data AND calculate relic value analysis
             const basicItem = await fetchSinglePriceOnly(item);
 
-            // Calculate relic value analysis
-            const relicAnalysis = await calculateRelicValueAnalysis(item.name, 'intact'); // Default to intact for now
+            // Calculate relic value analysis using the actual detected rarity
+            const relicItem = item as VoidRelic;
+            const relicAnalysis = await calculateRelicValueAnalysis(item.name, relicItem.rarity || 'intact');
 
             if (relicAnalysis) {
               updatedItem = {

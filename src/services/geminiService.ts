@@ -136,18 +136,31 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     const imageBase64 = await fileToBase64(imageFile);
 
     const prompt = `
-      Analyze this Warframe inventory screenshot and identify items from the following categories:
+      Analyze this Warframe inventory screenshot and identify ONLY owned items from the following categories:
 
       1. PRIME PARTS: Any items with "Prime" in the name.
       2. VOID RELICS: Items that are Void Relics (Lith, Meso, Neo, Axi followed by a letter and number).
 
-      CRITICAL INSTRUCTIONS FOR RELICS:
-      - ONLY detect relics that are clearly visible, fully opaque, and NOT semi-transparent/faded. Semi-transparent or faded relics must be EXCLUDED as they represent unowned items.
-      - For each detected Void Relic, if a refinement level is visible (Intact, Exceptional, Flawless, Radiant), include it in parentheses after the relic's name. If no refinement level is visible, assume 'Intact'.
-      - Look for pattern: "Lith/Meso/Neo/Axi [Letter][Number] Relic" (e.g., "Lith A1 Relic", "Neo Z3 Relic").
+      CRITICAL INSTRUCTIONS FOR RELICS - STRICT FILTERING REQUIRED:
+      - ONLY detect relics that are ACTUALLY OWNED AND AVAILABLE
+      - COMPLETELY EXCLUDE any relics that have:
+        * An eye icon in the top left corner (these are unowned)
+        * Semi-transparent or faded appearance
+        * Grayed out or darkened icons
+        * Lower brightness/contrast than fully owned items
+      - Focus on the RELIC ICON itself, not just the text label
+      - Even if the text is clear, if the relic icon looks faded or has an eye icon, EXCLUDE it
+      - ONLY count relics with bright, solid, fully opaque icons like the owned inventory items
+
+      VISUAL DETECTION GUIDELINES:
+      - Compare relic icon brightness to Prime part icons - they should look equally bright
+      - Eye icon in corner = EXCLUDE (unowned relic)
+      - Faded/ghosted relic icon = EXCLUDE (unowned relic)
+      - Solid, bright relic icon = INCLUDE (owned relic)
+      - When in doubt, EXCLUDE the relic rather than include it
 
       List each detected item on a separate line with the exact name.
-      Do not include any additional text, explanations, or categories outside of the specified format.
+      Do not include any additional text, explanations, or categories.
 
       Example format:
       Mirage Prime Blueprint

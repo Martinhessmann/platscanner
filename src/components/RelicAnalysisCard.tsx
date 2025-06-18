@@ -38,10 +38,37 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
     );
   }
 
-  const hasProfit = (relic.expectedProfit || 0) > 0;
+    const hasProfit = (relic.expectedProfit || 0) > 0;
   const profitPercentage = relic.directSalePrice && relic.directSalePrice > 0
     ? Math.round(((relic.expectedDropValue - relic.directSalePrice) / relic.directSalePrice) * 100)
     : 0;
+
+  // Helper function for better expected value display
+  const formatExpectedValue = (value: number): string => {
+    if (value >= 1) {
+      return Math.round(value).toString();
+    } else if (value >= 0.1) {
+      return value.toFixed(1);
+    } else if (value > 0) {
+      return '< 0.1';
+    } else {
+      return '0';
+    }
+  };
+
+  // Priority indicator based on expected value
+  const getPriorityIndicator = () => {
+    const expectedValue = relic.expectedDropValue || 0;
+    if (expectedValue >= 5) {
+      return { text: 'HIGH PRIORITY', color: 'text-green-400', bg: 'bg-green-900/30' };
+    } else if (expectedValue >= 1) {
+      return { text: 'MEDIUM PRIORITY', color: 'text-yellow-400', bg: 'bg-yellow-900/30' };
+    } else if (expectedValue > 0.1) {
+      return { text: 'LOW PRIORITY', color: 'text-blue-400', bg: 'bg-blue-900/30' };
+    } else {
+      return { text: 'MINIMAL VALUE', color: 'text-gray-400', bg: 'bg-gray-900/30' };
+    }
+  };
 
   const getRecommendationConfig = () => {
     switch (relic.recommendation) {
@@ -91,7 +118,7 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1">
               <Zap size={14} className="text-orange-400" />
-              <span className="text-white font-semibold">Expected: {Math.round(relic.expectedDropValue)}p</span>
+              <span className="text-white font-semibold">Expected: {formatExpectedValue(relic.expectedDropValue)}p</span>
             </div>
                          {relic.directSalePrice && relic.directSalePrice > 0 && (
                <>
@@ -119,7 +146,7 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
           <div className="flex items-center gap-2 text-sm">
             <ArrowRight size={12} className="text-green-400" />
             <span className="text-green-400 font-medium">
-              +{Math.round(relic.expectedProfit)}p profit
+              +{formatExpectedValue(relic.expectedProfit)}p profit
             </span>
             {profitPercentage > 0 && (
               <span className="text-green-400/70">
@@ -129,7 +156,7 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
           </div>
         )}
 
-        {/* Recommendation */}
+        {/* Recommendation & Priority */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {config.icon}
@@ -149,6 +176,11 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
               {showDetails ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </button>
           </div>
+        </div>
+
+        {/* Priority Indicator */}
+        <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getPriorityIndicator().bg} ${getPriorityIndicator().color}`}>
+          {getPriorityIndicator().text}
         </div>
 
         {/* Quick Description */}
@@ -200,7 +232,7 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
               <div className="flex justify-between">
                 <span>Weighted Expected Value:</span>
                 <span className="text-orange-400 font-medium">
-                  {Math.round(relic.expectedDropValue)}p
+                  {formatExpectedValue(relic.expectedDropValue)}p
                 </span>
               </div>
             </div>

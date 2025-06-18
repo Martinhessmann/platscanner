@@ -35,31 +35,42 @@ const loadRelicsData = async (): Promise<any[]> => {
 };
 
 /**
- * Gets the drop data for a specific Void Relic by its name.
+ * Gets the drop data for a specific Void Relic by its name and refinement level.
  */
-export const getRelicDropsByName = async (relicName: string): Promise<RelicRewardItem[] | undefined> => {
+export const getRelicDropsByName = async (relicName: string, rarity: VoidRelic['rarity'] = 'intact'): Promise<RelicRewardItem[] | undefined> => {
   try {
-    console.log(`>>> [Relic Lookup] Searching for: "${relicName}" <<<`);
+    console.log(`>>> [Relic Lookup] Searching for: "${relicName}" with rarity: "${rarity}" <<<`);
     const allRelics = await loadRelicsData();
 
     // Convert "Lith L2 Relic" to "Lith L2" for base matching
     let baseRelicName = relicName.replace(/\s+Relic$/, ''); // Remove " Relic" suffix
-    baseRelicName = baseRelicName.replace(/\s+(Intact|Exceptional|Flawless|Radiant)$/, ''); // Remove any refinement level
+    baseRelicName = baseRelicName.replace(/\s+(Intact|Exceptional|Flawless|Radiant)$/, ''); // Remove any existing refinement level
     console.log(`>>> [Relic Lookup] Base name extracted: "${baseRelicName}" <<<`);
 
-    // Try to find exact match first
-    let relic = allRelics.find((r: any) => r.name === relicName);
-    console.log(`>>> [Relic Lookup] Exact match for "${relicName}": ${relic ? 'FOUND' : 'NOT FOUND'} <<<`);
+    // Construct the exact relic name with the specified refinement level
+    const refinementLevel = rarity.charAt(0).toUpperCase() + rarity.slice(1); // Capitalize first letter
+    const targetRelicName = `${baseRelicName} ${refinementLevel}`;
+    console.log(`>>> [Relic Lookup] Target relic name: "${targetRelicName}" <<<`);
 
-    // If not found, look for relics that start with the base name
+    // Try to find exact match with refinement level first
+    let relic = allRelics.find((r: any) => r.name === targetRelicName);
+    console.log(`>>> [Relic Lookup] Exact match for "${targetRelicName}": ${relic ? 'FOUND' : 'NOT FOUND'} <<<`);
+
+    // If not found, try the original input name as fallback
+    if (!relic) {
+      relic = allRelics.find((r: any) => r.name === relicName);
+      console.log(`>>> [Relic Lookup] Fallback match for "${relicName}": ${relic ? 'FOUND' : 'NOT FOUND'} <<<`);
+    }
+
+    // If still not found, look for any relics that start with the base name and default to Intact
     if (!relic) {
       const matchingRelics = allRelics.filter((r: any) => r.name.startsWith(baseRelicName + ' '));
       console.log(`>>> [Relic Lookup] Found ${matchingRelics.length} relics matching base name "${baseRelicName}" <<<`);
       console.log(`>>> [Relic Lookup] Matching relics:`, matchingRelics.map((r: any) => r.name));
 
-      // Prefer Intact version as default
+      // Prefer Intact version as final fallback
       relic = matchingRelics.find((r: any) => r.name === baseRelicName + ' Intact') || matchingRelics[0];
-      console.log(`>>> [Relic Lookup] Selected relic: ${relic ? relic.name : 'NONE'} <<<`);
+      console.log(`>>> [Relic Lookup] Fallback selected relic: ${relic ? relic.name : 'NONE'} <<<`);
     }
 
         if (!relic) {

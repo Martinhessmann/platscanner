@@ -23,6 +23,16 @@ export interface InventoryItem {
   addedAt: Date;
   lastUpdated: Date;
   scanSession?: string; // Which scan session this item came from
+
+  // Relic analysis properties (for VoidRelic items)
+  rarity?: 'intact' | 'exceptional' | 'flawless' | 'radiant';
+  relicDrops?: RelicRewardItem[];
+  minDropValue?: number;
+  maxDropValue?: number;
+  expectedDropValue?: number;
+  directSalePrice?: number;
+  recommendation?: 'OPEN' | 'SELL' | 'REFINE_THEN_OPEN';
+  expectedProfit?: number;
 }
 
 export interface CategorizedInventory {
@@ -45,21 +55,41 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
     const now = new Date();
 
     // Convert DetectedItems to InventoryItems
-    const inventoryItems: InventoryItem[] = items.map(item => ({
-      id: item.id,
-      name: item.name,
-      category: item.category,
-      imgUrl: item.imgUrl,
-      price: item.price,
-      ducats: item.ducats,
-      volume: item.volume,
-      average: item.average,
-      status: item.status,
-      error: item.error,
-      addedAt: now,
-      lastUpdated: now,
-      scanSession: sessionId || `scan_${Date.now()}`
-    }));
+    const inventoryItems: InventoryItem[] = items.map(item => {
+      const baseItem = {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        imgUrl: item.imgUrl,
+        price: item.price,
+        ducats: item.ducats,
+        volume: item.volume,
+        average: item.average,
+        status: item.status,
+        error: item.error,
+        addedAt: now,
+        lastUpdated: now,
+        scanSession: sessionId || `scan_${Date.now()}`
+      };
+
+      // Include relic analysis properties for VoidRelic items
+      if (item.category === 'relics' && 'expectedDropValue' in item) {
+        const relicItem = item as VoidRelic;
+        return {
+          ...baseItem,
+          rarity: relicItem.rarity,
+          relicDrops: relicItem.relicDrops,
+          minDropValue: relicItem.minDropValue,
+          maxDropValue: relicItem.maxDropValue,
+          expectedDropValue: relicItem.expectedDropValue,
+          directSalePrice: relicItem.directSalePrice,
+          recommendation: relicItem.recommendation,
+          expectedProfit: relicItem.expectedProfit
+        };
+      }
+
+      return baseItem;
+    });
 
     // Merge with existing inventory (avoid duplicates by name)
     const updatedItems = [...currentInventory.items];
@@ -206,12 +236,30 @@ export const updateInventoryPrices = (updatedItems: DetectedItem[]): void => {
     const updatedInventoryItems = currentInventory.items.map(inventoryItem => {
       const updatedItem = updatedItems.find(item => item.name === inventoryItem.name);
       if (updatedItem) {
-        return {
+        const baseUpdate = {
           ...inventoryItem,
           ...updatedItem,
           addedAt: inventoryItem.addedAt, // Preserve original add date
           lastUpdated: now
         };
+
+        // Include relic analysis properties for VoidRelic items
+        if (updatedItem.category === 'relics' && 'expectedDropValue' in updatedItem) {
+          const relicItem = updatedItem as VoidRelic;
+          return {
+            ...baseUpdate,
+            rarity: relicItem.rarity,
+            relicDrops: relicItem.relicDrops,
+            minDropValue: relicItem.minDropValue,
+            maxDropValue: relicItem.maxDropValue,
+            expectedDropValue: relicItem.expectedDropValue,
+            directSalePrice: relicItem.directSalePrice,
+            recommendation: relicItem.recommendation,
+            expectedProfit: relicItem.expectedProfit
+          };
+        }
+
+        return baseUpdate;
       }
       return inventoryItem;
     });
@@ -282,7 +330,7 @@ export const calculateRelicValueAnalysis = async (relicName: string, rarity: Voi
   try {
     console.log(`>>> [Relic Analysis] Starting analysis for: ${relicName} (${rarity}) <<<`);
 
-    const relicDrops = await getRelicDropsByName(relicName);
+    const relicDrops = await getRelicDropsByName(relicName, rarity);
 
     if (!relicDrops || relicDrops.length === 0) {
       console.warn(`>>> [Relic Analysis] No drop data found for relic: ${relicName} <<<`);

@@ -18,6 +18,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Visual Decision Guidance**: Color-coded borders and icons matching recommendation type
   - **Profit Calculations**: Shows exact profit amounts and percentage gains for opening vs selling
 
+- **📊 Improved Expected Value Display & Prioritization** ⭐⭐⭐⭐⭐ ✅ **COMPLETED**
+  - **Precise Low-Value Display**: Shows "0.5p" instead of misleading "0p" for values like 0.49p
+  - **Smart Value Formatting**: Values ≥1p rounded, 0.1-1p show one decimal, <0.1p show "< 0.1p"
+  - **Priority Indicators**: Color-coded priority badges (HIGH/MEDIUM/LOW/MINIMAL) based on expected value
+  - **Better Decision Guidance**: Users can quickly identify which relics to open first
+  - **Consistent Formatting**: Applied to main display, profit calculations, and weighted expected value
+
+- **🔍 Enhanced Semi-transparent Detection** ⭐⭐⭐⭐ ✅ **IMPROVED**
+  - **Eye Icon Detection**: Added specific instruction to exclude relics with eye icons in corner
+  - **Icon vs Text Focus**: Emphasizes analyzing relic icon opacity, not just text visibility
+  - **Stricter Guidelines**: "When in doubt, EXCLUDE the relic rather than include it"
+  - **Visual Comparison**: Instructions to compare relic brightness to Prime part icons
+
 ### Technical Improvements
 - **Component Specialization**: Separate UI components for Prime Parts vs Void Relics
 - **Enhanced Type Safety**: Proper TypeScript typing for relic-specific properties
@@ -25,6 +38,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Decision-Focused Design**: UI specifically optimized for "Should I open, refine, or sell?" workflow
 
 ### Fixed
+- **🚨 CRITICAL: Analysis Data Lost in Persistent Storage** ⭐⭐⭐⭐⭐ ✅ **FIXED**
+  - **Issue**: Relic analysis worked but showed "Analysis unavailable" because data was stripped during save
+  - **Root Cause**: `InventoryItem` interface missing relic analysis properties (expectedDropValue, recommendation, etc.)
+  - **Solution**: Extended interface and save/load functions to preserve all relic analysis data
+  - **Impact**: Analysis now properly persists and displays after initial upload and refresh operations
+
+- **🚨 CRITICAL: Semi-transparent Relic Over-detection** ⭐⭐⭐⭐⭐ ✅ **FIXED**
+  - **Issue**: Gemini detecting 7 relics when only 4 actually owned (detecting faded/inactive relics)
+  - **Root Cause**: Insufficient prompt clarity about visual filtering requirements
+  - **Solution**: Enhanced Gemini prompt with strict visual filtering guidelines
+  - **Impact**: Should now only detect bright, fully opaque relics that are actually owned
+
+- **🚨 CRITICAL: Initial Upload Analysis Missing** ⭐⭐⭐⭐⭐ ✅ **FIXED**
+  - **Issue**: New relic uploads only showed basic platinum prices, missing expected value analysis
+  - **Root Cause**: Initial processing loop didn't trigger `calculateRelicValueAnalysis()` for relic items
+  - **Solution**: Added relic-specific analysis during initial screenshot processing
+  - **Impact**: New uploads now immediately show expected values, recommendations, and profit calculations
+
+- **🚨 CRITICAL: Refinement Level Detection Ignored** ⭐⭐⭐⭐⭐ ✅ **FIXED**
+  - **Issue**: All relics defaulted to "Intact" analysis regardless of actual refinement (Exceptional/Flawless/Radiant)
+  - **Root Cause**: Multiple hardcoded `'intact'` parameters in analysis calls
+  - **Solution**: Use actual detected rarity from Gemini AI throughout the analysis pipeline
+  - **Impact**: Radiant relics now show dramatically different (correct) expected values vs Intact
+
+- **Enhanced Relic Data Service**: Fixed refinement level lookup to find specific refined versions
+  - Now properly searches for "Lith L2 Radiant" instead of defaulting to "Lith L2 Intact"
+  - Maintains fallback logic for missing refinement data
+  - Significantly improves analysis accuracy for refined relics
+
 - **Confusing Relic Display**: No more unclear "7 exp" text that provided no decision-making value
 - **Recommendation Visibility**: Action recommendations now prominently displayed instead of tiny badges
 - **Value Context**: Expected values now clearly compared against direct sale prices
