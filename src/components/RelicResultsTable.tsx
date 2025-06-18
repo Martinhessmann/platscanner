@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { VoidRelic } from '../types';
-import { Filter, Zap, TrendingUp, Coins, MoreVertical, RefreshCw, Trash2 } from 'lucide-react';
+import { Filter, Zap, TrendingUp, Coins, RefreshCw, Trash2, Circle } from 'lucide-react';
 import RelicAnalysisCard from './RelicAnalysisCard';
 import { getRelicImagePath } from '../lib/relicUtils';
 
@@ -22,12 +22,11 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   onRefreshItem,
   showActionButtons = false
 }) => {
-  const [sortField, setSortField] = useState<'expectedValue' | 'name' | 'recommendation'>('expectedValue');
+  const [sortField, setSortField] = useState<'highestValue' | 'name' | 'recommendation'>('highestValue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSortOptions, setShowSortOptions] = useState(false);
-  const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
 
-  const handleSort = (field: 'expectedValue' | 'name' | 'recommendation') => {
+  const handleSort = (field: 'highestValue' | 'name' | 'recommendation') => {
     console.log(`>>> [RelicResultsTable] Sort clicked: ${field}, current: ${sortField}, direction: ${sortDirection} <<<`);
 
     if (sortField === field) {
@@ -41,10 +40,57 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     console.log(`>>> [RelicResultsTable] Sort applied: field=${field}, direction=${sortDirection === 'asc' ? 'desc' : 'asc'} <<<`);
   };
 
+  // Helper function to get the highest value (either sell or open)
+  const getHighestValue = (relic: VoidRelic): number => {
+    const openValue = relic.expectedDropValue || 0;
+    const sellValue = relic.directSalePrice || 0;
+    return Math.max(openValue, sellValue);
+  };
+
+  // Get recommendation config for styling
+  const getRecommendationConfig = (relic: VoidRelic) => {
+    switch (relic.recommendation) {
+      case 'OPEN':
+        return {
+          bgColor: 'bg-orange-900/10',
+          borderColor: 'border-orange-700/30'
+        };
+      case 'SELL':
+        return {
+          bgColor: 'bg-green-900/10',
+          borderColor: 'border-green-700/30'
+        };
+      case 'REFINE_THEN_OPEN':
+        return {
+          bgColor: 'bg-orange-900/10',
+          borderColor: 'border-orange-700/30'
+        };
+      default:
+        return {
+          bgColor: 'bg-gray-800/30',
+          borderColor: 'border-gray-700/30'
+        };
+    }
+  };
+
+  // Get refinement dot color
+  const getRefinementDotColor = (rarity?: string) => {
+    switch (rarity) {
+      case 'radiant':
+        return 'text-yellow-400';
+      case 'flawless':
+        return 'text-blue-400';
+      case 'exceptional':
+        return 'text-green-400';
+      default:
+        return 'text-gray-400';
+    }
+  };
+
   const sortedResults = [...results].sort((a, b) => {
-    if (sortField === 'expectedValue') {
-      const valueA = a.expectedDropValue || 0;
-      const valueB = b.expectedDropValue || 0;
+    if (sortField === 'highestValue') {
+      const valueA = getHighestValue(a);
+      const valueB = getHighestValue(b);
       return sortDirection === 'asc' ? valueA - valueB : valueB - valueA;
     } else if (sortField === 'recommendation') {
       const getRecommendationOrder = (rec?: string) => {
@@ -88,7 +134,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   const getSortLabel = () => {
     const direction = sortDirection === 'asc' ? '↑' : '↓';
     switch (sortField) {
-      case 'expectedValue': return `Expected ${direction}`;
+      case 'highestValue': return `Highest Value ${direction}`;
       case 'recommendation': return `Action ${direction}`;
       case 'name': return `Name ${direction}`;
     }
@@ -120,12 +166,12 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  handleSort('expectedValue');
+                  handleSort('highestValue');
                 }}
                 className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-t-lg flex items-center gap-2"
               >
                 <Zap size={12} className="text-orange-400" />
-                Expected {sortField === 'expectedValue' && (sortDirection === 'asc' ? '↑' : '↓')}
+                Highest Value {sortField === 'highestValue' && (sortDirection === 'asc' ? '↑' : '↓')}
               </button>
               <button
                 onClick={(e) => {
@@ -155,88 +201,76 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
 
       {/* Relic cards list */}
       <div key={`${sortField}-${sortDirection}`} className="space-y-3 p-2">
-        {sortedResults.map((relic) => (
-          <div key={relic.id} className="relative">
-            <div className="flex items-stretch gap-2">
-              {/* Relic image */}
-              <div className="w-16 h-16 bg-gray-900 rounded-lg border border-gray-700 flex-shrink-0 overflow-hidden">
-                <img
-                  src={getRelicImagePath(relic.name, relic.rarity)}
-                  alt={`${relic.name} (${relic.rarity || 'intact'})`}
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    // Fallback to a default image if the specific one fails to load
-                    const target = e.target as HTMLImageElement;
-                    target.src = '/images/relics/unknown.png';
-                  }}
-                />
-              </div>
+        {sortedResults.map((relic) => {
+          const config = getRecommendationConfig(relic);
+          const refinementColor = getRefinementDotColor(relic.rarity);
 
-              {/* Relic info and analysis */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h3 className="font-medium text-white text-sm leading-tight truncate">
-                      {relic.name}
-                    </h3>
-                    {relic.rarity && (
-                      <span className="text-xs text-gray-400 capitalize">
-                        {relic.rarity}
-                      </span>
-                    )}
+          return (
+            <div key={relic.id} className={`relative rounded-lg ${config.bgColor} ${config.borderColor} border`}>
+              <div className="p-3">
+                {/* Relic header with image, title and actions */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    {/* Relic image */}
+                    <div className="w-12 h-12 bg-gray-900/50 rounded-md border border-gray-700/50 flex-shrink-0 overflow-hidden">
+                      <img
+                        src={getRelicImagePath(relic.name, relic.rarity)}
+                        alt={`${relic.name} (${relic.rarity || 'intact'})`}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          // Fallback to a default image if the specific one fails to load
+                          const target = e.target as HTMLImageElement;
+                          target.src = '/images/relics/unknown.png';
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <h3 className="font-medium text-white text-sm leading-tight">
+                        {relic.name}
+                      </h3>
+                      {relic.rarity && (
+                        <div className="flex items-center gap-1 text-xs text-gray-400 capitalize">
+                          <Circle size={8} className={refinementColor} fill={refinementColor} />
+                          {relic.rarity}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Action menu */}
+                  {/* Action buttons */}
                   {showActionButtons && (onRefreshItem || onRemoveItem) && (
-                    <div className="relative flex-shrink-0 ml-2">
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setActiveActionMenu(activeActionMenu === relic.id ? null : relic.id);
-                        }}
-                        className="p-1 rounded text-gray-400 hover:text-white transition-colors"
-                        title="Actions"
-                      >
-                        <MoreVertical size={14} />
-                      </button>
-
-                      {activeActionMenu === relic.id && (
-                        <div className="absolute right-0 top-full mt-1 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-50 min-w-32">
-                          {onRefreshItem && (
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onRefreshItem(relic.name);
-                                setActiveActionMenu(null);
-                              }}
-                              disabled={relic.status === 'loading'}
-                              className={`w-full text-left px-3 py-2 text-sm rounded-t-lg flex items-center gap-2 transition-colors ${
-                                relic.status === 'loading'
-                                  ? 'text-gray-500 cursor-not-allowed'
-                                  : 'text-tenno-blue hover:bg-gray-700'
-                              }`}
-                            >
-                              <RefreshCw size={12} className={relic.status === 'loading' ? 'animate-spin' : ''} />
-                              Refresh analysis
-                            </button>
-                          )}
-                          {onRemoveItem && (
-                            <button
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onRemoveItem(relic.name);
-                                setActiveActionMenu(null);
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm text-grineer-red hover:bg-gray-700 rounded-b-lg flex items-center gap-2 transition-colors"
-                            >
-                              <Trash2 size={12} />
-                              Remove
-                            </button>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-2">
+                      {onRefreshItem && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onRefreshItem(relic.name);
+                          }}
+                          disabled={relic.status === 'loading'}
+                          className={`p-1.5 rounded text-sm transition-colors ${
+                            relic.status === 'loading'
+                              ? 'text-gray-500 cursor-not-allowed'
+                              : 'text-tenno-blue hover:bg-gray-700/50'
+                          }`}
+                          title="Refresh analysis"
+                        >
+                          <RefreshCw size={14} className={relic.status === 'loading' ? 'animate-spin' : ''} />
+                        </button>
+                      )}
+                      {onRemoveItem && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onRemoveItem(relic.name);
+                          }}
+                          className="p-1.5 rounded text-sm text-grineer-red hover:bg-gray-700/50 transition-colors"
+                          title="Remove"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       )}
                     </div>
                   )}
@@ -252,8 +286,8 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                 />
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Click outside handlers */}
@@ -261,13 +295,6 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         <div
           className="fixed inset-0 z-40"
           onClick={() => setShowSortOptions(false)}
-        />
-      )}
-
-      {activeActionMenu && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setActiveActionMenu(null)}
         />
       )}
     </div>
