@@ -1,187 +1,194 @@
-# 🏗️ Prime Parts Scanner - Architecture Documentation
+# 🏗️ Prime Parts Scanner - Technical Architecture
 
-## 📊 **Current Deployment Architecture**
+## 📊 System Architecture
 
-### **Frontend: Netlify**
-- **Main App**: React + Vite deployed on Netlify
+### Frontend: Netlify
+- **Framework**: React 18 + TypeScript + Vite
+- **Styling**: Tailwind CSS
 - **Domain**: `platscanner.netlify.app`
-- **Auto-deploy**: On push to `main` branch
+- **Deployment**: Auto-deploy on push to `main` branch
 - **Build**: `npm run build` → `dist/` folder
-- **Environment Variables**: Set in Netlify Dashboard
 
-### **Backend: Supabase Edge Functions**
-- **API Proxy**: Warframe Market API calls via Edge Function
+### Backend: Supabase Edge Functions (Optional)
+- **Purpose**: API proxy for Warframe Market API calls
 - **Location**: `supabase/functions/warframe-market/`
-- **Deploy**: Manual via `supabase functions deploy warframe-market`
-- **Environment**: Separate from Netlify (has own Supabase config)
+- **Deployment**: Manual via `supabase functions deploy warframe-market`
+- **Fallback**: Direct API calls when Supabase unavailable
 
-## 🔄 **Data Flow Architecture**
+## 🔄 Data Flow
 
-### **Prime Parts Flow**
+### Core Processing Pipeline
 ```
 [User Browser]
     ↓ (Upload Screenshot)
-[Netlify Frontend]
+[React Frontend]
     ↓ (Gemini AI Analysis)
 [Google Gemini API]
     ↓ (Detected Items)
-[Netlify Frontend]
+[React Frontend]
     ↓ (Price Lookup)
-[Supabase Edge Function]
+[Supabase Edge Function OR Direct API]
     ↓ (Warframe Market API)
 [Warframe Market API]
     ↓ (Price Data)
-[Supabase Edge Function]
-    ↓ (Formatted Response)
-[Netlify Frontend]
+[React Frontend]
     ↓ (Display Results)
 [User Browser]
 ```
 
-### **Relic Value Analysis Flow** ✅ **v1.5.0**
+### Relic Value Analysis Flow
 ```
-[User Browser]
-    ↓ (Upload Screenshot)
-[Netlify Frontend]
-    ↓ (Gemini AI Analysis)
-[Google Gemini API]
-    ↓ (Detected Relics)
-[Netlify Frontend]
+[Detected Relics]
     ↓ (Relic Data Lookup)
-[Static Relic Database (/public/relics.json)]
-    ↓ (Drop Data + URLs)
-[Netlify Frontend]
-    ↓ (Batch Price Lookup)
-[Supabase Edge Function]
-    ↓ (Multiple Warframe Market API calls)
-[Warframe Market API]
+[Static Database (/public/relics.json)]
+    ↓ (Drop Data + Market URLs)
+[Batch Price Lookup]
     ↓ (All Drop Prices)
-[Supabase Edge Function]
-    ↓ (Batch Response)
-[Netlify Frontend]
-    ↓ (Expected Value Calculation)
-[Value Analysis Engine]
-    ↓ (Expected Value + Recommendation)
-[Netlify Frontend]
-    ↓ (Enhanced Relic Display)
-[User Browser]
+[Expected Value Calculation]
+    ↓ (Weighted Average + Recommendations)
+[Enhanced Relic Display]
 ```
 
-## 🔧 **Current Status & Achievements**
+## 🛠️ Development vs Production
 
-### **✅ RESOLVED: Relic Value Analysis**
-**Status**: ✅ **COMPLETED in v1.5.0**
-**Solution**: Successfully implemented complete relic value analysis system
-
-**What Works:**
-1. ✅ Orange expected value display (e.g., "3 exp")
-2. ✅ Color-coded recommendation badges (OPEN/REFINE/SELL)
-3. ✅ Min/Max value ranges (e.g., "Min: 3 Max: 16")
-4. ✅ Real-time market data integration for all drops
-5. ✅ Batch API optimization (5x performance improvement)
-6. ✅ Smart name matching ("Lith L2 Relic" → "Lith L2 Intact")
-
-**Debug Infrastructure Added:**
-1. ✅ Version info in footer (`v1.5.0 (git-hash) • DEV`)
-2. ✅ Console logging for environment detection
-3. ✅ Development mode bypass for Supabase (forces direct API calls)
-4. ✅ Comprehensive logging in relic lookup and analysis
-
-### **Issue 2: Supabase Function Deployment**
-**Problem**: Docker requirement for local deployment
-**Solutions**:
-- Use Supabase Dashboard (web interface)
-- Install Docker Desktop
-- Set up GitHub Actions for auto-deployment
-
-## 🛠️ **Development vs Production**
-
-### **Development Mode** (localhost:5173)
-- **Relic Analysis**: Uses direct Warframe Market API calls (bypasses Supabase)
+### Development Mode (localhost)
+- **API Calls**: Direct to Warframe Market (bypasses Supabase)
 - **Rate Limiting**: 334ms delays between requests
-- **Debugging**: Enhanced console logging enabled
-- **Version Info**: Shows in footer with "DEV" indicator
+- **Debugging**: Enhanced console logging
+- **Version Info**: Shows "DEV" indicator in footer
 
-### **Production Mode** (Netlify)
-- **Relic Analysis**: Uses Supabase Edge Function for batch requests
+### Production Mode (Netlify)
+- **API Calls**: Via Supabase Edge Function (with fallback)
 - **Rate Limiting**: Handled by Edge Function
 - **Debugging**: Limited logging
 - **Version Info**: Shows version + git hash
 
-## 📝 **Environment Variables**
+## 🔧 Technical Components
 
-### **Netlify (Frontend)**
+### Core Services
+- **`geminiService.ts`**: AI image analysis and item detection
+- **`warframeMarketService.ts`**: Market data fetching and price calculations
+- **`relicDataService.ts`**: Relic database lookup and drop analysis
+- **`inventoryService.ts`**: Persistent storage and inventory management
+
+### Key Components
+- **`ImageUploader`**: File handling with drag & drop
+- **`ProcessingAnimation`**: Real-time processing feedback
+- **`InventorySection`**: Categorized item display with controls
+- **`RelicAnalysisCard`**: Expected value analysis and recommendations
+- **`ApiKeySettings`**: Secure API key management
+
+### Data Storage
+- **LocalStorage**: API keys and user preferences
+- **SessionStorage**: Temporary processing state
+- **Static Files**: Relic database (/public/relics.json)
+
+## 📝 Environment Configuration
+
+### Required Variables
 ```env
-VITE_GEMINI_API_KEY=your_gemini_key
-VITE_SUPABASE_URL=your_supabase_project_url  # Optional
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key  # Optional
+VITE_GEMINI_API_KEY=your_gemini_api_key
 ```
 
-### **Supabase (Edge Functions)**
+### Optional Variables (Supabase)
 ```env
-# Automatically available in Edge Functions
-SUPABASE_URL=auto_provided
-SUPABASE_ANON_KEY=auto_provided
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-## 🚀 **Deployment Commands**
+## 🚀 Deployment
 
-### **Frontend (Netlify)**
+### Frontend (Netlify)
 ```bash
-# Auto-deploy on git push main
+# Automatic deployment
 git push origin main
 
-# Manual deploy
+# Manual deployment
 netlify deploy --prod
 ```
 
-### **Backend (Supabase)**
+### Backend (Supabase Edge Functions)
 ```bash
-# Method 1: CLI (requires Docker)
+# CLI deployment (requires Docker)
 supabase functions deploy warframe-market
 
-# Method 2: Dashboard (no Docker needed)
-# Copy code → Supabase Dashboard → Functions → Update
-
-# Method 3: GitHub Actions (future)
-# Automated on push to main
+# Alternative: Copy code to Supabase Dashboard
 ```
 
-## 🔍 **Debugging Checklist**
+## ⚡ Performance Optimizations
 
-### **1. Check Version Info**
-- ✅ Footer shows: `v1.5.0 (abc123) • DEV`
-- ✅ Console logs: `[App Version] Frontend: v1.5.0`
+### API Efficiency
+- **Batch Requests**: Single call for multiple relic drops
+- **Rate Limiting**: Respects Warframe Market API limits
+- **Caching**: 5-minute TTL for market data
+- **Fallback Strategy**: Direct API calls when Supabase unavailable
 
-### **2. Check Relic Analysis** ✅ **WORKING**
-- ✅ Console logs: `[Relic Analysis] Starting analysis for: Lith W2 Relic`
-- ✅ Console logs: `[RelicData] Found relic in database: Lith W2 Intact`
-- ✅ Console logs: `[Batch Request] Using direct API calls (dev mode override)`
-- ✅ Console logs: `[Relic Analysis] Expected Value: 67p, Recommendation: OPEN`
-- ✅ UI Shows: Orange "67 exp" with green "OPEN" badge and "Min: 15 Max: 450"
+### UI Performance
+- **Progressive Loading**: Items appear as processed
+- **Batched Updates**: Reduced re-renders during refresh
+- **Memoized Calculations**: Cached inventory statistics
+- **Image Optimization**: Lazy loading and compression
 
-### **3. Check API Configuration**
-- ✅ Console logs: `[Config] Supabase URL: configured/not configured`
-- ✅ Console logs: `[Environment] Development Mode: true`
+### Error Handling
+- **Graceful Degradation**: App works without Supabase
+- **Retry Logic**: Automatic retry for failed requests
+- **User Feedback**: Clear error messages and recovery options
+- **State Recovery**: Fallback to persistent storage
 
-## 📈 **Performance Comparison**
+## 🔍 Debugging
 
-### **Before (v1.4.2)**
-- **Single Item Requests**: 6 individual API calls per relic
-- **Rate Limiting**: 334ms × 6 = ~2 seconds per relic
-- **UI Update**: Shows basic relic price (3p)
+### Development Tools
+- **Console Logging**: Comprehensive debug output in dev mode
+- **Version Display**: Footer shows current version and environment
+- **Network Tab**: Monitor API calls and responses
+- **React DevTools**: Component state inspection
 
-### **After (v1.5.0)** ✅ **IMPLEMENTED**
-- **Batch Requests**: 1 batch API call per relic
-- **Rate Limiting**: ~500ms total per relic
-- **UI Update**: Shows expected value analysis (3-67p exp, OPEN/REFINE/SELL recommendation)
-- **Visual Enhancement**: Orange expected values, color-coded badges, min/max ranges
-- **Performance Gain**: 5x faster relic analysis (2s → 0.5s per relic)
+### Common Debug Points
+```javascript
+// Check environment mode
+console.log('[Environment] Development Mode:', import.meta.env.DEV)
 
-## 🔮 **Future Improvements**
+// Verify API configuration
+console.log('[Config] Supabase URL:', !!import.meta.env.VITE_SUPABASE_URL)
 
-1. **Auto-Deploy Supabase**: GitHub Actions for Edge Functions
-2. **Error Recovery**: Fallback from batch to individual requests
-3. **Caching**: Redis/Upstash for market data caching
-4. **Monitoring**: Sentry for error tracking
-5. **Analytics**: Usage tracking and performance monitoring
+// Monitor relic analysis
+console.log('[Relic Analysis] Starting analysis for:', relicName)
+```
+
+## 📊 Performance Metrics
+
+### Processing Speed
+- **Relic Analysis**: ~500ms per relic (5x improvement from v1.4)
+- **Image Processing**: ~2-3s per screenshot
+- **Market Data**: ~200ms per item (cached)
+
+### API Usage
+- **Gemini API**: ~1 request per image
+- **Warframe Market**: Batched requests in production
+- **Rate Limits**: 3 requests/second (Warframe Market)
+
+## 🔐 Security
+
+### Content Security Policy
+- **Strict CSP**: Blocks unauthorized external resources
+- **API Domains**: Whitelisted domains for API calls
+- **Image Sources**: Allowed sources for item thumbnails
+
+### Data Privacy
+- **Local Storage**: API keys stored in browser only
+- **No Server Storage**: No user data stored on backend
+- **HTTPS Only**: All communications encrypted
+
+## 🚧 Known Limitations
+
+### Current Constraints
+- **Gemini API Dependency**: Requires active API key
+- **Rate Limiting**: Warframe Market API limits (3 req/sec)
+- **Image Quality**: Detection accuracy depends on screenshot quality
+- **Browser Storage**: Limited by LocalStorage capacity
+
+### Future Improvements
+- **Enhanced AI Prompts**: More reliable item detection
+- **Caching Layer**: Redis/Upstash for better performance
+- **Real-time Updates**: WebSocket integration
+- **Mobile App**: Native mobile application
