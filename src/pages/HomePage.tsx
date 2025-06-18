@@ -516,25 +516,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
               onImageRemove={handleImageRemove}
             />
 
-            {/* Only show processing progress for actual image analysis, not price refreshes */}
-            {processingState.totalCount > 0 && isProcessing && (
-              <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl p-3 border border-gray-700/50">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400">Image Processing</span>
-                  <span className="text-xs text-gray-400">
-                    {processingState.processedCount} / {processingState.totalCount}
-                  </span>
-                </div>
-                <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-tenno-blue transition-all duration-300"
-                    style={{
-                      width: `${(processingState.processedCount / processingState.totalCount) * 100}%`
-                    }}
-                  />
-                </div>
-              </div>
-            )}
+
           </div>
 
           {/* Right column - Processing and Results */}
