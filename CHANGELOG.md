@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.5.1] - 2025-01-02
-
 ### Fixed
 - **🚨 CRITICAL: Relic Market Price vs Expected Value Logic** ⭐⭐⭐⭐⭐ ✅ **FIXED**
   - **Issue**: Relics recommended "OPEN" even when direct market sale was more profitable
@@ -16,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Root Cause**: `calculateRelicValueAnalysis()` hardcoded `directSalePrice = 0` instead of using actual market data
   - **Solution**: Pass relic's market price into analysis function and properly compare against expected drop value
   - **Impact**: Now correctly recommends "SELL" when market price exceeds expected value (e.g., 5p market vs 3p expected = +2p profit by selling)
+
+- **🚨 CRITICAL: Incorrect Drop Chances for Refined Relics** ⭐⭐⭐⭐⭐ ✅ **FIXED**
+  - **Issue**: Radiant relics showed 2% Rare drops instead of correct 10% (using Intact drop chances)
+  - **Root Cause**: Relic data in JSON file had inconsistent drop chance values for different refinement levels
+  - **Solution**: Implemented hardcoded drop chance tables based on official Warframe values:
+    - **Intact**: Common=25.33%, Uncommon=11%, Rare=2%
+    - **Exceptional**: Common=23.33%, Uncommon=13%, Rare=4%
+    - **Flawless**: Common=20%, Uncommon=17%, Rare=6%
+    - **Radiant**: Common=16.67%, Uncommon=20%, Rare=10%
+  - **Impact**: All relics now show correct drop chances regardless of JSON data inconsistencies
 
 - **🎨 Logical Color Scheme for Recommendations** ⭐⭐⭐⭐ ✅ **IMPROVED**
   - **Issue**: SELL recommendations displayed in RED (suggesting bad/dangerous) while OPEN was GREEN
@@ -36,12 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Solution**: Smart market lookup tries refined relic first (`"axi_y1_relic_radiant"`), falls back to base (`"axi_y1_relic"`)
   - **Impact**: Refined relics now show accurate market prices when separate listings exist
   - **Future Enhancement**: Calculate refinement investment analysis (100 void traces cost vs price difference)
-
-- **🚨 CRITICAL: Wrong Drop Chances for Refined Relics** ⭐⭐⭐⭐⭐ ✅ **DEBUGGING**
-  - **Issue**: Radiant relics showed 2% Rare drops instead of correct 10% (using Intact drop chances)
-  - **Root Cause**: AI parsing or rarity parameter not being passed correctly to analysis function
-  - **Solution**: Added comprehensive debug logging to trace the rarity parameter flow
-  - **Impact**: Will identify where the rarity information is being lost in the pipeline
 
 - **🎨 Intuitive Rarity Color Scheme** ⭐⭐⭐⭐ ✅ **IMPROVED**
   - **Enhancement**: Updated drop rarity indicators to use medal colors

@@ -98,15 +98,17 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
       let relicName = line;
       let rarity: VoidRelic['rarity'] = 'intact'; // default
 
-      // Regex to capture the relic name and optional refinement level in parentheses OR square brackets
-      const relicRegex = /(.*) [\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/;
+      console.log(`>>> [AI Parsing] Processing relic line: "${line}" <<<`);
+
+      // Enhanced regex to capture the relic name and optional refinement level in parentheses OR square brackets
+      // This pattern handles both formats: "Neo W2 Relic (Radiant)" and "Neo W2 Relic [Radiant]"
+      const relicRegex = /(.*?)\s+[\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/i;
       const match = line.match(relicRegex);
 
-      console.log(`>>> [AI Parsing] Processing relic line: "${line}" <<<`);
       console.log(`>>> [AI Parsing] Regex match result:`, match);
 
       if (match) {
-        relicName = match[1].trim(); // Capture the name before the parentheses
+        relicName = match[1].trim(); // Capture the name before the parentheses/brackets
         const detectedRarity = match[2].toLowerCase(); // Capture the rarity string
         console.log(`>>> [AI Parsing] Extracted name: "${relicName}", rarity: "${detectedRarity}" <<<`);
 
@@ -115,9 +117,25 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
           rarity = detectedRarity;
         }
       } else {
-        console.log(`>>> [AI Parsing] No regex match found, defaulting to intact <<<`);
+        // Try alternative formats
+        console.log(`>>> [AI Parsing] No regex match found, trying alternative formats <<<`);
+
+        // Check for "Neo W2 Radiant Relic" format (rarity before "Relic")
+        const alternativeRegex = /(.*?)\s+(Intact|Exceptional|Flawless|Radiant)\s+Relic/i;
+        const altMatch = line.match(alternativeRegex);
+
+        if (altMatch) {
+          relicName = `${altMatch[1]} Relic`;
+          const detectedRarity = altMatch[2].toLowerCase();
+          console.log(`>>> [AI Parsing] Alternative format match: "${relicName}", rarity: "${detectedRarity}" <<<`);
+
+          if (detectedRarity === 'intact' || detectedRarity === 'exceptional' || detectedRarity === 'flawless' || detectedRarity === 'radiant') {
+            rarity = detectedRarity;
+          }
+        } else {
+          console.log(`>>> [AI Parsing] No rarity detected, defaulting to intact <<<`);
+        }
       }
-      // If no match, relicName remains the original line, and rarity remains 'intact' (default)
 
       console.log(`>>> [AI Parsing] Final result - name: "${relicName}", rarity: "${rarity}" <<<`);
 

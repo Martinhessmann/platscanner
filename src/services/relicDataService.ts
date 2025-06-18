@@ -7,6 +7,30 @@ import { RelicRewardItem, VoidRelic } from '../types';
 // Cache for relic data
 let relicsData: any[] = [];
 
+// Hardcoded drop chances by refinement level
+const DROP_CHANCES = {
+  intact: {
+    Common: 25.33, // 76% total (25.33% for each of 3 items)
+    Uncommon: 11,  // 22% total (11% for each of 2 items)
+    Rare: 2        // 2% total (for 1 item)
+  },
+  exceptional: {
+    Common: 23.33, // 70% total (23.33% for each of 3 items)
+    Uncommon: 13,  // 26% total (13% for each of 2 items)
+    Rare: 4        // 4% total (for 1 item)
+  },
+  flawless: {
+    Common: 20,    // 60% total (20% for each of 3 items)
+    Uncommon: 17,  // 34% total (17% for each of 2 items)
+    Rare: 6        // 6% total (for 1 item)
+  },
+  radiant: {
+    Common: 16.67, // 50% total (16.67% for each of 3 items)
+    Uncommon: 20,  // 40% total (20% for each of 2 items)
+    Rare: 10       // 10% total (for 1 item)
+  }
+};
+
 // Load relic data from the static file
 const loadRelicsData = async (): Promise<any[]> => {
   if (relicsData.length === 0) {
@@ -35,6 +59,25 @@ const loadRelicsData = async (): Promise<any[]> => {
 };
 
 /**
+ * Adjusts drop chances based on relic refinement level
+ */
+const adjustDropChances = (drops: RelicRewardItem[], refinementLevel: VoidRelic['rarity']): RelicRewardItem[] => {
+  // Ensure refinementLevel is a valid key for DROP_CHANCES
+  const validRefinement = refinementLevel && ['intact', 'exceptional', 'flawless', 'radiant'].includes(refinementLevel)
+    ? refinementLevel
+    : 'intact';
+
+  const dropChances = DROP_CHANCES[validRefinement];
+
+  console.log(`>>> [Relic Adjustment] Using ${validRefinement} drop chances: Common=${dropChances.Common}%, Uncommon=${dropChances.Uncommon}%, Rare=${dropChances.Rare}% <<<`);
+
+  return drops.map(drop => ({
+    ...drop,
+    dropChance: dropChances[drop.rarity] || drop.dropChance // Use hardcoded chance or fallback to original
+  }));
+};
+
+/**
  * Gets the drop data for a specific Void Relic by its name and refinement level.
  */
 export const getRelicDropsByName = async (relicName: string, rarity: VoidRelic['rarity'] = 'intact'): Promise<RelicRewardItem[] | undefined> => {
@@ -48,12 +91,11 @@ export const getRelicDropsByName = async (relicName: string, rarity: VoidRelic['
     baseRelicName = baseRelicName.replace(/\s+\[(Intact|Exceptional|Flawless|Radiant)\]$/, ''); // Remove bracket-enclosed refinement
     console.log(`>>> [Relic Lookup] Base name extracted: "${baseRelicName}" <<<`);
 
-    // Construct the exact relic name with the specified refinement level
-    const refinementLevel = rarity.charAt(0).toUpperCase() + rarity.slice(1); // Capitalize first letter
-    const targetRelicName = `${baseRelicName} ${refinementLevel}`;
-    console.log(`>>> [Relic Lookup] Target relic name: "${targetRelicName}" <<<`);
+    // For base relic lookup, we'll always use the Intact version first
+    const targetRelicName = `${baseRelicName} Intact`;
+    console.log(`>>> [Relic Lookup] Target base relic name: "${targetRelicName}" <<<`);
 
-    // Try to find exact match with refinement level first
+    // Try to find exact match with Intact version first (for consistent base data)
     let relic = allRelics.find((r: any) => r.name === targetRelicName);
     console.log(`>>> [Relic Lookup] Exact match for "${targetRelicName}": ${relic ? 'FOUND' : 'NOT FOUND'} <<<`);
 
@@ -63,18 +105,18 @@ export const getRelicDropsByName = async (relicName: string, rarity: VoidRelic['
       console.log(`>>> [Relic Lookup] Fallback match for "${relicName}": ${relic ? 'FOUND' : 'NOT FOUND'} <<<`);
     }
 
-    // If still not found, look for any relics that start with the base name and default to Intact
+    // If still not found, look for any relics that start with the base name
     if (!relic) {
       const matchingRelics = allRelics.filter((r: any) => r.name.startsWith(baseRelicName + ' '));
       console.log(`>>> [Relic Lookup] Found ${matchingRelics.length} relics matching base name "${baseRelicName}" <<<`);
       console.log(`>>> [Relic Lookup] Matching relics:`, matchingRelics.map((r: any) => r.name));
 
-      // Prefer Intact version as final fallback
-      relic = matchingRelics.find((r: any) => r.name === baseRelicName + ' Intact') || matchingRelics[0];
+      // Use the first matching relic
+      relic = matchingRelics[0];
       console.log(`>>> [Relic Lookup] Fallback selected relic: ${relic ? relic.name : 'NONE'} <<<`);
     }
 
-        if (!relic) {
+    if (!relic) {
       console.warn(`>>> [Relic Lookup] No relic found for: ${relicName} (base: ${baseRelicName}) <<<`);
       console.log(`>>> [Relic Lookup] Available relics starting with same prefix:`,
         allRelics.filter((r: any) => r.name.startsWith(baseRelicName.split(' ')[0])).slice(0, 5).map((r: any) => r.name));
@@ -92,15 +134,20 @@ export const getRelicDropsByName = async (relicName: string, rarity: VoidRelic['
     console.log(`>>> [Relic Lookup] Raw rewards data:`, relic.rewards.map((r: any) => `${r.item.name}: ${r.chance}% (${r.rarity})`));
 
     // Convert to our internal RelicRewardItem format
-    const converted = relic.rewards.map((reward: any) => ({
+    const baseDrops = relic.rewards.map((reward: any) => ({
       itemName: reward.item.name,
       rarity: reward.rarity.charAt(0).toUpperCase() + reward.rarity.slice(1) as 'Common' | 'Uncommon' | 'Rare',
       dropChance: reward.chance,
       warframeMarketUrlName: reward.item.warframeMarket?.urlName || '',
     }));
 
-    console.log(`>>> [Relic Lookup] Converted rewards:`, converted.map((r: any) => `${r.itemName} (${r.dropChance}%) -> ${r.warframeMarketUrlName}`));
-    return converted;
+    // Apply the correct drop chances based on refinement level
+    const adjustedDrops = adjustDropChances(baseDrops, rarity);
+
+    console.log(`>>> [Relic Lookup] Adjusted drops for ${rarity}:`,
+      adjustedDrops.map((r: any) => `${r.itemName} (${r.dropChance}%) -> ${r.warframeMarketUrlName}`));
+
+    return adjustedDrops;
   } catch (error) {
     console.error('>>> [Relic Lookup] Error getting relic drops:', error);
     return undefined;
