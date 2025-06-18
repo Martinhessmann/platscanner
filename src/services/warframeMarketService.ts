@@ -60,6 +60,28 @@ const fetchViaSupabase = async (normalizedName: string) => {
 };
 
 /**
+ * Fetches market data for multiple items in batch using Supabase Edge Function
+ */
+const fetchBatchViaSupabase = async (normalizedNames: string[]) => {
+  const response = await fetch(
+    `${SUPABASE_URL}/functions/v1/warframe-market?batch=${encodeURIComponent(JSON.stringify(normalizedNames))}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      }
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to fetch batch market data');
+  }
+
+  const result = await response.json();
+  return result.batch; // Returns array of item data
+};
+
+/**
  * Fetches market data using direct API calls via Netlify proxy
  */
 const fetchViaDirect = async (normalizedName: string) => {
@@ -203,6 +225,48 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
   }
 
   return updatedParts;
+};
+
+/**
+ * CRITICAL: Fetches market data for multiple items in batch for relic value analysis
+ *
+ * @param itemNames - Array of Warframe Market URL names to fetch
+ * @returns Array of price data objects
+ */
+export const fetchBatchPriceData = async (itemNames: string[]): Promise<any[]> => {
+  const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
+
+  if (!useSupabase) {
+    // Fallback to sequential calls if no Supabase
+    console.warn('No Supabase configuration, falling back to sequential calls for batch request');
+    const results = [];
+    for (const itemName of itemNames) {
+      try {
+        const data = await fetchViaDirect(itemName);
+        results.push(data);
+      } catch (error) {
+        console.error(`Failed to fetch ${itemName}:`, error);
+        results.push({
+          name: itemName,
+          price: 0,
+          error: error instanceof Error ? error.message : 'Failed to fetch'
+        });
+      }
+      // Add delay between requests
+      await new Promise(resolve => setTimeout(resolve, 334));
+    }
+    return results;
+  }
+
+  try {
+    console.log(`Fetching batch data for ${itemNames.length} items via Supabase`);
+    const results = await fetchBatchViaSupabase(itemNames);
+    console.log(`Batch fetch completed:`, results);
+    return results;
+  } catch (error) {
+    console.error('Batch fetch failed:', error);
+    throw error;
+  }
 };
 
 /**

@@ -248,20 +248,47 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                       </span>
                     ) : (
                       <>
-                        <div className="flex items-center gap-3">
-                          {/* Platinum - Large and Silver */}
-                          <div className="flex items-center gap-1">
-                            <Zap size={14} className="text-gray-300" />
-                            <span className="text-gray-300 font-bold text-xl">{item.price}</span>
-                          </div>
-                          {/* Ducats - Smaller and Yellow */}
-                          {item.ducats && (
-                            <div className="flex items-center gap-1">
-                              <Coins size={10} className="text-yellow-500" />
-                              <span className="text-yellow-500 text-sm font-medium">{item.ducats}</span>
+                        {/* Relic Value Display */}
+                        {item.category === 'relics' && 'expectedDropValue' in item && item.expectedDropValue ? (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <Zap size={12} className="text-orange-400" />
+                                <span className="text-orange-400 font-bold text-lg">{Math.round(item.expectedDropValue)}</span>
+                                <span className="text-gray-400 text-xs">exp</span>
+                              </div>
+                              {item.recommendation && (
+                                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                                  item.recommendation === 'OPEN' ? 'bg-green-900/50 text-green-400' :
+                                  item.recommendation === 'SELL' ? 'bg-red-900/50 text-red-400' :
+                                  'bg-yellow-900/50 text-yellow-400'
+                                }`}>
+                                  {item.recommendation === 'REFINE_THEN_OPEN' ? 'REFINE' : item.recommendation}
+                                </span>
+                              )}
                             </div>
-                          )}
-                        </div>
+                            <div className="flex items-center gap-3 text-xs text-gray-400">
+                              <span>Min: {item.minDropValue || 0}</span>
+                              <span>Max: {item.maxDropValue || 0}</span>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Prime Parts and Regular Relics Display */
+                          <div className="flex items-center gap-3">
+                            {/* Platinum - Large and Silver */}
+                            <div className="flex items-center gap-1">
+                              <Zap size={14} className="text-gray-300" />
+                              <span className="text-gray-300 font-bold text-xl">{item.price || 0}</span>
+                            </div>
+                            {/* Ducats - Smaller and Yellow */}
+                            {item.ducats && (
+                              <div className="flex items-center gap-1">
+                                <Coins size={10} className="text-yellow-500" />
+                                <span className="text-yellow-500 text-sm font-medium">{item.ducats}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <a
                           href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
                           target="_blank"

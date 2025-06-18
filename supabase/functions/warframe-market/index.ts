@@ -29,11 +29,11 @@ const normalizeItemName = (name: string): string => {
 const handleError = (error: Error, status = 500) => {
   console.error('Error:', error);
   return new Response(
-    JSON.stringify({ 
+    JSON.stringify({
       error: error.message || 'Internal server error',
-      status 
+      status
     }),
-    { 
+    {
       status,
       headers: {
         'Content-Type': 'application/json',
@@ -43,81 +43,48 @@ const handleError = (error: Error, status = 500) => {
   );
 };
 
-Deno.serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+/**
+ * Fetches price data for a single item
+ */
+const fetchSingleItemData = async (itemName: string) => {
+  // Check cache
+  const cached = cache.get(itemName);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data;
   }
 
+  // API request headers
+  const apiHeaders = {
+    'Accept': 'application/json',
+    'Content-Type': 'application/json',
+    'Language': 'en',
+    'Platform': 'pc',
+    'User-Agent': 'PlatScanner/1.5.0'
+  };
+
   try {
-    const url = new URL(req.url);
-    const itemName = url.searchParams.get('item');
+    const [itemResponse, ordersResponse] = await Promise.all([
+      fetch(`${WARFRAME_MARKET_API}/items/${itemName}`, { headers: apiHeaders }),
+      fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, { headers: apiHeaders })
+    ]);
 
-    if (!itemName) {
-      return handleError(new Error('Item name is required'), 400);
-    }
-
-    // Check cache
-    const cached = cache.get(itemName);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      return new Response(
-        JSON.stringify(cached.data),
-        { 
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        }
-      );
-    }
-
-    // API request headers
-    const apiHeaders = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'Language': 'en',
-      'Platform': 'pc',
-      'User-Agent': 'PlatScanner/1.1.0'
-    };
-
-    // Fetch item details and orders with retries
-    let itemResponse, ordersResponse;
-    try {
-      [itemResponse, ordersResponse] = await Promise.all([
-        fetch(`${WARFRAME_MARKET_API}/items/${itemName}`, { headers: apiHeaders }),
-        fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, { headers: apiHeaders })
-      ]);
-    } catch (error) {
-      console.error('Network error:', error);
-      return handleError(new Error('Failed to fetch market data. Please try again.'));
-    }
-
-    // Handle API errors
     if (!itemResponse.ok || !ordersResponse.ok) {
-      const status = itemResponse.status || ordersResponse.status;
-      return handleError(new Error('Item not found or API error'), status);
+      throw new Error('Item not found or API error');
     }
 
-    // Parse responses
-    let itemData, ordersData;
-    try {
-      [itemData, ordersData] = await Promise.all([
-        itemResponse.json(),
-        ordersResponse.json()
-      ]);
-    } catch (error) {
-      console.error('JSON parse error:', error);
-      return handleError(new Error('Invalid response from market API'));
-    }
+    const [itemData, ordersData] = await Promise.all([
+      itemResponse.json(),
+      ordersResponse.json()
+    ]);
 
     // Get the item details from the set
-    const itemDetails = itemData.payload.item.items_in_set.find((item: any) => 
+    const itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
       item.url_name === itemName
     ) || itemData.payload.item.items_in_set[0];
 
     // Process orders
-    const buyOrders = ordersData.payload.orders.filter((order: any) => 
-      order.order_type === 'buy' && 
+    const buyOrders = ordersData.payload.orders.filter((order: any) =>
+      order.order_type === 'buy' &&
       ['online', 'ingame'].includes(order.user.status) &&
       !order.user.banned &&
       order.visible
@@ -129,17 +96,93 @@ Deno.serve(async (req) => {
       ducats: itemDetails.ducats || 0,
       price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
       volume: ordersData.payload.orders.length,
-      average: buyOrders.length > 0 
-        ? Math.round(buyOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / buyOrders.length) 
+      average: buyOrders.length > 0
+        ? Math.round(buyOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / buyOrders.length)
         : 0
     };
 
     // Cache the result
     cache.set(itemName, { data: result, timestamp: Date.now() });
+    return result;
+  } catch (error) {
+    console.error(`Error fetching ${itemName}:`, error);
+    return {
+      name: itemName,
+      thumb: '',
+      ducats: 0,
+      price: 0,
+      volume: 0,
+      average: 0,
+      error: error.message
+    };
+  }
+};
+
+/**
+ * Handles batch requests for relic value analysis
+ */
+const handleBatchRequest = async (batchItems: string) => {
+  try {
+    const itemNames = JSON.parse(batchItems);
+
+    if (!Array.isArray(itemNames) || itemNames.length === 0) {
+      return handleError(new Error('Invalid batch items format'), 400);
+    }
+
+    // Limit batch size to prevent overload
+    if (itemNames.length > 10) {
+      return handleError(new Error('Batch size too large (max 10 items)'), 400);
+    }
+
+    // Fetch all items in parallel
+    const results = await Promise.all(
+      itemNames.map(itemName => fetchSingleItemData(itemName))
+    );
+
+    return new Response(
+      JSON.stringify({ batch: results }),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      }
+    );
+  } catch (error) {
+    return handleError(error);
+  }
+};
+
+Deno.serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const url = new URL(req.url);
+    const itemName = url.searchParams.get('item');
+    const batchItems = url.searchParams.get('batch');
+
+    // Handle batch requests for relic value analysis
+    if (batchItems) {
+      return await handleBatchRequest(batchItems);
+    }
+
+    if (!itemName) {
+      return handleError(new Error('Item name is required'), 400);
+    }
+
+        // Use the refactored single item fetcher
+    const result = await fetchSingleItemData(itemName);
+
+    if (result.error) {
+      return handleError(new Error(result.error));
+    }
 
     return new Response(
       JSON.stringify(result),
-      { 
+      {
         headers: {
           'Content-Type': 'application/json',
           ...corsHeaders

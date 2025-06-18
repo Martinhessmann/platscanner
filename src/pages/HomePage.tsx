@@ -12,6 +12,7 @@ import {
   updateInventoryPrices,
   getInventoryStats,
   getCategorizedInventory,
+  calculateRelicValueAnalysis,
   InventoryItem
 } from '../services/inventoryService';
 import { ImageState, DetectedItem, ProcessingState } from '../types';
@@ -311,8 +312,34 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
     }));
 
     try {
-      // Fetch updated price for single item
-      const updatedItem = await fetchSinglePriceOnly(item);
+      let updatedItem: DetectedItem;
+
+      if (category === 'relics') {
+        // For relics, fetch basic price data AND calculate relic value analysis
+        const basicItem = await fetchSinglePriceOnly(item);
+
+        // Calculate relic value analysis
+        const relicAnalysis = await calculateRelicValueAnalysis(itemName, 'intact'); // Default to intact for now
+
+        if (relicAnalysis) {
+          updatedItem = {
+            ...basicItem,
+            category: 'relics' as const,
+            minDropValue: relicAnalysis.minDropValue,
+            maxDropValue: relicAnalysis.maxDropValue,
+            expectedDropValue: relicAnalysis.expectedDropValue,
+            recommendation: relicAnalysis.recommendation,
+            expectedProfit: relicAnalysis.expectedProfit,
+            directSalePrice: relicAnalysis.directSalePrice,
+            relicDrops: relicAnalysis.relicDrops
+          };
+        } else {
+          updatedItem = basicItem;
+        }
+      } else {
+        // For prime parts, just fetch basic price data
+        updatedItem = await fetchSinglePriceOnly(item);
+      }
 
       console.log(`>>> [HomePage] Fetched updated item: ${updatedItem.name}, status: ${updatedItem.status}, price: ${updatedItem.price} <<<`);
 
@@ -374,7 +401,35 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         console.log(`>>> [HomePage] Category refresh processing ${i + 1}/${items.length}: ${item.name} <<<`);
 
         try {
-          const updatedItem = await fetchSinglePriceOnly(item);
+          let updatedItem: DetectedItem;
+
+          if (category === 'relics') {
+            // For relics, fetch basic price data AND calculate relic value analysis
+            const basicItem = await fetchSinglePriceOnly(item);
+
+            // Calculate relic value analysis
+            const relicAnalysis = await calculateRelicValueAnalysis(item.name, 'intact'); // Default to intact for now
+
+            if (relicAnalysis) {
+              updatedItem = {
+                ...basicItem,
+                category: 'relics' as const,
+                minDropValue: relicAnalysis.minDropValue,
+                maxDropValue: relicAnalysis.maxDropValue,
+                expectedDropValue: relicAnalysis.expectedDropValue,
+                recommendation: relicAnalysis.recommendation,
+                expectedProfit: relicAnalysis.expectedProfit,
+                directSalePrice: relicAnalysis.directSalePrice,
+                relicDrops: relicAnalysis.relicDrops
+              };
+            } else {
+              updatedItem = basicItem;
+            }
+          } else {
+            // For prime parts, just fetch basic price data
+            updatedItem = await fetchSinglePriceOnly(item);
+          }
+
           updatedItems.push({
             ...updatedItem,
             addedAt: item.addedAt,
@@ -440,7 +495,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
     console.log(`>>> [HomePage] Found ${allItems.length} items to refresh <<<`);
     setFetchingProgress({ current: 0, total: allItems.length });
-    setProcessingState('fetching');
+    setIsRefreshingPrices(true);
 
     // Set all items to loading state first
     setCategorizedInventory(prev => ({
@@ -456,7 +511,35 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         console.log(`>>> [HomePage] Bulk refresh processing ${i + 1}/${allItems.length}: ${item.name} <<<`);
 
         try {
-          const updatedItem = await fetchSinglePriceOnly(item);
+          let updatedItem: DetectedItem;
+
+          if (item.category === 'relics') {
+            // For relics, fetch basic price data AND calculate relic value analysis
+            const basicItem = await fetchSinglePriceOnly(item);
+
+            // Calculate relic value analysis
+            const relicAnalysis = await calculateRelicValueAnalysis(item.name, 'intact'); // Default to intact for now
+
+            if (relicAnalysis) {
+              updatedItem = {
+                ...basicItem,
+                category: 'relics' as const,
+                minDropValue: relicAnalysis.minDropValue,
+                maxDropValue: relicAnalysis.maxDropValue,
+                expectedDropValue: relicAnalysis.expectedDropValue,
+                recommendation: relicAnalysis.recommendation,
+                expectedProfit: relicAnalysis.expectedProfit,
+                directSalePrice: relicAnalysis.directSalePrice,
+                relicDrops: relicAnalysis.relicDrops
+              };
+            } else {
+              updatedItem = basicItem;
+            }
+          } else {
+            // For prime parts, just fetch basic price data
+            updatedItem = await fetchSinglePriceOnly(item);
+          }
+
           updatedItems.push({
             ...updatedItem,
             addedAt: item.addedAt,
@@ -494,7 +577,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
     } catch (error) {
       console.error('Failed to refresh prices:', error);
     } finally {
-      setProcessingState('idle');
+      setIsRefreshingPrices(false);
       setFetchingProgress({ current: 0, total: 0 });
     }
   }, [categorizedInventory]);

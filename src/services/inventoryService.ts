@@ -4,7 +4,7 @@
 
 import { DetectedItem, PrimePart, VoidRelic, ItemCategory, RelicRewardItem } from '../types';
 import { getRelicDropsByName } from './relicDataService';
-import { fetchSinglePriceData } from './warframeMarketService';
+import { fetchSinglePriceData, fetchBatchPriceData } from './warframeMarketService';
 
 const INVENTORY_STORAGE_KEY = 'platscanner_inventory';
 const LAST_SCAN_STORAGE_KEY = 'platscanner_last_scan';
@@ -287,8 +287,24 @@ export const calculateRelicValueAnalysis = async (relicName: string, rarity: Voi
       return null;
     }
 
-    // Fetch prices for all potential drops
-    const dropsWithPrices = await Promise.all(relicDrops.map(async drop => {
+    // Fetch prices for all potential drops using batch API
+    const validDrops = relicDrops.filter(drop => drop.warframeMarketUrlName);
+    const itemNames = validDrops.map(drop => drop.warframeMarketUrlName);
+
+    let batchPriceData: any[] = [];
+    if (itemNames.length > 0) {
+      try {
+        console.log(`Fetching batch prices for ${itemNames.length} drop items from ${relicName}`);
+        batchPriceData = await fetchBatchPriceData(itemNames);
+      } catch (error) {
+        console.error('Failed to fetch batch price data:', error);
+        // Fall back to returning drops with 0 price
+        batchPriceData = itemNames.map(name => ({ name, price: 0, error: 'Batch fetch failed' }));
+      }
+    }
+
+    // Combine drop data with price data
+    const dropsWithPrices = relicDrops.map(drop => {
       if (!drop.warframeMarketUrlName) {
         console.warn(`No market URL for item: ${drop.itemName}`);
         return {
@@ -297,20 +313,14 @@ export const calculateRelicValueAnalysis = async (relicName: string, rarity: Voi
         };
       }
 
-      try {
-        const priceData = await fetchSinglePriceData(drop.warframeMarketUrlName);
-        return {
-          ...drop,
-          currentPrice: priceData?.price || 0,
-        };
-      } catch (error) {
-        console.warn(`Failed to fetch price for ${drop.itemName}:`, error);
-        return {
-          ...drop,
-          currentPrice: 0,
-        };
-      }
-    }));
+      const priceData = batchPriceData.find(p => p.name === drop.itemName ||
+        p.name.toLowerCase().replace(/\s+/g, '_') === drop.itemName.toLowerCase().replace(/\s+/g, '_'));
+
+      return {
+        ...drop,
+        currentPrice: priceData?.price || 0,
+      };
+    });
 
     // Calculate min, max, and expected values
     const prices = dropsWithPrices.map(d => d.currentPrice || 0).filter(p => p > 0);
