@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2025-01-01
+
+### Fixed
+- **Critical Refresh Functionality** ⭐⭐⭐⭐⭐
+  - Fixed category filtering bug that caused inventory to become empty during refresh
+    - Corrected `item.category === 'prime'` to `item.category === 'prime_parts'`
+    - Properly handles both Prime Parts and Void Relics categories
+  - Fixed Date type issues in refresh functions (`Date.now()` vs `new Date()`)
+  - Resolved initial image fetching being broken due to incorrect function usage
+  - Added error recovery to reload from persistent storage when refresh fails
+
+### Improved
+- **Refresh Performance & UX** ⭐⭐⭐⭐⭐
+  - **Price-Only Refreshes**: Created optimized `fetchSinglePriceOnly()` function
+    - Preserves existing images during refresh operations
+    - Only updates price-related fields: `price`, `ducats`, `volume`, `average`, `status`, `error`
+    - Significantly faster refresh times by skipping unnecessary image data
+  - **Reduced Flickering**: Implemented multiple anti-flickering measures
+    - Batched progress updates (every 3 items for category refresh, every 5 for bulk)
+    - Added `useMemo` to inventory stats calculations
+    - Reduced rapid state updates during refresh operations
+  - **Enhanced Progress Indicators**: Comprehensive real-time feedback
+    - Category headers show "• Refreshing 7/32" with progress counters
+    - Progress bars with animated fill showing completion percentage
+    - Button text changes to show current progress: "7/32"
+    - Separate progress tracking for each category
+
+### Removed
+- **Obsolete UI Elements** ⭐⭐⭐⭐
+  - Removed confusing "Processing Progress" bar that showed nonsensical "2/1" during refreshes
+  - Eliminated basic progress indicator that was only relevant for initial image processing
+  - Streamlined interface focuses on meaningful progress indicators only
+
+### Enhanced
+- **Smart Function Usage** ⭐⭐⭐⭐
+  - **`fetchSinglePriceData()`**: Used for initial scans (includes images)
+  - **`fetchSinglePriceOnly()`**: Used for all refresh operations (preserves images)
+  - Clear separation of concerns with proper documentation for each function
+  - Maintains image cache while ensuring fresh price data
+
+### Technical Improvements
+- **Performance Optimizations**
+  - Reduced API calls by preserving image URLs during refreshes
+  - Batched state updates to minimize re-renders
+  - Optimized inventory statistics calculations with `useMemo`
+  - Improved error handling with automatic recovery mechanisms
+- **Better State Management**
+  - Fixed stale closure issues in refresh functions
+  - Proper dependency arrays for React hooks
+  - Consistent type handling for Date objects
+  - Enhanced progress tracking with category-specific states
+
+### User Experience
+- **Before This Update**:
+  - ❌ Inventory could become empty during refresh
+  - ❌ Excessive flickering during price updates
+  - ❌ Confusing progress bars showing wrong information
+  - ❌ Slow refreshes re-downloading unnecessary image data
+- **After This Update**:
+  - ✅ Inventory always preserved during refresh
+  - ✅ Smooth, minimal flickering with batched updates
+  - ✅ Clear, meaningful progress indicators only
+  - ✅ Fast refreshes that only update price data
+
 ## [1.4.1] - 2024-12-31
 
 ### Fixed
