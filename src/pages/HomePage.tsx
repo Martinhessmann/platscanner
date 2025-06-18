@@ -3,7 +3,7 @@ import ImageUploader from '../components/ImageUploader';
 import ProcessingAnimation from '../components/ProcessingAnimation';
 import InventorySection from '../components/InventorySection';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
-import { fetchPriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
+import { fetchPriceData, fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
 import {
   saveToInventory,
   loadInventory,
@@ -115,9 +115,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
           for (let index = 0; index < newItems.length; index++) {
             const item = newItems[index];
-            try {
-              // Fetch price for individual item
-              const itemWithPrice = await fetchSinglePriceOnly(item);
+                          try {
+                // Fetch price AND image for individual item (initial scan)
+                const itemWithPrice = await fetchSinglePriceData(item);
               processedItems.push(itemWithPrice);
 
               // Add to inventory immediately as it's processed
