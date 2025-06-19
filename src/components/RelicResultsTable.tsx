@@ -1,10 +1,11 @@
 // Purpose: Trading platform-style table for Void Relics with comprehensive refinement analysis
 // Shows all refinement levels and market comparison in a data-dense table format
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { VoidRelic } from '../types';
 import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink } from 'lucide-react';
 import { getRelicImagePath } from '../lib/relicUtils';
+import { getRelicDropsByName } from '../services/relicDataService';
 
 interface RelicResultsTableProps {
   results: VoidRelic[];
@@ -36,14 +37,39 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   const [sortField, setSortField] = useState<'name' | 'bestValue' | 'profit' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market'>('bestValue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-  // Calculate comprehensive analysis for each relic
+    // Helper function to calculate expected value for a refinement level
+  const calculateExpectedValueForLevel = (relic: VoidRelic, refinementLevel: VoidRelic['rarity']): number => {
+    if (!relic.relicDrops || relic.relicDrops.length === 0) {
+      return relic.expectedDropValue || 0; // Fallback to current calculation
+    }
+
+    // Drop chances by refinement level (from the game data)
+    const dropChances = {
+      'intact': { 'Common': 25.33, 'Uncommon': 11, 'Rare': 2 },
+      'exceptional': { 'Common': 23.33, 'Uncommon': 13, 'Rare': 4 },
+      'flawless': { 'Common': 20, 'Uncommon': 17, 'Rare': 6 },
+      'radiant': { 'Common': 16.67, 'Uncommon': 20, 'Rare': 10 }
+    };
+
+    const targetDropChances = dropChances[refinementLevel || 'intact'];
+
+    let expectedValue = 0;
+    relic.relicDrops.forEach(drop => {
+      const adjustedChance = targetDropChances[drop.rarity] || drop.dropChance;
+      const price = drop.currentPrice || 0;
+      expectedValue += price * (adjustedChance / 100);
+    });
+
+    return parseFloat(expectedValue.toFixed(2));
+  };
+
+  // Calculate comprehensive analysis for each relic with real refinement data
   const analyzeRelic = (relic: VoidRelic): RelicAnalysis => {
-    // For now, use the current expected value as a base
-    // TODO: Implement proper multi-level analysis
-    const intactValue = relic.expectedDropValue || 0;
-    const exceptionalValue = intactValue * 1.1; // Placeholder calculation
-    const flawlessValue = intactValue * 1.2; // Placeholder calculation
-    const radiantValue = intactValue * 1.3; // Placeholder calculation
+    // Calculate expected values for all refinement levels using real drop data
+    const intactValue = calculateExpectedValueForLevel(relic, 'intact');
+    const exceptionalValue = calculateExpectedValueForLevel(relic, 'exceptional');
+    const flawlessValue = calculateExpectedValueForLevel(relic, 'flawless');
+    const radiantValue = calculateExpectedValueForLevel(relic, 'radiant');
     const marketValue = relic.directSalePrice || 0;
 
     // Find the best option
