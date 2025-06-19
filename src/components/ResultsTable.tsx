@@ -319,170 +319,132 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
           </div>
         </div>
 
-        {/* Mobile cards grid */}
-        <div key={`${sortField}-${sortDirection}`} className="grid grid-cols-2 gap-2 p-2">
+        {/* Mobile cards */}
+        <div key={`${sortField}-${sortDirection}`} className="space-y-3">
         {sortedResults.map((item) => (
           <div
             key={item.id}
-            className="bg-gray-800/50 rounded-lg overflow-hidden border border-gray-700/50 hover:border-orokin-gold/30 transition-all duration-200 relative group"
+            className="bg-gray-900/50 rounded-lg border border-gray-700 p-4"
           >
-            {/* Item image and main info */}
-            <div className="relative">
-              {item.imgUrl ? (
-                <img
-                  src={item.imgUrl}
-                  alt={item.name}
-                  className="w-full h-20 object-cover bg-gray-900"
-                />
-              ) : (
-                <div className="w-full h-20 bg-gray-900 flex items-center justify-center">
-                  <AlertCircle size={20} className="text-gray-500" />
+            {/* Item Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gray-900/50 rounded border border-gray-700/50 flex-shrink-0 overflow-hidden">
+                  {item.imgUrl ? (
+                    <img
+                      src={item.imgUrl}
+                      alt={item.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <AlertCircle size={16} className="text-gray-500" />
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="font-medium text-white text-sm leading-tight">
+                    {item.name}
+                  </div>
+                  {item.status === 'error' && item.error && (
+                    <div className="text-xs text-grineer-red mt-0.5">
+                      {item.error}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              {showActionButtons && (
+                <div className="flex items-center gap-2">
+                  {onRefreshItem && (
+                    <button
+                      onClick={() => onRefreshItem(item.name)}
+                      disabled={item.status === 'loading'}
+                      className={`p-1.5 rounded text-sm transition-colors ${
+                        item.status === 'loading'
+                          ? 'text-gray-500 cursor-not-allowed'
+                          : 'text-tenno-blue hover:bg-gray-700/50'
+                      }`}
+                      title="Refresh"
+                    >
+                      <RefreshCw size={14} className={item.status === 'loading' ? 'animate-spin' : ''} />
+                    </button>
+                  )}
+                  {onRemoveItem && (
+                    <button
+                      onClick={() => onRemoveItem(item.name)}
+                      className="p-1.5 rounded text-sm text-grineer-red hover:bg-gray-700/50 transition-colors"
+                      title="Remove"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               )}
+            </div>
 
-              {/* 3-dots meatball menu for mobile-friendly actions */}
-              {showActionButtons && (onRefreshItem || onRemoveItem) && (
-                <div className="absolute top-1 right-1">
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setActiveActionMenu(activeActionMenu === item.id ? null : item.id);
-                    }}
-                    className="p-1.5 rounded-md backdrop-blur-sm bg-black/50 text-gray-300 hover:text-white transition-colors"
-                    title="Actions"
-                  >
-                    <MoreVertical size={12} />
-                  </button>
-
-                  {/* Action dropdown menu */}
-                  {activeActionMenu === item.id && (
-                    <div className="absolute right-0 top-full mt-1 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-50 min-w-32">
-                      {onRefreshItem && (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onRefreshItem(item.name);
-                            setActiveActionMenu(null);
-                          }}
-                          disabled={item.status === 'loading'}
-                          className={`w-full text-left px-3 py-2 text-sm rounded-t-lg flex items-center gap-2 transition-colors ${
-                            item.status === 'loading'
-                              ? 'text-gray-500 cursor-not-allowed'
-                              : 'text-tenno-blue hover:bg-gray-700'
-                          }`}
-                        >
-                          <RefreshCw size={12} className={item.status === 'loading' ? 'animate-spin' : ''} />
-                          Refresh price
-                        </button>
-                      )}
-                      {onRemoveItem && (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onRemoveItem(item.name);
-                            setActiveActionMenu(null);
-                          }}
-                          className="w-full text-left px-3 py-2 text-sm text-grineer-red hover:bg-gray-700 rounded-b-lg flex items-center gap-2 transition-colors"
-                        >
-                          <Trash2 size={12} />
-                          Remove
-                        </button>
+            {/* Main Value Highlight */}
+            <div className="bg-gray-800/50 rounded-lg p-3 mb-4 border border-gray-700/30">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-300">Current Price</span>
+                <div className="text-right">
+                  {item.status === 'loading' ? (
+                    <div className="h-6 w-16 bg-gray-700 rounded animate-pulse"></div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <Zap size={16} className="text-gray-300" />
+                        <span className="text-lg font-semibold text-gray-300">
+                          {item.price || 0}p
+                        </span>
+                      </div>
+                      {item.ducats && (
+                        <div className="flex items-center gap-1">
+                          <Coins size={12} className="text-yellow-500" />
+                          <span className="text-sm font-medium text-yellow-500">
+                            {item.ducats}
+                          </span>
+                        </div>
                       )}
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* Price overlay */}
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                {item.status === 'loading' && (
-                  <div className="h-4 w-16 bg-gray-700 rounded animate-pulse"></div>
-                )}
-                {item.status === 'error' && (
-                  <span className="text-grineer-red flex items-center gap-1 text-xs">
-                    <AlertCircle size={10} />
-                    Error
-                  </span>
-                )}
-                {item.status === 'loaded' && (
-                  <div className="flex items-center justify-between">
-                    {item.error ? (
-                      <span className="text-gray-400 flex items-center gap-1 text-xs">
-                        <AlertCircle size={10} />
-                        {item.error}
-                      </span>
-                    ) : (
-                      <>
-                        {/* Relic Value Display */}
-                        {item.category === 'relics' && 'expectedDropValue' in item && item.expectedDropValue ? (
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <Zap size={12} className="text-orange-400" />
-                                <span className="text-orange-400 font-bold text-lg">{Math.round(item.expectedDropValue)}</span>
-                                <span className="text-gray-400 text-xs">exp</span>
-                              </div>
-                              {item.recommendation && (
-                                <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                                  item.recommendation === 'OPEN' ? 'bg-green-900/50 text-green-400' :
-                                  item.recommendation === 'SELL' ? 'bg-green-900/50 text-green-400' :
-                                  'bg-yellow-900/50 text-yellow-400'
-                                }`}>
-                                  {item.recommendation.startsWith('REFINE') ? 'REFINE' : item.recommendation}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-3 text-xs text-gray-400">
-                              <span>Min: {item.minDropValue || 0}</span>
-                              <span>Max: {item.maxDropValue || 0}</span>
-                            </div>
-                          </div>
-                        ) : (
-                          /* Prime Parts and Regular Relics Display */
-                          <div className="flex items-center gap-3">
-                            {/* Platinum - Large and Silver */}
-                            <div className="flex items-center gap-1">
-                              <Zap size={14} className="text-gray-300" />
-                              <span className="text-gray-300 font-bold text-xl">{item.price || 0}</span>
-                            </div>
-                            {/* Ducats - Smaller and Yellow */}
-                            {item.ducats && (
-                              <div className="flex items-center gap-1">
-                                <Coins size={10} className="text-yellow-500" />
-                                <span className="text-yellow-500 text-sm font-medium">{item.ducats}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        <a
-                          href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-tenno-blue hover:text-tenno-light p-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <ExternalLink size={12} />
-                        </a>
-                      </>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
 
-            {/* Item name and details */}
-            <div className="p-2">
-              <h3 className="font-medium text-white text-sm leading-tight line-clamp-2 mb-1">
-                {item.name}
-              </h3>
-              {item.status === 'loaded' && item.average && !item.error && (
-                <div className="text-gray-400 text-xs">
-                  Avg: {item.average}
+            {/* Market Data */}
+            {(item.average || item.volume) && (
+              <div>
+                <h4 className="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Market Data</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {item.average && (
+                    <div className="flex items-center justify-between p-2 rounded bg-gray-800/50">
+                      <span>Average</span>
+                      <span className="font-medium">{item.average}p</span>
+                    </div>
+                  )}
+                  {item.volume && (
+                    <div className="flex items-center justify-between p-2 rounded bg-gray-800/50">
+                      <span>Volume</span>
+                      <span className="font-medium">{item.volume}</span>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+            )}
+
+            {/* Market Link */}
+            <div className="mt-4 pt-3 border-t border-gray-700/50">
+              <a
+                href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 text-gray-500 hover:text-gray-300 transition-colors text-sm"
+              >
+                <ExternalLink size={12} />
+                View on Warframe Market
+              </a>
             </div>
           </div>
         ))}
