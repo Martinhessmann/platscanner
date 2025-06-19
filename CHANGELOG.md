@@ -7,16 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.1] - 2025-01-03
+
 ### Added
 - **🎨 Local Relic Images** - High-quality images for all relic era + refinement combinations
 - **🛑 Stop Processing Button** - Cancel market fetch when detecting errors in screenshot analysis
-
-### Improved
-- **🎨 Simplified Relic UI** - Streamlined single-container design with color-coded recommendations
-- **💰 Combined Value Display** - Single-line format: "Items: 1.1p vs Market: 3p (+1.9p)"
-- **🔴 Refinement Indicators** - Color dots next to refinement levels (Yellow=Radiant, Blue=Flawless, Green=Exceptional, Gray=Intact)
-- **📱 Desktop Action Buttons** - Removed meatball menus, made refresh/remove buttons directly visible
-- **📊 Highest Value Sorting** - "Expected" sorting now uses higher of sell OR open values
 - **🚀 MAJOR: Revolutionary Optimal Refinement Strategy** - Complete overhaul of refinement analysis system:
   - **🎯 Optimal Level Detection** - Automatically finds the best refinement level based on expected drop values
   - **💰 Smart Market Comparison** - Compares optimal expected value vs actual market prices for refined relics
@@ -29,6 +24,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **⚡ REFINE Efficiency** - Sorts by plat per void trace ratio (accounts for resource scarcity)
   - **📊 Smart Resource Allocation** - Considers void trace constraints vs profit potential
   - **🔄 Realistic Prioritization** - Shows best immediate actions first, accounts for market liquidity
+
+### Improved
+- **🎨 Simplified Relic UI** - Streamlined single-container design with color-coded recommendations
+- **💰 Combined Value Display** - Single-line format: "Items: 1.1p vs Market: 3p (+1.9p)"
+- **🔴 Refinement Indicators** - Color dots next to refinement levels (Yellow=Radiant, Blue=Flawless, Green=Exceptional, Gray=Intact)
+- **📱 Desktop Action Buttons** - Removed meatball menus, made refresh/remove buttons directly visible
+- **📊 Highest Value Sorting** - "Expected" sorting now uses higher of sell OR open values
+
+### Fixed
+- **🚨 CRITICAL: Efficiency Sorting Normalization** - Fixed major bug where negative current profits incorrectly ranked refinement recommendations
+- **⚖️ Investment Comparison Logic** - Now properly compares improvement per resource invested rather than mixing absolute values
+- **🧮 Proper Gain Calculation** - SELL by immediate gain (no investment), REFINE by plat/void trace efficiency, OPEN by expected gain
+- **📊 Fair Priority Ranking** - Prevents scenarios where large refinement gains requiring many traces incorrectly beat profitable immediate sales
+- **🔧 CRITICAL: Supabase Function Error Handling** - Fixed 500 errors preventing relic market price fallbacks from working
+- **🔄 Relic Market Fallback Logic** - Now properly tries refined relic names first, then falls back to base relic names
+- **📡 API Error Differentiation** - Distinguishes between "item not found" (try fallback) vs actual server errors (stop trying)
 
 ## [1.7.0] - 2025-01-03
 

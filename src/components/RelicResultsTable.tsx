@@ -83,53 +83,66 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     }
   };
 
-    /**
+  /**
    * NEW: Calculate efficiency score for investment-based sorting
    *
-   * This algorithm prioritizes relics based on practical economics and resource constraints:
+   * This algorithm prioritizes relics based on practical economics and resource constraints.
+   * The key insight is that we need to normalize by IMPROVEMENT PER RESOURCE INVESTED:
    *
-   * 1. SELL: Highest priority - Sort by absolute profit (no void traces needed)
-   *    Example: 8p profit from selling = immediate gain with no investment
+   * 1. SELL: Sort by absolute profit (immediate gain, no investment)
+   *    Example: 8p profit from selling = 8p gain for 0 investment
    *
-   * 2. REFINE: Medium priority - Sort by plat per void trace efficiency
-   *    Example: 0.1p/trace (10p gain for 100 traces) vs 0.05p/trace (5p gain for 100 traces)
-   *    Accounts for void trace scarcity - better efficiency = higher priority
+   * 2. REFINE: Sort by plat per void trace efficiency (gain per resource)
+   *    Example: 11.8p gain for 175 traces = 0.067p/trace efficiency
+   *    This properly accounts for void trace scarcity and investment size
    *
-   * 3. OPEN: Lowest priority - Sort by expected profit
-   *    Example: Opening current level when neither selling nor refining is worthwhile
+   * 3. OPEN: Sort by expected profit (baseline when no better option)
+   *    Example: 2.4p from opening vs 0p market = 2.4p gain
    *
-   * Score calculation uses multipliers to ensure proper priority ordering:
-   * - SELL: profit × 1000 (ensures SELL actions beat most REFINE actions)
-   * - REFINE: (plat/trace) × 10000 (very efficient refinements can beat SELL)
-   * - OPEN: profit × 100 (baseline, lowest priority)
+   * The normalization prevents skewed comparisons where a 12p refinement gain
+   * requiring 200 traces incorrectly beats a 8p immediate sale requiring 0 traces.
    */
   const getEfficiencyScore = (relic: VoidRelic): number => {
-    const expectedProfit = relic.expectedProfit || 0;
     const recommendation = relic.recommendation;
+    const expectedProfit = relic.expectedProfit || 0;
+    const directSalePrice = relic.directSalePrice || 0;
+    const expectedDropValue = relic.expectedDropValue || 0;
 
     console.log(`>>> [Efficiency Score] ${relic.name}: ${recommendation}, profit: ${expectedProfit}p <<<`);
 
     switch (recommendation) {
       case 'SELL':
         // SELL: Sort by absolute profit (no investment needed)
-        // Higher profit = higher priority
-        const sellScore = expectedProfit * 1000; // Multiply to ensure high priority
-        console.log(`>>> [Efficiency Score] SELL: ${expectedProfit}p = score ${sellScore} <<<`);
+        // This represents immediate gain: market_price - expected_drop_value
+        const sellGain = Math.abs(expectedProfit); // Use absolute value in case of negative
+        const sellScore = sellGain * 1000; // High priority for immediate gains
+        console.log(`>>> [Efficiency Score] SELL: ${sellGain}p gain = score ${sellScore} <<<`);
         return sellScore;
 
       case 'REFINE_TO_EXCEPTIONAL':
       case 'REFINE_TO_FLAWLESS':
       case 'REFINE_TO_RADIANT':
-        // REFINE: Sort by plat per void trace efficiency
+        // REFINE: Sort by plat per void trace efficiency (gain per resource invested)
         const platPerTrace = relic.refinementAnalysis?.platPerVoidTrace || 0;
-        const refinementScore = platPerTrace * 10000; // High multiplier for very efficient refinements
+
+        // FIX: If platPerTrace is 0 but we still have a REFINE recommendation,
+        // fall back to absolute profit scoring to prevent 0 scores
+        if (platPerTrace === 0 && expectedProfit > 0) {
+          const fallbackScore = Math.abs(expectedProfit) * 500; // Medium priority between SELL and OPEN
+          console.log(`>>> [Efficiency Score] REFINE (fallback): ${expectedProfit}p profit = score ${fallbackScore} <<<`);
+          return fallbackScore;
+        }
+
+        const refinementScore = platPerTrace * 10000; // High multiplier for efficient refinements
         console.log(`>>> [Efficiency Score] REFINE: ${platPerTrace}p/trace = score ${refinementScore} <<<`);
         return refinementScore;
 
       case 'OPEN':
-        // OPEN: Sort by expected profit but lower base priority
-        const openScore = expectedProfit * 100; // Lower multiplier = lower priority than SELL/REFINE
-        console.log(`>>> [Efficiency Score] OPEN: ${expectedProfit}p = score ${openScore} <<<`);
+        // OPEN: Sort by expected profit (baseline priority)
+        // This represents: expected_drop_value - market_price (gain from opening vs selling)
+        const openGain = Math.abs(expectedProfit);
+        const openScore = openGain * 100; // Lower priority than immediate sales
+        console.log(`>>> [Efficiency Score] OPEN: ${openGain}p gain = score ${openScore} <<<`);
         return openScore;
 
       default:

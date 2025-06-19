@@ -59,7 +59,7 @@ const fetchSingleItemData = async (itemName: string) => {
     'Content-Type': 'application/json',
     'Language': 'en',
     'Platform': 'pc',
-    'User-Agent': 'PlatScanner/1.5.0'
+    'User-Agent': 'PlatScanner/1.7.1'
   };
 
   try {
@@ -68,8 +68,21 @@ const fetchSingleItemData = async (itemName: string) => {
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, { headers: apiHeaders })
     ]);
 
+    // Handle "item not found" cases gracefully for client-side fallbacks
     if (!itemResponse.ok || !ordersResponse.ok) {
-      throw new Error('Item not found or API error');
+      const errorType = itemResponse.status === 404 || ordersResponse.status === 404 ? 'not_found' : 'api_error';
+      console.log(`>>> [Supabase] ${itemName}: ${errorType} (status: ${itemResponse.status}/${ordersResponse.status}) <<<`);
+
+      return {
+        name: itemName,
+        thumb: '',
+        ducats: 0,
+        price: 0,
+        volume: 0,
+        average: 0,
+        error: errorType,
+        status: itemResponse.status || ordersResponse.status
+      };
     }
 
     const [itemData, ordersData] = await Promise.all([
@@ -103,9 +116,10 @@ const fetchSingleItemData = async (itemName: string) => {
 
     // Cache the result
     cache.set(itemName, { data: result, timestamp: Date.now() });
+    console.log(`>>> [Supabase] ${itemName}: Success (${result.price}p) <<<`);
     return result;
   } catch (error) {
-    console.error(`Error fetching ${itemName}:`, error);
+    console.error(`>>> [Supabase] ${itemName}: Exception -`, error);
     return {
       name: itemName,
       thumb: '',
@@ -113,7 +127,8 @@ const fetchSingleItemData = async (itemName: string) => {
       price: 0,
       volume: 0,
       average: 0,
-      error: error.message
+      error: 'fetch_failed',
+      message: error.message
     };
   }
 };
@@ -173,13 +188,16 @@ Deno.serve(async (req) => {
       return handleError(new Error('Item name is required'), 400);
     }
 
-        // Use the refactored single item fetcher
+    // Use the refactored single item fetcher
     const result = await fetchSingleItemData(itemName);
 
-    if (result.error) {
-      return handleError(new Error(result.error));
+    // Only return 500 errors for actual server issues, not "item not found"
+    if (result.error && result.error !== 'not_found') {
+      console.error(`>>> [Supabase] Server error for ${itemName}:`, result.error, result.message);
+      return handleError(new Error(result.message || result.error));
     }
 
+    // Return successful response (including "not found" items for client-side fallback)
     return new Response(
       JSON.stringify(result),
       {
@@ -190,6 +208,7 @@ Deno.serve(async (req) => {
       }
     );
   } catch (error) {
+    console.error(`>>> [Supabase] Unexpected error:`, error);
     return handleError(error);
   }
 });
