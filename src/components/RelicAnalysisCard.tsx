@@ -212,13 +212,40 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
           <div className="text-xs text-gray-400 px-2 py-1 bg-gray-900/30 rounded">
             <div className="flex justify-between items-center">
               <span>
-                Refine to {relic.refinementAnalysis.bestRefinementTarget}:
-                +{formatExpectedValue(relic.refinementAnalysis.bestRefinementGain || 0)}p
+                {relic.recommendation?.startsWith('REFINE') ? (
+                  <>
+                    Refine to {relic.refinementAnalysis.bestRefinementTarget}:
+                    +{formatExpectedValue(relic.refinementAnalysis.bestRefinementGain || 0)}p
+                  </>
+                ) : relic.recommendation === 'SELL' ? (
+                  <>
+                    Sell for {formatExpectedValue(relic.refinementAnalysis.optimalMarketPrice || relic.directSalePrice || 0)}p
+                    (no investment needed)
+                  </>
+                ) : (
+                  <>Open current level</>
+                )}
               </span>
               <span>
-                for {relic.refinementAnalysis.bestRefinementCost} traces
+                {relic.recommendation?.startsWith('REFINE') ? (
+                  <>for {relic.refinementAnalysis.bestRefinementCost} traces</>
+                ) : relic.recommendation === 'SELL' ? (
+                  <>
+                    +{formatExpectedValue(relic.expectedProfit || 0)}p profit
+                  </>
+                ) : (
+                  <>
+                    +{formatExpectedValue(relic.expectedProfit || 0)}p expected
+                  </>
+                )}
               </span>
             </div>
+            {/* Show efficiency reasoning if available */}
+            {relic.refinementAnalysis.reasoning && (
+              <div className="mt-1 text-xs text-gray-500 italic">
+                {relic.refinementAnalysis.reasoning}
+              </div>
+            )}
           </div>
         )}
       </div>

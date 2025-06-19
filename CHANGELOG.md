@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **⚖️ Investment vs Reward Analysis** - Calculates void trace investment needed vs profit potential
   - **🧠 Real Market Logic** - Eliminates arbitrary thresholds, uses actual market data for decisions
   - **📈 Comprehensive Reasoning** - Provides detailed explanations for each recommendation with comparison data
+- **🎯 MAJOR: Investment Efficiency Sorting** - Revolutionary sorting algorithm that prioritizes realistic economics:
+  - **💰 SELL Priority** - Sorts by absolute profit (no investment needed, immediate gains)
+  - **⚡ REFINE Efficiency** - Sorts by plat per void trace ratio (accounts for resource scarcity)
+  - **📊 Smart Resource Allocation** - Considers void trace constraints vs profit potential
+  - **🔄 Realistic Prioritization** - Shows best immediate actions first, accounts for market liquidity
 
 ## [1.7.0] - 2025-01-03
 

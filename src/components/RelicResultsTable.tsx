@@ -83,6 +83,61 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     }
   };
 
+    /**
+   * NEW: Calculate efficiency score for investment-based sorting
+   *
+   * This algorithm prioritizes relics based on practical economics and resource constraints:
+   *
+   * 1. SELL: Highest priority - Sort by absolute profit (no void traces needed)
+   *    Example: 8p profit from selling = immediate gain with no investment
+   *
+   * 2. REFINE: Medium priority - Sort by plat per void trace efficiency
+   *    Example: 0.1p/trace (10p gain for 100 traces) vs 0.05p/trace (5p gain for 100 traces)
+   *    Accounts for void trace scarcity - better efficiency = higher priority
+   *
+   * 3. OPEN: Lowest priority - Sort by expected profit
+   *    Example: Opening current level when neither selling nor refining is worthwhile
+   *
+   * Score calculation uses multipliers to ensure proper priority ordering:
+   * - SELL: profit × 1000 (ensures SELL actions beat most REFINE actions)
+   * - REFINE: (plat/trace) × 10000 (very efficient refinements can beat SELL)
+   * - OPEN: profit × 100 (baseline, lowest priority)
+   */
+  const getEfficiencyScore = (relic: VoidRelic): number => {
+    const expectedProfit = relic.expectedProfit || 0;
+    const recommendation = relic.recommendation;
+
+    console.log(`>>> [Efficiency Score] ${relic.name}: ${recommendation}, profit: ${expectedProfit}p <<<`);
+
+    switch (recommendation) {
+      case 'SELL':
+        // SELL: Sort by absolute profit (no investment needed)
+        // Higher profit = higher priority
+        const sellScore = expectedProfit * 1000; // Multiply to ensure high priority
+        console.log(`>>> [Efficiency Score] SELL: ${expectedProfit}p = score ${sellScore} <<<`);
+        return sellScore;
+
+      case 'REFINE_TO_EXCEPTIONAL':
+      case 'REFINE_TO_FLAWLESS':
+      case 'REFINE_TO_RADIANT':
+        // REFINE: Sort by plat per void trace efficiency
+        const platPerTrace = relic.refinementAnalysis?.platPerVoidTrace || 0;
+        const refinementScore = platPerTrace * 10000; // High multiplier for very efficient refinements
+        console.log(`>>> [Efficiency Score] REFINE: ${platPerTrace}p/trace = score ${refinementScore} <<<`);
+        return refinementScore;
+
+      case 'OPEN':
+        // OPEN: Sort by expected profit but lower base priority
+        const openScore = expectedProfit * 100; // Lower multiplier = lower priority than SELL/REFINE
+        console.log(`>>> [Efficiency Score] OPEN: ${expectedProfit}p = score ${openScore} <<<`);
+        return openScore;
+
+      default:
+        console.log(`>>> [Efficiency Score] UNKNOWN: score 0 <<<`);
+        return 0;
+    }
+  };
+
   // Get refinement dot color
   const getRefinementDotColor = (rarity?: string) => {
     switch (rarity) {
@@ -103,19 +158,13 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
       const valueB = getHighestValue(b);
       return sortDirection === 'asc' ? valueA - valueB : valueB - valueA;
     } else if (sortField === 'recommendation') {
-      const getRecommendationOrder = (rec?: string) => {
-        switch (rec) {
-          case 'REFINE_TO_RADIANT': return 1;     // Highest priority (best ROI)
-          case 'REFINE_TO_FLAWLESS': return 2;    // Second priority
-          case 'REFINE_TO_EXCEPTIONAL': return 3; // Third priority
-          case 'OPEN': return 4;                  // Fourth priority
-          case 'SELL': return 5;                  // Lowest priority
-          default: return 6;
-        }
-      };
-      const orderA = getRecommendationOrder(a.recommendation);
-      const orderB = getRecommendationOrder(b.recommendation);
-      return sortDirection === 'asc' ? orderA - orderB : orderB - orderA;
+      // NEW: Sort by investment efficiency instead of fixed recommendation priority
+      const efficiencyA = getEfficiencyScore(a);
+      const efficiencyB = getEfficiencyScore(b);
+
+      console.log(`>>> [RelicResultsTable] Sorting ${a.name} (${efficiencyA}) vs ${b.name} (${efficiencyB}) <<<`);
+
+      return sortDirection === 'asc' ? efficiencyA - efficiencyB : efficiencyB - efficiencyA;
     } else {
       const result = sortDirection === 'asc'
         ? a.name.localeCompare(b.name)
@@ -147,7 +196,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     const direction = sortDirection === 'asc' ? '↑' : '↓';
     switch (sortField) {
       case 'highestValue': return `Highest Value ${direction}`;
-      case 'recommendation': return `Action ${direction}`;
+      case 'recommendation': return `Efficiency ${direction}`;
       case 'name': return `Name ${direction}`;
     }
   };
@@ -192,9 +241,10 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                   handleSort('recommendation');
                 }}
                 className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                title="Sort by investment efficiency: SELL by profit, REFINE by plat/void trace ratio"
               >
                 <TrendingUp size={12} className="text-green-400" />
-                Action {sortField === 'recommendation' && (sortDirection === 'asc' ? '↑' : '↓')}
+                Efficiency {sortField === 'recommendation' && (sortDirection === 'asc' ? '↑' : '↓')}
               </button>
               <button
                 onClick={(e) => {
