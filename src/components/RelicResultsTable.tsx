@@ -179,19 +179,20 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   }
 
   return (
-    <div className="w-full max-w-full overflow-x-auto">
+    <div className="w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 px-2">
         <div className="text-sm text-gray-400">
           {results.length} relic{results.length !== 1 ? 's' : ''}
         </div>
         <div className="text-xs text-gray-500">
-          Trading Platform View • All values in Platinum
+          <span className="hidden lg:inline">Trading Platform View • All values in Platinum</span>
+          <span className="lg:hidden">All values in Platinum</span>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
+      {/* Desktop Table (lg and up) */}
+      <div className="hidden lg:block bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-800/80">
             <tr>
@@ -387,11 +388,154 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         </table>
       </div>
 
+      {/* Mobile Cards (below lg) */}
+      <div className="lg:hidden space-y-3">
+        {sortedRelics.map((analysis) => {
+          const { relic } = analysis;
+          const refinementColor = getRefinementDotColor(relic.rarity);
+
+          return (
+            <div key={relic.id} className="bg-gray-900/50 rounded-lg border border-gray-700 p-4">
+              {/* Relic Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gray-900/50 rounded border border-gray-700/50 flex-shrink-0 overflow-hidden">
+                    <img
+                      src={getRelicImagePath(relic.name, relic.rarity)}
+                      alt={`${relic.name} (${relic.rarity || 'intact'})`}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/images/relics/unknown.png';
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <div className="font-medium text-white text-sm leading-tight">
+                      {relic.name}
+                    </div>
+                    {relic.rarity && (
+                      <div className="flex items-center gap-1 text-xs text-gray-400 capitalize mt-0.5">
+                        <Circle size={6} className={refinementColor} fill={refinementColor} />
+                        {relic.rarity}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                {showActionButtons && (
+                  <div className="flex items-center gap-2">
+                    {onRefreshItem && (
+                      <button
+                        onClick={() => onRefreshItem(relic.name)}
+                        disabled={relic.status === 'loading'}
+                        className={`p-1.5 rounded text-sm transition-colors ${
+                          relic.status === 'loading'
+                            ? 'text-gray-500 cursor-not-allowed'
+                            : 'text-tenno-blue hover:bg-gray-700/50'
+                        }`}
+                        title="Refresh"
+                      >
+                        <RefreshCw size={14} className={relic.status === 'loading' ? 'animate-spin' : ''} />
+                      </button>
+                    )}
+                    {onRemoveItem && (
+                      <button
+                        onClick={() => onRemoveItem(relic.name)}
+                        className="p-1.5 rounded text-sm text-grineer-red hover:bg-gray-700/50 transition-colors"
+                        title="Remove"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Best Option Highlight */}
+              <div className="bg-green-900/20 rounded-lg p-3 mb-4 border border-green-700/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-300">Best Option</span>
+                  <div className="text-right">
+                    <div className="text-lg font-semibold text-green-400">
+                      {analysis.bestValue.toFixed(1)}p
+                    </div>
+                    <div className="text-xs text-gray-400 uppercase tracking-wider">
+                      {analysis.recommendation.replace('OPEN_', '').replace('_', ' ')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Values Grid */}
+              <div className="space-y-3">
+                {/* Opening Values */}
+                <div>
+                  <h4 className="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Opening Values</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className={`flex items-center justify-between p-2 rounded ${analysis.bestOption === 'intact' ? 'bg-green-900/20 text-green-300' : 'bg-gray-800/50'} ${isRefinementDisabled(relic, 'intact') ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center gap-1">
+                        <Circle size={4} className="text-gray-400" fill="currentColor" />
+                        <span>Intact</span>
+                      </div>
+                      <span className="font-medium">{analysis.intactValue.toFixed(1)}p</span>
+                    </div>
+                    <div className={`flex items-center justify-between p-2 rounded ${analysis.bestOption === 'exceptional' ? 'bg-green-900/20 text-green-300' : 'bg-gray-800/50'} ${isRefinementDisabled(relic, 'exceptional') ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center gap-1">
+                        <Circle size={4} className="text-green-400" fill="currentColor" />
+                        <span>Exceptional</span>
+                      </div>
+                      <span className="font-medium">{analysis.exceptionalValue.toFixed(1)}p</span>
+                    </div>
+                    <div className={`flex items-center justify-between p-2 rounded ${analysis.bestOption === 'flawless' ? 'bg-green-900/20 text-green-300' : 'bg-gray-800/50'} ${isRefinementDisabled(relic, 'flawless') ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center gap-1">
+                        <Circle size={4} className="text-blue-400" fill="currentColor" />
+                        <span>Flawless</span>
+                      </div>
+                      <span className="font-medium">{analysis.flawlessValue.toFixed(1)}p</span>
+                    </div>
+                    <div className={`flex items-center justify-between p-2 rounded ${analysis.bestOption === 'radiant' ? 'bg-green-900/20 text-green-300' : 'bg-gray-800/50'} ${isRefinementDisabled(relic, 'radiant') ? 'opacity-50' : ''}`}>
+                      <div className="flex items-center gap-1">
+                        <Circle size={4} className="text-yellow-400" fill="currentColor" />
+                        <span>Radiant</span>
+                      </div>
+                      <span className="font-medium">{analysis.radiantValue.toFixed(1)}p</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Market Sale */}
+                <div>
+                  <h4 className="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Market</h4>
+                  <div className={`flex items-center justify-between p-2 rounded ${analysis.bestOption === 'market' ? 'bg-green-900/20 text-green-300' : 'bg-gray-800/50'}`}>
+                    <span>Market Sale</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{analysis.marketValue.toFixed(1)}p</span>
+                      <button
+                        onClick={() => {
+                          const marketUrl = `https://warframe.market/items/${relic.name.toLowerCase().replace(/ /g, '_')}`;
+                          window.open(marketUrl, '_blank', 'noopener,noreferrer');
+                        }}
+                        className="text-gray-500 hover:text-gray-300 transition-colors"
+                        title="View on Warframe Market"
+                      >
+                        <ExternalLink size={12} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       {/* Footer */}
       <div className="mt-4 text-xs text-gray-500 px-2">
         <div className="flex items-center justify-between">
           <span>💡 Green highlights show the most profitable option for each relic</span>
-          <span>Greyed values indicate refinement levels below current relic state</span>
+          <span className="hidden lg:inline">Greyed values indicate refinement levels below current relic state</span>
         </div>
       </div>
     </div>

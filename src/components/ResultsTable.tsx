@@ -94,65 +94,233 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
 
   return (
     <div className="w-full">
-      {/* Mobile-first sort header */}
-      <div className="flex items-center justify-between p-3 bg-gray-900/50">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 px-2">
         <div className="text-sm text-gray-400">
           {results.length} item{results.length !== 1 ? 's' : ''}
         </div>
-        <div className="relative">
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setShowSortOptions(!showSortOptions);
-            }}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-          >
-            <Filter size={14} />
-            {getSortLabel()}
-          </button>
-
-          {showSortOptions && (
-            <div className="absolute right-0 top-full mt-1 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-50 min-w-32">
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleSort('price');
-                }}
-                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-t-lg flex items-center gap-2"
-              >
-                <Zap size={12} className="text-gray-300" />
-                Plat {sortField === 'price' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleSort('ducats');
-                }}
-                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
-              >
-                <Coins size={12} className="text-yellow-500" />
-                Ducats {sortField === 'ducats' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleSort('name');
-                }}
-                className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-lg flex items-center gap-2"
-              >
-                Name {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
-              </button>
-            </div>
-          )}
+        <div className="text-xs text-gray-500">
+          <span className="hidden lg:inline">Trading Platform View • All values in Platinum</span>
+          <span className="lg:hidden">All values in Platinum</span>
         </div>
       </div>
 
-      {/* Mobile-first 50/50 grid cards */}
-      <div key={`${sortField}-${sortDirection}`} className="grid grid-cols-2 gap-2 p-2">
+      {/* Desktop Table (lg and up) */}
+      <div className="hidden lg:block bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-800/80">
+            <tr>
+              <th className="text-left p-3 font-medium text-gray-300">
+                <button
+                  onClick={() => handleSort('name')}
+                  className="flex items-center gap-1 hover:text-white transition-colors"
+                >
+                  Item
+                  {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">
+                <button
+                  onClick={() => handleSort('price')}
+                  className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
+                >
+                  <Zap size={12} />
+                  Platinum
+                  {sortField === 'price' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">
+                <button
+                  onClick={() => handleSort('ducats')}
+                  className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
+                >
+                  <Coins size={12} className="text-yellow-500" />
+                  Ducats
+                  {sortField === 'ducats' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">Volume</th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">Average</th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">Market</th>
+              {showActionButtons && <th className="text-center p-3 font-medium text-gray-300 w-20">Actions</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedResults.map((item) => (
+              <tr key={item.id} className="border-t border-gray-700/50 hover:bg-gray-800/30 transition-colors">
+                {/* Item Name with Image */}
+                <td className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-900/50 rounded border border-gray-700/50 flex-shrink-0 overflow-hidden">
+                      {item.imgUrl ? (
+                        <img
+                          src={item.imgUrl}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <AlertCircle size={12} className="text-gray-500" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-medium text-white text-sm leading-tight">
+                        {item.name}
+                      </div>
+                      {item.status === 'error' && item.error && (
+                        <div className="text-xs text-grineer-red mt-0.5">
+                          {item.error}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </td>
+
+                {/* Platinum */}
+                <td className="p-3 text-center">
+                  {item.status === 'loading' ? (
+                    <div className="h-4 w-12 bg-gray-700 rounded animate-pulse mx-auto"></div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-1">
+                      <Zap size={12} className="text-gray-300" />
+                      <span className="font-medium text-gray-300">{item.price || 0}</span>
+                    </div>
+                  )}
+                </td>
+
+                {/* Ducats */}
+                <td className="p-3 text-center">
+                  {item.ducats ? (
+                    <div className="flex items-center justify-center gap-1">
+                      <Coins size={10} className="text-yellow-500" />
+                      <span className="font-medium text-yellow-500">{item.ducats}</span>
+                    </div>
+                  ) : (
+                    <span className="text-gray-500">-</span>
+                  )}
+                </td>
+
+                {/* Volume */}
+                <td className="p-3 text-center text-gray-300">
+                  {item.volume || '-'}
+                </td>
+
+                {/* Average */}
+                <td className="p-3 text-center text-gray-300">
+                  {item.average || '-'}
+                </td>
+
+                {/* Market Link */}
+                <td className="p-3 text-center">
+                  <a
+                    href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-gray-500 hover:text-gray-300 transition-colors"
+                    title="View on Warframe Market"
+                  >
+                    <ExternalLink size={12} />
+                  </a>
+                </td>
+
+                {/* Actions */}
+                {showActionButtons && (
+                  <td className="p-3">
+                    <div className="flex items-center justify-center gap-1">
+                      {onRefreshItem && (
+                        <button
+                          onClick={() => onRefreshItem(item.name)}
+                          disabled={item.status === 'loading'}
+                          className={`p-1 rounded text-xs transition-colors ${
+                            item.status === 'loading'
+                              ? 'text-gray-500 cursor-not-allowed'
+                              : 'text-tenno-blue hover:bg-gray-700/50'
+                          }`}
+                          title="Refresh"
+                        >
+                          <RefreshCw size={12} className={item.status === 'loading' ? 'animate-spin' : ''} />
+                        </button>
+                      )}
+                      {onRemoveItem && (
+                        <button
+                          onClick={() => onRemoveItem(item.name)}
+                          className="p-1 rounded text-xs text-grineer-red hover:bg-gray-700/50 transition-colors"
+                          title="Remove"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Mobile Cards (below lg) */}
+      <div className="lg:hidden">
+        {/* Mobile sort header */}
+        <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-t-lg">
+          <div className="text-sm text-gray-400">
+            {results.length} item{results.length !== 1 ? 's' : ''}
+          </div>
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setShowSortOptions(!showSortOptions);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+            >
+              <Filter size={14} />
+              {getSortLabel()}
+            </button>
+
+            {showSortOptions && (
+              <div className="absolute right-0 top-full mt-1 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-50 min-w-32">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSort('price');
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-t-lg flex items-center gap-2"
+                >
+                  <Zap size={12} className="text-gray-300" />
+                  Plat {sortField === 'price' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSort('ducats');
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <Coins size={12} className="text-yellow-500" />
+                  Ducats {sortField === 'ducats' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSort('name');
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-lg flex items-center gap-2"
+                >
+                  Name {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile cards grid */}
+        <div key={`${sortField}-${sortDirection}`} className="grid grid-cols-2 gap-2 p-2">
         {sortedResults.map((item) => (
           <div
             key={item.id}
@@ -263,7 +431,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                                   item.recommendation === 'SELL' ? 'bg-green-900/50 text-green-400' :
                                   'bg-yellow-900/50 text-yellow-400'
                                 }`}>
-                                  {item.recommendation === 'REFINE_THEN_OPEN' ? 'REFINE' : item.recommendation}
+                                  {item.recommendation.startsWith('REFINE') ? 'REFINE' : item.recommendation}
                                 </span>
                               )}
                             </div>
@@ -318,6 +486,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
             </div>
           </div>
         ))}
+        </div>
       </div>
 
       {/* Tap outside to close sort options */}
