@@ -27,8 +27,20 @@ export interface VoidRelic extends BaseItem {
   maxDropValue?: number;
   expectedDropValue?: number;
   directSalePrice?: number;
-  recommendation?: 'OPEN' | 'SELL' | 'REFINE_THEN_OPEN';
+  recommendation?: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT';
   expectedProfit?: number;
+  // Enhanced refinement analysis fields
+  refinementAnalysis?: {
+    platPerVoidTrace?: number;
+    bestRefinementTarget?: 'exceptional' | 'flawless' | 'radiant';
+    bestRefinementCost?: number;
+    bestRefinementGain?: number;
+    // New optimal analysis fields
+    optimalMarketPrice?: number;
+    optimalMarketPriceFallback?: string; // 'exact', 'fallback_flawless', etc.
+    reasoning?: string; // Human-readable explanation
+    comparison?: string; // Comparison details
+  };
 }
 
 export type DetectedItem = PrimePart | VoidRelic;

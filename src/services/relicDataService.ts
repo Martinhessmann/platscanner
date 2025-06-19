@@ -31,6 +31,29 @@ const DROP_CHANCES = {
   }
 };
 
+// Void trace costs for refinement upgrades
+const REFINEMENT_COSTS = {
+  'intact_to_exceptional': 25,
+  'exceptional_to_flawless': 50,
+  'flawless_to_radiant': 100,
+  'intact_to_flawless': 75,      // 25 + 50
+  'intact_to_radiant': 175,      // 25 + 50 + 100
+  'exceptional_to_radiant': 150  // 50 + 100
+};
+
+// Helper type for refinement analysis
+export interface RefinementAnalysis {
+  currentLevel: VoidRelic['rarity'];
+  targetLevel: VoidRelic['rarity'];
+  voidTraceCost: number;
+  currentExpectedValue: number;
+  targetExpectedValue: number;
+  platGain: number;
+  platPerVoidTrace: number;
+  roiPercentage: number;
+  recommendation: 'REFINE' | 'DONT_REFINE';
+}
+
 // Load relic data from the static file
 const loadRelicsData = async (): Promise<any[]> => {
   if (relicsData.length === 0) {
@@ -180,5 +203,362 @@ export const getRelicDropsByName = async (relicName: string, rarity: VoidRelic['
   } catch (error) {
     console.error('>>> [Relic Lookup] Error getting relic drops:', error);
     return undefined;
+  }
+};
+
+/**
+ * Calculate expected value for a specific refinement level
+ */
+const calculateExpectedValueForLevel = (
+  baseDrops: RelicRewardItem[],
+  refinementLevel: VoidRelic['rarity'],
+  priceData: any[]
+): number => {
+  const adjustedDrops = adjustDropChances(baseDrops, refinementLevel);
+
+  let expectedValue = 0;
+  adjustedDrops.forEach(drop => {
+    const priceInfo = priceData.find(p =>
+      p.name === drop.itemName ||
+      p.name.toLowerCase().replace(/\s+/g, '_') === drop.itemName.toLowerCase().replace(/\s+/g, '_')
+    );
+    const price = priceInfo?.price || 0;
+    expectedValue += price * (drop.dropChance / 100);
+  });
+
+  return parseFloat(expectedValue.toFixed(2));
+};
+
+/**
+ * Comprehensive refinement analysis that evaluates all possible refinement paths
+ * Returns the most efficient refinement recommendation based on plat/void trace ratio
+ */
+export const analyzeRefinementOpportunities = async (
+  relicName: string,
+  currentRarity: VoidRelic['rarity'] = 'intact',
+  priceData: any[]
+): Promise<{
+  currentExpectedValue: number;
+  refinementAnalyses: RefinementAnalysis[];
+  bestRefinement: RefinementAnalysis | null;
+  overallRecommendation: 'OPEN' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT';
+}> => {
+  try {
+    console.log(`>>> [Refinement Analysis] Starting comprehensive analysis for: ${relicName} (${currentRarity}) <<<`);
+
+    const relicDrops = await getRelicDropsByName(relicName, 'intact'); // Always get base drops first
+    if (!relicDrops || relicDrops.length === 0) {
+      throw new Error(`No drop data found for relic: ${relicName}`);
+    }
+
+    // Calculate expected values for all refinement levels
+    const expectedValues = {
+      intact: calculateExpectedValueForLevel(relicDrops, 'intact', priceData),
+      exceptional: calculateExpectedValueForLevel(relicDrops, 'exceptional', priceData),
+      flawless: calculateExpectedValueForLevel(relicDrops, 'flawless', priceData),
+      radiant: calculateExpectedValueForLevel(relicDrops, 'radiant', priceData)
+    };
+
+    console.log(`>>> [Refinement Analysis] Expected values:`, expectedValues);
+
+    const effectiveRarity = currentRarity || 'intact';
+    const currentExpectedValue = expectedValues[effectiveRarity];
+    const refinementAnalyses: RefinementAnalysis[] = [];
+
+    // Define possible refinement paths based on current level
+    const possibleRefinements: Array<{
+      target: 'exceptional' | 'flawless' | 'radiant';
+      costKey: keyof typeof REFINEMENT_COSTS;
+    }> = [];
+
+    switch (effectiveRarity) {
+      case 'intact':
+        possibleRefinements.push(
+          { target: 'exceptional', costKey: 'intact_to_exceptional' },
+          { target: 'flawless', costKey: 'intact_to_flawless' },
+          { target: 'radiant', costKey: 'intact_to_radiant' }
+        );
+        break;
+      case 'exceptional':
+        possibleRefinements.push(
+          { target: 'flawless', costKey: 'exceptional_to_flawless' },
+          { target: 'radiant', costKey: 'exceptional_to_radiant' }
+        );
+        break;
+      case 'flawless':
+        possibleRefinements.push(
+          { target: 'radiant', costKey: 'flawless_to_radiant' }
+        );
+        break;
+      case 'radiant':
+        // Already at max level
+        break;
+    }
+
+    // Analyze each possible refinement path
+    for (const refinement of possibleRefinements) {
+      const voidTraceCost = REFINEMENT_COSTS[refinement.costKey];
+      const targetExpectedValue = expectedValues[refinement.target];
+      const platGain = targetExpectedValue - currentExpectedValue;
+      const platPerVoidTrace = platGain / voidTraceCost;
+      const roiPercentage = (platGain / voidTraceCost) * 100;
+
+      const analysis: RefinementAnalysis = {
+        currentLevel: effectiveRarity,
+        targetLevel: refinement.target,
+        voidTraceCost,
+        currentExpectedValue,
+        targetExpectedValue,
+        platGain,
+        platPerVoidTrace,
+        roiPercentage,
+        recommendation: platPerVoidTrace > 0.05 ? 'REFINE' : 'DONT_REFINE' // Threshold: 5p per 100 void traces
+      };
+
+      refinementAnalyses.push(analysis);
+
+      console.log(`>>> [Refinement Analysis] ${effectiveRarity} → ${refinement.target}: +${platGain.toFixed(2)}p for ${voidTraceCost} traces (${platPerVoidTrace.toFixed(3)} p/trace, ${roiPercentage.toFixed(1)}% ROI) <<<`);
+    }
+
+    // Find the best refinement option (highest plat per void trace ratio)
+    const viableRefinements = refinementAnalyses.filter(a => a.recommendation === 'REFINE');
+    const bestRefinement = viableRefinements.length > 0
+      ? viableRefinements.reduce((best, current) =>
+          current.platPerVoidTrace > best.platPerVoidTrace ? current : best
+        )
+      : null;
+
+    // Determine overall recommendation
+    let overallRecommendation: 'OPEN' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT' = 'OPEN';
+
+    if (bestRefinement) {
+      switch (bestRefinement.targetLevel) {
+        case 'exceptional':
+          overallRecommendation = 'REFINE_TO_EXCEPTIONAL';
+          break;
+        case 'flawless':
+          overallRecommendation = 'REFINE_TO_FLAWLESS';
+          break;
+        case 'radiant':
+          overallRecommendation = 'REFINE_TO_RADIANT';
+          break;
+      }
+    }
+
+    console.log(`>>> [Refinement Analysis] Best option: ${overallRecommendation}${bestRefinement ? ` (+${bestRefinement.platGain.toFixed(2)}p for ${bestRefinement.voidTraceCost} traces)` : ''} <<<`);
+
+    return {
+      currentExpectedValue,
+      refinementAnalyses,
+      bestRefinement,
+      overallRecommendation
+    };
+
+  } catch (error) {
+    console.error('>>> [Refinement Analysis] Error:', error);
+    throw error;
+  }
+};
+
+/**
+ * NEW: Optimal Refinement Analysis with Market Price Comparison
+ *
+ * This improved approach:
+ * 1. Finds the optimal refinement level based on expected drop value
+ * 2. Calculates the investment needed to reach that optimal level
+ * 3. Fetches market prices for the optimal refinement level relic (with fallbacks)
+ * 4. Compares optimal expected value vs optimal market price
+ * 5. Uses real market data instead of arbitrary thresholds
+ */
+export const analyzeOptimalRefinementStrategy = async (
+  relicName: string,
+  currentRarity: VoidRelic['rarity'] = 'intact',
+  dropPriceData: any[]
+): Promise<{
+  currentExpectedValue: number;
+  optimalRefinementLevel: VoidRelic['rarity'];
+  optimalExpectedValue: number;
+  investmentCost: number;
+  optimalMarketPrice: number;
+  optimalMarketPriceFallback?: string; // Which price level was used
+  platPerVoidTrace: number;
+  recommendation: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT';
+  expectedProfit: number;
+  analysis: {
+    comparison: string;
+    reasoning: string;
+  };
+}> => {
+  try {
+    console.log(`>>> [Optimal Refinement] Starting analysis for: ${relicName} (${currentRarity}) <<<`);
+
+    const relicDrops = await getRelicDropsByName(relicName, 'intact');
+    if (!relicDrops || relicDrops.length === 0) {
+      throw new Error(`No drop data found for relic: ${relicName}`);
+    }
+
+    // Calculate expected values for all refinement levels
+    const expectedValues = {
+      intact: calculateExpectedValueForLevel(relicDrops, 'intact', dropPriceData),
+      exceptional: calculateExpectedValueForLevel(relicDrops, 'exceptional', dropPriceData),
+      flawless: calculateExpectedValueForLevel(relicDrops, 'flawless', dropPriceData),
+      radiant: calculateExpectedValueForLevel(relicDrops, 'radiant', dropPriceData)
+    };
+
+    console.log(`>>> [Optimal Refinement] Expected values:`, expectedValues);
+
+        // Find the optimal refinement level (highest expected value)
+    const optimalRefinementLevel = Object.entries(expectedValues).reduce((best, [level, value]) =>
+      value > expectedValues[best] ? level as VoidRelic['rarity'] : best
+    , 'intact' as VoidRelic['rarity']);
+
+    const effectiveCurrentRarity = (currentRarity && ['intact', 'exceptional', 'flawless', 'radiant'].includes(currentRarity)) ? currentRarity : 'intact';
+    const currentExpectedValue = expectedValues[effectiveCurrentRarity];
+    const optimalExpectedValue = expectedValues[optimalRefinementLevel || 'intact'];
+
+    console.log(`>>> [Optimal Refinement] Optimal level: ${optimalRefinementLevel} (${optimalExpectedValue}p) vs current: ${currentRarity} (${currentExpectedValue}p) <<<`);
+
+    // Calculate investment cost to reach optimal level
+    let investmentCost = 0;
+    let costKey: keyof typeof REFINEMENT_COSTS | null = null;
+
+    if (effectiveCurrentRarity === optimalRefinementLevel) {
+      // Already at optimal level
+      investmentCost = 0;
+    } else {
+      // Calculate cost from current to optimal
+      const refinementPath = `${effectiveCurrentRarity}_to_${optimalRefinementLevel}` as keyof typeof REFINEMENT_COSTS;
+      if (REFINEMENT_COSTS[refinementPath]) {
+        investmentCost = REFINEMENT_COSTS[refinementPath];
+        costKey = refinementPath;
+      } else {
+        console.warn(`>>> [Optimal Refinement] No direct path from ${currentRarity} to ${optimalRefinementLevel} <<<`);
+        investmentCost = 0; // Fallback - shouldn't happen with current data
+      }
+    }
+
+    // Fetch market price for the optimal refinement level relic with fallback logic
+    let optimalMarketPrice = 0;
+    let optimalMarketPriceFallback = 'none';
+
+    const { fetchSinglePriceOnly } = await import('./warframeMarketService');
+
+    // Try to get market price for optimal refinement level
+    const refinementLevels: VoidRelic['rarity'][] = ['radiant', 'flawless', 'exceptional', 'intact'];
+    const optimalIndex = refinementLevels.indexOf(optimalRefinementLevel);
+
+    for (let i = optimalIndex; i < refinementLevels.length; i++) {
+      const level = refinementLevels[i];
+      if (!level) continue; // Skip if level is undefined
+      const levelName = level.charAt(0).toUpperCase() + level.slice(1);
+      const marketRelicName = `${relicName} [${levelName}]`;
+
+      try {
+        console.log(`>>> [Optimal Refinement] Trying market price for: ${marketRelicName} <<<`);
+        const marketData = await fetchSinglePriceOnly({
+          id: 'temp',
+          name: marketRelicName,
+          category: 'relics',
+          status: 'loading'
+        });
+
+        if (marketData.price && marketData.price > 0) {
+          optimalMarketPrice = marketData.price;
+          optimalMarketPriceFallback = level === optimalRefinementLevel ? 'exact' : `fallback_${level}`;
+          console.log(`>>> [Optimal Refinement] Found market price: ${optimalMarketPrice}p for ${marketRelicName} (${optimalMarketPriceFallback}) <<<`);
+          break;
+        }
+      } catch (error) {
+        console.log(`>>> [Optimal Refinement] No market data for ${marketRelicName}, trying lower refinement <<<`);
+        continue;
+      }
+    }
+
+    if (optimalMarketPrice === 0) {
+      console.log(`>>> [Optimal Refinement] No market data found for any refinement level, using 0p <<<`);
+    }
+
+    // Calculate plat per void trace efficiency
+    const platPerVoidTrace = investmentCost > 0 ? (optimalExpectedValue - currentExpectedValue) / investmentCost : 0;
+
+    // Make recommendation based on optimal comparison
+    let recommendation: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT';
+    let expectedProfit: number;
+    let analysis: { comparison: string; reasoning: string };
+
+    // Compare: should we refine to optimal and open, or sell at optimal market price, or open current?
+    const refinementGain = optimalExpectedValue - currentExpectedValue;
+    const sellingProfit = optimalMarketPrice - optimalExpectedValue;
+    const currentOpeningProfit = currentExpectedValue - optimalMarketPrice;
+
+    if (investmentCost === 0) {
+      // Already at optimal level, compare opening vs selling
+      if (optimalMarketPrice > optimalExpectedValue) {
+        recommendation = 'SELL';
+        expectedProfit = sellingProfit;
+        analysis = {
+          comparison: `Market: ${optimalMarketPrice}p vs Opening: ${optimalExpectedValue}p`,
+          reasoning: `Selling intact relic is more profitable (+${sellingProfit.toFixed(2)}p)`
+        };
+      } else {
+        recommendation = 'OPEN';
+        expectedProfit = -sellingProfit;
+        analysis = {
+          comparison: `Opening: ${optimalExpectedValue}p vs Market: ${optimalMarketPrice}p`,
+          reasoning: `Opening relic is more profitable (+${(-sellingProfit).toFixed(2)}p)`
+        };
+      }
+    } else {
+      // Need to invest void traces - compare all options
+      const investmentEfficiency = refinementGain / investmentCost;
+
+      if (optimalMarketPrice > optimalExpectedValue && optimalMarketPrice > currentExpectedValue) {
+        // Selling optimal refined relic is best
+        recommendation = optimalRefinementLevel === 'exceptional' ? 'REFINE_TO_EXCEPTIONAL' :
+                        optimalRefinementLevel === 'flawless' ? 'REFINE_TO_FLAWLESS' : 'REFINE_TO_RADIANT';
+        expectedProfit = (optimalMarketPrice - currentExpectedValue) - investmentCost * 0.01; // Rough void trace cost
+        analysis = {
+          comparison: `Refine & Sell: ${optimalMarketPrice}p vs Current Open: ${currentExpectedValue}p`,
+          reasoning: `Refining to ${optimalRefinementLevel} and selling is most profitable (+${expectedProfit.toFixed(2)}p net)`
+        };
+      } else if (refinementGain > investmentCost * 0.01) { // If refinement gain > rough void trace cost
+        // Refining to optimal and opening is best
+        recommendation = optimalRefinementLevel === 'exceptional' ? 'REFINE_TO_EXCEPTIONAL' :
+                        optimalRefinementLevel === 'flawless' ? 'REFINE_TO_FLAWLESS' : 'REFINE_TO_RADIANT';
+        expectedProfit = refinementGain - investmentCost * 0.01; // Rough void trace cost
+        analysis = {
+          comparison: `Refine & Open: ${optimalExpectedValue}p vs Current: ${currentExpectedValue}p (Cost: ${investmentCost} traces)`,
+          reasoning: `Refining to ${optimalRefinementLevel} for opening is worth it (+${expectedProfit.toFixed(2)}p net, ${platPerVoidTrace.toFixed(3)}p/trace)`
+        };
+      } else {
+        // Opening current level is best
+        recommendation = 'OPEN';
+        expectedProfit = currentExpectedValue - optimalMarketPrice;
+        analysis = {
+          comparison: `Current Open: ${currentExpectedValue}p vs Refinement Cost: ${investmentCost} traces`,
+          reasoning: `Refinement investment not worth it, open current level`
+        };
+      }
+    }
+
+    console.log(`>>> [Optimal Refinement] Final recommendation: ${recommendation} (+${expectedProfit.toFixed(2)}p) <<<`);
+    console.log(`>>> [Optimal Refinement] Analysis: ${analysis.reasoning} <<<`);
+
+    return {
+      currentExpectedValue,
+      optimalRefinementLevel,
+      optimalExpectedValue,
+      investmentCost,
+      optimalMarketPrice,
+      optimalMarketPriceFallback,
+      platPerVoidTrace,
+      recommendation,
+      expectedProfit,
+      analysis
+    };
+
+  } catch (error) {
+    console.error('>>> [Optimal Refinement] Error:', error);
+    throw error;
   }
 };

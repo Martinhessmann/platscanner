@@ -1,4 +1,4 @@
-# 🔮 Future Ideas & Enhancement Roadmap
+chan# 🔮 Future Ideas & Enhancement Roadmap
 
 ## 🚀 High Priority Enhancements
 

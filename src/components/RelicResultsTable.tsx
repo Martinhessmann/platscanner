@@ -60,10 +60,20 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
           bgColor: 'bg-green-900/10',
           borderColor: 'border-green-700/30'
         };
-      case 'REFINE_THEN_OPEN':
+      case 'REFINE_TO_EXCEPTIONAL':
         return {
-          bgColor: 'bg-orange-900/10',
-          borderColor: 'border-orange-700/30'
+          bgColor: 'bg-blue-900/10',
+          borderColor: 'border-blue-700/30'
+        };
+      case 'REFINE_TO_FLAWLESS':
+        return {
+          bgColor: 'bg-cyan-900/10',
+          borderColor: 'border-cyan-700/30'
+        };
+      case 'REFINE_TO_RADIANT':
+        return {
+          bgColor: 'bg-yellow-900/10',
+          borderColor: 'border-yellow-700/30'
         };
       default:
         return {
@@ -95,10 +105,12 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     } else if (sortField === 'recommendation') {
       const getRecommendationOrder = (rec?: string) => {
         switch (rec) {
-          case 'OPEN': return 1;
-          case 'REFINE_THEN_OPEN': return 2;
-          case 'SELL': return 3;
-          default: return 4;
+          case 'REFINE_TO_RADIANT': return 1;     // Highest priority (best ROI)
+          case 'REFINE_TO_FLAWLESS': return 2;    // Second priority
+          case 'REFINE_TO_EXCEPTIONAL': return 3; // Third priority
+          case 'OPEN': return 4;                  // Fourth priority
+          case 'SELL': return 5;                  // Lowest priority
+          default: return 6;
         }
       };
       const orderA = getRecommendationOrder(a.recommendation);

@@ -69,12 +69,26 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
           bgColor: 'bg-green-900/20',
           icon: <Coins size={16} className="text-green-400" />
         };
-      case 'REFINE_THEN_OPEN':
+      case 'REFINE_TO_EXCEPTIONAL':
         return {
-          action: 'OPEN',
-          color: 'text-orange-400',
-          bgColor: 'bg-orange-900/20',
-          icon: <Dices size={16} className="text-orange-400" />
+          action: 'REFINE → EXCEPTIONAL',
+          color: 'text-blue-400',
+          bgColor: 'bg-blue-900/20',
+          icon: <Zap size={16} className="text-blue-400" />
+        };
+      case 'REFINE_TO_FLAWLESS':
+        return {
+          action: 'REFINE → FLAWLESS',
+          color: 'text-cyan-400',
+          bgColor: 'bg-cyan-900/20',
+          icon: <Zap size={16} className="text-cyan-400" />
+        };
+      case 'REFINE_TO_RADIANT':
+        return {
+          action: 'REFINE → RADIANT',
+          color: 'text-yellow-400',
+          bgColor: 'bg-yellow-900/20',
+          icon: <Zap size={16} className="text-yellow-400" />
         };
       default:
         return {
@@ -178,6 +192,12 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
             <span className={`font-semibold ${config.color}`}>
               {config.action}
             </span>
+            {/* Show void trace efficiency for refinement recommendations */}
+            {relic.refinementAnalysis?.platPerVoidTrace && (
+              <span className="text-xs bg-gray-800 px-1.5 py-0.5 rounded text-gray-300">
+                {(relic.refinementAnalysis.platPerVoidTrace * 100).toFixed(1)}p/100 traces
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-300">
@@ -186,6 +206,21 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
             {showDetails ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </div>
         </button>
+
+        {/* Refinement Economics Summary (if applicable) */}
+        {relic.refinementAnalysis && (
+          <div className="text-xs text-gray-400 px-2 py-1 bg-gray-900/30 rounded">
+            <div className="flex justify-between items-center">
+              <span>
+                Refine to {relic.refinementAnalysis.bestRefinementTarget}:
+                +{formatExpectedValue(relic.refinementAnalysis.bestRefinementGain || 0)}p
+              </span>
+              <span>
+                for {relic.refinementAnalysis.bestRefinementCost} traces
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Detailed Drop Analysis (Expandable) */}

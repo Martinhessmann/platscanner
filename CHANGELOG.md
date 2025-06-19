@@ -17,6 +17,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🔴 Refinement Indicators** - Color dots next to refinement levels (Yellow=Radiant, Blue=Flawless, Green=Exceptional, Gray=Intact)
 - **📱 Desktop Action Buttons** - Removed meatball menus, made refresh/remove buttons directly visible
 - **📊 Highest Value Sorting** - "Expected" sorting now uses higher of sell OR open values
+- **🚀 MAJOR: Revolutionary Optimal Refinement Strategy** - Complete overhaul of refinement analysis system:
+  - **🎯 Optimal Level Detection** - Automatically finds the best refinement level based on expected drop values
+  - **💰 Smart Market Comparison** - Compares optimal expected value vs actual market prices for refined relics
+  - **🔄 Intelligent Price Fallbacks** - Uses Radiant→Flawless→Exceptional→Intact market price hierarchy when buyers unavailable
+  - **⚖️ Investment vs Reward Analysis** - Calculates void trace investment needed vs profit potential
+  - **🧠 Real Market Logic** - Eliminates arbitrary thresholds, uses actual market data for decisions
+  - **📈 Comprehensive Reasoning** - Provides detailed explanations for each recommendation with comparison data
+
+## [1.7.0] - 2025-01-03
+
+### Added
+- **🔄 Comprehensive Refinement Analysis** - Revolutionary void trace economics system with smart ROI calculations
+- **💎 Multi-Level Refinement Planning** - Analyzes all possible refinement paths (Intact → Exceptional → Flawless → Radiant)
+- **📊 Plat per Void Trace Efficiency** - Precise ROI calculations showing investment efficiency (e.g., "12.8p/100 traces")
+- **🎯 Smart Refinement Recommendations** - New recommendation types: REFINE_TO_EXCEPTIONAL, REFINE_TO_FLAWLESS, REFINE_TO_RADIANT
+- **⚖️ Investment Decision Logic** - Compares refinement ROI vs direct selling vs opening
+- **🏆 ROI-Based Sorting** - Automatically prioritizes relics with best refinement efficiency
+
+### Enhanced
+- **🎨 Refinement Economics UI** - Live void trace cost/benefit display in recommendation cards
+- **📈 Advanced Recommendation Logic** - Threshold-based system (>5p per 100 traces minimum for refinement recommendations)
+- **🔢 Comprehensive Cost Modeling** - All refinement paths with accurate void trace costs (25/50/100/75/175/150 traces)
+- **🎨 Color-Coded Refinement Types** - Blue (Exceptional), Cyan (Flawless), Gold (Radiant) for visual distinction
+
+### Technical
+- **📊 analyzeRefinementOpportunities()** - New comprehensive analysis function in relicDataService
+- **🏗️ Enhanced Type System** - Updated VoidRelic interface with refinementAnalysis metadata
+- **⚡ Integrated Analysis Pipeline** - Seamless integration with existing relic value calculation system
 
 ## [1.6.0] - 2025-01-03
 

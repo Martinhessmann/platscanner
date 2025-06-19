@@ -31,8 +31,19 @@ export interface InventoryItem {
   maxDropValue?: number;
   expectedDropValue?: number;
   directSalePrice?: number;
-  recommendation?: 'OPEN' | 'SELL' | 'REFINE_THEN_OPEN';
+  recommendation?: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT';
   expectedProfit?: number;
+  refinementAnalysis?: {
+    platPerVoidTrace?: number;
+    bestRefinementTarget?: 'exceptional' | 'flawless' | 'radiant';
+    bestRefinementCost?: number;
+    bestRefinementGain?: number;
+    // New optimal analysis fields
+    optimalMarketPrice?: number;
+    optimalMarketPriceFallback?: string; // 'exact', 'fallback_flawless', etc.
+    reasoning?: string; // Human-readable explanation
+    comparison?: string; // Comparison details
+  };
 }
 
 export interface CategorizedInventory {
@@ -84,7 +95,8 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
           expectedDropValue: relicItem.expectedDropValue,
           directSalePrice: relicItem.directSalePrice,
           recommendation: relicItem.recommendation,
-          expectedProfit: relicItem.expectedProfit
+          expectedProfit: relicItem.expectedProfit,
+          refinementAnalysis: relicItem.refinementAnalysis
         };
       }
 
@@ -255,7 +267,8 @@ export const updateInventoryPrices = (updatedItems: DetectedItem[]): void => {
             expectedDropValue: relicItem.expectedDropValue,
             directSalePrice: relicItem.directSalePrice,
             recommendation: relicItem.recommendation,
-            expectedProfit: relicItem.expectedProfit
+            expectedProfit: relicItem.expectedProfit,
+            refinementAnalysis: relicItem.refinementAnalysis
           };
         }
 
@@ -330,6 +343,17 @@ export const calculateRelicValueAnalysis = async (
   directSalePrice: number;
   recommendation: VoidRelic['recommendation'];
   expectedProfit: number;
+  refinementAnalysis?: {
+    platPerVoidTrace?: number;
+    bestRefinementTarget?: 'exceptional' | 'flawless' | 'radiant';
+    bestRefinementCost?: number;
+    bestRefinementGain?: number;
+    // New optimal analysis fields
+    optimalMarketPrice?: number;
+    optimalMarketPriceFallback?: string; // 'exact', 'fallback_flawless', etc.
+    reasoning?: string; // Human-readable explanation
+    comparison?: string; // Comparison details
+  };
 } | null> => {
   try {
     console.log(`>>> [Relic Analysis] Starting analysis for: ${relicName} (${rarity}) with market price: ${directSalePrice}p <<<`);
@@ -388,24 +412,50 @@ export const calculateRelicValueAnalysis = async (
       expectedDropValue += (drop.currentPrice || 0) * (drop.dropChance / 100);
     });
 
-    // Determine recommendation by comparing expected value vs direct sale price
+    // Use comprehensive refinement analysis to determine best recommendation
     let recommendation: VoidRelic['recommendation'] = 'OPEN';
     let expectedProfit = expectedDropValue - directSalePrice;
+    let refinementAnalysis: any = undefined;
 
     console.log(`>>> [Relic Analysis] Comparison: Expected ${expectedDropValue.toFixed(2)}p vs Market Sale ${directSalePrice}p <<<`);
 
-    if (directSalePrice > expectedDropValue) {
-      recommendation = 'SELL';
-      expectedProfit = directSalePrice - expectedDropValue; // Profit from selling instead of opening
-      console.log(`>>> [Relic Analysis] SELL recommendation: +${expectedProfit.toFixed(2)}p profit by selling <<<`);
-    } else if (rarity !== 'radiant' && expectedDropValue * 1.2 > directSalePrice) {
-      // Example logic for refine: if upgrading could increase expected value significantly
-      recommendation = 'REFINE_THEN_OPEN';
-      expectedProfit = (expectedDropValue * 1.2) - directSalePrice; // Estimated profit if refined first
-      console.log(`>>> [Relic Analysis] REFINE_THEN_OPEN recommendation: +${expectedProfit.toFixed(2)}p profit after refining <<<`);
-    } else {
-      recommendation = 'OPEN';
-      console.log(`>>> [Relic Analysis] OPEN recommendation: +${expectedProfit.toFixed(2)}p profit by opening <<<`);
+    try {
+      // Import and use the new optimal refinement analysis
+      const { analyzeOptimalRefinementStrategy } = await import('./relicDataService');
+      const optimalAnalysis = await analyzeOptimalRefinementStrategy(relicName, rarity, batchPriceData);
+
+      // Use the optimal analysis results
+      recommendation = optimalAnalysis.recommendation;
+      expectedProfit = optimalAnalysis.expectedProfit;
+      refinementAnalysis = {
+        platPerVoidTrace: optimalAnalysis.platPerVoidTrace,
+        bestRefinementTarget: optimalAnalysis.optimalRefinementLevel,
+        bestRefinementCost: optimalAnalysis.investmentCost,
+        bestRefinementGain: optimalAnalysis.optimalExpectedValue - optimalAnalysis.currentExpectedValue,
+        optimalMarketPrice: optimalAnalysis.optimalMarketPrice,
+        optimalMarketPriceFallback: optimalAnalysis.optimalMarketPriceFallback,
+        reasoning: optimalAnalysis.analysis.reasoning,
+        comparison: optimalAnalysis.analysis.comparison
+      };
+
+      console.log(`>>> [Relic Analysis] Optimal Strategy: ${recommendation} (+${expectedProfit.toFixed(2)}p) <<<`);
+      console.log(`>>> [Relic Analysis] Optimal Level: ${optimalAnalysis.optimalRefinementLevel} (${optimalAnalysis.optimalExpectedValue}p expected) <<<`);
+      console.log(`>>> [Relic Analysis] Market Price: ${optimalAnalysis.optimalMarketPrice}p (${optimalAnalysis.optimalMarketPriceFallback}) <<<`);
+      console.log(`>>> [Relic Analysis] Investment: ${optimalAnalysis.investmentCost} traces (${optimalAnalysis.platPerVoidTrace.toFixed(3)}p/trace) <<<`);
+      console.log(`>>> [Relic Analysis] Reasoning: ${optimalAnalysis.analysis.reasoning} <<<`);
+
+    } catch (error) {
+      console.warn(`>>> [Relic Analysis] Optimal refinement analysis failed, falling back to basic logic:`, error);
+      // Fallback to basic logic
+      if (directSalePrice > expectedDropValue) {
+        recommendation = 'SELL';
+        expectedProfit = directSalePrice - expectedDropValue;
+        console.log(`>>> [Relic Analysis] SELL recommendation (fallback): +${expectedProfit.toFixed(2)}p profit by selling <<<`);
+      } else {
+        recommendation = 'OPEN';
+        expectedProfit = expectedDropValue - directSalePrice;
+        console.log(`>>> [Relic Analysis] OPEN recommendation (fallback): +${expectedProfit.toFixed(2)}p profit by opening <<<`);
+      }
     }
 
     const result = {
@@ -416,6 +466,7 @@ export const calculateRelicValueAnalysis = async (
       directSalePrice,
       recommendation,
       expectedProfit: parseFloat(expectedProfit.toFixed(2)),
+      refinementAnalysis,
     };
 
     console.log(`>>> [Relic Analysis] Completed for ${relicName}:`, {
