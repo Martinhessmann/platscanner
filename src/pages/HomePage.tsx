@@ -745,120 +745,131 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
   return (
     <main className="min-h-screen bg-background-dark">
-      <div className="max-w-screen-2xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-5 lg:gap-4">
-          {/* Left column - Upload */}
-          <div className="lg:col-span-2 space-y-3 p-3 lg:p-4">
-            <ImageUploader
-              onImageUpload={handleImageUpload}
-              isProcessing={isProcessing}
-              images={processingState.images}
-              activeImageId={processingState.activeImageId}
-              onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
-              onImageRemove={handleImageRemove}
-            />
+      <div className="max-w-full mx-auto">
+        {/* Full width layout */}
+        <div className="space-y-3 p-3 lg:p-4">
+          {/* Upload section - only show when not processing and no results, or when API key missing */}
+          {(!isConfigured || (!activeImage && processingState.images.size === 0 && categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0)) && (
+            <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
+              {isConfigured ? (
+                <>
+                  <h2 className="text-lg font-semibold mb-4">Ready to Scan</h2>
+                  <p className="text-gray-400 text-sm mb-4">
+                    Upload screenshots of your Warframe inventory to begin scanning for Prime parts and Void relics.
+                  </p>
+                  <ImageUploader
+                    onImageUpload={handleImageUpload}
+                    isProcessing={isProcessing}
+                    images={processingState.images}
+                    activeImageId={processingState.activeImageId}
+                    onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
+                    onImageRemove={handleImageRemove}
+                  />
+                </>
+              ) : (
+                <>
+                  <Key size={40} className="mx-auto text-orokin-gold mb-3" />
+                  <h2 className="text-lg font-semibold mb-2">API Key Required</h2>
+                  <p className="text-gray-400 mb-4 text-sm">
+                    Please add your Gemini API key to start scanning your inventory.
+                  </p>
+                  <button
+                    onClick={onOpenSettings}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-tenno-blue hover:bg-tenno-light text-white rounded-lg transition-colors"
+                  >
+                    <Key size={16} />
+                    Add API Key
+                  </button>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Your API key is stored securely in your browser and never transmitted to our servers.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
 
-
-          </div>
-
-          {/* Right column - Processing and Results */}
-          <div className="lg:col-span-3 space-y-3 p-3 lg:p-4">
-            {!activeImage && processingState.images.size === 0 && (
-              <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
-                {isConfigured ? (
-                  <>
-                    <h2 className="text-lg font-semibold mb-2">Ready to Scan</h2>
-                    <p className="text-gray-400 text-sm">
-                      Upload screenshots of your Warframe inventory to begin scanning for Prime parts and Void relics.
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <Key size={40} className="mx-auto text-orokin-gold mb-3" />
-                    <h2 className="text-lg font-semibold mb-2">API Key Required</h2>
-                    <p className="text-gray-400 mb-4 text-sm">
-                      Please add your Gemini API key to start scanning your inventory.
-                    </p>
-                    <button
-                      onClick={onOpenSettings}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-tenno-blue hover:bg-tenno-light text-white rounded-lg transition-colors"
-                    >
-                      <Key size={16} />
-                      Add API Key
-                    </button>
-                    <p className="text-xs text-gray-500 mt-3">
-                      Your API key is stored securely in your browser and never transmitted to our servers.
-                    </p>
-                  </>
-                )}
+          {/* Upload section - show at top when we have results but not processing */}
+          {isConfigured && !isProcessing && (categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0) && (
+            <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold">Add More Screenshots</h3>
+                <span className="text-xs text-gray-500">Drag and drop to add more items</span>
               </div>
-            )}
+              <ImageUploader
+                onImageUpload={handleImageUpload}
+                isProcessing={isProcessing}
+                images={processingState.images}
+                activeImageId={processingState.activeImageId}
+                onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
+                onImageRemove={handleImageRemove}
+              />
+            </div>
+          )}
 
-            {isProcessing && (
-              <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
-                <ProcessingAnimation
-                  stage={
-                    activeImage?.status === 'analyzing' ? 'analyzing' :
-                    activeImage?.status === 'fetching' ? 'fetching' :
-                    'analyzing'
-                  }
-                  progress={activeImage?.status === 'fetching' ? fetchingProgress : undefined}
-                  onStop={stopProcessing}
-                  canStop={activeImage?.status === 'fetching'}
-                />
-              </div>
-            )}
+          {isProcessing && (
+            <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
+              <ProcessingAnimation
+                stage={
+                  activeImage?.status === 'analyzing' ? 'analyzing' :
+                  activeImage?.status === 'fetching' ? 'fetching' :
+                  'analyzing'
+                }
+                progress={activeImage?.status === 'fetching' ? fetchingProgress : undefined}
+                onStop={stopProcessing}
+                canStop={activeImage?.status === 'fetching'}
+              />
+            </div>
+          )}
 
-            {/* Story #8: Categorized Inventory Sections */}
-            {(categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0) && (
-              <div className="space-y-2">
+          {/* Story #8: Categorized Inventory Sections */}
+          {(categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0) && (
+            <div className="space-y-2">
 
-                {/* Prime Parts Section */}
-                <InventorySection
-                  category="prime_parts"
-                  title="Prime Parts"
-                  icon={<Package size={20} className="text-orokin-gold" />}
-                  items={categorizedInventory.prime_parts}
-                  totalValue={inventoryStats.byCategory.prime_parts.value}
-                  totalDucats={inventoryStats.byCategory.prime_parts.ducats}
-                  isRefreshing={refreshingCategories.has('prime_parts')}
-                  progress={categoryProgress?.category === 'prime_parts' ? categoryProgress : undefined}
-                  onRefreshAll={() => handleRefreshCategoryPrices('prime_parts')}
-                  onClearAll={() => handleClearInventory('prime_parts')}
-                  onRefreshItem={handleRefreshSingleItem}
-                  onRemoveItem={handleRemoveFromInventory}
-                />
+              {/* Prime Parts Section */}
+              <InventorySection
+                category="prime_parts"
+                title="Prime Parts"
+                icon={<Package size={20} className="text-orokin-gold" />}
+                items={categorizedInventory.prime_parts}
+                totalValue={inventoryStats.byCategory.prime_parts.value}
+                totalDucats={inventoryStats.byCategory.prime_parts.ducats}
+                isRefreshing={refreshingCategories.has('prime_parts')}
+                progress={categoryProgress?.category === 'prime_parts' ? categoryProgress : undefined}
+                onRefreshAll={() => handleRefreshCategoryPrices('prime_parts')}
+                onClearAll={() => handleClearInventory('prime_parts')}
+                onRefreshItem={handleRefreshSingleItem}
+                onRemoveItem={handleRemoveFromInventory}
+              />
 
-                {/* Void Relics Section */}
-                <InventorySection
-                  category="relics"
-                  title="Void Relics"
-                  icon={<Zap size={20} className="text-purple-400" />}
-                  items={categorizedInventory.relics}
-                  totalValue={inventoryStats.byCategory.relics.value}
-                  totalDucats={inventoryStats.byCategory.relics.ducats}
-                  isRefreshing={refreshingCategories.has('relics')}
-                  progress={categoryProgress?.category === 'relics' ? categoryProgress : undefined}
-                  onRefreshAll={() => handleRefreshCategoryPrices('relics')}
-                  onClearAll={() => handleClearInventory('relics')}
-                  onRefreshItem={handleRefreshSingleItem}
-                  onRemoveItem={handleRemoveFromInventory}
-                />
-              </div>
-            )}
+              {/* Void Relics Section */}
+              <InventorySection
+                category="relics"
+                title="Void Relics"
+                icon={<Zap size={20} className="text-purple-400" />}
+                items={categorizedInventory.relics}
+                totalValue={inventoryStats.byCategory.relics.value}
+                totalDucats={inventoryStats.byCategory.relics.ducats}
+                isRefreshing={refreshingCategories.has('relics')}
+                progress={categoryProgress?.category === 'relics' ? categoryProgress : undefined}
+                onRefreshAll={() => handleRefreshCategoryPrices('relics')}
+                onClearAll={() => handleClearInventory('relics')}
+                onRefreshItem={handleRefreshSingleItem}
+                onRemoveItem={handleRemoveFromInventory}
+              />
+            </div>
+          )}
 
-            {/* Empty state */}
-            {categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && (
-              <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
-                <Package size={40} className="mx-auto text-gray-500 mb-3" />
-                <p className="text-gray-400 mb-2">Your inventory is empty</p>
-                <p className="text-xs text-gray-500">Upload screenshots to start building your inventory</p>
-              </div>
-            )}
+          {/* Empty state - only show when no processing and no results */}
+          {!isProcessing && categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && processingState.images.size === 0 && (
+            <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
+              <Package size={40} className="mx-auto text-gray-500 mb-3" />
+              <p className="text-gray-400 mb-2">Your inventory is empty</p>
+              <p className="text-xs text-gray-500">Upload screenshots to start building your inventory</p>
+            </div>
+          )}
 
-            {/* How it Works */}
-            <InfoCard isConfigured={isConfigured} onOpenSettings={onOpenSettings} />
-          </div>
+          {/* How it Works */}
+          <InfoCard isConfigured={isConfigured} onOpenSettings={onOpenSettings} />
         </div>
       </div>
     </main>
