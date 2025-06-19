@@ -115,7 +115,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         // SELL: Sort by absolute profit (no investment needed)
         // This represents immediate gain: market_price - expected_drop_value
         const sellGain = Math.abs(expectedProfit); // Use absolute value in case of negative
-        const sellScore = sellGain * 1000; // High priority for immediate gains
+        const sellScore = sellGain * 100; // High priority for immediate gains (100x means 1.76p → 176 score)
         console.log(`>>> [Efficiency Score] SELL: ${sellGain}p gain = score ${sellScore} <<<`);
         return sellScore;
 
@@ -125,15 +125,15 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         // REFINE: Sort by plat per void trace efficiency (gain per resource invested)
         const platPerTrace = relic.refinementAnalysis?.platPerVoidTrace || 0;
 
-        // FIX: If platPerTrace is 0 but we still have a REFINE recommendation,
+                // FIX: If platPerTrace is 0 but we still have a REFINE recommendation,
         // fall back to absolute profit scoring to prevent 0 scores
         if (platPerTrace === 0 && expectedProfit > 0) {
-          const fallbackScore = Math.abs(expectedProfit) * 500; // Medium priority between SELL and OPEN
+          const fallbackScore = Math.abs(expectedProfit) * 50; // Medium priority between SELL and OPEN (50x means 1.03p → 51.5 score)
           console.log(`>>> [Efficiency Score] REFINE (fallback): ${expectedProfit}p profit = score ${fallbackScore} <<<`);
           return fallbackScore;
         }
 
-        const refinementScore = platPerTrace * 10000; // High multiplier for efficient refinements
+        const refinementScore = platPerTrace * 1000; // Efficient refinements (1000x means 0.05p/trace → 50 score)
         console.log(`>>> [Efficiency Score] REFINE: ${platPerTrace}p/trace = score ${refinementScore} <<<`);
         return refinementScore;
 
@@ -141,7 +141,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         // OPEN: Sort by expected profit (baseline priority)
         // This represents: expected_drop_value - market_price (gain from opening vs selling)
         const openGain = Math.abs(expectedProfit);
-        const openScore = openGain * 100; // Lower priority than immediate sales
+        const openScore = openGain * 10; // Lower priority than immediate sales (10x means 1.03p → 10.3 score)
         console.log(`>>> [Efficiency Score] OPEN: ${openGain}p gain = score ${openScore} <<<`);
         return openScore;
 
