@@ -1,8 +1,8 @@
 import React from 'react';
-import { Scan, Sparkles, Zap, XCircle } from 'lucide-react';
+import { Scan, Sparkles, Zap, XCircle, Clock } from 'lucide-react';
 
 interface ProcessingAnimationProps {
-  stage: 'analyzing' | 'fetching' | 'complete';
+  stage: 'analyzing' | 'analyzed' | 'fetching' | 'complete';
   progress?: {
     current: number;
     total: number;
@@ -30,6 +30,9 @@ const ProcessingAnimation: React.FC<ProcessingAnimationProps> = ({
           {stage === 'analyzing' && (
             <Scan size={36} className="text-tenno-blue animate-pulse" />
           )}
+          {stage === 'analyzed' && (
+            <Clock size={36} className="text-corpus-green animate-pulse" />
+          )}
           {stage === 'fetching' && (
             <Zap size={36} className="text-orokin-gold animate-pulse" />
           )}
@@ -50,12 +53,14 @@ const ProcessingAnimation: React.FC<ProcessingAnimationProps> = ({
       {/* Status text */}
       <h3 className="text-xl font-semibold text-white mb-2">
         {stage === 'analyzing' && "Analyzing Screenshot"}
+        {stage === 'analyzed' && "Analysis Complete"}
         {stage === 'fetching' && `Fetching Market Prices${progress ? ` (${progress.current}/${progress.total})` : ''}`}
         {stage === 'complete' && "Processing Complete"}
       </h3>
 
       <p className="text-gray-400 text-center max-w-md">
         {stage === 'analyzing' && "Gemini AI is scanning your inventory for Prime parts and Void relics..."}
+        {stage === 'analyzed' && "Items detected! Queued for market price fetching..."}
         {stage === 'fetching' && "Retrieving current market prices from Warframe Market..."}
         {stage === 'complete' && "Your results are ready to view!"}
       </p>

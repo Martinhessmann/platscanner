@@ -105,8 +105,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
     }, 500);
   }, [processingState.activeImageId, refreshingCategories, isRefreshingPrices]);
 
-  // Process the next image in the queue
-  const processNextImage = useCallback(async () => {
+  // Separate processing for AI analysis and price fetching
+  const processImageAnalysis = useCallback(async () => {
     setProcessingState(prev => {
       // Get all queued images from current state
       const queuedImages = Array.from(prev.images.values())
@@ -116,17 +116,19 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
 
       const nextImage = queuedImages[0];
 
-      // Start processing immediately by updating status
+      // Start AI analysis immediately by updating status
       const newImages = new Map(prev.images);
       newImages.set(nextImage.id, {
         ...nextImage,
         status: 'analyzing'
       });
 
-      // Trigger async processing
+      // Trigger async AI analysis only
       (async () => {
         try {
-          // Extract items using Gemini AI (now supports both Prime parts and Relics)
+          console.log(`>>> [AI Analysis] Starting analysis for image: ${nextImage.id} <<<`);
+
+          // Extract items using Gemini AI
           const detectedItems = await analyzeImage(nextImage.file);
 
           // Check if processing was stopped
@@ -149,7 +151,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
           const existingItemNames = new Set(currentInventory.items.map(item => item.name));
           const newItems = detectedItems.filter(item => !existingItemNames.has(item.name));
 
-          console.log(`Detected ${detectedItems.length} items, ${newItems.length} are new, ${detectedItems.length - newItems.length} already in inventory`);
+          console.log(`>>> [AI Analysis] Detected ${detectedItems.length} items, ${newItems.length} are new <<<`);
 
           if (newItems.length === 0) {
             // No new items to process
@@ -165,20 +167,82 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             return;
           }
 
-          // Update status to fetching for new items only
+          // Update status to 'analyzed' - ready for price fetching
           setProcessingState(current => ({
             ...current,
             images: new Map(current.images).set(nextImage.id, {
               ...nextImage,
-              status: 'fetching',
+              status: 'analyzed', // New status indicating ready for price fetching
               results: newItems
             })
           }));
 
+          console.log(`>>> [AI Analysis] Completed for image: ${nextImage.id}, queued for price fetching <<<`);
+
+        } catch (error) {
+          console.error('>>> [AI Analysis] Error:', error);
+          setProcessingState(errorState => ({
+            ...errorState,
+            images: new Map(errorState.images).set(nextImage.id, {
+              ...nextImage,
+              status: 'error',
+              error: error instanceof Error ? error.message : 'AI analysis failed'
+            }),
+            processedCount: errorState.processedCount + 1
+          }));
+        }
+      })();
+
+      return {
+        ...prev,
+        activeImageId: nextImage.id,
+        images: newImages
+      };
+    });
+  }, [shouldStopProcessing]);
+
+  // Separate processing for price fetching
+  const processPriceFetching = useCallback(async () => {
+    setProcessingState(prev => {
+      // Get images that have been analyzed but need price fetching
+      const analyzedImages = Array.from(prev.images.values())
+        .filter(img => img.status === 'analyzed');
+
+      if (analyzedImages.length === 0) return prev;
+
+      const nextImage = analyzedImages[0];
+      const newItems = nextImage.results;
+
+      if (!newItems || newItems.length === 0) {
+        // Mark as complete if no items to process
+        const newImages = new Map(prev.images);
+        newImages.set(nextImage.id, {
+          ...nextImage,
+          status: 'complete'
+        });
+        return {
+          ...prev,
+          images: newImages,
+          processedCount: prev.processedCount + 1
+        };
+      }
+
+      // Start price fetching
+      const newImages = new Map(prev.images);
+      newImages.set(nextImage.id, {
+        ...nextImage,
+        status: 'fetching'
+      });
+
+      // Trigger async price fetching
+      (async () => {
+        try {
+          console.log(`>>> [Price Fetching] Starting price fetch for ${newItems.length} items from image: ${nextImage.id} <<<`);
+
           // Initialize progress tracking
           setFetchingProgress({ current: 0, total: newItems.length });
 
-          // Fetch prices individually and update inventory as they come in
+          // Fetch prices and update inventory as they come in
           const sessionId = `scan_${Date.now()}`;
           const processedItems: DetectedItem[] = [];
 
@@ -203,7 +267,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
                 setCategorizedInventory(updatedInventory);
               }
 
-              // Clear progress tracking
               setFetchingProgress(undefined);
               return;
             }
@@ -257,9 +320,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
               // Update progress after processing each item
               setFetchingProgress({ current: index + 1, total: newItems.length });
 
-              console.log(`Added ${processedItem.name} to inventory with price ${processedItem.price} (${index + 1}/${newItems.length})`);
+              console.log(`>>> [Price Fetching] Added ${processedItem.name} to inventory with price ${processedItem.price} (${index + 1}/${newItems.length}) <<<`);
             } catch (error) {
-              console.error(`Failed to process ${item.name}:`, error);
+              console.error(`>>> [Price Fetching] Failed to process ${item.name}:`, error);
               const errorItem = { ...item, status: 'error' as const, error: 'Failed to fetch price' };
               processedItems.push(errorItem);
 
@@ -282,47 +345,65 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
             processedCount: final.processedCount + 1
           }));
 
+          console.log(`>>> [Price Fetching] Completed for image: ${nextImage.id} <<<`);
+
         } catch (error) {
-          console.error('Error processing image:', error);
+          console.error('>>> [Price Fetching] Error:', error);
           setProcessingState(errorState => ({
             ...errorState,
             images: new Map(errorState.images).set(nextImage.id, {
               ...nextImage,
               status: 'error',
-              error: error instanceof Error ? error.message : 'Unknown error'
+              error: error instanceof Error ? error.message : 'Price fetching failed'
             }),
             processedCount: errorState.processedCount + 1
           }));
+          setFetchingProgress(undefined);
         }
       })();
 
       return {
         ...prev,
-        activeImageId: nextImage.id,
         images: newImages
       };
     });
   }, [shouldStopProcessing]);
 
-  // Watch for changes in the queue and process next image
+  // Watch for changes and trigger AI analysis (can run in parallel with price fetching)
   useEffect(() => {
-    // Don't start processing if API key is not configured
-    if (!isGeminiConfigured()) {
-      return;
-    }
+    if (!isGeminiConfigured()) return;
 
     const queuedImages = Array.from(processingState.images.values())
       .filter(img => img.status === 'queued');
 
-    const processingImages = Array.from(processingState.images.values())
-      .filter(img => ['analyzing', 'fetching'].includes(img.status));
+    const analyzingImages = Array.from(processingState.images.values())
+      .filter(img => img.status === 'analyzing');
 
-    if (queuedImages.length > 0 && processingImages.length === 0) {
-      processNextImage();
+    // Start AI analysis if we have queued images and no analysis in progress
+    if (queuedImages.length > 0 && analyzingImages.length === 0) {
+      console.log(`>>> [Parallel Processing] Starting AI analysis for ${queuedImages.length} queued images <<<`);
+      processImageAnalysis();
     }
-  }, [processingState.images, processNextImage]);
+  }, [processingState.images, processImageAnalysis]);
 
-  // Start processing when API key becomes available
+  // Watch for analyzed images and trigger price fetching (can run in parallel with AI analysis)
+  useEffect(() => {
+    if (!isGeminiConfigured()) return;
+
+    const analyzedImages = Array.from(processingState.images.values())
+      .filter(img => img.status === 'analyzed');
+
+    const fetchingImages = Array.from(processingState.images.values())
+      .filter(img => img.status === 'fetching');
+
+    // Start price fetching if we have analyzed images and no fetching in progress
+    if (analyzedImages.length > 0 && fetchingImages.length === 0) {
+      console.log(`>>> [Parallel Processing] Starting price fetching for ${analyzedImages.length} analyzed images <<<`);
+      processPriceFetching();
+    }
+  }, [processingState.images, processPriceFetching]);
+
+  // Legacy effect for backward compatibility (remove after testing)
   useEffect(() => {
     if (isGeminiConfigured()) {
       const queuedImages = Array.from(processingState.images.values())
@@ -332,10 +413,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
         .filter(img => ['analyzing', 'fetching'].includes(img.status));
 
       if (queuedImages.length > 0 && processingImages.length === 0) {
-        processNextImage();
+        processImageAnalysis();
       }
     }
-  }, [processNextImage]); // This will trigger when the component mounts or when processNextImage changes
+  }, []); // Empty dependency array for one-time trigger
 
   const handleImageUpload = useCallback((files: FileWithPath[]) => {
     setProcessingState(prev => {
@@ -390,7 +471,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
     ? processingState.images.get(processingState.activeImageId)
     : null;
 
-  const isProcessing = activeImage?.status === 'analyzing' || activeImage?.status === 'fetching';
+  const isProcessing = activeImage?.status === 'analyzing' || activeImage?.status === 'analyzed' || activeImage?.status === 'fetching';
 
   // Story #3: Inventory Management Functions
   const handleRemoveFromInventory = useCallback((itemName: string) => {
@@ -817,6 +898,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
               <ProcessingAnimation
                 stage={
                   activeImage?.status === 'analyzing' ? 'analyzing' :
+                  activeImage?.status === 'analyzed' ? 'analyzed' :
                   activeImage?.status === 'fetching' ? 'fetching' :
                   'analyzing'
                 }

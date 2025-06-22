@@ -50,7 +50,7 @@ export interface ImageState {
   id: string;
   file: FileWithPath;
   preview: string;
-  status: 'queued' | 'analyzing' | 'fetching' | 'complete' | 'error';
+  status: 'queued' | 'analyzing' | 'analyzed' | 'fetching' | 'complete' | 'error';
   results: DetectedItem[];
   error?: string;
 }
