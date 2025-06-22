@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🔄 Service Layer Enhancement** - Updated inventoryService to handle quantity storage, retrieval, and calculations
 - **🎯 AI Service Improvement** - Enhanced parseDetectedItems() function with robust quantity parsing logic
 
+### Added (Latest)
+- **💰 Total Value Column** - Sortable revenue optimization column showing `quantity × price` for maximum profit analysis
+  - **📊 Prime Parts**: Shows `quantity × platinum price` for total value sorting
+  - **🔮 Void Relics**: Shows `quantity × best option value` for optimal revenue calculation
+  - **📱 Mobile Support**: Total value displayed in both desktop tables and mobile cards
+  - **🔄 Sortable**: Click Total Value column header to sort by highest revenue potential
+
 ## [1.7.1] - 2025-01-03
 
 ### Added

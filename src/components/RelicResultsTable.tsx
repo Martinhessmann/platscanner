@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { VoidRelic } from '../types';
-import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink } from 'lucide-react';
+import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap } from 'lucide-react';
 import { getRelicImagePath } from '../lib/relicUtils';
 import { getRelicDropsByName } from '../services/relicDataService';
 
@@ -34,7 +34,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   onRefreshItem,
   showActionButtons = false
 }) => {
-  const [sortField, setSortField] = useState<'name' | 'bestValue' | 'profit' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market'>('bestValue');
+  const [sortField, setSortField] = useState<'name' | 'bestValue' | 'profit' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market' | 'totalValue'>('bestValue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
     // Helper function to calculate expected value for a refinement level
@@ -149,6 +149,10 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         valueA = a.bestValue - Math.min(a.intactValue, a.marketValue);
         valueB = b.bestValue - Math.min(b.intactValue, b.marketValue);
         break;
+      case 'totalValue':
+        valueA = a.bestValue * (a.relic.quantity || 1);
+        valueB = b.bestValue * (b.relic.quantity || 1);
+        break;
       default:
         valueA = a.bestValue;
         valueB = b.bestValue;
@@ -231,6 +235,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                   {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
                 </button>
               </th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-16">Qty</th>
                              <th className="text-center p-3 font-medium text-gray-300 min-w-24">
                  <button
                    onClick={() => handleSort('intact')}
@@ -290,6 +295,16 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                   {sortField === 'bestValue' && (sortDirection === 'asc' ? '↑' : '↓')}
                 </button>
               </th>
+              <th className="text-center p-3 font-medium text-gray-300">
+                <button
+                  onClick={() => handleSort('totalValue')}
+                  className="flex items-center gap-1 hover:text-white transition-colors"
+                >
+                  <Zap size={12} />
+                  Total Value
+                  {sortField === 'totalValue' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </th>
               {showActionButtons && <th className="text-center p-3 font-medium text-gray-300 w-20">Actions</th>}
             </tr>
           </thead>
@@ -326,6 +341,17 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                         )}
                       </div>
                     </div>
+                  </td>
+
+                  {/* Quantity */}
+                  <td className="p-3 text-center">
+                    <span className={`inline-flex items-center justify-center min-w-8 h-6 rounded text-xs font-medium ${
+                      (relic.quantity && relic.quantity > 1)
+                        ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
+                        : 'text-gray-400'
+                    }`}>
+                      {relic.quantity || 1}
+                    </span>
                   </td>
 
                   {/* Intact Opening Value */}
@@ -373,6 +399,16 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                       </span>
                       <span className="text-xs text-gray-400 uppercase tracking-wider">
                         {analysis.recommendation.replace('OPEN_', '').replace('_', ' ')}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* Total Value */}
+                  <td className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <Zap size={12} className="text-yellow-400" />
+                      <span className="font-semibold text-yellow-400">
+                        {(analysis.bestValue * (relic.quantity || 1)).toFixed(1)}p
                       </span>
                     </div>
                   </td>
@@ -436,9 +472,16 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                       }}
                     />
                   </div>
-                  <div>
-                    <div className="font-medium text-white text-sm leading-tight">
-                      {relic.name}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium text-white text-sm leading-tight">
+                        {relic.name}
+                      </div>
+                      {relic.quantity && relic.quantity > 1 && (
+                        <span className="inline-flex items-center justify-center w-6 h-5 text-xs font-medium bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30 rounded">
+                          {relic.quantity}
+                        </span>
+                      )}
                     </div>
                     {relic.rarity && (
                       <div className="flex items-center gap-1 text-xs text-gray-400 capitalize mt-0.5">
@@ -481,7 +524,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
 
               {/* Best Option Highlight */}
               <div className="bg-green-900/20 rounded-lg p-3 mb-4 border border-green-700/30">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-300">Best Option</span>
                   <div className="text-right">
                     <div className="text-lg font-semibold text-green-400">
@@ -490,6 +533,16 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                     <div className="text-xs text-gray-400 uppercase tracking-wider">
                       {analysis.recommendation.replace('OPEN_', '').replace('_', ' ')}
                     </div>
+                  </div>
+                </div>
+                {/* Total Value Row */}
+                <div className="flex items-center justify-between pt-2 border-t border-green-700/30">
+                  <span className="text-sm text-gray-400">Total Value</span>
+                  <div className="flex items-center gap-1">
+                    <Zap size={14} className="text-yellow-400" />
+                    <span className="text-lg font-semibold text-yellow-400">
+                      {(analysis.bestValue * (relic.quantity || 1)).toFixed(1)}p
+                    </span>
                   </div>
                 </div>
               </div>

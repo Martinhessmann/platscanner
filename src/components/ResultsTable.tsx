@@ -17,12 +17,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   onRefreshItem,
   showActionButtons = false
 }) => {
-  const [sortField, setSortField] = useState<'price' | 'name' | 'ducats'>('price');
+  const [sortField, setSortField] = useState<'price' | 'name' | 'ducats' | 'totalValue'>('price');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSortOptions, setShowSortOptions] = useState(false);
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
 
-  const handleSort = (field: 'price' | 'name' | 'ducats') => {
+  const handleSort = (field: 'price' | 'name' | 'ducats' | 'totalValue') => {
     console.log(`>>> [ResultsTable] Sort clicked: ${field}, current: ${sortField}, direction: ${sortDirection} <<<`);
 
     if (sortField === field) {
@@ -46,6 +46,11 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
       const ducatsA = a.ducats || 0;
       const ducatsB = b.ducats || 0;
       const result = sortDirection === 'asc' ? ducatsA - ducatsB : ducatsB - ducatsA;
+      return result;
+    } else if (sortField === 'totalValue') {
+      const totalValueA = (a.price || 0) * (a.quantity || 1);
+      const totalValueB = (b.price || 0) * (b.quantity || 1);
+      const result = sortDirection === 'asc' ? totalValueA - totalValueB : totalValueB - totalValueA;
       return result;
     } else {
       const result = sortDirection === 'asc'
@@ -88,6 +93,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
     switch (sortField) {
       case 'price': return `Plat ${direction}`;
       case 'ducats': return `Ducats ${direction}`;
+      case 'totalValue': return `Total Value ${direction}`;
       case 'name': return `Name ${direction}`;
     }
   };
@@ -142,6 +148,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               </th>
               <th className="text-center p-3 font-medium text-gray-300 min-w-24">Volume</th>
               <th className="text-center p-3 font-medium text-gray-300 min-w-24">Average</th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">
+                <button
+                  onClick={() => handleSort('totalValue')}
+                  className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
+                >
+                  <Zap size={12} />
+                  Total Value
+                  {sortField === 'totalValue' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </th>
               <th className="text-center p-3 font-medium text-gray-300 min-w-24">Market</th>
               {showActionButtons && <th className="text-center p-3 font-medium text-gray-300 w-20">Actions</th>}
             </tr>
@@ -221,6 +237,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                 {/* Average */}
                 <td className="p-3 text-center text-gray-300">
                   {item.average || '-'}
+                </td>
+
+                {/* Total Value */}
+                <td className="p-3 text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <Zap size={12} className="text-yellow-400" />
+                    <span className="font-medium text-yellow-400">
+                      {((item.price || 0) * (item.quantity || 1))}p
+                    </span>
+                  </div>
                 </td>
 
                 {/* Market Link */}
@@ -320,6 +346,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    handleSort('totalValue');
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <Zap size={12} className="text-yellow-400" />
+                  Total Value {sortField === 'totalValue' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     handleSort('name');
                   }}
                   className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-lg flex items-center gap-2"
@@ -405,7 +442,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
 
             {/* Main Value Highlight */}
             <div className="bg-gray-800/50 rounded-lg p-3 mb-4 border border-gray-700/30">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-300">Current Price</span>
                 <div className="text-right">
                   {item.status === 'loading' ? (
@@ -428,6 +465,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                       )}
                     </div>
                   )}
+                </div>
+              </div>
+              {/* Total Value Row */}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-700/30">
+                <span className="text-sm text-gray-400">Total Value</span>
+                <div className="flex items-center gap-1">
+                  <Zap size={14} className="text-yellow-400" />
+                  <span className="text-lg font-semibold text-yellow-400">
+                    {((item.price || 0) * (item.quantity || 1))}p
+                  </span>
                 </div>
               </div>
             </div>
