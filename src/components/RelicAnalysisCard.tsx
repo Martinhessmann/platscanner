@@ -169,6 +169,11 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
                 <span className="ml-1">({calculateProfitDisplay()})</span>
               )}
             </span>
+            {relic.quantity && relic.quantity > 1 && (
+              <span className="inline-flex items-center justify-center w-5 h-4 text-xs font-medium bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30 rounded">
+                {relic.quantity}
+              </span>
+            )}
           </div>
 
           {onOpenMarket && (

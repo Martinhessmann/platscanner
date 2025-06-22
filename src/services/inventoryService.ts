@@ -13,6 +13,7 @@ export interface InventoryItem {
   id: string;
   name: string;
   category: ItemCategory;
+  quantity?: number; // Number of this item owned (default: 1)
   imgUrl?: string;
   price?: number;
   ducats?: number;
@@ -71,6 +72,7 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
         id: item.id,
         name: item.name,
         category: item.category,
+        quantity: item.quantity,
         imgUrl: item.imgUrl,
         price: item.price,
         ducats: item.ducats,
@@ -251,6 +253,7 @@ export const updateInventoryPrices = (updatedItems: DetectedItem[]): void => {
         const baseUpdate = {
           ...inventoryItem,
           ...updatedItem,
+          quantity: updatedItem.quantity || inventoryItem.quantity, // Preserve or update quantity
           addedAt: inventoryItem.addedAt, // Preserve original add date
           lastUpdated: now
         };
@@ -302,24 +305,24 @@ export const getInventoryStats = (): {
   const inventory = loadInventory();
   const categorized = getCategorizedInventory();
 
-  const totalValue = inventory.items.reduce((sum, item) => sum + (item.price || 0), 0);
-  const totalDucats = inventory.items.reduce((sum, item) => sum + (item.ducats || 0), 0);
+  const totalValue = inventory.items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
+  const totalDucats = inventory.items.reduce((sum, item) => sum + ((item.ducats || 0) * (item.quantity || 1)), 0);
 
   const byCategory: Record<ItemCategory, { count: number; value: number; ducats: number }> = {
     prime_parts: {
-      count: categorized.prime_parts.length,
-      value: categorized.prime_parts.reduce((sum, item) => sum + (item.price || 0), 0),
-      ducats: categorized.prime_parts.reduce((sum, item) => sum + (item.ducats || 0), 0)
+      count: categorized.prime_parts.reduce((sum, item) => sum + (item.quantity || 1), 0),
+      value: categorized.prime_parts.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0),
+      ducats: categorized.prime_parts.reduce((sum, item) => sum + ((item.ducats || 0) * (item.quantity || 1)), 0)
     },
     relics: {
-      count: categorized.relics.length,
-      value: categorized.relics.reduce((sum, item) => sum + (item.price || 0), 0),
-      ducats: categorized.relics.reduce((sum, item) => sum + (item.ducats || 0), 0)
+      count: categorized.relics.reduce((sum, item) => sum + (item.quantity || 1), 0),
+      value: categorized.relics.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0),
+      ducats: categorized.relics.reduce((sum, item) => sum + ((item.ducats || 0) * (item.quantity || 1)), 0)
     }
   };
 
   return {
-    totalItems: inventory.items.length,
+    totalItems: inventory.items.reduce((sum, item) => sum + (item.quantity || 1), 0),
     totalValue,
     totalDucats,
     lastScanDate: inventory.lastScanDate,

@@ -119,6 +119,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
                 </button>
               </th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-16">Qty</th>
               <th className="text-center p-3 font-medium text-gray-300 min-w-24">
                 <button
                   onClick={() => handleSort('price')}
@@ -175,6 +176,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                       )}
                     </div>
                   </div>
+                </td>
+
+                {/* Quantity */}
+                <td className="p-3 text-center">
+                  <span className={`inline-flex items-center justify-center min-w-8 h-6 rounded text-xs font-medium ${
+                    (item.quantity && item.quantity > 1)
+                      ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
+                      : 'text-gray-400'
+                  }`}>
+                    {item.quantity || 1}
+                  </span>
                 </td>
 
                 {/* Platinum */}
@@ -342,9 +354,16 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                     </div>
                   )}
                 </div>
-                <div>
-                  <div className="font-medium text-white text-sm leading-tight">
-                    {item.name}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-white text-sm leading-tight">
+                      {item.name}
+                    </div>
+                    {item.quantity && item.quantity > 1 && (
+                      <span className="inline-flex items-center justify-center w-6 h-5 text-xs font-medium bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30 rounded">
+                        {item.quantity}
+                      </span>
+                    )}
                   </div>
                   {item.status === 'error' && item.error && (
                     <div className="text-xs text-grineer-red mt-0.5">

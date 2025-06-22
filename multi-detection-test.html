@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multi-Item Detection Test</title>
+    <style>
+        body { font-family: Arial; max-width: 1200px; margin: 20px auto; padding: 20px; }
+        .section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .results { background: #f5f5f5; padding: 15px; white-space: pre-wrap; font-family: monospace; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; margin: 5px; }
+        button:disabled { background: #ccc; }
+        .error { color: red; background: #ffebeb; padding: 10px; }
+        .success { color: green; background: #ebffeb; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Multi-Item Detection Test</h1>
+
+    <div class="section">
+        <h2>API Key</h2>
+        <input type="password" id="apiKey" placeholder="Gemini API Key" style="width: 300px; padding: 8px;">
+        <button onclick="setApiKey()">Set Key</button>
+        <div id="apiStatus"></div>
+    </div>
+
+    <div class="section">
+        <h2>Upload Image</h2>
+        <input type="file" id="imageInput" accept="image/*" onchange="handleImage(event)">
+        <div id="imagePreview"></div>
+    </div>
+
+    <div class="section">
+        <h2>Tests</h2>
+        <button onclick="testCurrent()" id="currentBtn" disabled>Current Detection</button>
+        <button onclick="testEnhanced()" id="enhancedBtn" disabled>Enhanced Detection</button>
+        <button onclick="compare()" id="compareBtn" disabled>Compare Both</button>
+    </div>
+
+    <div class="section">
+        <h2>Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai';
+
+        let genAI = null;
+        let currentImage = null;
+
+        window.setApiKey = function() {
+            const key = document.getElementById('apiKey').value.trim();
+            if (!key) {
+                document.getElementById('apiStatus').innerHTML = '<div class="error">Enter API key</div>';
+                return;
+            }
+            try {
+                genAI = new GoogleGenerativeAI(key);
+                document.getElementById('apiStatus').innerHTML = '<div class="success">API key set</div>';
+                updateButtons();
+            } catch (error) {
+                document.getElementById('apiStatus').innerHTML = '<div class="error">Invalid key</div>';
+            }
+        };
+
+        window.handleImage = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            currentImage = file;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('imagePreview').innerHTML =
+                    `<img src="${e.target.result}" style="max-width: 400px; border: 1px solid #ccc;">`;
+                updateButtons();
+            };
+            reader.readAsDataURL(file);
+        };
+
+        function updateButtons() {
+            const ready = genAI && currentImage;
+            document.getElementById('currentBtn').disabled = !ready;
+            document.getElementById('enhancedBtn').disabled = !ready;
+            document.getElementById('compareBtn').disabled = !ready;
+        }
+
+        const CURRENT_PROMPT = `Analyze this Warframe inventory screenshot and identify ONLY owned items:
+
+1. PRIME PARTS: Items with "Prime" in the name
+2. VOID RELICS: Lith, Meso, Neo, Axi relics
+
+EXCLUDE unowned items (eye icon, faded appearance, semi-transparent).
+
+List each item on a separate line with exact name:
+Mirage Prime Blueprint
+Lith A1 Relic (Radiant)`;
+
+        const ENHANCED_PROMPT = `Analyze this Warframe inventory screenshot and identify owned items WITH QUANTITIES:
+
+1. PRIME PARTS: Items with "Prime" in the name
+2. VOID RELICS: Lith, Meso, Neo, Axi relics
+
+QUANTITY DETECTION:
+- Look for "x2", "x5", "x10" indicators on items
+- Small numbers in bottom-right corners
+- Stack indicators or quantity overlays
+- Default to 1 if no quantity visible
+
+EXCLUDE unowned items (eye icon, faded, semi-transparent).
+
+Format: QUANTITY x ITEM_NAME (omit "1 x" for single items)
+Examples:
+Mirage Prime Blueprint
+5 x Lith A1 Relic (Radiant)
+2 x Kronen Prime Blade`;
+
+        async function fileToBase64(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result.split(',')[1]);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function runDetection(prompt, title) {
+            try {
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                const imageBase64 = await fileToBase64(currentImage);
+
+                const result = await model.generateContent([
+                    prompt,
+                    { inlineData: { mimeType: currentImage.type, data: imageBase64 } }
+                ]);
+
+                const text = result.response.text();
+                const items = parseItems(text);
+
+                return { raw: text, items };
+            } catch (error) {
+                return { raw: `Error: ${error.message}`, items: [] };
+            }
+        }
+
+        function parseItems(text) {
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            const items = [];
+
+            lines.forEach((line, i) => {
+                let quantity = 1;
+                let cleanLine = line;
+
+                // Parse quantity patterns
+                const qMatch = line.match(/^(\d+)\s*x\s*(.+)$/i);
+                if (qMatch) {
+                    quantity = parseInt(qMatch[1]);
+                    cleanLine = qMatch[2].trim();
+                }
+
+                if (cleanLine.includes('Prime')) {
+                    items.push({ name: cleanLine, category: 'prime_parts', quantity });
+                } else if (cleanLine.includes('Relic') || /\b(Lith|Meso|Neo|Axi)\s+[A-Z]\d+/.test(cleanLine)) {
+                    let rarity = 'intact';
+                    const rarityMatch = cleanLine.match(/(.*?)\s+[\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/i);
+                    if (rarityMatch) {
+                        cleanLine = rarityMatch[1].trim();
+                        rarity = rarityMatch[2].toLowerCase();
+                    }
+                    items.push({ name: cleanLine, category: 'relics', rarity, quantity });
+                }
+            });
+
+            return items;
+        }
+
+        window.testCurrent = async function() {
+            document.getElementById('results').innerHTML = 'Testing current detection...';
+            const result = await runDetection(CURRENT_PROMPT, 'Current');
+            showResults('Current Detection', result);
+        };
+
+        window.testEnhanced = async function() {
+            document.getElementById('results').innerHTML = 'Testing enhanced detection...';
+            const result = await runDetection(ENHANCED_PROMPT, 'Enhanced');
+            showResults('Enhanced Detection', result);
+        };
+
+        window.compare = async function() {
+            document.getElementById('results').innerHTML = 'Running comparison...';
+            const [current, enhanced] = await Promise.all([
+                runDetection(CURRENT_PROMPT, 'Current'),
+                runDetection(ENHANCED_PROMPT, 'Enhanced')
+            ]);
+            showComparison(current, enhanced);
+        };
+
+        function showResults(title, result) {
+            const totalQty = result.items.reduce((sum, item) => sum + item.quantity, 0);
+            document.getElementById('results').innerHTML = `
+                <h3>${title}</h3>
+                <h4>Raw Response:</h4>
+                <div class="results">${result.raw}</div>
+                <h4>Parsed Items (${result.items.length} unique, ${totalQty} total):</h4>
+                <ul>
+                    ${result.items.map(item => `
+                        <li>${item.quantity > 1 ? `<strong>${item.quantity}x</strong> ` : ''}${item.name} (${item.category})</li>
+                    `).join('')}
+                </ul>
+            `;
+        }
+
+        function showComparison(current, enhanced) {
+            const currentTotal = current.items.reduce((sum, item) => sum + item.quantity, 0);
+            const enhancedTotal = enhanced.items.reduce((sum, item) => sum + item.quantity, 0);
+            const multiQty = enhanced.items.filter(item => item.quantity > 1);
+
+            document.getElementById('results').innerHTML = `
+                <h3>Comparison Results</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <h4>Current (${current.items.length} items, ${currentTotal} total)</h4>
+                        <div class="results">${current.raw}</div>
+                    </div>
+                    <div>
+                        <h4>Enhanced (${enhanced.items.length} items, ${enhancedTotal} total)</h4>
+                        <div class="results">${enhanced.raw}</div>
+                    </div>
+                </div>
+                <h4>Summary:</h4>
+                <ul>
+                    <li>Current: ${current.items.length} unique items, ${currentTotal} total quantity</li>
+                    <li>Enhanced: ${enhanced.items.length} unique items, ${enhancedTotal} total quantity</li>
+                    <li>Multi-quantity items found: ${multiQty.length}</li>
+                    <li>Items with quantities > 1: ${multiQty.map(i => `${i.quantity}x ${i.name}`).join(', ')}</li>
+                </ul>
+            `;
+        }
+    </script>
+</body>
+</html>

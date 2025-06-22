@@ -72,7 +72,7 @@ const isErrorResponse = (text: string): boolean => {
 };
 
 /**
- * Parse the AI response to categorize detected items
+ * Parse the AI response to categorize detected items with quantity support
  */
 const parseDetectedItems = (responseText: string): DetectedItem[] => {
   const lines = responseText
@@ -83,27 +83,40 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
   const detectedItems: DetectedItem[] = [];
 
   lines.forEach((line, index) => {
+    // Parse quantity from formats like "5 x Item Name", "x5 Item Name", "2x Item Name"
+    let quantity = 1;
+    let cleanLine = line;
+
+    // Match patterns like "5 x", "x5", "2x", etc.
+    const quantityMatch = line.match(/^(\d+)\s*x\s*(.+)$/i) || line.match(/^x(\d+)\s*(.+)$/i);
+    if (quantityMatch) {
+      quantity = parseInt(quantityMatch[1]);
+      cleanLine = quantityMatch[2].trim();
+      console.log(`>>> [AI Parsing] Found quantity: ${quantity}x for "${cleanLine}" <<<`);
+    }
+
     // Check if it's a Prime part
-    if (line.includes('Prime')) {
+    if (cleanLine.includes('Prime')) {
       const primeItem: PrimePart = {
         id: `prime-${Date.now()}-${index}`,
-        name: line,
+        name: cleanLine,
         category: 'prime_parts',
+        quantity,
         status: 'loading'
       };
       detectedItems.push(primeItem);
     }
     // Check if it's a Void Relic
-    else if (line.includes('Relic') || /\b(Lith|Meso|Neo|Axi)\s+[A-Z]\d+/.test(line)) {
-      let relicName = line;
+    else if (cleanLine.includes('Relic') || /\b(Lith|Meso|Neo|Axi)\s+[A-Z]\d+/.test(cleanLine)) {
+      let relicName = cleanLine;
       let rarity: VoidRelic['rarity'] = 'intact'; // default
 
-      console.log(`>>> [AI Parsing] Processing relic line: "${line}" <<<`);
+      console.log(`>>> [AI Parsing] Processing relic line: "${cleanLine}" (quantity: ${quantity}) <<<`);
 
       // Enhanced regex to capture the relic name and optional refinement level in parentheses OR square brackets
       // This pattern handles both formats: "Neo W2 Relic (Radiant)" and "Neo W2 Relic [Radiant]"
       const relicRegex = /(.*?)\s+[\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/i;
-      const match = line.match(relicRegex);
+      const match = cleanLine.match(relicRegex);
 
       console.log(`>>> [AI Parsing] Regex match result:`, match);
 
@@ -122,7 +135,7 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
 
         // Check for "Neo W2 Radiant Relic" format (rarity before "Relic")
         const alternativeRegex = /(.*?)\s+(Intact|Exceptional|Flawless|Radiant)\s+Relic/i;
-        const altMatch = line.match(alternativeRegex);
+        const altMatch = cleanLine.match(alternativeRegex);
 
         if (altMatch) {
           relicName = `${altMatch[1]} Relic`;
@@ -137,13 +150,14 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
         }
       }
 
-      console.log(`>>> [AI Parsing] Final result - name: "${relicName}", rarity: "${rarity}" <<<`);
+      console.log(`>>> [AI Parsing] Final result - name: "${relicName}", rarity: "${rarity}", quantity: ${quantity} <<<`);
 
       const relicItem: VoidRelic = {
         id: `relic-${Date.now()}-${index}`,
         name: relicName, // Use the extracted name without rarity
         category: 'relics',
         rarity,
+        quantity,
         status: 'loading'
       };
       detectedItems.push(relicItem);
@@ -163,10 +177,17 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     const imageBase64 = await fileToBase64(imageFile);
 
     const prompt = `
-      Analyze this Warframe inventory screenshot and identify ONLY owned items from the following categories:
+      Analyze this Warframe inventory screenshot and identify ONLY owned items WITH THEIR QUANTITIES from the following categories:
 
       1. PRIME PARTS: Any items with "Prime" in the name.
       2. VOID RELICS: Items that are Void Relics (Lith, Meso, Neo, Axi followed by a letter and number).
+
+      QUANTITY DETECTION - CRITICAL:
+      - Look for quantity indicators like "x2", "x5", "x10" etc. overlayed on item icons
+      - Small numbers in the bottom-right corner of item icons indicate quantity
+      - Stack indicators or quantity overlays on items show multiple copies
+      - If you see multiple identical items stacked or with quantity indicators, COUNT THEM CAREFULLY
+      - Default to quantity 1 if no quantity indicator is visible
 
       CRITICAL INSTRUCTIONS FOR RELICS - STRICT FILTERING REQUIRED:
       - ONLY detect relics that are ACTUALLY OWNED AND AVAILABLE
@@ -186,14 +207,17 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
       - Solid, bright relic icon = INCLUDE (owned relic)
       - When in doubt, EXCLUDE the relic rather than include it
 
-      List each detected item on a separate line with the exact name.
+      RESPONSE FORMAT:
+      List each detected item with its quantity. Use the format "QUANTITY x ITEM_NAME" for multiple items.
+      For single items (quantity 1), you can omit the "1 x" prefix.
       Do not include any additional text, explanations, or categories.
 
       Example format:
       Mirage Prime Blueprint
-      Kronen Prime Blade
-      Lith A1 Relic (Radiant)
+      2 x Kronen Prime Blade
+      5 x Lith A1 Relic (Radiant)
       Neo Z3 Relic (Intact)
+      3 x Banshee Prime Systems
     `;
 
     const result = await model.generateContent([

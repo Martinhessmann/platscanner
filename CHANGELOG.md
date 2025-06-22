@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **🎯 Multi-Item Quantity Detection** - Revolutionary detection system that identifies and displays item quantities
+  - **🔍 Enhanced AI Detection** - Upgraded Gemini prompts to recognize quantity indicators like "x5", "x10", etc.
+  - **📊 Quantity Parsing** - Smart parsing of formats: "5 x Item Name", "x5 Item Name", "2x Item Name"
+  - **🖥️ Desktop Table Display** - New "Qty" column with highlighted quantity badges for items >1
+  - **📱 Mobile Card Display** - Quantity badges shown next to item names in mobile view
+  - **📦 Inventory Quantity Support** - Persistent storage and management of item quantities
+  - **📈 Quantity-Aware Statistics** - Total values calculated as price × quantity for accurate inventory worth
+  - **⚖️ Enhanced Market Economics** - Refinement analysis and recommendations now account for multiple copies
+  - **🧪 Test Framework** - Created standalone test tool (`multi-detection-test.html`) for comparing detection methods
+
+### Enhanced
+- **📊 Inventory Statistics** - Total items count now includes quantities (e.g., "5x Lith A1 Relic" counts as 5 items)
+- **🎨 UI Visual Improvements** - Quantity badges use consistent Tenno Blue styling with subtle borders
+- **💰 Value Calculations** - All inventory value totals now multiply by quantity for accurate portfolio assessment
+
+### Technical
+- **🏗️ Type System Updates** - Added `quantity?: number` field to BaseItem, InventoryItem, and all related interfaces
+- **🔄 Service Layer Enhancement** - Updated inventoryService to handle quantity storage, retrieval, and calculations
+- **🎯 AI Service Improvement** - Enhanced parseDetectedItems() function with robust quantity parsing logic
+
 ## [1.7.1] - 2025-01-03
 
 ### Added

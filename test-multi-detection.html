@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Item Detection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .results {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .image-preview {
+            max-width: 500px;
+            max-height: 400px;
+            border: 1px solid #ccc;
+        }
+        button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .error {
+            color: red;
+            background: #ffebeb;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            color: green;
+            background: #ebffeb;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .quantity-highlight {
+            background: yellow;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔬 Multi-Item Detection Test Lab</h1>
+
+    <div class="test-section">
+        <h2>🔑 Gemini API Key Setup</h2>
+        <input type="password" id="apiKey" placeholder="Enter your Gemini API Key" style="width: 300px; padding: 8px;">
+        <button onclick="setApiKey()">Set API Key</button>
+        <div id="apiStatus"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📸 Image Upload</h2>
+        <input type="file" id="imageInput" accept="image/*" onchange="handleImageUpload(event)">
+        <div id="imagePreview"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 Detection Tests</h2>
+        <button onclick="testCurrentDetection()" id="currentBtn" disabled>Test Current Detection</button>
+        <button onclick="testEnhancedDetection()" id="enhancedBtn" disabled>Test Enhanced Multi-Detection</button>
+        <button onclick="compareResults()" id="compareBtn" disabled>Compare Both</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Results</h2>
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai';
+
+        let genAI = null;
+        let currentImage = null;
+
+        window.setApiKey = function() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            if (!apiKey) {
+                document.getElementById('apiStatus').innerHTML = '<div class="error">Please enter an API key</div>';
+                return;
+            }
+
+            try {
+                genAI = new GoogleGenerativeAI(apiKey);
+                document.getElementById('apiStatus').innerHTML = '<div class="success">✅ API Key configured successfully</div>';
+                updateButtonStates();
+            } catch (error) {
+                document.getElementById('apiStatus').innerHTML = '<div class="error">❌ Failed to configure API key: ' + error.message + '</div>';
+            }
+        };
+
+        window.handleImageUpload = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            currentImage = file;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('imagePreview').innerHTML = `
+                    <h3>Preview:</h3>
+                    <img src="${e.target.result}" class="image-preview" alt="Preview">
+                    <p>File: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</p>
+                `;
+                updateButtonStates();
+            };
+            reader.readAsDataURL(file);
+        };
+
+        function updateButtonStates() {
+            const hasApi = genAI !== null;
+            const hasImage = currentImage !== null;
+            const canTest = hasApi && hasImage;
+
+            document.getElementById('currentBtn').disabled = !canTest;
+            document.getElementById('enhancedBtn').disabled = !canTest;
+            document.getElementById('compareBtn').disabled = !canTest;
+        }
+
+        async function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => {
+                    const result = reader.result;
+                    const base64 = result.split(',')[1];
+                    resolve(base64);
+                };
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        // Current detection prompt (from existing code)
+        const CURRENT_PROMPT = `
+            Analyze this Warframe inventory screenshot and identify ONLY owned items from the following categories:
+
+            1. PRIME PARTS: Any items with "Prime" in the name.
+            2. VOID RELICS: Items that are Void Relics (Lith, Meso, Neo, Axi followed by a letter and number).
+
+            CRITICAL INSTRUCTIONS FOR RELICS - STRICT FILTERING REQUIRED:
+            - ONLY detect relics that are ACTUALLY OWNED AND AVAILABLE
+            - COMPLETELY EXCLUDE any relics that have:
+                * An eye icon in the top left corner (these are unowned)
+                * Semi-transparent or faded appearance
+                * Grayed out or darkened icons
+                * Lower brightness/contrast than fully owned items
+            - Focus on the RELIC ICON itself, not just the text label
+            - Even if the text is clear, if the relic icon looks faded or has an eye icon, EXCLUDE it
+            - ONLY count relics with bright, solid, fully opaque icons like the owned inventory items
+
+            VISUAL DETECTION GUIDELINES:
+            - Compare relic icon brightness to Prime part icons - they should look equally bright
+            - Eye icon in corner = EXCLUDE (unowned relic)
+            - Faded/ghosted relic icon = EXCLUDE (unowned relic)
+            - Solid, bright relic icon = INCLUDE (owned relic)
+            - When in doubt, EXCLUDE the relic rather than include it
+
+            List each detected item on a separate line with the exact name.
+            Do not include any additional text, explanations, or categories.
+
+            Example format:
+            Mirage Prime Blueprint
+            Kronen Prime Blade
+            Lith A1 Relic (Radiant)
+            Neo Z3 Relic (Intact)
+        `;
+
+        // Enhanced prompt for multi-item detection
+        const ENHANCED_PROMPT = `
+            Analyze this Warframe inventory screenshot and identify OWNED items with their QUANTITIES from the following categories:
+
+            1. PRIME PARTS: Any items with "Prime" in the name.
+            2. VOID RELICS: Items that are Void Relics (Lith, Meso, Neo, Axi followed by a letter and number).
+
+            QUANTITY DETECTION - CRITICAL:
+            - Look for quantity indicators like "x2", "x5", "x10" etc. in the corner or overlay of items
+            - Small numbers in the bottom-right corner of item icons indicate quantity
+            - If you see stacked items or quantity overlays, COUNT THEM CAREFULLY
+            - Default quantity is 1 if no quantity indicator is visible
+
+            CRITICAL INSTRUCTIONS FOR RELICS - STRICT FILTERING REQUIRED:
+            - ONLY detect relics that are ACTUALLY OWNED AND AVAILABLE
+            - COMPLETELY EXCLUDE any relics that have:
+                * An eye icon in the top left corner (these are unowned)
+                * Semi-transparent or faded appearance
+                * Grayed out or darkened icons
+                * Lower brightness/contrast than fully owned items
+            - Focus on the RELIC ICON itself, not just the text label
+            - Even if the text is clear, if the relic icon looks faded or has an eye icon, EXCLUDE it
+            - ONLY count relics with bright, solid, fully opaque icons like the owned inventory items
+
+            VISUAL DETECTION GUIDELINES:
+            - Compare relic icon brightness to Prime part icons - they should look equally bright
+            - Eye icon in corner = EXCLUDE (unowned relic)
+            - Faded/ghosted relic icon = EXCLUDE (unowned relic)
+            - Solid, bright relic icon = INCLUDE (owned relic)
+            - When in doubt, EXCLUDE the relic rather than include it
+
+            RESPONSE FORMAT:
+            For each item, provide: QUANTITY x ITEM_NAME
+            If quantity is 1, you can omit the "1 x" part.
+
+            Example format:
+            Mirage Prime Blueprint
+            2 x Kronen Prime Blade
+            5 x Lith A1 Relic (Radiant)
+            Neo Z3 Relic (Intact)
+            3 x Banshee Prime Systems
+        `;
+
+        window.testCurrentDetection = async function() {
+            await runDetection(CURRENT_PROMPT, "Current Detection");
+        };
+
+        window.testEnhancedDetection = async function() {
+            await runDetection(ENHANCED_PROMPT, "Enhanced Multi-Detection");
+        };
+
+        window.compareResults = async function() {
+            document.getElementById('results').innerHTML = '<div>🔄 Running both tests...</div>';
+
+            const [currentResults, enhancedResults] = await Promise.all([
+                runDetectionSilent(CURRENT_PROMPT),
+                runDetectionSilent(ENHANCED_PROMPT)
+            ]);
+
+            const comparison = `
+<h3>🔬 Comparison Results</h3>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <div>
+        <h4>📊 Current Detection (${currentResults.items.length} items)</h4>
+        <div class="results">${currentResults.raw}</div>
+        <strong>Parsed Items:</strong>
+        <ul>
+            ${currentResults.items.map(item => `<li>${item.quantity > 1 ? `<span class="quantity-highlight">${item.quantity}x</span> ` : ''}${item.name} (${item.category})</li>`).join('')}
+        </ul>
+    </div>
+
+    <div>
+        <h4>🚀 Enhanced Multi-Detection (${enhancedResults.items.length} items)</h4>
+        <div class="results">${enhancedResults.raw}</div>
+        <strong>Parsed Items:</strong>
+        <ul>
+            ${enhancedResults.items.map(item => `<li>${item.quantity > 1 ? `<span class="quantity-highlight">${item.quantity}x</span> ` : ''}${item.name} (${item.category})</li>`).join('')}
+        </ul>
+    </div>
+</div>
+
+<h4>📈 Summary</h4>
+<ul>
+    <li><strong>Current Detection:</strong> ${currentResults.items.length} unique items detected</li>
+    <li><strong>Enhanced Detection:</strong> ${enhancedResults.items.length} unique items detected</li>
+    <li><strong>Total Quantity (Current):</strong> ${currentResults.items.reduce((sum, item) => sum + item.quantity, 0)} items</li>
+    <li><strong>Total Quantity (Enhanced):</strong> ${enhancedResults.items.reduce((sum, item) => sum + item.quantity, 0)} items</li>
+    <li><strong>Multi-quantity Items Found:</strong> ${enhancedResults.items.filter(item => item.quantity > 1).length} items with quantities > 1</li>
+</ul>
+            `;
+
+            document.getElementById('results').innerHTML = comparison;
+        };
+
+        async function runDetection(prompt, title) {
+            const results = await runDetectionSilent(prompt);
+
+            const output = `
+<h3>${title}</h3>
+<h4>Raw AI Response:</h4>
+<div class="results">${results.raw}</div>
+<h4>Parsed Results (${results.items.length} items):</h4>
+<ul>
+    ${results.items.map(item => `
+        <li>
+            ${item.quantity > 1 ? `<span class="quantity-highlight">${item.quantity}x</span> ` : ''}
+            <strong>${item.name}</strong>
+            (${item.category}${item.rarity ? `, ${item.rarity}` : ''})
+        </li>
+    `).join('')}
+</ul>
+<h4>Total Quantity: ${results.items.reduce((sum, item) => sum + item.quantity, 0)} items</h4>
+            `;
+
+            document.getElementById('results').innerHTML = output;
+        }
+
+        async function runDetectionSilent(prompt) {
+            try {
+                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                const imageBase64 = await fileToBase64(currentImage);
+
+                const result = await model.generateContent([
+                    prompt,
+                    {
+                        inlineData: {
+                            mimeType: currentImage.type,
+                            data: imageBase64
+                        }
+                    }
+                ]);
+
+                const response = await result.response;
+                const text = response.text();
+
+                return {
+                    raw: text,
+                    items: parseDetectedItemsWithQuantity(text)
+                };
+            } catch (error) {
+                return {
+                    raw: `Error: ${error.message}`,
+                    items: []
+                };
+            }
+        }
+
+        function parseDetectedItemsWithQuantity(responseText) {
+            const lines = responseText
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+
+            const detectedItems = [];
+
+            lines.forEach((line, index) => {
+                // Parse quantity from format "5 x Item Name" or "x5 Item Name"
+                let quantity = 1;
+                let cleanLine = line;
+
+                // Match patterns like "5 x", "x5", "2x", etc.
+                const quantityMatch = line.match(/^(\d+)\s*x\s*(.+)$/i) || line.match(/^x(\d+)\s*(.+)$/i);
+                if (quantityMatch) {
+                    quantity = parseInt(quantityMatch[1]);
+                    cleanLine = quantityMatch[2].trim();
+                }
+
+                // Check if it's a Prime part
+                if (cleanLine.includes('Prime')) {
+                    detectedItems.push({
+                        id: `prime-${Date.now()}-${index}`,
+                        name: cleanLine,
+                        category: 'prime_parts',
+                        quantity: quantity
+                    });
+                }
+                // Check if it's a Void Relic
+                else if (cleanLine.includes('Relic') || /\b(Lith|Meso|Neo|Axi)\s+[A-Z]\d+/.test(cleanLine)) {
+                    let relicName = cleanLine;
+                    let rarity = 'intact'; // default
+
+                    // Enhanced regex to capture the relic name and optional refinement level
+                    const relicRegex = /(.*?)\s+[\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/i;
+                    const match = cleanLine.match(relicRegex);
+
+                    if (match) {
+                        relicName = match[1].trim();
+                        const detectedRarity = match[2].toLowerCase();
+                        if (['intact', 'exceptional', 'flawless', 'radiant'].includes(detectedRarity)) {
+                            rarity = detectedRarity;
+                        }
+                    } else {
+                        // Try alternative formats
+                        const alternativeRegex = /(.*?)\s+(Intact|Exceptional|Flawless|Radiant)\s+Relic/i;
+                        const altMatch = cleanLine.match(alternativeRegex);
+                        if (altMatch) {
+                            relicName = `${altMatch[1]} Relic`;
+                            const detectedRarity = altMatch[2].toLowerCase();
+                            if (['intact', 'exceptional', 'flawless', 'radiant'].includes(detectedRarity)) {
+                                rarity = detectedRarity;
+                            }
+                        }
+                    }
+
+                    detectedItems.push({
+                        id: `relic-${Date.now()}-${index}`,
+                        name: relicName,
+                        category: 'relics',
+                        rarity: rarity,
+                        quantity: quantity
+                    });
+                }
+            });
+
+            return detectedItems;
+        }
+    </script>
+</body>
+</html>

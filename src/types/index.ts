@@ -6,6 +6,7 @@ export interface BaseItem {
   id: string;
   name: string;
   category: ItemCategory;
+  quantity?: number; // Number of this item owned (default: 1)
   imgUrl?: string;
   price?: number;
   ducats?: number;

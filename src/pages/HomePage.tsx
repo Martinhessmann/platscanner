@@ -456,13 +456,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
           updatedItem = {
             ...basicItem,
             category: 'relics' as const,
+            quantity: relicItem.quantity, // ✅ Preserve original quantity
             minDropValue: relicAnalysis.minDropValue,
             maxDropValue: relicAnalysis.maxDropValue,
             expectedDropValue: relicAnalysis.expectedDropValue,
             recommendation: relicAnalysis.recommendation,
             expectedProfit: relicAnalysis.expectedProfit,
             directSalePrice: relicAnalysis.directSalePrice,
-            relicDrops: relicAnalysis.relicDrops
+            relicDrops: relicAnalysis.relicDrops,
+            refinementAnalysis: relicAnalysis.refinementAnalysis
           };
         } else {
           updatedItem = basicItem;
@@ -557,13 +559,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
               updatedItem = {
                 ...basicItem,
                 category: 'relics' as const,
+                quantity: relicItem.quantity, // ✅ Preserve original quantity
                 minDropValue: relicAnalysis.minDropValue,
                 maxDropValue: relicAnalysis.maxDropValue,
                 expectedDropValue: relicAnalysis.expectedDropValue,
                 recommendation: relicAnalysis.recommendation,
                 expectedProfit: relicAnalysis.expectedProfit,
                 directSalePrice: relicAnalysis.directSalePrice,
-                relicDrops: relicAnalysis.relicDrops
+                relicDrops: relicAnalysis.relicDrops,
+                refinementAnalysis: relicAnalysis.refinementAnalysis
               };
             } else {
               updatedItem = basicItem;
@@ -681,13 +685,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
               updatedItem = {
                 ...basicItem,
                 category: 'relics' as const,
+                quantity: relicItem.quantity, // ✅ Preserve original quantity
                 minDropValue: relicAnalysis.minDropValue,
                 maxDropValue: relicAnalysis.maxDropValue,
                 expectedDropValue: relicAnalysis.expectedDropValue,
                 recommendation: relicAnalysis.recommendation,
                 expectedProfit: relicAnalysis.expectedProfit,
                 directSalePrice: relicAnalysis.directSalePrice,
-                relicDrops: relicAnalysis.relicDrops
+                relicDrops: relicAnalysis.relicDrops,
+                refinementAnalysis: relicAnalysis.refinementAnalysis
               };
             } else {
               updatedItem = basicItem;
