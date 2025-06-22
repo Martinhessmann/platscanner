@@ -48,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **📱 Mobile Support**: Total value displayed in both desktop tables and mobile cards
   - **🔄 Sortable**: Click Total Value column header to sort by highest revenue potential
 
+### Enhanced (Latest)
+- **🎯 Default Total Value Sorting** - Relics now sort by total plat outcome (best value × quantity) by default for maximum revenue prioritization
+
 ## [1.7.1] - 2025-01-03
 
 ### Added

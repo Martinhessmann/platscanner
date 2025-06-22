@@ -34,7 +34,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   onRefreshItem,
   showActionButtons = false
 }) => {
-  const [sortField, setSortField] = useState<'name' | 'bestValue' | 'profit' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market' | 'totalValue'>('bestValue');
+  const [sortField, setSortField] = useState<'name' | 'bestValue' | 'profit' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market' | 'totalValue'>('totalValue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
     // Helper function to calculate expected value for a refinement level
