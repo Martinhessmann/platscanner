@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DetectedItem } from '../types';
-import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical, Copy } from 'lucide-react';
 
 interface ResultsTableProps {
   results: DetectedItem[];
@@ -105,9 +105,25 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
         <div className="text-sm text-gray-400">
           {results.length} item{results.length !== 1 ? 's' : ''}
         </div>
-        <div className="text-xs text-gray-500">
-          <span className="hidden lg:inline">Trading Platform View • All values in Platinum</span>
-          <span className="lg:hidden">All values in Platinum</span>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const priceText = sortedResults.map(item =>
+                `${item.name}: ${(item.price || 0)}p${item.ducats ? ` (${item.ducats} ducats)` : ''}`
+              ).join('\n');
+              navigator.clipboard.writeText(priceText);
+              // Could add toast notification here
+            }}
+            className="flex items-center gap-1 px-2 py-1 text-xs bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30 rounded hover:bg-tenno-blue/30 transition-colors"
+            title="Copy all prices to clipboard for sharing"
+          >
+            <Copy size={12} />
+            Copy Prices
+          </button>
+          <div className="text-xs text-gray-500">
+            <span className="hidden lg:inline">Trading Platform View • All values in Platinum</span>
+            <span className="lg:hidden">All values in Platinum</span>
+          </div>
         </div>
       </div>
 

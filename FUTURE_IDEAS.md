@@ -227,3 +227,41 @@ Recommendation: REFINE (+167% ROI, 5p gain for 100 traces)
 - Extended item type support
 
 This roadmap balances high-impact user features with technical improvements, ensuring the platform remains stable while adding valuable functionality for Warframe traders.
+
+## 🎯 WFInfo-Inspired Features (v1.9.0+)
+
+### Auto Mode Implementation
+- **Game Log Monitoring**: Monitor Warframe's `EE.log` for automatic fissure detection
+- **Auto-Screenshot**: Trigger analysis when "Got rewards" appears in logs
+- **Background Process**: Eliminate manual upload requirement
+- **File Watcher**: Real-time log monitoring with debounced triggers
+
+### Clipboard & Sharing Features
+- **Price Copying**: One-click copy of item prices in chat-friendly format
+- **Quick Share**: "Copy All Prices" button for party sharing
+- **Format Options**: Multiple clipboard formats (simple, detailed, linked)
+- **Auto-linking**: Generate Warframe chat links `[Item Name]`
+
+### Prime Set Management
+- **Equipment Panel**: Complete view of all prime warframes/weapons
+- **Set Calculator**: Total cost analysis for complete sets
+- **Owned Tracking**: Mark which parts you own vs need to buy
+- **Set Priorities**: Recommend which sets to complete first based on cost
+
+### Enhanced Warframe.Market Integration
+- **Auto Status**: Detect game running/AFK for online status management
+- **Direct Listing**: "List Item" buttons in results tables
+- **Bulk Operations**: List multiple items after missions
+- **Price Monitoring**: Track your listings and competitor prices
+
+### Advanced Inventory Features
+- **Full Inventory Scan**: Multi-screenshot scanning of entire inventory
+- **CSV Export**: Export inventory data for external analysis
+- **Valuation Reports**: Total portfolio worth with trending
+- **Bulk Management**: Mass actions (sell, keep, highlight)
+
+### Quality of Life Improvements
+- **Auto-Update System**: Background version checking and updates
+- **Custom Hotkeys**: Configurable keyboard shortcuts
+- **Screenshot History**: Keep recent analysis results
+- **Performance Analytics**: Track scanning accuracy and speed

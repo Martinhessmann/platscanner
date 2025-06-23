@@ -17,8 +17,9 @@ import {
 } from '../services/inventoryService';
 import { ImageState, DetectedItem, ProcessingState, VoidRelic } from '../types';
 import InfoCard from '../components/InfoCard';
+import PrimeSetsSection from '../components/PrimeSetsSection';
 import { FileWithPath } from 'react-dropzone';
-import { RefreshCw, Package, Trash2, Archive, Zap, Key, Coins } from 'lucide-react';
+import { RefreshCw, Package, Trash2, Archive, Zap, Key, Coins, Shield } from 'lucide-react';
 
 interface HomePageProps {
   isConfigured: boolean;
@@ -944,6 +945,16 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
                 onRefreshItem={handleRefreshSingleItem}
                 onRemoveItem={handleRemoveFromInventory}
               />
+
+              {/* Prime Sets Section - Show when we have prime parts */}
+              {categorizedInventory.prime_parts.length > 0 && (
+                <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
+                  <PrimeSetsSection
+                    primePartsInventory={categorizedInventory.prime_parts}
+                    relicsInventory={categorizedInventory.relics as VoidRelic[]}
+                  />
+                </div>
+              )}
             </div>
           )}
 

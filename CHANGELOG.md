@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **📋 WFInfo-Inspired Clipboard Integration** - One-click sharing functionality adapted from WFInfo companion app
+  - **📊 Copy Prices Button** - Added to both Prime Parts and Relic results tables
+  - **🎯 Party Sharing** - Copy formatted price lists for easy pasting in Warframe chat
+  - **📝 Smart Formatting** - Includes item names, prices, and relevant metadata (ducats, recommendations)
+  - **⚡ One-Click Operation** - Instant clipboard copy with hover tooltips for guidance
+- **🛡️ Prime Set Detection System** - Revolutionary feature that analyzes your inventory to detect buildable Prime sets
+  - **🎯 Buildable Sets Detection** - Automatically identifies which Prime warframes/weapons you can build immediately
+  - **📊 Progress Tracking** - Shows completion percentage for each set and which parts you're missing
+  - **✅ Mastery Status Tracking** - Mark sets as mastered/built with persistent localStorage storage
+  - **🏆 Smart Recommendations** - Three-tab view: Buildable, In Progress, and All Sets with priority sorting
+  - **💰 Cost Analysis** - Estimates platinum cost to complete missing sets
+  - **🏗️ Comprehensive Database** - Includes major Prime warframes, weapons, and their required parts
+- **🔍 Relic Detail Popup** - Comprehensive relic analysis modal with probability tables and drop contents
+  - **📊 Refinement Comparison** - Side-by-side analysis of all refinement levels (Intact → Radiant)
+  - **🎲 Drop Probability Tables** - Accurate drop chances for Common/Uncommon/Rare items by refinement level
+  - **💰 Market Price Integration** - Real-time pricing for all potential drops
+  - **🎯 Strategy Recommendations** - Clear guidance on best refinement level vs market sale
+  - **⚡ Interactive UI** - Click any relic name to open detailed analysis popup
+
+### Enhanced
+- **🎯 Intelligent Prime Set Analysis** - Prime Sets now detect parts obtainable from owned relics with yellow hexagon icons
+  - **🟡 Yellow Progress Indicators** - Shows which missing parts are available in your relic drops
+  - **📊 Enhanced Progress Display** - "+X in relics" counter shows additional obtainable parts
+  - **🏆 Buildable via Relics Section** - New highlight section for sets completable by opening relics
+  - **🎲 Smart Part Matching** - Intelligent matching between prime part names and relic drop contents
+- **🔧 Modal UX Improvements** - Enhanced relic detail popup with better positioning and usability
+  - **📍 Viewport Positioning** - Modal now positioned absolutely to viewport for consistent visibility
+  - **👆 Click-Outside-to-Close** - Click anywhere outside the modal to close it intuitively
+  - **🎯 Proper Event Handling** - Modal content prevents click propagation for smooth interaction
+
 ## [1.8.0] - 2025-01-03
 
 ### Added
