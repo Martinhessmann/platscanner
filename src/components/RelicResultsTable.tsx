@@ -115,6 +115,15 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
                   {analysis.bestValue.toFixed(1)}p
                 </span>
                 <span className="text-gray-400">per relic</span>
+                {analysis.recommendation.includes('OPEN_') && analysis.recommendation !== 'OPEN_INTACT' && (
+                  <span className="text-sm text-blue-400">
+                    (Cost: {
+                      analysis.recommendation === 'OPEN_EXCEPTIONAL' ? '25' :
+                      analysis.recommendation === 'OPEN_FLAWLESS' ? '75' :
+                      analysis.recommendation === 'OPEN_RADIANT' ? '150' : '0'
+                    } void traces)
+                  </span>
+                )}
               </div>
               <div className="text-right">
                 <div className="text-lg font-semibold text-green-400 uppercase tracking-wider">
@@ -129,109 +138,66 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
             </div>
           </div>
 
-          {/* Refinement Comparison Table */}
+          {/* Unified Relic Analysis Table */}
           <div>
-            <h3 className="text-lg font-semibold text-white mb-3">Refinement Value Comparison</h3>
+            <h3 className="text-lg font-semibold text-white mb-3">Complete Refinement Analysis</h3>
             <div className="bg-gray-800/30 rounded-lg border border-gray-700/50 overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-800/80">
                   <tr>
-                    <th className="text-left p-3 font-medium text-gray-300">Refinement Level</th>
-                    <th className="text-center p-3 font-medium text-gray-300">Expected Value</th>
-                    <th className="text-center p-3 font-medium text-gray-300">Drop Chances</th>
-                    <th className="text-center p-3 font-medium text-gray-300">Void Trace Cost</th>
+                    <th className="text-left p-3 font-medium text-gray-300">Item</th>
+                    <th className="text-center p-3 font-medium text-gray-300">Rarity</th>
+                    <th className="text-center p-3 font-medium text-gray-300">
+                      <div className="flex items-center justify-center gap-1">
+                        <Circle size={6} className={`text-gray-400 ${(relic.rarity === 'intact') ? '' : 'opacity-50'}`} fill="currentColor" />
+                        <span className={`${(relic.rarity === 'intact') ? 'text-white font-semibold' : (relic.rarity && ['exceptional', 'flawless', 'radiant'].includes(relic.rarity)) ? 'text-gray-500' : 'text-gray-300'}`}>
+                          Intact
+                        </span>
+                      </div>
+                    </th>
+                    <th className="text-center p-3 font-medium text-gray-300">
+                      <div className="flex items-center justify-center gap-1">
+                        <Circle size={6} className={`text-green-400 ${(relic.rarity === 'exceptional') ? '' : (relic.rarity === 'intact') ? '' : 'opacity-50'}`} fill="currentColor" />
+                        <span className={`${(relic.rarity === 'exceptional') ? 'text-white font-semibold' : (relic.rarity && ['flawless', 'radiant'].includes(relic.rarity)) ? 'text-gray-500' : 'text-gray-300'}`}>
+                          Exceptional
+                        </span>
+                      </div>
+                    </th>
+                    <th className="text-center p-3 font-medium text-gray-300">
+                      <div className="flex items-center justify-center gap-1">
+                        <Circle size={6} className={`text-blue-400 ${(relic.rarity === 'flawless') ? '' : (relic.rarity && ['intact', 'exceptional'].includes(relic.rarity)) ? '' : 'opacity-50'}`} fill="currentColor" />
+                        <span className={`${(relic.rarity === 'flawless') ? 'text-white font-semibold' : (relic.rarity === 'radiant') ? 'text-gray-500' : 'text-gray-300'}`}>
+                          Flawless
+                        </span>
+                      </div>
+                    </th>
+                    <th className="text-center p-3 font-medium text-gray-300">
+                      <div className="flex items-center justify-center gap-1">
+                        <Circle size={6} className={`text-yellow-400 ${(relic.rarity === 'radiant') ? '' : ''}`} fill="currentColor" />
+                        <span className={`${(relic.rarity === 'radiant') ? 'text-white font-semibold' : 'text-gray-300'}`}>
+                          Radiant
+                        </span>
+                      </div>
+                    </th>
+                    <th className="text-center p-3 font-medium text-gray-300">Market Price</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    { level: 'intact', value: analysis.intactValue, cost: 0, color: 'text-gray-400' },
-                    { level: 'exceptional', value: analysis.exceptionalValue, cost: 25, color: 'text-green-400' },
-                    { level: 'flawless', value: analysis.flawlessValue, cost: 75, color: 'text-blue-400' },
-                    { level: 'radiant', value: analysis.radiantValue, cost: 150, color: 'text-yellow-400' }
-                  ].map((row) => (
-                    <tr key={row.level} className={`border-t border-gray-700/50 ${analysis.bestOption === row.level ? 'bg-green-900/20' : ''}`}>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          <Circle size={6} className={row.color} fill="currentColor" />
-                          <span className={`capitalize ${analysis.bestOption === row.level ? 'text-green-300 font-semibold' : 'text-white'}`}>
-                            {row.level}
-                          </span>
-                          {analysis.bestOption === row.level && (
-                            <span className="text-xs text-green-400 font-medium">BEST</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className={analysis.bestOption === row.level ? 'text-green-300 font-semibold' : 'text-gray-300'}>
-                          {row.value.toFixed(1)}p
-                        </span>
-                      </td>
-                      <td className="p-3 text-center text-gray-400">
-                        <div className="text-xs">
-                          C: {dropChances[row.level as keyof typeof dropChances]?.Common}% |
-                          U: {dropChances[row.level as keyof typeof dropChances]?.Uncommon}% |
-                          R: {dropChances[row.level as keyof typeof dropChances]?.Rare}%
-                        </div>
-                      </td>
-                      <td className="p-3 text-center text-gray-400">
-                        {row.cost > 0 ? `${row.cost} traces` : 'Free'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  {/* Item Rows */}
+                  {relic.relicDrops && relic.relicDrops.length > 0 && relic.relicDrops
+                    .sort((a, b) => {
+                      const rarityOrder = { 'Rare': 3, 'Uncommon': 2, 'Common': 1 };
+                      return (rarityOrder[b.rarity as keyof typeof rarityOrder] || 0) - (rarityOrder[a.rarity as keyof typeof rarityOrder] || 0);
+                    })
+                    .map((drop, index) => {
+                      const isUnavailable = (refinementLevel: string) => {
+                        const levels = ['intact', 'exceptional', 'flawless', 'radiant'];
+                        const currentIndex = levels.indexOf(relic.rarity || 'intact');
+                        const targetIndex = levels.indexOf(refinementLevel);
+                        return targetIndex < currentIndex;
+                      };
 
-          {/* Market Sale Option */}
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-3">Market Sale Option</h3>
-            <div className={`bg-gray-800/30 rounded-lg border border-gray-700/50 p-4 ${analysis.bestOption === 'market' ? 'ring-2 ring-green-500/50 bg-green-900/20' : ''}`}>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300">Sell intact relic on market</span>
-                <div className="flex items-center gap-2">
-                  <span className={`font-semibold ${analysis.bestOption === 'market' ? 'text-green-300' : 'text-gray-300'}`}>
-                    {analysis.marketValue.toFixed(1)}p
-                  </span>
-                  {analysis.bestOption === 'market' && (
-                    <span className="text-xs text-green-400 font-medium">BEST</span>
-                  )}
-                  <button
-                    onClick={() => {
-                      const marketUrl = `https://warframe.market/items/${relic.name.toLowerCase().replace(/ /g, '_')}`;
-                      window.open(marketUrl, '_blank', 'noopener,noreferrer');
-                    }}
-                    className="text-gray-500 hover:text-gray-300 transition-colors"
-                    title="View on Warframe Market"
-                  >
-                    <ExternalLink size={14} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Drop Contents */}
-          {relic.relicDrops && relic.relicDrops.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold text-white mb-3">Relic Contents</h3>
-              <div className="bg-gray-800/30 rounded-lg border border-gray-700/50 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-800/80">
-                    <tr>
-                      <th className="text-left p-3 font-medium text-gray-300">Item</th>
-                      <th className="text-center p-3 font-medium text-gray-300">Rarity</th>
-                      <th className="text-center p-3 font-medium text-gray-300">Drop Chance</th>
-                      <th className="text-center p-3 font-medium text-gray-300">Market Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {relic.relicDrops
-                      .sort((a, b) => {
-                        const rarityOrder = { 'Rare': 3, 'Uncommon': 2, 'Common': 1 };
-                        return (rarityOrder[b.rarity as keyof typeof rarityOrder] || 0) - (rarityOrder[a.rarity as keyof typeof rarityOrder] || 0);
-                      })
-                      .map((drop, index) => (
+                      return (
                         <tr key={index} className="border-t border-gray-700/50">
                           <td className="p-3">
                             <span className="text-white">{drop.itemName}</span>
@@ -241,8 +207,17 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
                               {drop.rarity}
                             </span>
                           </td>
-                          <td className="p-3 text-center text-gray-400">
-                            {drop.dropChance}%
+                          <td className={`p-3 text-center ${isUnavailable('intact') ? 'text-gray-600' : 'text-gray-300'}`}>
+                            {dropChances.intact[drop.rarity]}%
+                          </td>
+                          <td className={`p-3 text-center ${isUnavailable('exceptional') ? 'text-gray-600' : 'text-gray-300'}`}>
+                            {dropChances.exceptional[drop.rarity]}%
+                          </td>
+                          <td className={`p-3 text-center ${isUnavailable('flawless') ? 'text-gray-600' : 'text-gray-300'}`}>
+                            {dropChances.flawless[drop.rarity]}%
+                          </td>
+                          <td className="p-3 text-center text-gray-300">
+                            {dropChances.radiant[drop.rarity]}%
                           </td>
                           <td className="p-3 text-center">
                             <span className="text-white font-medium">
@@ -250,12 +225,73 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
                             </span>
                           </td>
                         </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
+                      );
+                    })}
+
+                  {/* Expected Value Row */}
+                  <tr className="border-t-2 border-yellow-600/50 bg-yellow-900/10">
+                    <td className="p-3">
+                      <span className="text-yellow-400 font-semibold">Expected Value</span>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="text-xs text-gray-400">Per Opening</span>
+                    </td>
+                    <td className={`p-3 text-center ${analysis.bestOption === 'intact' ? 'bg-green-900/30 text-green-300 font-semibold' : 'text-yellow-300'} ${(relic.rarity && ['exceptional', 'flawless', 'radiant'].includes(relic.rarity)) ? 'text-gray-600' : ''}`}>
+                      {analysis.intactValue.toFixed(1)}p
+                      {analysis.bestOption === 'intact' && <div className="text-xs text-green-400">BEST</div>}
+                    </td>
+                    <td className={`p-3 text-center ${analysis.bestOption === 'exceptional' ? 'bg-green-900/30 text-green-300 font-semibold' : 'text-yellow-300'} ${(relic.rarity && ['flawless', 'radiant'].includes(relic.rarity)) ? 'text-gray-600' : ''}`}>
+                      {analysis.exceptionalValue.toFixed(1)}p
+                      {analysis.bestOption === 'exceptional' && <div className="text-xs text-green-400">BEST</div>}
+                      <div className="text-xs text-blue-400">25 traces</div>
+                    </td>
+                    <td className={`p-3 text-center ${analysis.bestOption === 'flawless' ? 'bg-green-900/30 text-green-300 font-semibold' : 'text-yellow-300'} ${(relic.rarity === 'radiant') ? 'text-gray-600' : ''}`}>
+                      {analysis.flawlessValue.toFixed(1)}p
+                      {analysis.bestOption === 'flawless' && <div className="text-xs text-green-400">BEST</div>}
+                      <div className="text-xs text-blue-400">75 traces</div>
+                    </td>
+                    <td className={`p-3 text-center ${analysis.bestOption === 'radiant' ? 'bg-green-900/30 text-green-300 font-semibold' : 'text-yellow-300'}`}>
+                      {analysis.radiantValue.toFixed(1)}p
+                      {analysis.bestOption === 'radiant' && <div className="text-xs text-green-400">BEST</div>}
+                      <div className="text-xs text-blue-400">150 traces</div>
+                    </td>
+                    <td className="p-3 text-center text-gray-400">
+                      <span className="text-xs">Varies by item</span>
+                    </td>
+                  </tr>
+
+                  {/* Market Sale Row */}
+                  <tr className="border-t border-gray-700/50 bg-gray-800/20">
+                    <td className="p-3">
+                      <span className="text-white font-medium">Market Sale (Intact)</span>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="text-xs text-gray-400">Direct Sale</span>
+                    </td>
+                    <td colSpan={4} className={`p-3 text-center ${analysis.bestOption === 'market' ? 'bg-green-900/30 text-green-300 font-semibold' : 'text-gray-300'}`}>
+                      <div className="flex items-center justify-center gap-2">
+                        <span>{analysis.marketValue.toFixed(1)}p</span>
+                        {analysis.bestOption === 'market' && <span className="text-xs text-green-400 font-medium">BEST</span>}
+                        <button
+                          onClick={() => {
+                            const marketUrl = `https://warframe.market/items/${relic.name.toLowerCase().replace(/ /g, '_')}`;
+                            window.open(marketUrl, '_blank', 'noopener,noreferrer');
+                          }}
+                          className="text-gray-500 hover:text-gray-300 transition-colors"
+                          title="View on Warframe Market"
+                        >
+                          <ExternalLink size={12} />
+                        </button>
+                      </div>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="text-sm text-gray-400">No additional cost</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

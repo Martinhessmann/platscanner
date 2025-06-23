@@ -23,8 +23,12 @@ import {
   Crosshair,
   Star,
   TrendingUp,
-  Hexagon
+  Hexagon,
+  Heart,
+  HeartHandshake,
+  BookOpen
 } from 'lucide-react';
+import { isSetPlanned, addToBuildPlan, removeFromBuildPlan, autoReserveItemsForSet } from '../services/buildPlanService';
 
 interface PrimeSetsProps {
   primePartsInventory: DetectedItem[];
@@ -38,12 +42,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const [setProgress, setSetProgress] = useState<SetProgress[]>([]);
   const [activeTab, setActiveTab] = useState<'buildable' | 'progress' | 'all'>('buildable');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [plannedSets, setPlannedSets] = useState<Map<string, { planned: boolean; isPriority: boolean }>>(new Map());
 
   // Calculate progress on inventory changes
   useEffect(() => {
     const progress = analyzeSetProgress(primePartsInventory, relicsInventory);
     setSetProgress(progress);
   }, [primePartsInventory, relicsInventory, refreshKey]);
+
+  // Load planned sets on component mount and when refresh key changes
+  useEffect(() => {
+    const planned = new Map<string, { planned: boolean; isPriority: boolean }>();
+    setProgress.forEach(progress => {
+      const planStatus = isSetPlanned(progress.set.name);
+      planned.set(progress.set.id, planStatus);
+    });
+    setPlannedSets(planned);
+  }, [setProgress, refreshKey]);
 
   const recommendations = getSetRecommendations(primePartsInventory, relicsInventory);
 
@@ -57,6 +72,56 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const handleToggleMastery = (setId: string) => {
     toggleSetMastery(setId);
     setRefreshKey(prev => prev + 1); // Force refresh
+  };
+
+  const handleAddToBuildPlan = (setName: string, setId: string, isPriority: boolean = false) => {
+    // Add to build plan
+    addToBuildPlan(setName, isPriority);
+
+    // Find the set and auto-reserve its parts
+    const setData = setProgress.find(p => p.set.id === setId);
+    if (setData) {
+      const requiredPartNames = setData.set.requiredParts.map(part =>
+        `${setData.set.name} ${part.partType}`
+      );
+      autoReserveItemsForSet(setName, requiredPartNames);
+    }
+
+    // Update local state
+    setPlannedSets(prev => {
+      const updated = new Map(prev);
+      updated.set(setId, { planned: true, isPriority });
+      return updated;
+    });
+
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const handleRemoveFromBuildPlan = (setName: string, setId: string) => {
+    removeFromBuildPlan(setName);
+
+    // Update local state
+    setPlannedSets(prev => {
+      const updated = new Map(prev);
+      updated.set(setId, { planned: false, isPriority: false });
+      return updated;
+    });
+
+    setRefreshKey(prev => prev + 1);
+  };
+
+  const handleTogglePriority = (setName: string, setId: string) => {
+    const currentPlan = plannedSets.get(setId);
+    if (currentPlan?.planned) {
+      const newPriority = !currentPlan.isPriority;
+      addToBuildPlan(setName, newPriority);
+
+      setPlannedSets(prev => {
+        const updated = new Map(prev);
+        updated.set(setId, { planned: true, isPriority: newPriority });
+        return updated;
+      });
+    }
   };
 
   const getTypeIcon = (type: PrimeSet['type']) => {
@@ -320,7 +385,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
             </div>
 
             {/* Action/Status */}
-            <div className="border-t border-gray-700/50 pt-3">
+            <div className="border-t border-gray-700/50 pt-3 space-y-3">
+              {/* Build Status */}
               {progress.ismastered ? (
                 <div className="flex items-center justify-center gap-2 text-blue-400 text-sm">
                   <Star size={14} />
@@ -339,6 +405,84 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   <div className="text-xs text-gray-500">
                     ~{progress.missingCost}p to complete
                   </div>
+                </div>
+              )}
+
+              {/* Build Planning Actions */}
+              {!progress.ismastered && (
+                <div className="space-y-2">
+                  {plannedSets.get(progress.set.id)?.planned ? (
+                    // Already planned - show management buttons
+                    <div className="space-y-2">
+                      <div className={`flex items-center justify-center gap-2 text-sm ${plannedSets.get(progress.set.id)?.isPriority ? 'text-red-400' : 'text-yellow-400'}`}>
+                        {plannedSets.get(progress.set.id)?.isPriority ? (
+                          <>
+                            <Heart size={14} fill="currentColor" />
+                            <span>Priority Build</span>
+                          </>
+                        ) : (
+                          <>
+                            <BookOpen size={14} />
+                            <span>Planned Build</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleTogglePriority(progress.set.name, progress.set.id)}
+                          className={`flex-1 px-2 py-1 text-xs rounded transition-colors ${
+                            plannedSets.get(progress.set.id)?.isPriority
+                              ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-600/30 hover:bg-yellow-600/30'
+                              : 'bg-red-600/20 text-red-400 border border-red-600/30 hover:bg-red-600/30'
+                          }`}
+                          title={plannedSets.get(progress.set.id)?.isPriority ? 'Set as normal priority' : 'Set as high priority'}
+                        >
+                          {plannedSets.get(progress.set.id)?.isPriority ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <BookOpen size={10} />
+                              <span>Normal</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center gap-1">
+                              <Heart size={10} />
+                              <span>Priority</span>
+                            </div>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleRemoveFromBuildPlan(progress.set.name, progress.set.id)}
+                          className="flex-1 px-2 py-1 text-xs bg-gray-600/20 text-gray-400 border border-gray-600/30 rounded hover:bg-gray-600/30 transition-colors"
+                          title="Remove from build plans"
+                        >
+                          Remove Plan
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Not planned - show add buttons
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleAddToBuildPlan(progress.set.name, progress.set.id, false)}
+                        className="flex-1 px-3 py-1.5 text-xs bg-yellow-600/20 text-yellow-400 border border-yellow-600/30 rounded hover:bg-yellow-600/30 transition-colors"
+                        title="Add to build plans and reserve items"
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          <BookOpen size={12} />
+                          <span>I Want This</span>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => handleAddToBuildPlan(progress.set.name, progress.set.id, true)}
+                        className="flex-1 px-3 py-1.5 text-xs bg-red-600/20 text-red-400 border border-red-600/30 rounded hover:bg-red-600/30 transition-colors"
+                        title="Add as priority build and reserve items"
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          <Heart size={12} />
+                          <span>Priority</span>
+                        </div>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

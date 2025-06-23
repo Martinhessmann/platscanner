@@ -39,6 +39,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **📍 Viewport Positioning** - Modal now positioned absolutely to viewport for consistent visibility
   - **👆 Click-Outside-to-Close** - Click anywhere outside the modal to close it intuitively
   - **🎯 Proper Event Handling** - Modal content prevents click propagation for smooth interaction
+- **🔄 MAJOR: Unified Relic Analysis Table** - Revolutionary redesign merging refinement and drop tables into one comprehensive view
+  - **📊 Refinement Columns** - Columns for each refinement level (Intact, Exceptional, Flawless, Radiant) with color indicators
+  - **🎯 Smart Greying** - Lower refinement levels greyed out since relics can't be downgraded
+  - **📈 Item Drop Matrix** - Rows for each item showing drop percentages across all refinement levels
+  - **💰 Market Price Integration** - Last column shows current market prices for all items
+  - **⚡ Expected Value Summary** - Dedicated row showing expected values and void trace costs for each refinement level
+  - **🏆 Best Strategy Highlight** - Green highlighting of optimal refinement choice with "BEST" indicators
+- **🎯 REVOLUTIONARY: Prime Set Build Planning** - Complete build management system with item reservation
+  - **❤️ "I Want to Build This" System** - Mark prime sets as planned builds with normal or priority status
+  - **🔒 Automatic Item Reservation** - Auto-reserves all required parts to prevent accidental selling
+  - **⭐ Priority Build Management** - High-priority builds get special visual treatment and stronger reservation warnings
+  - **📋 Build Plan Persistence** - All build plans saved to localStorage with version management
+  - **🎯 Smart Reservation Logic** - Items can be reserved for multiple sets, tracks reservation history
+  - **⚠️ Selling Protection** - Warning system prevents accidental sale of reserved items
 
 ## [1.8.0] - 2025-01-03
 
@@ -78,6 +92,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **📡 API Response Enhancement** - Added `buyerUsername` and `buyerQuantity` fields to all market data responses
   - **🔄 Type System Updates** - Extended BaseItem interface with buyer information fields
   - **🎯 UI Integration** - Replaced clipboard buttons with MessageCircle icons and buyer messaging functionality
+- **🏗️ Build Planning Architecture** - Complete item reservation and build management system
+  - **📋 buildPlanService.ts** - New service managing build plans, item reservations, and priority tracking
+  - **🔒 Reservation System** - Items can be reserved for multiple sets with automatic cleanup when plans are removed
+  - **💾 Persistent Storage** - localStorage-based storage with version management for build plans and reservations
+  - **⚠️ Selling Protection** - Warning system integration with getSellingWarnings() function
+  - **🎯 Auto-Reservation Logic** - Automatically reserves required parts when sets are added to build plans
+- **🔄 Modal Redesign Architecture** - Complete overhaul of relic detail presentation
+  - **📊 Unified Table Structure** - Single comprehensive table replacing separate refinement and drop tables
+  - **🎯 Smart Availability Logic** - Dynamic greying of unavailable refinement levels based on current relic state
+  - **💰 Integrated Market Data** - Real-time price display for all drop items in unified view
+  - **⚡ Enhanced Expected Value Display** - Comprehensive expected value calculations with void trace cost integration
 - **🏗️ Parallel Processing Architecture** - Complete refactor of image processing workflow
   - **📊 processImageAnalysis()** - Dedicated function for Gemini AI analysis only
   - **💰 processPriceFetching()** - Separate function for market price fetching operations
