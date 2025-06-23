@@ -27,7 +27,8 @@ import {
   Heart,
   HeartHandshake,
   BookOpen,
-  Trash2
+  Trash2,
+  Eye
 } from 'lucide-react';
 import { isSetPlanned, addToBuildPlan, removeFromBuildPlan, autoReserveItemsForSet } from '../services/buildPlanService';
 
@@ -156,20 +157,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     setRefreshKey(prev => prev + 1);
   };
 
-  const handleToggleFavorite = (setName: string, setId: string) => {
-    const planStatus = isSetPlanned(setName);
-    // Toggle priority status
-    addToBuildPlan(setName, !planStatus.isPriority);
 
-    // Update local state
-    setPlannedSets(prev => {
-      const updated = new Map(prev);
-      updated.set(setId, { planned: true, isPriority: !planStatus.isPriority });
-      return updated;
-    });
-
-    setRefreshKey(prev => prev + 1);
-  };
 
   const handleRemoveFromBuilt = (setId: string) => {
     // Remove mastery status (move back to available)
@@ -380,12 +368,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               progress.canBuild
                 ? 'border-green-500/50 ring-1 ring-green-500/20'
                 : progress.ismastered
-                  ? 'border-purple-500/50 ring-1 ring-purple-500/20'
-                  : plannedSets.get(progress.set.id)?.isPriority
-                    ? 'border-fuchsia-500/80 ring-2 ring-fuchsia-500/40'
-                    : plannedSets.get(progress.set.id)?.planned
-                      ? 'border-yellow-500/50 ring-1 ring-yellow-500/20'
-                      : 'border-gray-700'
+                  ? 'border-gray-500/50 ring-1 ring-gray-500/20'
+                  : plannedSets.get(progress.set.id)?.planned
+                    ? 'border-yellow-500/50 ring-1 ring-yellow-500/20'
+                    : 'border-gray-700'
             }`}
           >
             {/* Set Header */}
@@ -524,11 +510,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleMarkAsBuilt(progress.set.id, progress.set.name)}
-                      className="flex-1 px-2 py-1 text-xs bg-purple-600/20 text-purple-400 border border-purple-600/30 rounded hover:bg-purple-600/30 transition-colors"
+                      className="flex-1 px-2 py-1 text-xs bg-gray-600/20 text-gray-400 border border-gray-600/30 rounded hover:bg-gray-600/30 transition-colors"
                       title="Mark as already built"
                     >
                       <div className="flex items-center justify-center gap-1">
-                        <Star size={10} />
+                        <Eye size={10} />
                         <span>Already Built</span>
                       </div>
                     </button>
@@ -555,19 +541,12 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                     </div>
                   </button>
                   <button
-                    onClick={() => handleToggleFavorite(progress.set.name, progress.set.id)}
-                    className="p-1.5 text-xs bg-fuchsia-600/20 text-fuchsia-400 border border-fuchsia-600/30 rounded hover:bg-fuchsia-600/30 transition-colors"
-                    title="Mark as priority build"
-                  >
-                    <Heart size={12} />
-                  </button>
-                  <button
                     onClick={() => handleMarkAsBuilt(progress.set.id, progress.set.name)}
-                    className="flex-1 px-3 py-1.5 text-xs bg-purple-600/20 text-purple-400 border border-purple-600/30 rounded hover:bg-purple-600/30 transition-colors"
+                    className="flex-1 px-3 py-1.5 text-xs bg-gray-600/20 text-gray-400 border border-gray-600/30 rounded hover:bg-gray-600/30 transition-colors"
                     title="Mark as already built"
                   >
                     <div className="flex items-center justify-center gap-1">
-                      <Star size={12} />
+                      <Eye size={12} />
                       <span>Already Built</span>
                     </div>
                   </button>

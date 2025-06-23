@@ -288,7 +288,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   {/* Market Actions */}
                   <td className="p-3 text-center">
                     <div className="flex items-center justify-center gap-2">
-                      {item.buyerUsername && item.price && item.price > 0 ? (
+                      {item.buyerUsername && item.price && item.price > 0 && !reservation.reserved ? (
                         <button
                           onClick={() => {
                             const message = `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`;
@@ -302,7 +302,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                           {copiedItems.has(item.id) ? <Check size={12} /> : <MessageCircle size={12} />}
                         </button>
                       ) : (
-                        <span className="text-gray-600" title="No buyers available">
+                        <span className="text-gray-600" title={reservation.reserved ? "Item reserved for build" : "No buyers available"}>
                           <MessageCircle size={12} />
                         </span>
                       )}
@@ -575,7 +575,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
             {/* Market Actions */}
             <div className="mt-4 pt-3 border-t border-gray-700/50">
               <div className="flex items-center justify-center gap-4">
-                {item.buyerUsername && item.price && item.price > 0 ? (
+                {item.buyerUsername && item.price && item.price > 0 && !isItemReserved(item.name, 'prime_parts').reserved ? (
                   <button
                     onClick={() => {
                       const message = `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`;
@@ -591,7 +591,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                 ) : (
                   <span className="flex items-center gap-2 text-gray-600 text-sm">
                     <MessageCircle size={12} />
-                    No buyers available
+                    {isItemReserved(item.name, 'prime_parts').reserved ? "Reserved for build" : "No buyers available"}
                   </span>
                 )}
                 <a
