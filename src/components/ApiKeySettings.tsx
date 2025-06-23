@@ -1,20 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, X, Key } from 'lucide-react';
+import { Settings, X, Key, HardDrive } from 'lucide-react';
+import DataBackupSection from './DataBackupSection';
 
 interface ApiKeySettingsProps {
   onApiKeyChange: (key: string) => Promise<void>;
   isConfigured: boolean;
   openSettings?: boolean;
   onOpenSettingsHandled?: () => void;
+  onDataImported?: () => void; // Callback to refresh UI after import
 }
 
 const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
   onApiKeyChange,
   isConfigured,
   openSettings = false,
-  onOpenSettingsHandled
+  onOpenSettingsHandled,
+  onDataImported
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'api' | 'backup'>('api');
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -72,12 +76,12 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background-card rounded-lg shadow-lg w-full max-w-md mx-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background-card rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-gray-800">
               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                <Key size={20} className="text-orokin-gold" />
-                API Settings
+                <Settings size={20} className="text-orokin-gold" />
+                Settings
               </h2>
               <button
                 onClick={() => setIsOpen(false)}
@@ -88,54 +92,89 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-4">
-              <div className="mb-4">
-                <label htmlFor="apiKey" className="block text-sm font-medium text-gray-300 mb-2">
-                  Gemini API Key
-                </label>
-                <input
-                  type="password"
-                  id="apiKey"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={isConfigured ? '••••••••••••••••' : 'Enter your API key'}
-                  className="w-full px-3 py-2 bg-background-dark border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-tenno-blue focus:border-transparent"
-                  disabled={isSubmitting}
-                />
-                {error && (
-                  <p className="mt-2 text-sm text-grineer-red">{error}</p>
-                )}
-              </div>
+            {/* Tab Navigation */}
+            <div className="flex border-b border-gray-800">
+              <button
+                onClick={() => setActiveTab('api')}
+                className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors ${
+                  activeTab === 'api'
+                    ? 'text-white border-b-2 border-tenno-blue bg-gray-800'
+                    : 'text-gray-400 hover:text-gray-300'
+                }`}
+              >
+                <Key size={16} />
+                API Configuration
+              </button>
+              <button
+                onClick={() => setActiveTab('backup')}
+                className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors ${
+                  activeTab === 'backup'
+                    ? 'text-white border-b-2 border-tenno-blue bg-gray-800'
+                    : 'text-gray-400 hover:text-gray-300'
+                }`}
+              >
+                <HardDrive size={16} />
+                Data Backup
+              </button>
+            </div>
 
-              <div className="text-sm text-gray-400 mb-4">
-                <p className="mb-2">
-                  To get your API key:
-                </p>
-                <ol className="list-decimal list-inside space-y-1">
-                  <li>Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-tenno-blue hover:underline">Google AI Studio</a></li>
-                  <li>Click "Create API Key" if you don't have one</li>
-                  <li>Copy your API key and paste it here</li>
-                </ol>
-              </div>
+            {/* Tab Content */}
+            <div className="p-4">
+              {activeTab === 'api' && (
+                <form onSubmit={handleSubmit}>
+                  <div className="mb-4">
+                    <label htmlFor="apiKey" className="block text-sm font-medium text-gray-300 mb-2">
+                      Gemini API Key
+                    </label>
+                    <input
+                      type="password"
+                      id="apiKey"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder={isConfigured ? '••••••••••••••••' : 'Enter your API key'}
+                      className="w-full px-3 py-2 bg-background-dark border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-tenno-blue focus:border-transparent"
+                      disabled={isSubmitting}
+                    />
+                    {error && (
+                      <p className="mt-2 text-sm text-grineer-red">{error}</p>
+                    )}
+                  </div>
 
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-tenno-blue text-white rounded hover:bg-tenno-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? 'Saving...' : 'Save'}
-                </button>
-              </div>
-            </form>
+                  <div className="text-sm text-gray-400 mb-4">
+                    <p className="mb-2">
+                      To get your API key:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-tenno-blue hover:underline">Google AI Studio</a></li>
+                      <li>Click "Create API Key" if you don't have one</li>
+                      <li>Copy your API key and paste it here</li>
+                    </ol>
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsOpen(false)}
+                      className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
+                      disabled={isSubmitting}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-tenno-blue text-white rounded hover:bg-tenno-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {activeTab === 'backup' && (
+                <DataBackupSection onDataImported={onDataImported} />
+              )}
+            </div>
           </div>
         </div>
       )}

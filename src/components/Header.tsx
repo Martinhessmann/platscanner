@@ -7,13 +7,15 @@ interface HeaderProps {
   isConfigured: boolean;
   openSettings?: boolean;
   onOpenSettingsHandled?: () => void;
+  onDataImported?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
   onApiKeyChange,
   isConfigured,
   openSettings = false,
-  onOpenSettingsHandled
+  onOpenSettingsHandled,
+  onDataImported
 }) => {
   return (
     <header className="bg-gradient-to-r from-background-dark to-background-light py-4 px-6 shadow-md border-b border-orokin-gold/20">
@@ -36,6 +38,7 @@ const Header: React.FC<HeaderProps> = ({
           isConfigured={isConfigured}
           openSettings={openSettings}
           onOpenSettingsHandled={onOpenSettingsHandled}
+          onDataImported={onDataImported}
         />
       </div>
     </header>

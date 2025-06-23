@@ -24,9 +24,10 @@ import { RefreshCw, Package, Trash2, Archive, Zap, Key, Coins, Shield } from 'lu
 interface HomePageProps {
   isConfigured: boolean;
   onOpenSettings: () => void;
+  refreshTrigger?: number;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => {
+const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refreshTrigger }) => {
   const [processingState, setProcessingState] = useState<ProcessingState>({
     activeImageId: null,
     images: new Map(),
@@ -53,6 +54,14 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings }) => 
     const inventory = getCategorizedInventory();
     setCategorizedInventory(inventory);
   }, []);
+
+  // Refresh inventory when data is imported
+  useEffect(() => {
+    if (refreshTrigger !== undefined && refreshTrigger > 0) {
+      const inventory = getCategorizedInventory();
+      setCategorizedInventory(inventory);
+    }
+  }, [refreshTrigger]);
 
   // Stop processing function
   const stopProcessing = useCallback(() => {

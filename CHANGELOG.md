@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **🔄 Data Backup & Sharing System** - Complete inventory export/import functionality for sharing and cross-browser transfer
+  - **📦 JSON Export/Import** - Export all inventory, build plans, and mastery data to JSON format
+  - **💾 Download Backup Files** - Save complete backups as downloadable JSON files with metadata
+  - **📋 Text Field Import/Export** - Copy/paste JSON directly via text area for easy Discord/chat sharing
+  - **📁 File Upload Import** - Traditional file upload for .json backup files
+  - **🔄 Merge or Replace Options** - Choose to merge with existing data or completely replace it during import
+  - **⚠️ Clear Data Replacement Warnings** - Explicit warnings that "Replace All Data" will delete ALL existing inventory
+  - **🎯 Smart Import Validation** - Validates backup files and shows preview with statistics before import
+  - **📊 Data Preview** - Shows total items, platinum value, planned sets, and mastered sets before import
+  - **🛡️ API Key Protection** - API keys are never exported, keeping personal authentication secure
+  - **⚡ Instant UI Refresh** - Automatically refreshes all UI components after successful data import
+  - **📱 Cross-Browser Transfer** - Perfect for switching browsers or sharing complete inventories with friends
+
 ## [1.9.0] - 2025-06-23
 
 ### Added

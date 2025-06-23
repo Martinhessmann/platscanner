@@ -11,6 +11,7 @@ import { isGeminiConfigured, setApiKey } from './services/geminiService';
 function App() {
   const [isConfigured, setIsConfigured] = useState(isGeminiConfigured());
   const [openSettings, setOpenSettings] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     // Check configuration status on mount
@@ -40,6 +41,11 @@ function App() {
     setOpenSettings(false);
   };
 
+  const handleDataImported = () => {
+    // Trigger a refresh of the UI components by incrementing the refresh trigger
+    setRefreshTrigger(prev => prev + 1);
+  };
+
   return (
     <BrowserRouter>
       <div className="flex flex-col min-h-screen bg-background-dark text-white">
@@ -48,6 +54,7 @@ function App() {
           isConfigured={isConfigured}
           openSettings={openSettings}
           onOpenSettingsHandled={handleOpenSettingsHandled}
+          onDataImported={handleDataImported}
         />
         <Routes>
           <Route
@@ -56,6 +63,7 @@ function App() {
               <HomePage
                 isConfigured={isConfigured}
                 onOpenSettings={handleOpenSettings}
+                refreshTrigger={refreshTrigger}
               />
             }
           />
