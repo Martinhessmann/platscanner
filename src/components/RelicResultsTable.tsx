@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { VoidRelic } from '../types';
-import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, Copy, Info, X } from 'lucide-react';
+import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, MessageCircle, Info, X } from 'lucide-react';
 import { getRelicImagePath } from '../lib/relicUtils';
 import { getRelicDropsByName } from '../services/relicDataService';
 
@@ -452,19 +452,27 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
           {results.length} relic{results.length !== 1 ? 's' : ''}
         </div>
         <div className="flex items-center gap-3">
-          <button
+                    <button
             onClick={() => {
-              const priceText = sortedRelics.map(analysis =>
-                `${analysis.relic.name}: ${analysis.bestValue.toFixed(1)}p (${analysis.recommendation.replace('OPEN_', '').replace('_', ' ')})`
-              ).join('\n');
-              navigator.clipboard.writeText(priceText);
-              // Could add toast notification here
+              // Generate whisper messages for relics with buyers
+              const messages = sortedRelics
+                .filter(analysis => analysis.relic.buyerUsername && analysis.relic.price && analysis.relic.price > 0)
+                .map(analysis =>
+                  `/w ${analysis.relic.buyerUsername} Hi! I want to sell: "${analysis.relic.name}" for ${analysis.relic.price} platinum. (warframe.market)`
+                );
+
+              if (messages.length > 0) {
+                navigator.clipboard.writeText(messages.join('\n'));
+                // Could add toast notification here
+              } else {
+                alert('No buyers available for any relics');
+              }
             }}
             className="flex items-center gap-1 px-2 py-1 text-xs bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30 rounded hover:bg-tenno-blue/30 transition-colors"
-            title="Copy all prices to clipboard for sharing"
+            title="Generate whisper messages to contact highest bidders"
           >
-            <Copy size={12} />
-            Copy Prices
+            <MessageCircle size={12} />
+            Message Buyers
           </button>
           <div className="text-xs text-gray-500">
             <span className="hidden lg:inline">Trading Platform View • All values in Platinum</span>
@@ -634,6 +642,23 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                   <td className={`p-3 text-center ${analysis.bestOption === 'market' ? 'bg-green-900/20 text-green-300 font-semibold' : 'text-gray-300'}`}>
                     <div className="flex items-center justify-center gap-1">
                       {analysis.marketValue.toFixed(1)}p
+                      {relic.buyerUsername && relic.price && relic.price > 0 ? (
+                        <button
+                          onClick={() => {
+                            const message = `/w ${relic.buyerUsername} Hi! I want to sell: "${relic.name}" for ${relic.price} platinum. (warframe.market)`;
+                            navigator.clipboard.writeText(message);
+                            // Could add toast notification here
+                          }}
+                          className="text-tenno-blue hover:text-tenno-light transition-colors"
+                          title={`Message ${relic.buyerUsername} (${relic.price}p)`}
+                        >
+                          <MessageCircle size={10} />
+                        </button>
+                      ) : (
+                        <span className="text-gray-600" title="No buyers available">
+                          <MessageCircle size={10} />
+                        </span>
+                      )}
                       <button
                         onClick={() => {
                           const marketUrl = `https://warframe.market/items/${relic.name.toLowerCase().replace(/ /g, '_')}`;
@@ -851,6 +876,23 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                     <span>Market Sale</span>
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{analysis.marketValue.toFixed(1)}p</span>
+                      {relic.buyerUsername && relic.price && relic.price > 0 ? (
+                        <button
+                          onClick={() => {
+                            const message = `/w ${relic.buyerUsername} Hi! I want to sell: "${relic.name}" for ${relic.price} platinum. (warframe.market)`;
+                            navigator.clipboard.writeText(message);
+                            // Could add toast notification here
+                          }}
+                          className="text-tenno-blue hover:text-tenno-light transition-colors"
+                          title={`Message ${relic.buyerUsername} (${relic.price}p)`}
+                        >
+                          <MessageCircle size={12} />
+                        </button>
+                      ) : (
+                        <span className="text-gray-600" title="No buyers available">
+                          <MessageCircle size={12} />
+                        </span>
+                      )}
                       <button
                         onClick={() => {
                           const marketUrl = `https://warframe.market/items/${relic.name.toLowerCase().replace(/ /g, '_')}`;

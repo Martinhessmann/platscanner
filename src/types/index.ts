@@ -14,6 +14,9 @@ export interface BaseItem {
   average?: number;
   status: 'loading' | 'loaded' | 'error';
   error?: string;
+  // Buyer information for whisper message generation
+  buyerUsername?: string | null;
+  buyerQuantity?: number;
 }
 
 export interface PrimePart extends BaseItem {

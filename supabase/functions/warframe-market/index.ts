@@ -103,6 +103,13 @@ const fetchSingleItemData = async (itemName: string) => {
       order.visible
     );
 
+    // Find highest bidder
+    const highestBidder = buyOrders.length > 0
+      ? buyOrders.reduce((highest: any, current: any) =>
+          current.platinum > highest.platinum ? current : highest
+        )
+      : null;
+
     const result = {
       name: itemDetails.en.item_name,
       thumb: itemDetails.thumb,
@@ -111,7 +118,9 @@ const fetchSingleItemData = async (itemName: string) => {
       volume: ordersData.payload.orders.length,
       average: buyOrders.length > 0
         ? Math.round(buyOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / buyOrders.length)
-        : 0
+        : 0,
+      buyerUsername: highestBidder?.user?.ingame_name || null,
+      buyerQuantity: highestBidder?.quantity || 0
     };
 
     // Cache the result

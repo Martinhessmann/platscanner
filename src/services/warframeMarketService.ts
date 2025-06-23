@@ -209,6 +209,13 @@ const fetchViaDirect = async (normalizedName: string) => {
       order.visible
     );
 
+    // Find highest bidder
+    const highestBidder = buyOrders.length > 0
+      ? buyOrders.reduce((highest: any, current: any) =>
+          current.platinum > highest.platinum ? current : highest
+        )
+      : null;
+
     return {
       name: itemDetails.en.item_name,
       thumb: itemDetails.thumb,
@@ -217,7 +224,9 @@ const fetchViaDirect = async (normalizedName: string) => {
       volume: ordersData.payload.orders.length,
       average: buyOrders.length > 0
         ? Math.round(buyOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / buyOrders.length)
-        : 0
+        : 0,
+      buyerUsername: highestBidder?.user?.ingame_name || null,
+      buyerQuantity: highestBidder?.quantity || 0
     };
   } catch (error) {
     console.error('Error in fetchViaDirect:', error);
@@ -268,7 +277,9 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
         average: data.average,
         imgUrl: data.thumb && `https://warframe.market/static/assets/${data.thumb}`,
         status: 'loaded' as const,
-        error: data.price === 0 ? 'No active buy orders' : undefined
+        error: data.price === 0 ? 'No active buy orders' : undefined,
+        buyerUsername: data.buyerUsername,
+        buyerQuantity: data.buyerQuantity
       });
 
       // Add delay between requests
@@ -374,7 +385,9 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
       volume: data.volume,
       average: data.average,
       status: 'loaded' as const,
-      error: data.price === 0 ? 'No active buy orders' : undefined
+      error: data.price === 0 ? 'No active buy orders' : undefined,
+      buyerUsername: data.buyerUsername,
+      buyerQuantity: data.buyerQuantity
       // imgUrl is preserved from existing primePart
     };
 
@@ -428,7 +441,9 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
       average: data.average,
       imgUrl: data.thumb && `https://warframe.market/static/assets/${data.thumb}`,
       status: 'loaded' as const,
-      error: data.price === 0 ? 'No active buy orders' : undefined
+      error: data.price === 0 ? 'No active buy orders' : undefined,
+      buyerUsername: data.buyerUsername,
+      buyerQuantity: data.buyerQuantity
     };
 
   } catch (error) {

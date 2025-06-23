@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DetectedItem } from '../types';
-import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical, Copy } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical, MessageCircle } from 'lucide-react';
 
 interface ResultsTableProps {
   results: DetectedItem[];
@@ -106,19 +106,27 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
           {results.length} item{results.length !== 1 ? 's' : ''}
         </div>
         <div className="flex items-center gap-3">
-          <button
+                    <button
             onClick={() => {
-              const priceText = sortedResults.map(item =>
-                `${item.name}: ${(item.price || 0)}p${item.ducats ? ` (${item.ducats} ducats)` : ''}`
-              ).join('\n');
-              navigator.clipboard.writeText(priceText);
-              // Could add toast notification here
+              // Generate whisper messages for items with buyers
+              const messages = sortedResults
+                .filter(item => item.buyerUsername && item.price && item.price > 0)
+                .map(item =>
+                  `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`
+                );
+
+              if (messages.length > 0) {
+                navigator.clipboard.writeText(messages.join('\n'));
+                // Could add toast notification here
+              } else {
+                alert('No buyers available for any items');
+              }
             }}
             className="flex items-center gap-1 px-2 py-1 text-xs bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30 rounded hover:bg-tenno-blue/30 transition-colors"
-            title="Copy all prices to clipboard for sharing"
+            title="Generate whisper messages to contact highest bidders"
           >
-            <Copy size={12} />
-            Copy Prices
+            <MessageCircle size={12} />
+            Message Buyers
           </button>
           <div className="text-xs text-gray-500">
             <span className="hidden lg:inline">Trading Platform View • All values in Platinum</span>
@@ -174,7 +182,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   {sortField === 'totalValue' && (sortDirection === 'asc' ? '↑' : '↓')}
                 </button>
               </th>
-              <th className="text-center p-3 font-medium text-gray-300 min-w-24">Market</th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">Actions</th>
               {showActionButtons && <th className="text-center p-3 font-medium text-gray-300 w-20">Actions</th>}
             </tr>
           </thead>
@@ -265,17 +273,36 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   </div>
                 </td>
 
-                {/* Market Link */}
+                {/* Market Actions */}
                 <td className="p-3 text-center">
-                  <a
-                    href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-gray-500 hover:text-gray-300 transition-colors"
-                    title="View on Warframe Market"
-                  >
-                    <ExternalLink size={12} />
-                  </a>
+                  <div className="flex items-center justify-center gap-2">
+                    {item.buyerUsername && item.price && item.price > 0 ? (
+                      <button
+                        onClick={() => {
+                          const message = `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`;
+                          navigator.clipboard.writeText(message);
+                          // Could add toast notification here
+                        }}
+                        className="text-tenno-blue hover:text-tenno-light transition-colors"
+                        title={`Message ${item.buyerUsername} (${item.price}p)`}
+                      >
+                        <MessageCircle size={12} />
+                      </button>
+                    ) : (
+                      <span className="text-gray-600" title="No buyers available">
+                        <MessageCircle size={12} />
+                      </span>
+                    )}
+                    <a
+                      href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gray-500 hover:text-gray-300 transition-colors"
+                      title="View on Warframe Market"
+                    >
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
                 </td>
 
                 {/* Actions */}
@@ -516,17 +543,37 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               </div>
             )}
 
-            {/* Market Link */}
+            {/* Market Actions */}
             <div className="mt-4 pt-3 border-t border-gray-700/50">
-              <a
-                href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 text-gray-500 hover:text-gray-300 transition-colors text-sm"
-              >
-                <ExternalLink size={12} />
-                View on Warframe Market
-              </a>
+              <div className="flex items-center justify-center gap-4">
+                {item.buyerUsername && item.price && item.price > 0 ? (
+                  <button
+                    onClick={() => {
+                      const message = `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`;
+                      navigator.clipboard.writeText(message);
+                      // Could add toast notification here
+                    }}
+                    className="flex items-center gap-2 text-tenno-blue hover:text-tenno-light transition-colors text-sm"
+                  >
+                    <MessageCircle size={12} />
+                    Message {item.buyerUsername}
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2 text-gray-600 text-sm">
+                    <MessageCircle size={12} />
+                    No buyers available
+                  </span>
+                )}
+                <a
+                  href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors text-sm"
+                >
+                  <ExternalLink size={12} />
+                  View Market
+                </a>
+              </div>
             </div>
           </div>
         ))}

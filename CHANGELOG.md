@@ -8,11 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **📋 WFInfo-Inspired Clipboard Integration** - One-click sharing functionality adapted from WFInfo companion app
-  - **📊 Copy Prices Button** - Added to both Prime Parts and Relic results tables
-  - **🎯 Party Sharing** - Copy formatted price lists for easy pasting in Warframe chat
-  - **📝 Smart Formatting** - Includes item names, prices, and relevant metadata (ducats, recommendations)
-  - **⚡ One-Click Operation** - Instant clipboard copy with hover tooltips for guidance
+- **🎯 REVOLUTIONARY: Direct Buyer Messaging** - Game-changing trading workflow that eliminates tab switching
+  - **💬 Whisper Message Generation** - One-click generation of `/w [username] Hi! I want to sell: "[item]" for [price] platinum. (warframe.market)` messages
+  - **👤 Highest Bidder Integration** - Automatically contacts the top buyer for each item with accurate pricing
+  - **📋 Batch Messaging** - "Message Buyers" button generates multiple whisper messages for all items with available buyers
+  - **🔄 Individual & Bulk Actions** - Message individual buyers or copy all messages at once
+  - **✅ Smart Availability Detection** - Only shows message buttons when buyers are actually available
+  - **🎮 Seamless Trading** - Never leave your browser tab to initiate trades on Warframe Market
 - **🛡️ Prime Set Detection System** - Revolutionary feature that analyzes your inventory to detect buildable Prime sets
   - **🎯 Buildable Sets Detection** - Automatically identifies which Prime warframes/weapons you can build immediately
   - **📊 Progress Tracking** - Shows completion percentage for each set and which parts you're missing
@@ -70,6 +72,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🎯 Default Total Value Sorting** - Relics now sort by total plat outcome (best value × quantity) by default for maximum revenue prioritization
 
 ### Technical
+- **🏗️ Buyer Integration Architecture** - Complete API enhancement for whisper message generation
+  - **👤 Highest Bidder Detection** - Enhanced Supabase function and direct API calls to track top buyer usernames and quantities
+  - **💬 Message Generation System** - Smart whisper message formatting with exact Warframe chat syntax
+  - **📡 API Response Enhancement** - Added `buyerUsername` and `buyerQuantity` fields to all market data responses
+  - **🔄 Type System Updates** - Extended BaseItem interface with buyer information fields
+  - **🎯 UI Integration** - Replaced clipboard buttons with MessageCircle icons and buyer messaging functionality
 - **🏗️ Parallel Processing Architecture** - Complete refactor of image processing workflow
   - **📊 processImageAnalysis()** - Dedicated function for Gemini AI analysis only
   - **💰 processPriceFetching()** - Separate function for market price fetching operations
