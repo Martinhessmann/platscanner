@@ -184,172 +184,173 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
             </tr>
           </thead>
           <tbody>
-            {sortedResults.map((item) => (
-              <tr key={item.id} className="border-t border-gray-700/50 hover:bg-gray-800/30 transition-colors">
-                {/* Item Name with Image */}
-                <td className="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-900/50 rounded border border-gray-700/50 flex-shrink-0 overflow-hidden">
-                      {item.imgUrl ? (
-                        <img
-                          src={item.imgUrl}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <AlertCircle size={12} className="text-gray-500" />
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <div className="font-medium text-white text-sm leading-tight">
-                        {item.name}
-                      </div>
-                      {(() => {
-                        const reservation = isItemReserved(item.name, 'prime_parts');
-                        if (reservation.reserved) {
-                          return (
-                            <div className="flex items-center gap-1 mt-1">
-                              <Shield size={10} className={reservation.isPriority ? 'text-red-400' : 'text-yellow-400'} />
-                              <span className={`text-xs ${reservation.isPriority ? 'text-red-400' : 'text-yellow-400'}`}>
-                                Reserved for: {reservation.reservedFor.join(', ')}
-                                {reservation.isPriority && ' (PRIORITY)'}
-                              </span>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
-                      {item.status === 'error' && item.error && (
-                        <div className="text-xs text-grineer-red mt-0.5">
-                          {item.error}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </td>
+            {sortedResults.map((item) => {
+              const reservation = isItemReserved(item.name, 'prime_parts');
+              const rowClass = reservation.reserved
+                ? (reservation.isPriority ? 'bg-red-900/10' : 'bg-yellow-900/10')
+                : 'hover:bg-gray-800/50';
 
-                {/* Quantity */}
-                <td className="p-3 text-center">
-                  <span className={`inline-flex items-center justify-center min-w-8 h-6 rounded text-xs font-medium ${
-                    (item.quantity && item.quantity > 1)
-                      ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
-                      : 'text-gray-400'
-                  }`}>
-                    {item.quantity || 1}
-                  </span>
-                </td>
-
-                {/* Platinum */}
-                <td className="p-3 text-center">
-                  {item.status === 'loading' ? (
-                    <div className="h-4 w-12 bg-gray-700 rounded animate-pulse mx-auto"></div>
-                  ) : (
-                    <div className="flex items-center justify-center gap-1">
-                      <Zap size={12} className="text-gray-300" />
-                      <span className="font-medium text-gray-300">{item.price || 0}</span>
-                    </div>
-                  )}
-                </td>
-
-                {/* Ducats */}
-                <td className="p-3 text-center">
-                  {item.ducats ? (
-                    <div className="flex items-center justify-center gap-1">
-                      <Coins size={10} className="text-yellow-500" />
-                      <span className="font-medium text-yellow-500">{item.ducats}</span>
-                    </div>
-                  ) : (
-                    <span className="text-gray-500">-</span>
-                  )}
-                </td>
-
-                {/* Volume */}
-                <td className="p-3 text-center text-gray-300">
-                  {item.volume || '-'}
-                </td>
-
-                {/* Average */}
-                <td className="p-3 text-center text-gray-300">
-                  {item.average || '-'}
-                </td>
-
-                {/* Total Value */}
-                <td className="p-3 text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <Zap size={12} className="text-yellow-400" />
-                    <span className="font-medium text-yellow-400">
-                      {((item.price || 0) * (item.quantity || 1))}p
-                    </span>
-                  </div>
-                </td>
-
-                {/* Market Actions */}
-                <td className="p-3 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    {item.buyerUsername && item.price && item.price > 0 ? (
-                      <button
-                        onClick={() => {
-                          const message = `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`;
-                          handleClipboardCopy(message, item.id);
-                        }}
-                        className={`text-tenno-blue hover:text-tenno-light transition-colors ${
-                          copiedItems.has(item.id) ? 'text-tenno-light' : ''
-                        }`}
-                        title={`Message ${item.buyerUsername} (${item.price}p)`}
-                      >
-                        {copiedItems.has(item.id) ? <Check size={12} /> : <MessageCircle size={12} />}
-                      </button>
-                    ) : (
-                      <span className="text-gray-600" title="No buyers available">
-                        <MessageCircle size={12} />
-                      </span>
-                    )}
-                    <a
-                      href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-gray-500 hover:text-gray-300 transition-colors"
-                      title="View on Warframe Market"
-                    >
-                      <ExternalLink size={12} />
-                    </a>
-                  </div>
-                </td>
-
-                {/* Actions */}
-                {showActionButtons && (
+              return (
+                <tr key={item.id} className={`border-t border-gray-700/50 transition-colors ${rowClass}`}>
+                  {/* Item Name with Image */}
                   <td className="p-3">
-                    <div className="flex items-center justify-center gap-1">
-                      {onRefreshItem && (
-                        <button
-                          onClick={() => onRefreshItem(item.name)}
-                          disabled={item.status === 'loading'}
-                          className={`p-1 rounded text-xs transition-colors ${
-                            item.status === 'loading'
-                              ? 'text-gray-500 cursor-not-allowed'
-                              : 'text-tenno-blue hover:bg-gray-700/50'
-                          }`}
-                          title="Refresh"
-                        >
-                          <RefreshCw size={12} className={item.status === 'loading' ? 'animate-spin' : ''} />
-                        </button>
-                      )}
-                      {onRemoveItem && (
-                        <button
-                          onClick={() => onRemoveItem(item.name)}
-                          className="p-1 rounded text-xs text-grineer-red hover:bg-gray-700/50 transition-colors"
-                          title="Remove"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gray-900/50 rounded border border-gray-700/50 flex-shrink-0 overflow-hidden">
+                        {item.imgUrl ? (
+                          <img
+                            src={item.imgUrl}
+                            alt={item.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <AlertCircle size={12} className="text-gray-500" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-white text-sm leading-tight">
+                          {item.name}
+                        </div>
+                        {reservation.reserved && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <Shield size={10} className={reservation.isPriority ? 'text-red-400' : 'text-yellow-400'} />
+                            <span className={`text-xs ${reservation.isPriority ? 'text-red-400' : 'text-yellow-400'}`}>
+                              Reserved for: {reservation.reservedFor.join(', ')}
+                              {reservation.isPriority && ' (PRIORITY)'}
+                            </span>
+                          </div>
+                        )}
+                        {item.status === 'error' && item.error && (
+                          <div className="text-xs text-grineer-red mt-0.5">
+                            {item.error}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </td>
-                )}
-              </tr>
-            ))}
+
+                  {/* Quantity */}
+                  <td className="p-3 text-center">
+                    <span className={`inline-flex items-center justify-center min-w-8 h-6 rounded text-xs font-medium ${
+                      (item.quantity && item.quantity > 1)
+                        ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
+                        : 'text-gray-400'
+                    }`}>
+                      {item.quantity || 1}
+                    </span>
+                  </td>
+
+                  {/* Platinum */}
+                  <td className="p-3 text-center">
+                    {item.status === 'loading' ? (
+                      <div className="h-4 w-12 bg-gray-700 rounded animate-pulse mx-auto"></div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-1">
+                        <Zap size={12} className="text-gray-300" />
+                        <span className="font-medium text-gray-300">{item.price || 0}</span>
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Ducats */}
+                  <td className="p-3 text-center">
+                    {item.ducats ? (
+                      <div className="flex items-center justify-center gap-1">
+                        <Coins size={10} className="text-yellow-500" />
+                        <span className="font-medium text-yellow-500">{item.ducats}</span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-500">-</span>
+                    )}
+                  </td>
+
+                  {/* Volume */}
+                  <td className="p-3 text-center text-gray-300">
+                    {item.volume || '-'}
+                  </td>
+
+                  {/* Average */}
+                  <td className="p-3 text-center text-gray-300">
+                    {item.average || '-'}
+                  </td>
+
+                  {/* Total Value */}
+                  <td className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <Zap size={12} className="text-yellow-400" />
+                      <span className="font-medium text-yellow-400">
+                        {((item.price || 0) * (item.quantity || 1))}p
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* Market Actions */}
+                  <td className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      {item.buyerUsername && item.price && item.price > 0 ? (
+                        <button
+                          onClick={() => {
+                            const message = `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`;
+                            handleClipboardCopy(message, item.id);
+                          }}
+                          className={`text-tenno-blue hover:text-tenno-light transition-colors ${
+                            copiedItems.has(item.id) ? 'text-tenno-light' : ''
+                          }`}
+                          title={`Message ${item.buyerUsername} (${item.price}p)`}
+                        >
+                          {copiedItems.has(item.id) ? <Check size={12} /> : <MessageCircle size={12} />}
+                        </button>
+                      ) : (
+                        <span className="text-gray-600" title="No buyers available">
+                          <MessageCircle size={12} />
+                        </span>
+                      )}
+                      <a
+                        href={`https://warframe.market/items/${item.name.toLowerCase().replace(/ /g, '_')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-500 hover:text-gray-300 transition-colors"
+                        title="View on Warframe Market"
+                      >
+                        <ExternalLink size={12} />
+                      </a>
+                    </div>
+                  </td>
+
+                  {/* Actions */}
+                  {showActionButtons && (
+                    <td className="p-3">
+                      <div className="flex items-center justify-center gap-1">
+                        {onRefreshItem && (
+                          <button
+                            onClick={() => onRefreshItem(item.name)}
+                            disabled={item.status === 'loading'}
+                            className={`p-1 rounded text-xs transition-colors ${
+                              item.status === 'loading'
+                                ? 'text-gray-500 cursor-not-allowed'
+                                : 'text-tenno-blue hover:bg-gray-700/50'
+                            }`}
+                            title="Refresh"
+                          >
+                            <RefreshCw size={12} className={item.status === 'loading' ? 'animate-spin' : ''} />
+                          </button>
+                        )}
+                        {onRemoveItem && (
+                          <button
+                            onClick={() => onRemoveItem(item.name)}
+                            className="p-1 rounded text-xs text-grineer-red hover:bg-gray-700/50 transition-colors"
+                            title="Remove"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

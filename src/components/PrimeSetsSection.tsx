@@ -41,14 +41,50 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   relicsInventory
 }) => {
   const [setProgress, setSetProgress] = useState<SetProgress[]>([]);
+  const [recommendations, setRecommendations] = useState<{
+    buildable: SetProgress[];
+    nearComplete: SetProgress[];
+    highValue: SetProgress[];
+  }>({ buildable: [], nearComplete: [], highValue: [] });
   const [activeTab, setActiveTab] = useState<'all' | 'buildable' | 'progress' | 'built'>('all');
   const [refreshKey, setRefreshKey] = useState(0);
   const [plannedSets, setPlannedSets] = useState<Map<string, { planned: boolean; isPriority: boolean }>>(new Map());
+  const [isLoading, setIsLoading] = useState(true);
 
   // Calculate progress on inventory changes
   useEffect(() => {
-    const progress = analyzeSetProgress(primePartsInventory, relicsInventory);
-    setSetProgress(progress);
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const [progress, recs] = await Promise.all([
+          analyzeSetProgress(primePartsInventory, relicsInventory),
+          getSetRecommendations(primePartsInventory, relicsInventory)
+        ]);
+
+        if (isMounted) {
+          setSetProgress(progress);
+          setRecommendations(recs);
+        }
+      } catch (error) {
+        console.error('Failed to load prime sets data:', error);
+        if (isMounted) {
+          setSetProgress([]);
+          setRecommendations({ buildable: [], nearComplete: [], highValue: [] });
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadData();
+
+    return () => {
+      isMounted = false;
+    };
   }, [primePartsInventory, relicsInventory, refreshKey]);
 
   // Load planned sets on component mount and when refresh key changes
@@ -60,8 +96,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     });
     setPlannedSets(planned);
   }, [setProgress, refreshKey]);
-
-  const recommendations = getSetRecommendations(primePartsInventory, relicsInventory);
 
   // Calculate sets that could be built with relics
   const potentiallyBuildable = setProgress.filter(p =>
@@ -122,6 +156,21 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     setRefreshKey(prev => prev + 1);
   };
 
+  const handleToggleFavorite = (setName: string, setId: string) => {
+    const planStatus = isSetPlanned(setName);
+    // Toggle priority status
+    addToBuildPlan(setName, !planStatus.isPriority);
+
+    // Update local state
+    setPlannedSets(prev => {
+      const updated = new Map(prev);
+      updated.set(setId, { planned: true, isPriority: !planStatus.isPriority });
+      return updated;
+    });
+
+    setRefreshKey(prev => prev + 1);
+  };
+
   const handleRemoveFromBuilt = (setId: string) => {
     // Remove mastery status (move back to available)
     toggleSetMastery(setId);
@@ -134,6 +183,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       case 'Primary': return <Crosshair size={16} className="text-red-400" />;
       case 'Secondary': return <Target size={16} className="text-orange-400" />;
       case 'Melee': return <Sword size={16} className="text-purple-400" />;
+      case 'Sentinel': return <Shield size={16} className="text-cyan-400" />;
+      case 'Archwing': return <Zap size={16} className="text-green-400" />;
+      case 'Companion': return <Heart size={16} className="text-pink-400" />;
     }
   };
 
@@ -142,6 +194,14 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     if (percentage >= 75) return 'bg-yellow-500';
     if (percentage >= 50) return 'bg-orange-500';
     return 'bg-gray-500';
+  };
+
+  const getRelicsForPart = (partName: string) => {
+    const lowerPartName = partName.toLowerCase();
+    const relics = relicsInventory.filter(relic =>
+      relic.relicDrops?.some(drop => drop.itemName.toLowerCase() === lowerPartName)
+    );
+    return relics.map(r => r.name.replace(' Relic', ''));
   };
 
   const filteredSets = () => {
@@ -162,6 +222,16 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     if (!a.canBuild && b.canBuild) return 1;
     return b.completionPercentage - a.completionPercentage;
   });
+
+  if (isLoading) {
+    return (
+      <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">
+        <Shield size={48} className="mx-auto text-gray-600 mb-4 animate-pulse" />
+        <p className="text-gray-400">Loading prime sets...</p>
+        <p className="text-sm text-gray-500 mt-1">Analyzing {setProgress.length || 'all'} prime sets from database.</p>
+      </div>
+    );
+  }
 
   if (primePartsInventory.length === 0) {
     return (
@@ -311,9 +381,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 ? 'border-green-500/50 ring-1 ring-green-500/20'
                 : progress.ismastered
                   ? 'border-purple-500/50 ring-1 ring-purple-500/20'
-                  : plannedSets.get(progress.set.id)?.planned
-                    ? 'border-yellow-500/50 ring-1 ring-yellow-500/20'
-                    : 'border-gray-700'
+                  : plannedSets.get(progress.set.id)?.isPriority
+                    ? 'border-fuchsia-500/80 ring-2 ring-fuchsia-500/40'
+                    : plannedSets.get(progress.set.id)?.planned
+                      ? 'border-yellow-500/50 ring-1 ring-yellow-500/20'
+                      : 'border-gray-700'
             }`}
           >
             {/* Set Header */}
@@ -384,19 +456,29 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                     icon = <Hexagon size={12} />;
                   }
 
+                  const relicSources = getRelicsForPart(part.name);
+
                   return (
                     <div key={index} className="flex items-center justify-between text-xs">
                       <div className={`flex items-center gap-1 ${textColor}`}>
                         <span className={iconColor}>{icon}</span>
                         <span className="truncate">{part.partType}</span>
+                        {part.itemCount && part.itemCount > 1 && (
+                          <span className="text-xs text-blue-400">x{part.itemCount}</span>
+                        )}
                         {isObtainableFromRelics && !isOwned && (
                           <span className="text-xs text-yellow-400/70" title="Available in your relics">
                             (relic)
                           </span>
                         )}
                       </div>
-                      <span className={textColor}>
-                        {part.ducats}d
+                      <span className={`${textColor} truncate`}>
+                        {isOwned
+                          ? `${part.ducats}d`
+                          : relicSources.length > 0
+                            ? relicSources.slice(0, 2).join(', ') + (relicSources.length > 2 ? '...' : '')
+                            : `${part.ducats}d`
+                        }
                       </span>
                     </div>
                   );
@@ -471,6 +553,13 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       <BookOpen size={12} />
                       <span>I want to build this</span>
                     </div>
+                  </button>
+                  <button
+                    onClick={() => handleToggleFavorite(progress.set.name, progress.set.id)}
+                    className="p-1.5 text-xs bg-fuchsia-600/20 text-fuchsia-400 border border-fuchsia-600/30 rounded hover:bg-fuchsia-600/30 transition-colors"
+                    title="Mark as priority build"
+                  >
+                    <Heart size={12} />
                   </button>
                   <button
                     onClick={() => handleMarkAsBuilt(progress.set.id, progress.set.name)}

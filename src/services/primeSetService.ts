@@ -6,16 +6,17 @@ import { DetectedItem, VoidRelic } from '../types';
 
 export interface PrimePart {
   name: string;
-  partType: 'Blueprint' | 'Systems' | 'Chassis' | 'Neuroptics' | 'Barrel' | 'Receiver' | 'Stock' | 'String' | 'Grip' | 'Blade' | 'Handle' | 'Link' | 'Gauntlet' | 'Upper Limb' | 'Lower Limb' | 'Carapace' | 'Cerebrum';
+  partType: 'Blueprint' | 'Systems' | 'Chassis' | 'Neuroptics' | 'Barrel' | 'Receiver' | 'Stock' | 'String' | 'Grip' | 'Blade' | 'Handle' | 'Link' | 'Gauntlet' | 'Upper Limb' | 'Lower Limb' | 'Carapace' | 'Cerebrum' | 'Pouch' | 'Stars' | 'Boot' | 'Chain' | 'Disc' | 'Guard' | 'Hilt' | 'Head' | 'Ornament' | 'Harness' | 'Wings' | 'Band' | 'Buckle' | 'Blades';
   ducats: number;
   vaulted: boolean;
+  itemCount?: number; // Number of this part required, defaults to 1
 }
 
 export interface PrimeSet {
   id: string;
   name: string;
-  type: 'Warframe' | 'Primary' | 'Secondary' | 'Melee';
-  category: 'Assault Rifle' | 'Bow' | 'Shotgun' | 'Sniper' | 'Pistol' | 'Throwing Knife' | 'Sword' | 'Polearm' | 'Nikana' | 'Warframe';
+  type: 'Warframe' | 'Primary' | 'Secondary' | 'Melee' | 'Sentinel' | 'Archwing' | 'Companion';
+  category: 'Assault Rifle' | 'Bow' | 'Shotgun' | 'Sniper' | 'Pistol' | 'Throwing Knife' | 'Sword' | 'Polearm' | 'Nikana' | 'Warframe' | 'Sentinel' | 'Archwing' | 'Companion';
   requiredParts: PrimePart[];
   vaulted: boolean;
   masteryRank: number;
@@ -34,117 +35,161 @@ export interface SetProgress {
   ismastered: boolean;
 }
 
-// Prime Sets Database (comprehensive collection)
-export const PRIME_SETS: PrimeSet[] = [
-  // Warframes
-  {
-    id: 'ash_prime',
-    name: 'Ash Prime',
-    type: 'Warframe',
-    category: 'Warframe',
-    requiredParts: [
-      { name: 'Ash Prime Blueprint', partType: 'Blueprint', ducats: 25, vaulted: true },
-      { name: 'Ash Prime Systems', partType: 'Systems', ducats: 45, vaulted: true },
-      { name: 'Ash Prime Chassis', partType: 'Chassis', ducats: 45, vaulted: true },
-      { name: 'Ash Prime Neuroptics', partType: 'Neuroptics', ducats: 100, vaulted: true }
-    ],
-    vaulted: true,
-    masteryRank: 0,
-    releaseDate: '2015-07-07'
-  },
-  {
-    id: 'atlas_prime',
-    name: 'Atlas Prime',
-    type: 'Warframe',
-    category: 'Warframe',
-    requiredParts: [
-      { name: 'Atlas Prime Blueprint', partType: 'Blueprint', ducats: 25, vaulted: false },
-      { name: 'Atlas Prime Systems', partType: 'Systems', ducats: 45, vaulted: false },
-      { name: 'Atlas Prime Chassis', partType: 'Chassis', ducats: 45, vaulted: false },
-      { name: 'Atlas Prime Neuroptics', partType: 'Neuroptics', ducats: 100, vaulted: false }
-    ],
-    vaulted: false,
-    masteryRank: 0,
-    releaseDate: '2019-10-01'
-  },
-  {
-    id: 'banshee_prime',
-    name: 'Banshee Prime',
-    type: 'Warframe',
-    category: 'Warframe',
-    requiredParts: [
-      { name: 'Banshee Prime Blueprint', partType: 'Blueprint', ducats: 25, vaulted: true },
-      { name: 'Banshee Prime Systems', partType: 'Systems', ducats: 45, vaulted: true },
-      { name: 'Banshee Prime Chassis', partType: 'Chassis', ducats: 45, vaulted: true },
-      { name: 'Banshee Prime Neuroptics', partType: 'Neuroptics', ducats: 100, vaulted: true }
-    ],
-    vaulted: true,
-    masteryRank: 0,
-    releaseDate: '2017-02-28'
-  },
-  // Primary Weapons
-  {
-    id: 'braton_prime',
-    name: 'Braton Prime',
-    type: 'Primary',
-    category: 'Assault Rifle',
-    requiredParts: [
-      { name: 'Braton Prime Blueprint', partType: 'Blueprint', ducats: 25, vaulted: false },
-      { name: 'Braton Prime Barrel', partType: 'Barrel', ducats: 45, vaulted: false },
-      { name: 'Braton Prime Receiver', partType: 'Receiver', ducats: 45, vaulted: false },
-      { name: 'Braton Prime Stock', partType: 'Stock', ducats: 100, vaulted: false }
-    ],
-    vaulted: false,
-    masteryRank: 2,
-    releaseDate: '2013-05-03'
-  },
-  {
-    id: 'paris_prime',
-    name: 'Paris Prime',
-    type: 'Primary',
-    category: 'Bow',
-    requiredParts: [
-      { name: 'Paris Prime Blueprint', partType: 'Blueprint', ducats: 25, vaulted: true },
-      { name: 'Paris Prime Grip', partType: 'Grip', ducats: 45, vaulted: true },
-      { name: 'Paris Prime String', partType: 'String', ducats: 45, vaulted: true },
-      { name: 'Paris Prime Upper Limb', partType: 'Upper Limb', ducats: 100, vaulted: true }
-    ],
-    vaulted: true,
-    masteryRank: 4,
-    releaseDate: '2013-03-18'
-  },
-  // Secondary Weapons
-  {
-    id: 'lex_prime',
-    name: 'Lex Prime',
-    type: 'Secondary',
-    category: 'Pistol',
-    requiredParts: [
-      { name: 'Lex Prime Blueprint', partType: 'Blueprint', ducats: 25, vaulted: true },
-      { name: 'Lex Prime Barrel', partType: 'Barrel', ducats: 45, vaulted: true },
-      { name: 'Lex Prime Receiver', partType: 'Receiver', ducats: 100, vaulted: true }
-    ],
-    vaulted: true,
-    masteryRank: 3,
-    releaseDate: '2013-12-17'
-  },
-  // Melee Weapons
-  {
-    id: 'nikana_prime',
-    name: 'Nikana Prime',
-    type: 'Melee',
-    category: 'Nikana',
-    requiredParts: [
-      { name: 'Nikana Prime Blueprint', partType: 'Blueprint', ducats: 25, vaulted: true },
-      { name: 'Nikana Prime Blade', partType: 'Blade', ducats: 45, vaulted: true },
-      { name: 'Nikana Prime Hilt', partType: 'Handle', ducats: 100, vaulted: true }
-    ],
-    vaulted: true,
-    masteryRank: 4,
-    releaseDate: '2016-07-05'
+// JSON interface for the imported data
+interface PrimeSetJson {
+  name: string;
+  image: string;
+  category: string;
+  components: {
+    name: string;
+    count: number;
+  }[];
+}
+
+// Ducats mapping for different part types (estimated based on rarity)
+const DUCATS_MAP: Record<string, number> = {
+  'Blueprint': 25,
+  'Systems': 45,
+  'Chassis': 45,
+  'Neuroptics': 100,
+  'Barrel': 45,
+  'Receiver': 100,
+  'Stock': 45,
+  'String': 45,
+  'Grip': 45,
+  'Blade': 45,
+  'Handle': 45,
+  'Link': 15,
+  'Gauntlet': 45,
+  'Upper Limb': 100,
+  'Lower Limb': 45,
+  'Carapace': 45,
+  'Cerebrum': 45,
+  'Pouch': 45,
+  'Stars': 45,
+  'Boot': 45,
+  'Chain': 45,
+  'Disc': 100,
+  'Guard': 45,
+  'Hilt': 100,
+  'Head': 100,
+  'Ornament': 45,
+  'Harness': 45,
+  'Wings': 45,
+  'Band': 45,
+  'Buckle': 45,
+  'Blades': 45
+};
+
+// Map JSON categories to proper types
+const mapCategoryToType = (category: string): PrimeSet['type'] => {
+  switch (category.toLowerCase()) {
+    case 'warframe':
+      return 'Warframe';
+    case 'primary':
+      return 'Primary';
+    case 'secondary':
+      return 'Secondary';
+    case 'melee':
+      return 'Melee';
+    case 'sentinel':
+      return 'Sentinel';
+    case 'archwing':
+      return 'Archwing';
+    case 'companion':
+      return 'Companion';
+    default:
+      return 'Primary'; // Default fallback
   }
-  // Add more sets as needed...
-];
+};
+
+// Determine if a prime set is vaulted (simplified logic - newer releases are typically not vaulted)
+const isVaulted = (name: string): boolean => {
+  // Most recent releases that are typically not vaulted
+  const currentUnvaulted = [
+    'Gara Prime', 'Nidus Prime', 'Harrow Prime', 'Khora Prime', 'Garuda Prime',
+    'Revenant Prime', 'Baruuk Prime', 'Hildryn Prime', 'Wisp Prime', 'Gauss Prime',
+    'Atlas Prime', 'Ivara Prime', 'Titania Prime', 'Nezha Prime', 'Inaros Prime',
+    'Octavia Prime', 'Grendel Prime', 'Sevagoth Prime', 'Nyx Prime', 'Valkyr Prime',
+    'Protea Prime', 'Xaku Prime', 'Yareli Prime', 'Lavos Prime'
+  ];
+
+  return !currentUnvaulted.some(unvaulted => name.includes(unvaulted.split(' ')[0]));
+};
+
+// Get estimated mastery rank requirement
+const getMasteryRank = (type: PrimeSet['type']): number => {
+  switch (type) {
+    case 'Warframe':
+      return 0;
+    case 'Primary':
+      return Math.floor(Math.random() * 8) + 2; // 2-10
+    case 'Secondary':
+      return Math.floor(Math.random() * 6) + 2; // 2-8
+    case 'Melee':
+      return Math.floor(Math.random() * 6) + 2; // 2-8
+    case 'Sentinel':
+    case 'Companion':
+      return 0;
+    case 'Archwing':
+      return 1;
+    default:
+      return 0;
+  }
+};
+
+// Transform JSON data to PrimeSet interface
+const transformJsonToPrimeSet = (jsonSet: PrimeSetJson): PrimeSet => {
+  const id = jsonSet.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  const type = mapCategoryToType(jsonSet.category);
+
+  const requiredParts: PrimePart[] = jsonSet.components.map(component => ({
+    name: `${jsonSet.name} ${component.name}`,
+    partType: component.name as PrimePart['partType'],
+    ducats: DUCATS_MAP[component.name] || 45, // Default to 45 ducats
+    vaulted: isVaulted(jsonSet.name),
+    itemCount: component.count
+  }));
+
+  return {
+    id,
+    name: jsonSet.name,
+    type,
+    category: type as any, // Simplified mapping
+    requiredParts,
+    vaulted: isVaulted(jsonSet.name),
+    masteryRank: getMasteryRank(type),
+    releaseDate: '2024-01-01' // Placeholder date
+  };
+};
+
+// Load and cache prime sets data
+let PRIME_SETS: PrimeSet[] = [];
+let primeSetsLoaded = false;
+
+const loadPrimeSets = async (): Promise<PrimeSet[]> => {
+  if (primeSetsLoaded && PRIME_SETS.length > 0) {
+    return PRIME_SETS;
+  }
+
+  try {
+    const response = await fetch('/primesets.json');
+    if (!response.ok) {
+      throw new Error(`Failed to load prime sets: ${response.statusText}`);
+    }
+
+    const jsonData: PrimeSetJson[] = await response.json();
+    PRIME_SETS = jsonData.map(transformJsonToPrimeSet);
+    primeSetsLoaded = true;
+
+    console.log(`Loaded ${PRIME_SETS.length} prime sets from JSON`);
+    return PRIME_SETS;
+  } catch (error) {
+    console.error('Failed to load prime sets:', error);
+    // Return empty array as fallback
+    return [];
+  }
+};
 
 // Mastery tracking storage key
 const MASTERY_STORAGE_KEY = 'platscanner_mastery';
@@ -179,11 +224,14 @@ export const toggleSetMastery = (setId: string): void => {
 };
 
 // Check if user owns a specific part
-const ownsItem = (itemName: string, inventory: DetectedItem[]): boolean => {
-  return inventory.some(item =>
-    item.name.toLowerCase() === itemName.toLowerCase() &&
-    (item.quantity || 1) > 0
-  );
+const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedItem[]): boolean => {
+  const lowerItemName = itemName.toLowerCase();
+  const inventoryItem = inventory.find(item => {
+    const lowerInventoryItemName = item.name.toLowerCase();
+    return (lowerInventoryItemName === lowerItemName || lowerInventoryItemName === `${lowerItemName} blueprint`);
+  });
+
+  return inventoryItem ? (inventoryItem.quantity || 1) >= requiredCount : false;
 };
 
 // Check if user can obtain a part from owned relics
@@ -212,46 +260,26 @@ const calculateMissingCost = (missingParts: string[]): number => {
 };
 
 // Analyze set completion progress
-export const analyzeSetProgress = (
+export const analyzeSetProgress = async (
   primePartsInventory: DetectedItem[],
   relicsInventory: VoidRelic[] = []
-): SetProgress[] => {
+): Promise<SetProgress[]> => {
+  const primeSets = await loadPrimeSets();
   const masteredSets = getMasteredSets();
 
-    return PRIME_SETS.map(set => {
+  return primeSets.map(set => {
     const ownedParts: string[] = [];
     const missingParts: string[] = [];
     const obtainableFromRelics: string[] = [];
     let totalCost = 0;
 
-    // --- DEBUGGING START ---
-    if (set.name === 'Atlas Prime') {
-      console.log(`[Debug] Checking set: ${set.name}`);
-      console.log('[Debug] Prime Parts Inventory:', JSON.parse(JSON.stringify(primePartsInventory)));
-    }
-    // --- DEBUGGING END ---
-
     // Check each required part
     set.requiredParts.forEach(part => {
-      // --- DEBUGGING START ---
-      if (set.name === 'Atlas Prime') {
-        console.log(`[Debug]   - Checking for part: "${part.name}"`);
-      }
-      // --- DEBUGGING END ---
-      if (ownsItem(part.name, primePartsInventory)) {
+      const requiredCount = part.itemCount || 1;
+      if (ownsItem(part.name, requiredCount, primePartsInventory)) {
         ownedParts.push(part.name);
-        // --- DEBUGGING START ---
-        if (set.name === 'Atlas Prime') {
-          console.log(`[Debug]     ✅ FOUND: "${part.name}" is owned.`);
-        }
-        // --- DEBUGGING END ---
       } else {
         missingParts.push(part.name);
-        // --- DEBUGGING START ---
-        if (set.name === 'Atlas Prime') {
-          console.log(`[Debug]     ❌ NOT FOUND: "${part.name}" is not owned.`);
-        }
-        // --- DEBUGGING END ---
         // Check if this missing part can be obtained from owned relics
         if (canObtainFromRelics(part.name, relicsInventory)) {
           obtainableFromRelics.push(part.name);
@@ -280,22 +308,24 @@ export const analyzeSetProgress = (
 };
 
 // Get sets that can be built immediately
-export const getBuildableSets = (
+export const getBuildableSets = async (
   primePartsInventory: DetectedItem[],
   relicsInventory: VoidRelic[] = []
-): SetProgress[] => {
-  return analyzeSetProgress(primePartsInventory, relicsInventory)
+): Promise<SetProgress[]> => {
+  const progress = await analyzeSetProgress(primePartsInventory, relicsInventory);
+  return progress
     .filter(progress => progress.canBuild && !progress.ismastered)
     .sort((a, b) => b.completionPercentage - a.completionPercentage);
 };
 
 // Get sets with highest completion percentage
-export const getNearCompleteSets = (
+export const getNearCompleteSets = async (
   primePartsInventory: DetectedItem[],
   relicsInventory: VoidRelic[] = [],
   minCompletion: number = 50
-): SetProgress[] => {
-  return analyzeSetProgress(primePartsInventory, relicsInventory)
+): Promise<SetProgress[]> => {
+  const progress = await analyzeSetProgress(primePartsInventory, relicsInventory);
+  return progress
     .filter(progress =>
       !progress.canBuild &&
       !progress.ismastered &&
@@ -305,15 +335,15 @@ export const getNearCompleteSets = (
 };
 
 // Get priority recommendations
-export const getSetRecommendations = (
+export const getSetRecommendations = async (
   primePartsInventory: DetectedItem[],
   relicsInventory: VoidRelic[] = []
-): {
+): Promise<{
   buildable: SetProgress[];
   nearComplete: SetProgress[];
   highValue: SetProgress[];
-} => {
-  const allProgress = analyzeSetProgress(primePartsInventory, relicsInventory);
+}> => {
+  const allProgress = await analyzeSetProgress(primePartsInventory, relicsInventory);
 
   const buildable = allProgress
     .filter(p => p.canBuild && !p.ismastered)
