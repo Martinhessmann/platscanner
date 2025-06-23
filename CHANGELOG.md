@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2025-06-23
+
 ### Added
 - **🎯 REVOLUTIONARY: Direct Buyer Messaging** - Game-changing trading workflow that eliminates tab switching
   - **💬 Whisper Message Generation** - One-click generation of `/w [username] Hi! I want to sell: "[item]" for [price] platinum. (warframe.market)` messages
@@ -30,6 +32,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **⚡ Interactive UI** - Click any relic name to open detailed analysis popup
 
 ### Enhanced
+- **🎯 REVOLUTIONARY: Prime Set Status System Redesign** - Complete overhaul of build planning and status management
+  - **📋 Intuitive Tab System** - "All Sets" default, with Buildable, In Progress, and Already Built tabs for clear organization
+  - **🎯 Simplified Button Logic** - "I want to build this" moves to In Progress, "Already Built" moves to Built tab
+  - **🗑️ Mistake Recovery** - Already Built tab includes remove option for accidentally marked items
+  - **❌ Removed Confusing Elements** - Eliminated separate "mastered" checkbox and complex priority system
+  - **🎨 Visual Status Clarity** - Color-coded borders (green=buildable, yellow=in progress, purple=built)
+- **🛡️ Comprehensive Selling Protection System** - Revolutionary item reservation warnings prevent accidental sales
+  - **⚠️ Visual Warning Indicators** - Shield icons and colored text alerts for reserved items in both Prime Parts and Relics tables
+  - **📋 Build Plan Integration** - Shows which sets items are reserved for with priority status
+  - **🚨 Priority Highlighting** - High-priority build reservations displayed in red vs yellow for normal builds
+  - **📱 Cross-Platform Warnings** - Consistent reservation alerts in both desktop tables and mobile card views
+  - **🔒 Automatic Protection** - Items automatically reserved when sets are added to build plans
 - **📋 Clipboard Feedback System** - Visual confirmation for successful whisper message copying
   - **✅ Icon Animation** - Message button icon changes to checkmark for 2 seconds after successful copy
   - **🎯 Per-Item Feedback** - Each item shows individual copy confirmation without affecting others

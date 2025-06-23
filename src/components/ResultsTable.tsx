@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DetectedItem } from '../types';
-import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical, MessageCircle, Check } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical, MessageCircle, Check, Shield } from 'lucide-react';
+import { isItemReserved } from '../services/buildPlanService';
 
 interface ResultsTableProps {
   results: DetectedItem[];
@@ -205,6 +206,21 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                       <div className="font-medium text-white text-sm leading-tight">
                         {item.name}
                       </div>
+                      {(() => {
+                        const reservation = isItemReserved(item.name, 'prime_parts');
+                        if (reservation.reserved) {
+                          return (
+                            <div className="flex items-center gap-1 mt-1">
+                              <Shield size={10} className={reservation.isPriority ? 'text-red-400' : 'text-yellow-400'} />
+                              <span className={`text-xs ${reservation.isPriority ? 'text-red-400' : 'text-yellow-400'}`}>
+                                Reserved for: {reservation.reservedFor.join(', ')}
+                                {reservation.isPriority && ' (PRIORITY)'}
+                              </span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                       {item.status === 'error' && item.error && (
                         <div className="text-xs text-grineer-red mt-0.5">
                           {item.error}
@@ -442,6 +458,21 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                       </span>
                     )}
                   </div>
+                  {(() => {
+                    const reservation = isItemReserved(item.name, 'prime_parts');
+                    if (reservation.reserved) {
+                      return (
+                        <div className="flex items-center gap-1 mt-1">
+                          <Shield size={10} className={reservation.isPriority ? 'text-red-400' : 'text-yellow-400'} />
+                          <span className={`text-xs ${reservation.isPriority ? 'text-red-400' : 'text-yellow-400'}`}>
+                            Reserved for: {reservation.reservedFor.join(', ')}
+                            {reservation.isPriority && ' (PRIORITY)'}
+                          </span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                   {item.status === 'error' && item.error && (
                     <div className="text-xs text-grineer-red mt-0.5">
                       {item.error}

@@ -3,9 +3,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { VoidRelic } from '../types';
-import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, MessageCircle, Info, X, AlertCircle, Check } from 'lucide-react';
+import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, MessageCircle, Info, X, AlertCircle, Check, Shield } from 'lucide-react';
 import { getRelicImagePath } from '../lib/relicUtils';
 import { getRelicDropsByName } from '../services/relicDataService';
+import { isItemReserved } from '../services/buildPlanService';
 
 interface RelicResultsTableProps {
   results: VoidRelic[];
@@ -630,6 +631,21 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                         >
                           {relic.name}
                         </button>
+                        {(() => {
+                          const reservation = isItemReserved(relic.name, 'relics');
+                          if (reservation.reserved) {
+                            return (
+                              <div className="flex items-center gap-1 mt-1">
+                                <Shield size={10} className={reservation.isPriority ? 'text-red-400' : 'text-yellow-400'} />
+                                <span className={`text-xs ${reservation.isPriority ? 'text-red-400' : 'text-yellow-400'}`}>
+                                  Reserved for: {reservation.reservedFor.join(', ')}
+                                  {reservation.isPriority && ' (PRIORITY)'}
+                                </span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })()}
                         {relic.rarity && (
                           <div className="flex items-center gap-1 text-xs text-gray-400 capitalize mt-0.5">
                             <Circle size={6} className={refinementColor} fill={refinementColor} />
@@ -802,6 +818,21 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                         </span>
                       )}
                     </div>
+                    {(() => {
+                      const reservation = isItemReserved(relic.name, 'relics');
+                      if (reservation.reserved) {
+                        return (
+                          <div className="flex items-center gap-1 mt-1">
+                            <Shield size={10} className={reservation.isPriority ? 'text-red-400' : 'text-yellow-400'} />
+                            <span className={`text-xs ${reservation.isPriority ? 'text-red-400' : 'text-yellow-400'}`}>
+                              Reserved for: {reservation.reservedFor.join(', ')}
+                              {reservation.isPriority && ' (PRIORITY)'}
+                            </span>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                     {relic.rarity && (
                       <div className="flex items-center gap-1 text-xs text-gray-400 capitalize mt-0.5">
                         <Circle size={6} className={refinementColor} fill={refinementColor} />

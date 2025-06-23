@@ -224,12 +224,34 @@ export const analyzeSetProgress = (
     const obtainableFromRelics: string[] = [];
     let totalCost = 0;
 
+    // --- DEBUGGING START ---
+    if (set.name === 'Atlas Prime') {
+      console.log(`[Debug] Checking set: ${set.name}`);
+      console.log('[Debug] Prime Parts Inventory:', JSON.parse(JSON.stringify(primePartsInventory)));
+    }
+    // --- DEBUGGING END ---
+
     // Check each required part
     set.requiredParts.forEach(part => {
+      // --- DEBUGGING START ---
+      if (set.name === 'Atlas Prime') {
+        console.log(`[Debug]   - Checking for part: "${part.name}"`);
+      }
+      // --- DEBUGGING END ---
       if (ownsItem(part.name, primePartsInventory)) {
         ownedParts.push(part.name);
+        // --- DEBUGGING START ---
+        if (set.name === 'Atlas Prime') {
+          console.log(`[Debug]     ✅ FOUND: "${part.name}" is owned.`);
+        }
+        // --- DEBUGGING END ---
       } else {
         missingParts.push(part.name);
+        // --- DEBUGGING START ---
+        if (set.name === 'Atlas Prime') {
+          console.log(`[Debug]     ❌ NOT FOUND: "${part.name}" is not owned.`);
+        }
+        // --- DEBUGGING END ---
         // Check if this missing part can be obtained from owned relics
         if (canObtainFromRelics(part.name, relicsInventory)) {
           obtainableFromRelics.push(part.name);
