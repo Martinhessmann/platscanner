@@ -59,7 +59,7 @@ const fetchSingleItemData = async (itemName: string) => {
     'Content-Type': 'application/json',
     'Language': 'en',
     'Platform': 'pc',
-    'User-Agent': 'PlatScanner/1.7.1'
+    'User-Agent': 'PlatScanner/1.8.0'
   };
 
   try {

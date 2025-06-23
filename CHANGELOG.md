@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2025-01-03
+
 ### Added
 - **⚡ Parallel Processing Optimization** - Revolutionary performance enhancement achieving ~50% faster processing
   - **🔄 Separated Processing Phases** - Split AI analysis from market price fetching for independent operation
@@ -24,11 +26,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **📈 Quantity-Aware Statistics** - Total values calculated as price × quantity for accurate inventory worth
   - **⚖️ Enhanced Market Economics** - Refinement analysis and recommendations now account for multiple copies
   - **🧪 Test Framework** - Created standalone test tool (`multi-detection-test.html`) for comparing detection methods
+- **💰 Total Value Column** - Sortable revenue optimization column showing `quantity × price` for maximum profit analysis
+  - **📊 Prime Parts**: Shows `quantity × platinum price` for total value sorting
+  - **🔮 Void Relics**: Shows `quantity × best option value` for optimal revenue calculation
+  - **📱 Mobile Support**: Total value displayed in both desktop tables and mobile cards
+  - **🔄 Sortable**: Click Total Value column header to sort by highest revenue potential
 
 ### Enhanced
 - **📊 Inventory Statistics** - Total items count now includes quantities (e.g., "5x Lith A1 Relic" counts as 5 items)
 - **🎨 UI Visual Improvements** - Quantity badges use consistent Tenno Blue styling with subtle borders
 - **💰 Value Calculations** - All inventory value totals now multiply by quantity for accurate portfolio assessment
+- **🎯 Default Total Value Sorting** - Relics now sort by total plat outcome (best value × quantity) by default for maximum revenue prioritization
 
 ### Technical
 - **🏗️ Parallel Processing Architecture** - Complete refactor of image processing workflow
@@ -40,16 +48,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **🏗️ Type System Updates** - Added `quantity?: number` field to BaseItem, InventoryItem, and all related interfaces
 - **🔄 Service Layer Enhancement** - Updated inventoryService to handle quantity storage, retrieval, and calculations
 - **🎯 AI Service Improvement** - Enhanced parseDetectedItems() function with robust quantity parsing logic
-
-### Added (Latest)
-- **💰 Total Value Column** - Sortable revenue optimization column showing `quantity × price` for maximum profit analysis
-  - **📊 Prime Parts**: Shows `quantity × platinum price` for total value sorting
-  - **🔮 Void Relics**: Shows `quantity × best option value` for optimal revenue calculation
-  - **📱 Mobile Support**: Total value displayed in both desktop tables and mobile cards
-  - **🔄 Sortable**: Click Total Value column header to sort by highest revenue potential
-
-### Enhanced (Latest)
-- **🎯 Default Total Value Sorting** - Relics now sort by total plat outcome (best value × quantity) by default for maximum revenue prioritization
 
 ## [1.7.1] - 2025-01-03
 
