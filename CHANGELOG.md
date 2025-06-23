@@ -30,6 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **⚡ Interactive UI** - Click any relic name to open detailed analysis popup
 
 ### Enhanced
+- **📋 Clipboard Feedback System** - Visual confirmation for successful whisper message copying
+  - **✅ Icon Animation** - Message button icon changes to checkmark for 2 seconds after successful copy
+  - **🎯 Per-Item Feedback** - Each item shows individual copy confirmation without affecting others
+  - **📱 Cross-Platform Support** - Consistent feedback on both desktop and mobile interfaces
+- **🚀 Streamlined Messaging UX** - Removed bulk "Message Buyers" button for cleaner, more focused interface
+  - **🎯 Individual Focus** - Users now message buyers one at a time for better trade management
+  - **🧹 Cleaner Interface** - Simplified headers with focus on individual item actions
+  - **⚡ Maintained Functionality** - All individual messaging capabilities preserved and enhanced
 - **🎯 Intelligent Prime Set Analysis** - Prime Sets now detect parts obtainable from owned relics with yellow hexagon icons
   - **🟡 Yellow Progress Indicators** - Shows which missing parts are available in your relic drops
   - **📊 Enhanced Progress Display** - "+X in relics" counter shows additional obtainable parts

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DetectedItem } from '../types';
-import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical, MessageCircle } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical, MessageCircle, Check } from 'lucide-react';
 
 interface ResultsTableProps {
   results: DetectedItem[];
@@ -21,6 +21,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSortOptions, setShowSortOptions] = useState(false);
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
+  const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
 
   const handleSort = (field: 'price' | 'name' | 'ducats' | 'totalValue') => {
     console.log(`>>> [ResultsTable] Sort clicked: ${field}, current: ${sortField}, direction: ${sortDirection} <<<`);
@@ -34,6 +35,23 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
     setShowSortOptions(false);
 
     console.log(`>>> [ResultsTable] Sort applied: field=${field}, direction=${sortDirection === 'asc' ? 'desc' : 'asc'} <<<`);
+  };
+
+  const handleClipboardCopy = async (message: string, itemId: string) => {
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedItems(prev => new Set([...prev, itemId]));
+      // Reset the icon after 2 seconds
+      setTimeout(() => {
+        setCopiedItems(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(itemId);
+          return newSet;
+        });
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+    }
   };
 
   const sortedResults = [...results].sort((a, b) => {
@@ -106,28 +124,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
           {results.length} item{results.length !== 1 ? 's' : ''}
         </div>
         <div className="flex items-center gap-3">
-                    <button
-            onClick={() => {
-              // Generate whisper messages for items with buyers
-              const messages = sortedResults
-                .filter(item => item.buyerUsername && item.price && item.price > 0)
-                .map(item =>
-                  `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`
-                );
-
-              if (messages.length > 0) {
-                navigator.clipboard.writeText(messages.join('\n'));
-                // Could add toast notification here
-              } else {
-                alert('No buyers available for any items');
-              }
-            }}
-            className="flex items-center gap-1 px-2 py-1 text-xs bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30 rounded hover:bg-tenno-blue/30 transition-colors"
-            title="Generate whisper messages to contact highest bidders"
-          >
-            <MessageCircle size={12} />
-            Message Buyers
-          </button>
           <div className="text-xs text-gray-500">
             <span className="hidden lg:inline">Trading Platform View • All values in Platinum</span>
             <span className="lg:hidden">All values in Platinum</span>
@@ -280,13 +276,14 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                       <button
                         onClick={() => {
                           const message = `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`;
-                          navigator.clipboard.writeText(message);
-                          // Could add toast notification here
+                          handleClipboardCopy(message, item.id);
                         }}
-                        className="text-tenno-blue hover:text-tenno-light transition-colors"
+                        className={`text-tenno-blue hover:text-tenno-light transition-colors ${
+                          copiedItems.has(item.id) ? 'text-tenno-light' : ''
+                        }`}
                         title={`Message ${item.buyerUsername} (${item.price}p)`}
                       >
-                        <MessageCircle size={12} />
+                        {copiedItems.has(item.id) ? <Check size={12} /> : <MessageCircle size={12} />}
                       </button>
                     ) : (
                       <span className="text-gray-600" title="No buyers available">
@@ -550,12 +547,13 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   <button
                     onClick={() => {
                       const message = `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`;
-                      navigator.clipboard.writeText(message);
-                      // Could add toast notification here
+                      handleClipboardCopy(message, item.id);
                     }}
-                    className="flex items-center gap-2 text-tenno-blue hover:text-tenno-light transition-colors text-sm"
+                    className={`flex items-center gap-2 text-tenno-blue hover:text-tenno-light transition-colors text-sm ${
+                      copiedItems.has(item.id) ? 'text-tenno-light' : ''
+                    }`}
                   >
-                    <MessageCircle size={12} />
+                    {copiedItems.has(item.id) ? <Check size={12} /> : <MessageCircle size={12} />}
                     Message {item.buyerUsername}
                   </button>
                 ) : (

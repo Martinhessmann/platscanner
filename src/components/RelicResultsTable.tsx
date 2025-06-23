@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { VoidRelic } from '../types';
-import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, MessageCircle, Info, X } from 'lucide-react';
+import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, MessageCircle, Info, X, AlertCircle, Check } from 'lucide-react';
 import { getRelicImagePath } from '../lib/relicUtils';
 import { getRelicDropsByName } from '../services/relicDataService';
 
@@ -25,6 +25,11 @@ interface RelicAnalysis {
   bestOption: 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market';
   bestValue: number;
   recommendation: 'OPEN_INTACT' | 'OPEN_EXCEPTIONAL' | 'OPEN_FLAWLESS' | 'OPEN_RADIANT' | 'SELL';
+}
+
+interface SelectedRelic {
+  relic: VoidRelic;
+  analysis: RelicAnalysis;
 }
 
 // Add new interface for relic detail modal
@@ -305,11 +310,29 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   onRefreshItem,
   showActionButtons = false
 }) => {
-  const [sortField, setSortField] = useState<'name' | 'bestValue' | 'profit' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market' | 'totalValue'>('totalValue');
+  const [sortField, setSortField] = useState<'name' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market' | 'bestValue' | 'totalValue'>('totalValue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [selectedRelic, setSelectedRelic] = useState<{ relic: VoidRelic; analysis: RelicAnalysis } | null>(null);
+  const [selectedRelic, setSelectedRelic] = useState<SelectedRelic | null>(null);
+  const [copiedRelics, setCopiedRelics] = useState<Set<string>>(new Set());
 
-    // Helper function to calculate expected value for a refinement level
+  const handleClipboardCopy = async (message: string, relicId: string) => {
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedRelics(prev => new Set([...prev, relicId]));
+      // Reset the icon after 2 seconds
+      setTimeout(() => {
+        setCopiedRelics(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(relicId);
+          return newSet;
+        });
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+    }
+  };
+
+  // Helper function to calculate expected value for a refinement level
   const calculateExpectedValueForLevel = (relic: VoidRelic, refinementLevel: VoidRelic['rarity']): number => {
     if (!relic.relicDrops || relic.relicDrops.length === 0) {
       return relic.expectedDropValue || 0; // Fallback to current calculation
@@ -417,10 +440,6 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         valueA = a.bestValue;
         valueB = b.bestValue;
         break;
-      case 'profit':
-        valueA = a.bestValue - Math.min(a.intactValue, a.marketValue);
-        valueB = b.bestValue - Math.min(b.intactValue, b.marketValue);
-        break;
       case 'totalValue':
         valueA = a.bestValue * (a.relic.quantity || 1);
         valueB = b.bestValue * (b.relic.quantity || 1);
@@ -488,28 +507,6 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
           {results.length} relic{results.length !== 1 ? 's' : ''}
         </div>
         <div className="flex items-center gap-3">
-                    <button
-            onClick={() => {
-              // Generate whisper messages for relics with buyers
-              const messages = sortedRelics
-                .filter(analysis => analysis.relic.buyerUsername && analysis.relic.price && analysis.relic.price > 0)
-                .map(analysis =>
-                  `/w ${analysis.relic.buyerUsername} Hi! I want to sell: "${analysis.relic.name}" for ${analysis.relic.price} platinum. (warframe.market)`
-                );
-
-              if (messages.length > 0) {
-                navigator.clipboard.writeText(messages.join('\n'));
-                // Could add toast notification here
-              } else {
-                alert('No buyers available for any relics');
-              }
-            }}
-            className="flex items-center gap-1 px-2 py-1 text-xs bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30 rounded hover:bg-tenno-blue/30 transition-colors"
-            title="Generate whisper messages to contact highest bidders"
-          >
-            <MessageCircle size={12} />
-            Message Buyers
-          </button>
           <div className="text-xs text-gray-500">
             <span className="hidden lg:inline">Trading Platform View • All values in Platinum</span>
             <span className="lg:hidden">All values in Platinum</span>
@@ -532,55 +529,55 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                 </button>
               </th>
               <th className="text-center p-3 font-medium text-gray-300 min-w-16">Qty</th>
-                             <th className="text-center p-3 font-medium text-gray-300 min-w-24">
-                 <button
-                   onClick={() => handleSort('intact')}
-                   className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
-                 >
-                   <Circle size={6} className="text-gray-400" fill="currentColor" />
-                   Intact
-                   {sortField === 'intact' && (sortDirection === 'asc' ? '↑' : '↓')}
-                 </button>
-               </th>
-               <th className="text-center p-3 font-medium text-gray-300 min-w-24">
-                 <button
-                   onClick={() => handleSort('exceptional')}
-                   className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
-                 >
-                   <Circle size={6} className="text-green-400" fill="currentColor" />
-                   Exceptional
-                   {sortField === 'exceptional' && (sortDirection === 'asc' ? '↑' : '↓')}
-                 </button>
-               </th>
-               <th className="text-center p-3 font-medium text-gray-300 min-w-24">
-                 <button
-                   onClick={() => handleSort('flawless')}
-                   className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
-                 >
-                   <Circle size={6} className="text-blue-400" fill="currentColor" />
-                   Flawless
-                   {sortField === 'flawless' && (sortDirection === 'asc' ? '↑' : '↓')}
-                 </button>
-               </th>
-               <th className="text-center p-3 font-medium text-gray-300 min-w-24">
-                 <button
-                   onClick={() => handleSort('radiant')}
-                   className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
-                 >
-                   <Circle size={6} className="text-yellow-400" fill="currentColor" />
-                   Radiant
-                   {sortField === 'radiant' && (sortDirection === 'asc' ? '↑' : '↓')}
-                 </button>
-               </th>
-               <th className="text-center p-3 font-medium text-gray-300 min-w-24">
-                 <button
-                   onClick={() => handleSort('market')}
-                   className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
-                 >
-                   Market Sale
-                   {sortField === 'market' && (sortDirection === 'asc' ? '↑' : '↓')}
-                 </button>
-               </th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">
+                <button
+                  onClick={() => handleSort('intact')}
+                  className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
+                >
+                  <Circle size={6} className="text-gray-400" fill="currentColor" />
+                  Intact
+                  {sortField === 'intact' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">
+                <button
+                  onClick={() => handleSort('exceptional')}
+                  className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
+                >
+                  <Circle size={6} className="text-green-400" fill="currentColor" />
+                  Exceptional
+                  {sortField === 'exceptional' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">
+                <button
+                  onClick={() => handleSort('flawless')}
+                  className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
+                >
+                  <Circle size={6} className="text-blue-400" fill="currentColor" />
+                  Flawless
+                  {sortField === 'flawless' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">
+                <button
+                  onClick={() => handleSort('radiant')}
+                  className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
+                >
+                  <Circle size={6} className="text-yellow-400" fill="currentColor" />
+                  Radiant
+                  {sortField === 'radiant' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </th>
+              <th className="text-center p-3 font-medium text-gray-300 min-w-24">
+                <button
+                  onClick={() => handleSort('market')}
+                  className="flex items-center justify-center gap-1 hover:text-white transition-colors w-full"
+                >
+                  Market Sale
+                  {sortField === 'market' && (sortDirection === 'asc' ? '↑' : '↓')}
+                </button>
+              </th>
               <th className="text-center p-3 font-medium text-gray-300">
                 <button
                   onClick={() => handleSort('bestValue')}
@@ -682,13 +679,14 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                         <button
                           onClick={() => {
                             const message = `/w ${relic.buyerUsername} Hi! I want to sell: "${relic.name}" for ${relic.price} platinum. (warframe.market)`;
-                            navigator.clipboard.writeText(message);
-                            // Could add toast notification here
+                            handleClipboardCopy(message, relic.id);
                           }}
-                          className="text-tenno-blue hover:text-tenno-light transition-colors"
+                          className={`text-tenno-blue hover:text-tenno-light transition-colors ${
+                            copiedRelics.has(relic.id) ? 'text-green-400' : 'text-tenno-blue'
+                          }`}
                           title={`Message ${relic.buyerUsername} (${relic.price}p)`}
                         >
-                          <MessageCircle size={10} />
+                          {copiedRelics.has(relic.id) ? <Check size={10} /> : <MessageCircle size={10} />}
                         </button>
                       ) : (
                         <span className="text-gray-600" title="No buyers available">
@@ -916,13 +914,14 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                         <button
                           onClick={() => {
                             const message = `/w ${relic.buyerUsername} Hi! I want to sell: "${relic.name}" for ${relic.price} platinum. (warframe.market)`;
-                            navigator.clipboard.writeText(message);
-                            // Could add toast notification here
+                            handleClipboardCopy(message, relic.id);
                           }}
-                          className="text-tenno-blue hover:text-tenno-light transition-colors"
+                          className={`text-tenno-blue hover:text-tenno-light transition-colors ${
+                            copiedRelics.has(relic.id) ? 'text-green-400' : 'text-tenno-blue'
+                          }`}
                           title={`Message ${relic.buyerUsername} (${relic.price}p)`}
                         >
-                          <MessageCircle size={12} />
+                          {copiedRelics.has(relic.id) ? <Check size={12} /> : <MessageCircle size={12} />}
                         </button>
                       ) : (
                         <span className="text-gray-600" title="No buyers available">
