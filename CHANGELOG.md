@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] - 2025-01-06
+
+### Enhanced
+- **🎨 Compact Prime Sets Tabs** - Revolutionary UI redesign transforming large vertical buttons into compact horizontal pill-style tabs
+  - **📱 Horizontal Pill Layout** - Space-efficient tags that wrap to next line like a tag cloud
+  - **🎯 Same Functionality** - All tab switching and filtering preserved with improved visual hierarchy
+  - **🧹 Removed Preview Summaries** - Eliminated redundant "Buildable with Relics" content badges for cleaner interface
+  - **📏 Responsive Design** - Pills automatically wrap on smaller screens for optimal space usage
+  - **🎨 Active State Clarity** - Maintained color-coded active tabs with rings and improved contrast
+
+### Technical
+- **🏗️ Portal Modal System** - Enhanced modal architecture with proper viewport positioning
+  - **📍 Portal.tsx** - Reusable portal component for rendering modals outside component tree
+  - **🖥️ PortalModal.tsx** - Optimized modal wrapper with viewport positioning and click-outside handling
+  - **⚡ Improved Performance** - Better event handling and modal state management
+
+## [1.10.0] - 2025-01-06
+
 ### Added
 - **🔄 Data Backup & Sharing System** - Complete inventory export/import functionality for sharing and cross-browser transfer
   - **📦 JSON Export/Import** - Export all inventory, build plans, and mastery data to JSON format
@@ -20,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **🛡️ API Key Protection** - API keys are never exported, keeping personal authentication secure
   - **⚡ Instant UI Refresh** - Automatically refreshes all UI components after successful data import
   - **📱 Cross-Browser Transfer** - Perfect for switching browsers or sharing complete inventories with friends
+- **⚙️ Enhanced Settings Interface** - Redesigned settings with tabbed navigation
+  - **📑 Tabbed Settings Modal** - Clean separation between API Configuration and Data Backup sections
+  - **🔧 API Configuration Tab** - Dedicated tab for Gemini API key management
+  - **💾 Data Backup Tab** - Dedicated tab for all backup and sharing functionality
+  - **📱 Responsive Modal Design** - Improved mobile experience with larger, scrollable modals
 
 ## [1.9.0] - 2025-06-23
 

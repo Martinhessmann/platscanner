@@ -7,6 +7,7 @@ import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, Messa
 import { getRelicImagePath } from '../lib/relicUtils';
 import { getRelicDropsByName } from '../services/relicDataService';
 import { isItemReserved } from '../services/buildPlanService';
+import PortalModal from './PortalModal';
 
 interface RelicResultsTableProps {
   results: VoidRelic[];
@@ -67,14 +68,8 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
   };
 
   return (
-    <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-gray-900 rounded-lg border border-gray-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <PortalModal isOpen={isOpen} onClose={onClose}>
+      <div className="bg-gray-900 rounded-lg border border-gray-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
           <div className="flex items-center gap-4">
@@ -300,7 +295,7 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
           </div>
         </div>
       </div>
-    </div>
+    </PortalModal>
   );
 };
 

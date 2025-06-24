@@ -47,7 +47,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     nearComplete: SetProgress[];
     highValue: SetProgress[];
   }>({ buildable: [], nearComplete: [], highValue: [] });
-  const [activeTab, setActiveTab] = useState<'all' | 'buildable' | 'progress' | 'built'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'buildable' | 'relics' | 'progress' | 'built'>('all');
   const [refreshKey, setRefreshKey] = useState(0);
   const [plannedSets, setPlannedSets] = useState<Map<string, { planned: boolean; isPriority: boolean }>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -196,8 +196,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     switch (activeTab) {
       case 'buildable':
         return setProgress.filter(p => p.canBuild && !p.ismastered);
+      case 'relics':
+        return potentiallyBuildable;
       case 'progress':
-        return setProgress.filter(p => !p.canBuild && !p.ismastered && plannedSets.get(p.set.id)?.planned);
+        return setProgress.filter(p => !p.canBuild && !p.ismastered && (plannedSets.get(p.set.id)?.planned || false));
       case 'all':
         return setProgress;
       case 'built':
@@ -233,129 +235,127 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   return (
     <div className="w-full space-y-6">
-      {/* Header with Statistics */}
-      <div className="flex items-center justify-between">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-white">Prime Sets</h2>
-        <div className="flex items-center gap-4 text-sm text-gray-400">
-          <div className="flex items-center gap-1">
-            <Trophy size={14} className="text-green-400" />
-            <span>{recommendations.buildable.length} buildable</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Hexagon size={14} className="text-yellow-400" />
-            <span>{potentiallyBuildable.length} via relics</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Clock size={14} className="text-orange-400" />
-            <span>{recommendations.nearComplete.length} near complete</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Star size={14} className="text-blue-400" />
-            <span>{setProgress.filter(p => p.ismastered).length} already built</span>
-          </div>
-        </div>
       </div>
 
-      {/* Quick Highlights */}
-      {recommendations.buildable.length > 0 && (
-        <div className="bg-green-900/20 border border-green-700/50 rounded-lg p-4">
-          <h3 className="flex items-center gap-2 text-green-400 font-semibold mb-2">
-            <Trophy size={16} />
-            Ready to Build ({recommendations.buildable.length})
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {recommendations.buildable.slice(0, 3).map(progress => (
-              <span key={progress.set.id} className="px-3 py-1 bg-green-800/30 text-green-300 rounded-full text-sm flex items-center gap-1">
-                {getTypeIcon(progress.set.type)}
-                {progress.set.name}
-              </span>
-            ))}
-            {recommendations.buildable.length > 3 && (
-              <span className="px-3 py-1 bg-green-800/30 text-green-300 rounded-full text-sm">
-                +{recommendations.buildable.length - 3} more
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Potentially Buildable with Relics */}
-      {potentiallyBuildable.length > 0 && (
-        <div className="bg-yellow-900/20 border border-yellow-700/50 rounded-lg p-4">
-          <h3 className="flex items-center gap-2 text-yellow-400 font-semibold mb-2">
-            <Hexagon size={16} />
-            Buildable with Relics ({potentiallyBuildable.length})
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {potentiallyBuildable.slice(0, 3).map(progress => (
-              <span key={progress.set.id} className="px-3 py-1 bg-yellow-800/30 text-yellow-300 rounded-full text-sm flex items-center gap-1">
-                {getTypeIcon(progress.set.type)}
-                {progress.set.name}
-                <span className="text-xs opacity-70">({progress.obtainableFromRelics.length} from relics)</span>
-              </span>
-            ))}
-            {potentiallyBuildable.length > 3 && (
-              <span className="px-3 py-1 bg-yellow-800/30 text-yellow-300 rounded-full text-sm">
-                +{potentiallyBuildable.length - 3} more
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex items-center gap-1 bg-gray-900/50 p-1 rounded-lg">
+      {/* Compact Tab Pills */}
+      <div className="flex flex-wrap gap-2">
+        {/* All Sets */}
         <button
           onClick={() => setActiveTab('all')}
-          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
             activeTab === 'all'
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+              ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
+              : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
         >
-          <div className="flex items-center justify-center gap-2">
-            <Shield size={14} />
-            All Sets ({setProgress.length})
-          </div>
+          <Shield size={16} />
+          <span>All Sets</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs ${
+            activeTab === 'all' ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
+          }`}>
+            {setProgress.length}
+          </span>
         </button>
+
+        {/* Ready to Build */}
         <button
           onClick={() => setActiveTab('buildable')}
-          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
             activeTab === 'buildable'
-              ? 'bg-green-600 text-white'
-              : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+              ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
+              : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
         >
-          <div className="flex items-center justify-center gap-2">
-            <Trophy size={14} />
-            Buildable ({recommendations.buildable.length})
-          </div>
+          <Trophy size={16} />
+          <span>Ready to Build</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs ${
+            activeTab === 'buildable' ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
+          }`}>
+            {recommendations.buildable.length}
+          </span>
         </button>
+
+        {/* Buildable via Relics */}
+        <button
+          onClick={() => setActiveTab('relics')}
+          disabled={potentiallyBuildable.length === 0}
+          className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+            activeTab === 'relics'
+              ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
+              : potentiallyBuildable.length > 0
+                ? 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+                : 'bg-gray-900/30 border-gray-700/50 text-gray-500 opacity-60 cursor-not-allowed'
+          }`}
+        >
+          <Hexagon size={16} />
+          <span>Buildable via Relics</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs ${
+            activeTab === 'relics'
+              ? 'bg-yellow-800/50 text-yellow-300'
+              : potentiallyBuildable.length > 0
+                ? 'bg-gray-800/50 text-gray-400'
+                : 'bg-gray-800/50 text-gray-500'
+          }`}>
+            {potentiallyBuildable.length}
+          </span>
+        </button>
+
+        {/* In Progress */}
         <button
           onClick={() => setActiveTab('progress')}
-          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
             activeTab === 'progress'
-              ? 'bg-yellow-600 text-white'
-              : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+              ? 'bg-orange-900/50 border-orange-500/50 text-orange-400 ring-1 ring-orange-500/30'
+              : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
         >
-          <div className="flex items-center justify-center gap-2">
-            <TrendingUp size={14} />
-            In Progress ({setProgress.filter(p => plannedSets.get(p.set.id)?.planned).length})
-          </div>
+          <TrendingUp size={16} />
+          <span>In Progress</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs ${
+            activeTab === 'progress' ? 'bg-orange-800/50 text-orange-300' : 'bg-gray-800/50 text-gray-400'
+          }`}>
+            {setProgress.filter(p => plannedSets.get(p.set.id)?.planned || false).length}
+          </span>
         </button>
+
+        {/* Near Complete */}
+        <button
+          onClick={() => setActiveTab('all')} // Could create a separate filter for this
+          disabled={recommendations.nearComplete.length === 0}
+          className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+            recommendations.nearComplete.length > 0
+              ? 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-cyan-800/30 hover:border-cyan-400/50 hover:text-cyan-300'
+              : 'bg-gray-900/30 border-gray-700/50 text-gray-500 opacity-60 cursor-not-allowed'
+          }`}
+        >
+          <Clock size={16} />
+          <span>Near Complete</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs ${
+            recommendations.nearComplete.length > 0 ? 'bg-gray-800/50 text-gray-400' : 'bg-gray-800/50 text-gray-500'
+          }`}>
+            {recommendations.nearComplete.length}
+          </span>
+        </button>
+
+        {/* Already Built */}
         <button
           onClick={() => setActiveTab('built')}
-          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
             activeTab === 'built'
-              ? 'bg-purple-600 text-white'
-              : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+              ? 'bg-purple-900/50 border-purple-500/50 text-purple-400 ring-1 ring-purple-500/30'
+              : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
         >
-          <div className="flex items-center justify-center gap-2">
-            <Star size={14} />
-            Already Built ({setProgress.filter(p => p.ismastered).length})
-          </div>
+          <Star size={16} />
+          <span>Already Built</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs ${
+            activeTab === 'built' ? 'bg-purple-800/50 text-purple-300' : 'bg-gray-800/50 text-gray-400'
+          }`}>
+            {setProgress.filter(p => p.ismastered).length}
+          </span>
         </button>
       </div>
 
