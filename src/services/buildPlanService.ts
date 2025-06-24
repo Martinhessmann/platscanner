@@ -1,6 +1,8 @@
 // Purpose: Manages prime set build planning and item reservations
 // Features: Track planned builds, reserve items, prevent accidental selling
 
+import { VoidRelic } from '../types';
+
 interface BuildPlan {
   setName: string;
   isPriority: boolean; // High priority builds (user really wants this)
@@ -211,11 +213,65 @@ export const getAllReservedItems = (): ReservedItem[] => {
 
 /**
  * Automatically reserve items when a set is added to build plans
+ * @param setName Name of the prime set
+ * @param requiredParts All required parts for the set
+ * @param ownedParts Parts the user already owns (to avoid reserving relics for these)
+ * @param relicsInventory Available relics inventory
  */
-export const autoReserveItemsForSet = (setName: string, requiredParts: string[]): void => {
-  // This would be called from the Prime Sets component when adding a set to build plans
-  requiredParts.forEach(partName => {
+export const autoReserveItemsForSet = (
+  setName: string,
+  requiredParts: string[],
+  ownedParts: string[] = [],
+  relicsInventory?: VoidRelic[]
+): void => {
+  // Reserve the prime parts themselves (only those not owned)
+  const missingParts = requiredParts.filter(part => !ownedParts.includes(part));
+
+  missingParts.forEach(partName => {
     reserveItem(partName, 'prime_parts', setName);
+  });
+
+  // Also reserve relics that contain these MISSING parts
+  if (relicsInventory && relicsInventory.length > 0) {
+    missingParts.forEach(partName => {
+      const relicsContainingPart = relicsInventory.filter(relic =>
+        relic.relicDrops && relic.relicDrops.some(drop =>
+          drop.itemName.toLowerCase() === partName.toLowerCase()
+        )
+      );
+
+      relicsContainingPart.forEach(relic => {
+        reserveItem(relic.name, 'relics', setName);
+      });
+    });
+  }
+};
+
+/**
+ * Update all relic reservations for existing build plans
+ * This is used to batch update all reservations when relics inventory changes
+ */
+export const updateAllRelicReservations = (
+  sets: Array<{
+    set: { name: string, requiredParts: Array<{ name: string, partType: string }> },
+    ownedParts: string[]
+  }>,
+  relicsInventory: VoidRelic[]
+): void => {
+  // First, clear all relic reservations
+  const storage = loadBuildPlans();
+  storage.reservedItems = storage.reservedItems.filter(item => item.category !== 'relics');
+  saveBuildPlans(storage);
+
+  // Then, recreate reservations for all planned sets
+  const plannedSets = getAllPlannedSets();
+
+  sets.forEach(({ set, ownedParts }) => {
+    const isPlanActive = plannedSets.some(plan => plan.setName === set.name);
+    if (isPlanActive) {
+      const requiredPartNames = set.requiredParts.map(part => `${set.name} ${part.partType}`);
+      autoReserveItemsForSet(set.name, requiredPartNames, ownedParts, relicsInventory);
+    }
   });
 };
 
