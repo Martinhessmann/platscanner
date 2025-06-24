@@ -7,6 +7,14 @@ import { VoidRelic } from '../types';
  * Get the image path for a void relic based on its era and refinement level
  */
 export const getRelicImagePath = (relicName: string, refinementLevel: VoidRelic['rarity'] = 'intact'): string => {
+  // Check if it's a Requiem relic
+  if (relicName.includes('Requiem')) {
+    // For Requiem relics, use a special Requiem image path
+    // Normalize refinement level
+    const refinement = refinementLevel || 'intact';
+    return `/images/relics/requiem_${refinement}.png`;
+  }
+
   // Extract era from relic name (Lith, Meso, Neo, Axi)
   const eraMatch = relicName.match(/^(Lith|Meso|Neo|Axi)/i);
   const era = eraMatch ? eraMatch[1].toLowerCase() : 'unknown';
@@ -37,12 +45,21 @@ export const getRelicDisplayName = (relicName: string, refinementLevel: VoidReli
  * Example: "Lith W2 Relic" -> { era: "Lith", identifier: "W2" }
  */
 export const parseRelicName = (relicName: string): { era: string; identifier: string } => {
-  const match = relicName.match(/^(Lith|Meso|Neo|Axi)\s+([A-Z][0-9]+)/i);
-
-  if (match) {
+  // Check for standard relics (Lith, Meso, Neo, Axi)
+  const standardMatch = relicName.match(/^(Lith|Meso|Neo|Axi)\s+([A-Z][0-9]+)/i);
+  if (standardMatch) {
     return {
-      era: match[1],
-      identifier: match[2]
+      era: standardMatch[1],
+      identifier: standardMatch[2]
+    };
+  }
+
+  // Check for Requiem relics
+  const requiemMatch = relicName.match(/^Requiem\s+([I|V|X]+)/i);
+  if (requiemMatch) {
+    return {
+      era: 'Requiem',
+      identifier: requiemMatch[1]
     };
   }
 
