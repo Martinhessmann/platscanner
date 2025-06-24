@@ -957,12 +957,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
               {/* Prime Sets Section - Show when we have prime parts */}
               {categorizedInventory.prime_parts.length > 0 && (
-                <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
-                  <PrimeSetsSection
-                    primePartsInventory={categorizedInventory.prime_parts}
-                    relicsInventory={categorizedInventory.relics as VoidRelic[]}
-                  />
-                </div>
+                <PrimeSetsSection
+                  primePartsInventory={categorizedInventory.prime_parts}
+                  relicsInventory={categorizedInventory.relics as VoidRelic[]}
+                />
               )}
             </div>
           )}

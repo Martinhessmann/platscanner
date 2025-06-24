@@ -1,7 +1,7 @@
 // Purpose: Render a toggleable inventory section for a specific item category
 // Supports Story #8: Extended Item Support with separate sections for different item types
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { RefreshCw, Trash2, ChevronDown, ChevronRight, Zap, Coins } from 'lucide-react';
 import { InventoryItem } from '../services/inventoryService';
 import { ItemCategory, VoidRelic } from '../types';
@@ -48,7 +48,32 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   onRefreshItem,
   onRemoveItem
 }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  // Persistent accordion state based on category
+  const getStorageKey = () => `accordion_${category}`;
+
+  const [isExpanded, setIsExpanded] = useState(() => {
+    const stored = localStorage.getItem(getStorageKey());
+    return stored !== null ? JSON.parse(stored) : true;
+  });
+
+  // Save accordion state to localStorage
+  useEffect(() => {
+    localStorage.setItem(getStorageKey(), JSON.stringify(isExpanded));
+  }, [isExpanded, category]);
+
+  // Auto-scroll to section when collapsing
+  const handleToggle = () => {
+    if (isExpanded && sectionRef.current) {
+      // Scroll to top of section when collapsing
+      sectionRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+    setIsExpanded(!isExpanded);
+  };
 
   if (items.length === 0) {
     return null; // Don't render empty sections
@@ -62,11 +87,11 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   };
 
   return (
-    <div className="mb-2">
+    <div ref={sectionRef} className="mb-2">
       {/* Mobile-first sticky header */}
       <div className="bg-gray-900/50 backdrop-blur-sm p-3 rounded-t-xl border border-gray-700/50 border-b-0 sticky top-0 z-20">
         <button
-          onClick={() => setIsExpanded(!isExpanded)}
+          onClick={handleToggle}
           className="flex items-center justify-between w-full text-left group"
         >
           <div className="flex items-center gap-3">

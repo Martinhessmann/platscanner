@@ -2,7 +2,7 @@
 // Author: Assistant
 // Last Updated: 2025-01-03
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { DetectedItem, VoidRelic } from '../types';
 import {
   analyzeSetProgress,
@@ -22,13 +22,13 @@ import {
   Shield,
   Crosshair,
   Star,
-  TrendingUp,
   Hexagon,
   Heart,
   HeartHandshake,
   BookOpen,
   Trash2,
-  Eye
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { isSetPlanned, addToBuildPlan, removeFromBuildPlan, autoReserveItemsForSet } from '../services/buildPlanService';
 
@@ -51,6 +51,31 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [plannedSets, setPlannedSets] = useState<Map<string, { planned: boolean; isPriority: boolean }>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
+
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  // Persistent accordion state for Prime Sets
+  const [isExpanded, setIsExpanded] = useState(() => {
+    const stored = localStorage.getItem('accordion_prime_sets');
+    return stored !== null ? JSON.parse(stored) : true;
+  });
+
+  // Save accordion state to localStorage
+  useEffect(() => {
+    localStorage.setItem('accordion_prime_sets', JSON.stringify(isExpanded));
+  }, [isExpanded]);
+
+  // Auto-scroll to section when collapsing
+  const handleToggle = () => {
+    if (isExpanded && sectionRef.current) {
+      // Scroll to top of section when collapsing
+      sectionRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+    setIsExpanded(!isExpanded);
+  };
 
   // Calculate progress on inventory changes
   useEffect(() => {
@@ -105,63 +130,48 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     (p.ownedParts.length + p.obtainableFromRelics.length) === p.set.requiredParts.length
   );
 
-  const handleMarkAsBuilt = (setId: string, setName: string) => {
-    // Remove from build plan if it exists
-    removeFromBuildPlan(setName);
-    // Mark as mastered
-    toggleSetMastery(setId);
-
-    // Update local state
-    setPlannedSets(prev => {
-      const updated = new Map(prev);
-      updated.set(setId, { planned: false, isPriority: false });
-      return updated;
-    });
-
-    setRefreshKey(prev => prev + 1);
+  // Simplified 3-state system: buildable → planned → owned
+  const getSetState = (progress: SetProgress): 'buildable' | 'planned' | 'owned' => {
+    if (progress.ismastered) return 'owned';
+    if (plannedSets.get(progress.set.id)?.planned) return 'planned';
+    return 'buildable';
   };
 
-  const handleAddToBuildPlan = (setName: string, setId: string) => {
-    // Add to build plan as normal priority (moves to In Progress)
-    addToBuildPlan(setName, false);
+  const handleStateChange = (progress: SetProgress, newState: 'buildable' | 'planned' | 'owned') => {
+    const currentState = getSetState(progress);
+    if (currentState === newState) return;
 
-    // Find the set and auto-reserve its parts
-    const setData = setProgress.find(p => p.set.id === setId);
-    if (setData) {
-      const requiredPartNames = setData.set.requiredParts.map(part =>
-        `${setData.set.name} ${part.partType}`
+    const setName = progress.set.name;
+    const setId = progress.set.id;
+
+    // Clear previous state
+    if (currentState === 'planned') {
+      removeFromBuildPlan(setName);
+    }
+    if (currentState === 'owned') {
+      toggleSetMastery(setId); // Remove mastery
+    }
+
+    // Set new state
+    if (newState === 'planned') {
+      addToBuildPlan(setName, false);
+      // Auto-reserve parts
+      const requiredPartNames = progress.set.requiredParts.map(part =>
+        `${progress.set.name} ${part.partType}`
       );
       autoReserveItemsForSet(setName, requiredPartNames);
+    } else if (newState === 'owned') {
+      removeFromBuildPlan(setName); // Remove from plan if it was planned
+      toggleSetMastery(setId); // Mark as mastered
     }
 
     // Update local state
     setPlannedSets(prev => {
       const updated = new Map(prev);
-      updated.set(setId, { planned: true, isPriority: false });
+      updated.set(setId, { planned: newState === 'planned', isPriority: false });
       return updated;
     });
 
-    setRefreshKey(prev => prev + 1);
-  };
-
-  const handleRemoveFromBuildPlan = (setName: string, setId: string) => {
-    removeFromBuildPlan(setName);
-
-    // Update local state
-    setPlannedSets(prev => {
-      const updated = new Map(prev);
-      updated.set(setId, { planned: false, isPriority: false });
-      return updated;
-    });
-
-    setRefreshKey(prev => prev + 1);
-  };
-
-
-
-  const handleRemoveFromBuilt = (setId: string) => {
-    // Remove mastery status (move back to available)
-    toggleSetMastery(setId);
     setRefreshKey(prev => prev + 1);
   };
 
@@ -233,15 +243,57 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     );
   }
 
+  // Calculate summary stats
+  const totalSets = setProgress.length;
+  const buildableSets = recommendations.buildable.length;
+  const inProgressSets = setProgress.filter(p => plannedSets.get(p.set.id)?.planned || false).length;
+  const builtSets = setProgress.filter(p => p.ismastered).length;
+
   return (
-    <div className="w-full space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-white">Prime Sets</h2>
+    <div ref={sectionRef} className="w-full mb-2">
+      {/* Mobile-first sticky header */}
+      <div className="bg-gray-900/50 backdrop-blur-sm p-3 rounded-t-xl border border-gray-700/50 border-b-0 sticky top-0 z-20">
+        <button
+          onClick={handleToggle}
+          className="flex items-center justify-between w-full text-left group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {isExpanded ? (
+                <ChevronDown size={16} className="text-gray-400 group-hover:text-orokin-gold transition-colors" />
+              ) : (
+                <ChevronRight size={16} className="text-gray-400 group-hover:text-orokin-gold transition-colors" />
+              )}
+              <Shield size={20} className="text-blue-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
+                Prime Sets
+              </h3>
+              <p className="text-xs text-gray-400">
+                {totalSets} set{totalSets !== 1 ? 's' : ''} • {buildableSets} buildable • {inProgressSets} planned
+              </p>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="flex items-center justify-end gap-1 mb-1">
+              <Trophy size={14} className="text-green-400" />
+              <span className="text-lg font-bold text-green-400">{buildableSets}</span>
+            </div>
+            <div className="flex items-center justify-end gap-1">
+              <Star size={10} className="text-purple-400" />
+              <span className="text-xs text-purple-400">{builtSets}</span>
+            </div>
+          </div>
+        </button>
       </div>
 
-      {/* Compact Tab Pills */}
-      <div className="flex flex-wrap gap-2">
+      {/* Content */}
+      {isExpanded && (
+        <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl overflow-hidden">
+          {/* Compact Tab Pills */}
+          <div className="flex flex-wrap gap-2 p-6 pb-4">
         {/* All Sets */}
         <button
           onClick={() => setActiveTab('all')}
@@ -260,7 +312,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           </span>
         </button>
 
-        {/* Ready to Build */}
+        {/* Buildable Sets */}
         <button
           onClick={() => setActiveTab('buildable')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
@@ -270,7 +322,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           }`}
         >
           <Trophy size={16} />
-          <span>Ready to Build</span>
+          <span>Buildable</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
             activeTab === 'buildable' ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
@@ -278,7 +330,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           </span>
         </button>
 
-        {/* Buildable via Relics */}
+        {/* Buildable with Relics */}
         <button
           onClick={() => setActiveTab('relics')}
           disabled={potentiallyBuildable.length === 0}
@@ -291,7 +343,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           }`}
         >
           <Hexagon size={16} />
-          <span>Buildable via Relics</span>
+          <span>Buildable with Relics</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
             activeTab === 'relics'
               ? 'bg-yellow-800/50 text-yellow-300'
@@ -303,7 +355,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           </span>
         </button>
 
-        {/* In Progress */}
+        {/* Planned Sets */}
         <button
           onClick={() => setActiveTab('progress')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
@@ -312,8 +364,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
         >
-          <TrendingUp size={16} />
-          <span>In Progress</span>
+          <BookOpen size={16} />
+          <span>Planned</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
             activeTab === 'progress' ? 'bg-orange-800/50 text-orange-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
@@ -340,7 +392,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           </span>
         </button>
 
-        {/* Already Built */}
+        {/* Owned Sets */}
         <button
           onClick={() => setActiveTab('built')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
@@ -350,7 +402,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           }`}
         >
           <Star size={16} />
-          <span>Already Built</span>
+          <span>Owned</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
             activeTab === 'built' ? 'bg-purple-800/50 text-purple-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
@@ -360,7 +412,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       </div>
 
       {/* Sets Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-6 pb-6">
         {sortedSets.map((progress) => (
           <div
             key={progress.set.id}
@@ -388,7 +440,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               {/* Remove for built tab */}
               {activeTab === 'built' && (
                 <button
-                  onClick={() => handleRemoveFromBuilt(progress.set.id)}
+                  onClick={() => handleStateChange(progress, 'buildable')}
                   className="p-1 rounded transition-colors text-gray-500 hover:text-red-400"
                   title="Remove from built (if marked by mistake)"
                 >
@@ -486,72 +538,72 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   <span>Ready to Build!</span>
                 </div>
               ) : (
-                <div className="text-center">
+                                  <div className="text-center">
                   <div className="text-sm text-gray-400 mb-1">
                     Missing {progress.missingParts.length} part{progress.missingParts.length !== 1 ? 's' : ''}
                   </div>
                   <div className="text-xs text-gray-500">
-                    ~{progress.missingCost}p to complete
+                    ~{progress.missingCost} plat to buy missing parts
                   </div>
                 </div>
               )}
 
-              {/* Action Buttons */}
-              {progress.ismastered ? (
-                // Already Built - no actions needed (remove is in header for built tab)
-                null
-              ) : plannedSets.get(progress.set.id)?.planned ? (
-                // In Progress - show status and options
-                <div className="space-y-2">
-                  <div className="flex items-center justify-center gap-2 text-sm text-yellow-400">
-                    <BookOpen size={14} />
-                    <span>In Progress</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleMarkAsBuilt(progress.set.id, progress.set.name)}
-                      className="flex-1 px-2 py-1 text-xs bg-gray-600/20 text-gray-400 border border-gray-600/30 rounded hover:bg-gray-600/30 transition-colors"
-                      title="Mark as already built"
-                    >
-                      <div className="flex items-center justify-center gap-1">
-                        <Eye size={10} />
-                        <span>Already Built</span>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleRemoveFromBuildPlan(progress.set.name, progress.set.id)}
-                      className="flex-1 px-2 py-1 text-xs bg-gray-600/20 text-gray-400 border border-gray-600/30 rounded hover:bg-gray-600/30 transition-colors"
-                      title="Remove from build plans"
-                    >
-                      Remove
-                    </button>
-                  </div>
+              {/* Simple 3-State Toggle */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-center gap-1 text-xs text-gray-400">
+                  <span>Status:</span>
                 </div>
-              ) : (
-                // Available - show main action buttons
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleAddToBuildPlan(progress.set.name, progress.set.id)}
-                    className="flex-1 px-3 py-1.5 text-xs bg-yellow-600/20 text-yellow-400 border border-yellow-600/30 rounded hover:bg-yellow-600/30 transition-colors"
-                    title="Add to build plans and reserve items"
-                  >
-                    <div className="flex items-center justify-center gap-1">
-                      <BookOpen size={12} />
-                      <span>I want to build this</span>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => handleMarkAsBuilt(progress.set.id, progress.set.name)}
-                    className="flex-1 px-3 py-1.5 text-xs bg-gray-600/20 text-gray-400 border border-gray-600/30 rounded hover:bg-gray-600/30 transition-colors"
-                    title="Mark as already built"
-                  >
-                    <div className="flex items-center justify-center gap-1">
-                      <Eye size={12} />
-                      <span>Already Built</span>
-                    </div>
-                  </button>
+                <div className="flex gap-1">
+                  {(['buildable', 'planned', 'owned'] as const).map((state) => {
+                    const currentState = getSetState(progress);
+                    const isActive = currentState === state;
+
+                    const stateConfig = {
+                      buildable: {
+                        label: 'Buildable',
+                        icon: <Trophy size={10} />,
+                        color: 'text-gray-400',
+                        bgColor: 'bg-gray-600/20 border-gray-600/30',
+                        activeBgColor: 'bg-gray-600/40 border-gray-500/50'
+                      },
+                      planned: {
+                        label: 'Planned',
+                        icon: <BookOpen size={10} />,
+                        color: 'text-yellow-400',
+                        bgColor: 'bg-yellow-600/20 border-yellow-600/30',
+                        activeBgColor: 'bg-yellow-600/40 border-yellow-500/50'
+                      },
+                      owned: {
+                        label: 'Owned',
+                        icon: <Star size={10} />,
+                        color: 'text-purple-400',
+                        bgColor: 'bg-purple-600/20 border-purple-600/30',
+                        activeBgColor: 'bg-purple-600/40 border-purple-500/50'
+                      }
+                    };
+
+                    const config = stateConfig[state];
+
+                    return (
+                      <button
+                        key={state}
+                        onClick={() => handleStateChange(progress, state)}
+                        className={`flex-1 px-2 py-1 text-xs border rounded transition-colors ${
+                          isActive
+                            ? `${config.activeBgColor} ${config.color}`
+                            : `${config.bgColor} text-gray-400 hover:bg-opacity-30`
+                        }`}
+                        title={`Mark as ${config.label.toLowerCase()}`}
+                      >
+                        <div className="flex items-center justify-center gap-1">
+                          {config.icon}
+                          <span>{config.label}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         ))}
@@ -559,20 +611,35 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
       {/* Empty State */}
       {sortedSets.length === 0 && (
-        <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">
+        <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg mx-6 mb-6">
           <div className="text-gray-400 mb-2">
-            {activeTab === 'buildable' && 'No sets ready to build yet'}
-            {activeTab === 'progress' && 'No sets in progress'}
+            {activeTab === 'buildable' && 'No buildable sets yet'}
+            {activeTab === 'relics' && 'No sets buildable with relics'}
+            {activeTab === 'progress' && 'No planned sets'}
             {activeTab === 'all' && 'No prime sets data available'}
-            {activeTab === 'built' && 'No sets marked as built yet'}
+            {activeTab === 'built' && 'No owned sets yet'}
           </div>
           <div className="text-sm text-gray-500">
             {activeTab === 'buildable' && 'Collect more prime parts to complete sets'}
-            {activeTab === 'progress' && 'Mark sets you want to build to track progress'}
+            {activeTab === 'relics' && 'Open relics to get missing parts for sets'}
+            {activeTab === 'progress' && 'Mark sets as "Planned" to track your build progress'}
             {activeTab === 'all' && 'Prime parts will be analyzed for set completion'}
-            {activeTab === 'built' && 'Mark completed sets as "Already Built"'}
+            {activeTab === 'built' && 'Mark completed sets as "Owned"'}
           </div>
         </div>
+      )}
+        </div>
+      )}
+
+      {!isExpanded && (
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl text-center p-3 hover:bg-gray-800/50 transition-colors"
+        >
+          <p className="text-gray-400 text-sm hover:text-gray-300 transition-colors">
+            Tap to view {totalSets} prime sets • {buildableSets} buildable • {inProgressSets} planned
+          </p>
+        </button>
       )}
     </div>
   );
