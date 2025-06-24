@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] - 2025-01-07
+
+### Enhanced
+- **🔒 Intelligent Relic Reservation System** - Smart relic management for Prime Set planning
+  - **🎯 Missing Parts Focus** - Relics now only reserved for parts you don't already own
+  - **⚡ Retroactive Reservation** - Existing planned sets automatically have their relics reserved
+  - **🧩 Visual Connection** - "Reserved for: [Set Name]" labels for relics containing needed parts
+  - **📊 Smarter Resource Management** - No more unnecessary reservations for parts you already have
+  - **🔄 Real-time Updates** - Reservations update whenever prime set status changes
+
+### Fixed
+- **🐛 Unnecessary Relic Reservations** - Fixed bug causing relics to be reserved even for parts you already own
+- **🐛 Existing Plans Ignored** - Fixed issue where relic reservations only applied to newly planned sets
+- **🏗️ Automatic Reservation Refresh** - Added system to update all relic reservations when inventory changes
+
 ## [1.11.0] - 2025-01-06
 
 ### Enhanced
