@@ -147,9 +147,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     return 'buildable';
   };
 
-  const handleStateChange = (progress: SetProgress, newState: 'buildable' | 'planned' | 'owned') => {
+  const handleStateChange = (progress: SetProgress, newState: 'buildable' | 'planned' | 'owned', isPriority: boolean = false) => {
     const currentState = getSetState(progress);
-    if (currentState === newState) return;
+    if (currentState === newState && newState !== 'planned') return;
 
     const setName = progress.set.name;
     const setId = progress.set.id;
@@ -164,7 +164,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
     // Set new state
     if (newState === 'planned') {
-      addToBuildPlan(setName, false);
+      // If already planned, we might be just toggling priority
+      const isCurrentlyPlanned = plannedSets.get(progress.set.id)?.planned || false;
+      const currentPriority = plannedSets.get(progress.set.id)?.isPriority || false;
+
+      // If already planned and we're just toggling priority
+      if (isCurrentlyPlanned && currentPriority !== isPriority) {
+        addToBuildPlan(setName, isPriority);
+        setPlannedSets(prev => {
+          const updated = new Map(prev);
+          updated.set(setId, { planned: true, isPriority });
+          return updated;
+        });
+        setRefreshKey(prev => prev + 1);
+        return;
+      }
+
+      addToBuildPlan(setName, isPriority);
       // Auto-reserve parts
       const requiredPartNames = progress.set.requiredParts.map(part =>
         `${progress.set.name} ${part.partType}`
@@ -178,7 +194,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     // Update local state
     setPlannedSets(prev => {
       const updated = new Map(prev);
-      updated.set(setId, { planned: newState === 'planned', isPriority: false });
+      updated.set(setId, { planned: newState === 'planned', isPriority: isPriority });
       return updated;
     });
 
@@ -207,6 +223,22 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       relic.relicDrops?.some(drop => drop.itemName.toLowerCase() === lowerPartName)
     );
     return relics.map(r => r.name.replace(' Relic', ''));
+  };
+
+  // Get better relic source display text
+  const getRelicSourceText = (partName: string, isOwned: boolean, isObtainableFromRelics: boolean) => {
+    if (isOwned) {
+      return 'Owned'; // Part is already owned
+    }
+
+    if (isObtainableFromRelics) {
+      const relicSources = getRelicsForPart(partName);
+      return relicSources.length > 0
+        ? relicSources.slice(0, 2).join(', ') + (relicSources.length > 2 ? '...' : '')
+        : 'Unknown Source';
+    }
+
+    return 'Not Available'; // Part is not owned and not in relics
   };
 
     // Get prime set image URL from CDN
@@ -399,8 +431,18 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   };
 
   const sortedSets = filteredSets().sort((a, b) => {
+    // First, sort by priority flag
+    const aPriority = plannedSets.get(a.set.id)?.isPriority || false;
+    const bPriority = plannedSets.get(b.set.id)?.isPriority || false;
+
+    if (aPriority && !bPriority) return -1;
+    if (!aPriority && bPriority) return 1;
+
+    // Then sort by buildable status
     if (a.canBuild && !b.canBuild) return -1;
     if (!a.canBuild && b.canBuild) return 1;
+
+    // Finally sort by completion percentage
     return b.completionPercentage - a.completionPercentage;
   });
 
@@ -680,6 +722,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   <div className="absolute -top-1 -right-1">
                     {(() => {
                       const currentState = getSetState(progress);
+                      const isPriority = plannedSets.get(progress.set.id)?.isPriority || false;
+
                       if (currentState === 'owned') {
                         return (
                           <div className="bg-purple-600 text-white rounded-full p-1 border border-purple-400 shadow-lg">
@@ -688,7 +732,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         );
                       } else if (currentState === 'planned') {
                         return (
-                          <div className="bg-yellow-600 text-white rounded-full p-1 border border-yellow-400 shadow-lg">
+                          <div className={`${isPriority ? 'bg-red-600' : 'bg-yellow-600'} text-white rounded-full p-1 border ${isPriority ? 'border-red-400' : 'border-yellow-400'} shadow-lg`}>
                             <BookOpen size={10} />
                           </div>
                         );
@@ -703,7 +747,12 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   </div>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <h3 className="font-semibold text-white text-sm">{progress.set.name}</h3>
+                  <div className="flex items-center gap-1">
+                    <h3 className="font-semibold text-white text-sm">{progress.set.name}</h3>
+                    {plannedSets.get(progress.set.id)?.isPriority && (
+                      <span className="text-red-400 text-xs">⭐️</span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <span className="px-1.5 py-0.5 text-xs rounded border bg-gray-800/30 text-gray-400 border-gray-600/30">
                       {progress.set.type.toUpperCase()}
@@ -716,16 +765,33 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   </div>
                 </div>
               </div>
-              {/* Remove for built tab */}
-              {activeTab === 'built' && (
-                <button
-                  onClick={() => handleStateChange(progress, 'buildable')}
-                  className="p-1 rounded transition-colors text-gray-500 hover:text-red-400"
-                  title="Remove from built (if marked by mistake)"
-                >
-                  <Trash2 size={16} />
-                </button>
-              )}
+              {/* Actions for each tab */}
+              <div className="flex items-center gap-1">
+                {/* Priority toggle for planned sets */}
+                {getSetState(progress) === 'planned' && (
+                  <button
+                    onClick={() => handleStateChange(progress, 'planned', !plannedSets.get(progress.set.id)?.isPriority)}
+                    className={`p-1 rounded-full transition-colors ${
+                      plannedSets.get(progress.set.id)?.isPriority
+                        ? 'bg-red-700/30 text-red-400 border border-red-500/30'
+                        : 'bg-gray-800/30 text-gray-400 border border-gray-600/30 hover:text-red-300'
+                    }`}
+                    title={plannedSets.get(progress.set.id)?.isPriority ? "Remove from top candidates" : "Mark as top candidate"}
+                  >
+                    <Star size={14} />
+                  </button>
+                )}
+                {/* Remove for built tab */}
+                {activeTab === 'built' && (
+                  <button
+                    onClick={() => handleStateChange(progress, 'buildable')}
+                    className="p-1 rounded transition-colors text-gray-500 hover:text-red-400"
+                    title="Remove from built (if marked by mistake)"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Progress Bar */}
@@ -755,6 +821,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
               {/* Parts List */}
               <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-gray-400/70">Part</span>
+                  <span className="text-gray-400/70">Source</span>
+                </div>
                 {progress.set.requiredParts.map((part, index) => {
                   const isOwned = progress.ownedParts.includes(part.name);
                   const isObtainableFromRelics = progress.obtainableFromRelics.includes(part.name);
@@ -776,25 +846,22 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   const relicSources = getRelicsForPart(part.name);
 
                   return (
-                    <div key={index} className="flex items-center justify-between text-xs">
+                    <div key={index} className="flex items-center justify-between text-xs bg-gray-800/20 rounded px-2 py-1">
                       <div className={`flex items-center gap-1 ${textColor}`}>
                         <span className={iconColor}>{icon}</span>
                         <span className="truncate">{part.partType}</span>
                         {part.itemCount && part.itemCount > 1 && (
                           <span className="text-xs text-blue-400">x{part.itemCount}</span>
                         )}
-                        {isObtainableFromRelics && !isOwned && (
-                          <span className="text-xs text-yellow-400/70" title="Available in your relics">
-                            (relic)
-                          </span>
-                        )}
                       </div>
-                      <span className={`${textColor} truncate text-xs`}>
-                        {relicSources.length > 0
-                          ? relicSources.slice(0, 2).join(', ') + (relicSources.length > 2 ? '...' : '')
-                          : 'Unknown'
-                        }
-                      </span>
+                      <div className="flex items-center gap-1">
+                        {isObtainableFromRelics && !isOwned && (
+                          <span className="bg-yellow-900/30 text-yellow-400 px-1 py-0.5 text-[10px] rounded">RELIC</span>
+                        )}
+                        <span className={`${textColor} truncate text-xs text-right ml-1`}>
+                          {getRelicSourceText(part.name, isOwned, isObtainableFromRelics)}
+                        </span>
+                      </div>
                     </div>
                   );
                 })}
@@ -807,6 +874,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 {(['buildable', 'planned', 'owned'] as const).map((state) => {
                   const currentState = getSetState(progress);
                   const isActive = currentState === state;
+                  const isPriority = plannedSets.get(progress.set.id)?.isPriority || false;
 
                   const stateConfig = {
                     buildable: {
@@ -817,11 +885,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       activeBgColor: 'bg-gray-400/30 border-gray-400/50'
                     },
                     planned: {
-                      label: 'Planned',
+                      label: isPriority ? 'Top Candidate' : 'Planned',
                       icon: <BookOpen size={10} />,
-                      color: 'text-yellow-400',
-                      bgColor: 'bg-yellow-600/20 border-yellow-600/30',
-                      activeBgColor: 'bg-yellow-600/40 border-yellow-500/50'
+                      color: isPriority ? 'text-red-400' : 'text-yellow-400',
+                      bgColor: isPriority ? 'bg-red-600/20 border-red-600/30' : 'bg-yellow-600/20 border-yellow-600/30',
+                      activeBgColor: isPriority ? 'bg-red-600/40 border-red-500/50' : 'bg-yellow-600/40 border-yellow-500/50'
                     },
                     owned: {
                       label: 'Owned',
@@ -834,10 +902,15 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
                   const config = stateConfig[state];
 
+                  // Keep existing isPriority if staying in planned state, otherwise false
+                  const nextPriority = state === 'planned' && currentState === 'planned'
+                    ? isPriority
+                    : state === 'planned' ? false : false;
+
                   return (
                     <button
                       key={state}
-                      onClick={() => handleStateChange(progress, state)}
+                      onClick={() => handleStateChange(progress, state, nextPriority)}
                       className={`flex-1 px-2 py-1.5 text-xs border rounded transition-colors ${
                         isActive
                           ? `${config.activeBgColor} ${config.color}`

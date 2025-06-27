@@ -306,6 +306,9 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   onRefreshItem,
   showActionButtons = false
 }) => {
+  // Filter out Requiem relics
+  const filteredResults = results.filter(relic => !relic.name.includes('Requiem'));
+
   const [sortField, setSortField] = useState<'name' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market' | 'bestValue' | 'totalValue'>('totalValue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedRelic, setSelectedRelic] = useState<SelectedRelic | null>(null);
@@ -401,7 +404,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     };
   };
 
-  const analyzedRelics = results.map(analyzeRelic);
+  const analyzedRelics = filteredResults.map(analyzeRelic);
 
     // Sort relics
   const sortedRelics = [...analyzedRelics].sort((a, b) => {
@@ -475,7 +478,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     return targetIndex < currentIndex;
   };
 
-  if (isLoading && results.length === 0) {
+  if (isLoading && filteredResults.length === 0) {
     return (
       <div className="animate-pulse p-4">
         <div className="h-8 bg-gray-800 rounded mb-4"></div>
@@ -486,7 +489,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     );
   }
 
-  if (results.length === 0) {
+  if (filteredResults.length === 0) {
     return (
       <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">
         <p className="text-gray-400">No relics detected yet.</p>
@@ -500,7 +503,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between mb-4 px-2">
         <div className="text-sm text-gray-400">
-          {results.length} relic{results.length !== 1 ? 's' : ''}
+          {filteredResults.length} relic{filteredResults.length !== 1 ? 's' : ''}
         </div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-gray-500">
