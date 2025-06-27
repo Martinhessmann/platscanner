@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.13.0] - 2025-01-07
+
+### Added
+- **☁️ REVOLUTIONARY: Cross-Platform Cloud Sync** - Complete inventory synchronization across all devices and browsers
+  - **🔐 Secure API Key Identification** - Uses SHA-256 hashed Gemini API key as unique user identifier (raw key never stored in cloud)
+  - **📊 Complete Data Sync** - Synchronizes inventory, build plans, mastery progress, and scan history across platforms
+  - **⚡ Auto-Sync on App Load** - Automatically syncs when opening the app if cloud sync is enabled
+  - **🔄 Manual Sync Controls** - Upload to cloud, download from cloud, and auto-sync now buttons
+  - **⚖️ Intelligent Conflict Resolution** - Smart handling when both local and cloud data have been modified
+  - **🛠️ Configurable Conflict Strategy** - Choose to always use local, always use remote, or ask each time
+  - **📡 Real-time Cloud Data Info** - Shows cloud inventory statistics (item count, total value, last sync time)
+  - **🗑️ Cloud Data Management** - Delete all cloud data with confirmation for privacy control
+  - **🔒 Enhanced Privacy Protection** - API key hashed client-side, only inventory data stored in cloud
+  - **🏗️ Supabase Integration** - Leverages existing Supabase infrastructure with new database table
+  - **📱 Cross-Browser Transfer** - Perfect for switching between desktop/mobile or sharing complete setups
+  - **⚠️ Graceful Degradation** - App works normally when cloud sync unavailable, with clear status indicators
+- **⚙️ Enhanced Settings with Cloud Sync Tab** - Redesigned settings interface with three organized sections
+  - **🔧 API Configuration Tab** - Dedicated section for Gemini API key management
+  - **☁️ Cloud Sync Tab** - Complete cloud synchronization settings and controls
+  - **💾 Data Backup Tab** - Traditional export/import functionality for manual backups
+  - **🎨 Unified Design Language** - Consistent styling and interactions across all settings sections
+
+### Technical
+- **🏗️ Cloud Sync Service Architecture** - Comprehensive service layer for cross-platform synchronization
+  - **📡 cloudSyncService.ts** - Complete sync management with conflict resolution and error handling
+  - **🔐 Client-side API Key Hashing** - SHA-256 hashing using Web Crypto API for privacy
+  - **📊 Smart Data Merging** - Handles merge vs replace operations for different data types
+  - **⚡ Auto-sync on Configuration** - Automatically attempts sync when API key is configured
+  - **🛡️ Robust Error Handling** - Comprehensive error management with user-friendly messages
+- **🗄️ Database Schema** - New Supabase table for cloud inventory storage
+  - **📋 user_inventories Table** - JSONB columns for flexible data storage with RLS security
+  - **🔍 Performance Indexes** - Optimized queries with user_id and updated_at indexes
+  - **🛡️ Row Level Security** - Proper data isolation using anonymous key authentication
+  - **📝 Setup Documentation** - Complete SQL setup script (setup-cloud-sync.sql) for easy deployment
+- **🎨 CloudSyncSection Component** - Feature-rich UI component for sync management
+  - **🎛️ Toggle Controls** - Enable/disable sync and auto-sync with visual feedback
+  - **📊 Cloud Data Visualization** - Real-time display of cloud inventory statistics
+  - **🔄 Manual Sync Operations** - Upload, download, and auto-sync actions with progress indicators
+  - **⚖️ Conflict Resolution UI** - User-friendly interface for handling data conflicts
+  - **🗑️ Danger Zone Management** - Secure cloud data deletion with confirmation dialogs
+
 ## [1.12.0] - 2025-01-07
 
 ### Enhanced

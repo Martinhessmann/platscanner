@@ -36,6 +36,12 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 - Remove individual items or clear entire categories
 - Click item names to view detailed market listings on Warframe Market
 
+### 4. Cloud Sync (Optional)
+- Enable cross-platform synchronization in Settings > Cloud Sync
+- Your inventory, build plans, and progress sync across all devices
+- Uses your Gemini API key as a secure unique identifier
+- Automatic conflict resolution when data differs between devices
+
 ## 🎯 Live App
 
 **Try it now**: [platscanner.netlify.app](https://platscanner.netlify.app)
@@ -46,6 +52,7 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 - Node.js 18+
 - Google Gemini API key
 - Docker Desktop (for Supabase Edge Function deployment)
+- Supabase project (optional, for cloud sync)
 
 ### Installation
 ```bash
@@ -62,6 +69,10 @@ cp .env.example .env
 # Add your API key to .env
 VITE_GEMINI_API_KEY=your_api_key_here
 
+# Optional: Add Supabase config for cloud sync
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
 # Start development server
 npm run dev
 ```
@@ -73,6 +84,29 @@ npm run build    # Build for production
 npm run preview  # Preview production build
 npm run lint     # Run ESLint
 ```
+
+### Cloud Sync Setup (Optional)
+
+To enable cross-platform inventory synchronization:
+
+1. **Create a Supabase project**: Visit [supabase.com](https://supabase.com) and create a new project
+
+2. **Set up the database**: Run the SQL script in your Supabase SQL Editor:
+```bash
+# Copy the setup script
+cat setup-cloud-sync.sql
+
+# Or run directly in Supabase dashboard:
+# Project Settings > API > SQL Editor > New Query
+```
+
+3. **Configure environment variables**:
+```bash
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+4. **Enable in app**: Go to Settings > Cloud Sync and enable synchronization
 
 ### Supabase Edge Function Deployment
 

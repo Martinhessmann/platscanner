@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, X, Key, HardDrive } from 'lucide-react';
+import { Settings, X, Key, HardDrive, Cloud } from 'lucide-react';
 import DataBackupSection from './DataBackupSection';
+import CloudSyncSection from './CloudSyncSection';
 
 interface ApiKeySettingsProps {
   onApiKeyChange: (key: string) => Promise<void>;
@@ -18,7 +19,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
   onDataImported
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'api' | 'backup'>('api');
+  const [activeTab, setActiveTab] = useState<'api' | 'backup' | 'sync'>('api');
   const [apiKey, setApiKey] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,6 +107,17 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                 API Configuration
               </button>
               <button
+                onClick={() => setActiveTab('sync')}
+                className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors ${
+                  activeTab === 'sync'
+                    ? 'text-white border-b-2 border-tenno-blue bg-gray-800'
+                    : 'text-gray-400 hover:text-gray-300'
+                }`}
+              >
+                <Cloud size={16} />
+                Cloud Sync
+              </button>
+              <button
                 onClick={() => setActiveTab('backup')}
                 className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors ${
                   activeTab === 'backup'
@@ -169,6 +181,10 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                     </button>
                   </div>
                 </form>
+              )}
+
+              {activeTab === 'sync' && (
+                <CloudSyncSection onDataImported={onDataImported} />
               )}
 
               {activeTab === 'backup' && (

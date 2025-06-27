@@ -4,6 +4,7 @@ import ProcessingAnimation from '../components/ProcessingAnimation';
 import InventorySection from '../components/InventorySection';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
 import { fetchPriceData, fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
+import { cloudSyncService } from '../services/cloudSyncService';
 import {
   saveToInventory,
   loadInventory,
@@ -62,6 +63,27 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       setCategorizedInventory(inventory);
     }
   }, [refreshTrigger]);
+
+  // Auto-sync functionality - try to sync when app loads and when API key is configured
+  useEffect(() => {
+    if (isConfigured && cloudSyncService.isAvailable()) {
+      const syncSettings = cloudSyncService.getSyncSettings();
+      if (syncSettings.isEnabled && syncSettings.autoSync) {
+        console.log('>>> [Auto-Sync] Attempting auto-sync on app load <<<');
+        cloudSyncService.autoSync().then(result => {
+          if (result.success) {
+            console.log('>>> [Auto-Sync] Successful - refreshing inventory <<<');
+            const inventory = getCategorizedInventory();
+            setCategorizedInventory(inventory);
+          } else if (result.error && result.error !== 'Auto-sync disabled' && result.error !== 'No cloud data found') {
+            console.log('>>> [Auto-Sync] Failed:', result.error, '<<<');
+          }
+        }).catch(error => {
+          console.error('>>> [Auto-Sync] Error:', error, '<<<');
+        });
+      }
+    }
+  }, [isConfigured]); // Only run when API key configuration changes
 
   // Stop processing function
   const stopProcessing = useCallback(() => {
