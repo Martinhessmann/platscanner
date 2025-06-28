@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { VoidRelic } from '../types';
-import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, MessageCircle, Info, X, AlertCircle, Check, Shield } from 'lucide-react';
+import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, MessageCircle, Info, X, AlertCircle, Check, Shield, Eye, EyeOff } from 'lucide-react';
 import { getRelicImagePath } from '../lib/relicUtils';
 import { getRelicDropsByName } from '../services/relicDataService';
 import { isItemReserved } from '../services/buildPlanService';
@@ -313,6 +313,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [selectedRelic, setSelectedRelic] = useState<SelectedRelic | null>(null);
   const [copiedRelics, setCopiedRelics] = useState<Set<string>>(new Set());
+  const [showUnreservedOnly, setShowUnreservedOnly] = useState(false);
 
   const handleClipboardCopy = async (message: string, relicId: string) => {
     try {
@@ -406,8 +407,13 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
 
   const analyzedRelics = filteredResults.map(analyzeRelic);
 
+  // Apply unreserved filter
+  const finalFilteredRelics = showUnreservedOnly
+    ? analyzedRelics.filter(analysis => !isItemReserved(analysis.relic.name, 'relics').reserved)
+    : analyzedRelics;
+
     // Sort relics
-  const sortedRelics = [...analyzedRelics].sort((a, b) => {
+  const sortedRelics = [...finalFilteredRelics].sort((a, b) => {
     let valueA: number, valueB: number;
 
     switch (sortField) {
@@ -498,12 +504,45 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     );
   }
 
+  if (finalFilteredRelics.length === 0 && showUnreservedOnly) {
+    return (
+      <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">
+        <p className="text-gray-400">No unreserved relics found.</p>
+        <p className="text-sm text-gray-500 mt-1">All relics are currently reserved for build plans.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 px-2">
-        <div className="text-sm text-gray-400">
-          {filteredResults.length} relic{filteredResults.length !== 1 ? 's' : ''}
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-400">
+            {showUnreservedOnly ? (
+              <>
+                {finalFilteredRelics.length} of {filteredResults.length} unreserved relic{finalFilteredRelics.length !== 1 ? 's' : ''}
+              </>
+            ) : (
+              <>
+                {filteredResults.length} relic{filteredResults.length !== 1 ? 's' : ''}
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+              showUnreservedOnly
+                ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
+                : 'bg-gray-800 text-gray-400 hover:text-gray-300'
+            }`}
+            title={showUnreservedOnly ? 'Show all relics' : 'Show only unreserved relics'}
+          >
+            {showUnreservedOnly ? <EyeOff size={12} /> : <Eye size={12} />}
+            <span className="hidden sm:inline">
+              {showUnreservedOnly ? 'Show All' : 'Unreserved Only'}
+            </span>
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-gray-500">

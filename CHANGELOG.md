@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.2] - 2025-01-28
+
+### Added
+- **👁️ Unreserved Items Filter** - New filter to show only items not reserved for build plans
+  - **🎯 Smart Filtering** - Toggle to show only items safe to sell without affecting planned builds
+  - **📊 Dynamic Counts** - Shows "X of Y unreserved items" when filter is active
+  - **🖥️ Desktop & Mobile Support** - Filter controls available in both Prime Parts and Void Relics tables
+  - **🔄 Empty State Handling** - Clear message when all items are reserved for builds
+  - **⚡ Instant Toggle** - One-click switching between "Show All" and "Unreserved Only" views
+  - **🎨 Visual Indicators** - Eye/EyeOff icons with Tenno Blue active state styling
+
+### Enhanced
+- **🎯 Improved UX for Build Planning** - Perfect complement to the reservation system for safer inventory management
+- **📱 Consistent Interface** - Unified filter experience across both desktop table and mobile card views
+- **🛡️ Selling Safety** - Easy way to identify items that won't interfere with planned prime builds
+
 ## [1.14.1] - 2025-01-28
 
 ### Fixed

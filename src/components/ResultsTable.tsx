@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { DetectedItem } from '../types';
-import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical, MessageCircle, Check, Shield } from 'lucide-react';
+import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical, MessageCircle, Check, Shield, Eye, EyeOff } from 'lucide-react';
 import { isItemReserved } from '../services/buildPlanService';
 
 interface ResultsTableProps {
@@ -23,6 +23,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const [showSortOptions, setShowSortOptions] = useState(false);
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
   const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
+  const [showUnreservedOnly, setShowUnreservedOnly] = useState(false);
 
   const handleSort = (field: 'price' | 'name' | 'ducats' | 'totalValue') => {
     console.log(`>>> [ResultsTable] Sort clicked: ${field}, current: ${sortField}, direction: ${sortDirection} <<<`);
@@ -55,7 +56,12 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
     }
   };
 
-  const sortedResults = [...results].sort((a, b) => {
+  // Apply filter for unreserved items only
+  const filteredResults = showUnreservedOnly
+    ? results.filter(item => !isItemReserved(item.name, 'prime_parts').reserved)
+    : results;
+
+  const sortedResults = [...filteredResults].sort((a, b) => {
     if (sortField === 'price') {
       const priceA = a.price || 0;
       const priceB = b.price || 0;
@@ -107,6 +113,15 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
     );
   }
 
+  if (filteredResults.length === 0 && showUnreservedOnly) {
+    return (
+      <div className="text-center p-8 m-4 border border-dashed border-gray-700 rounded-lg">
+        <p className="text-gray-400">No unreserved items found.</p>
+        <p className="text-sm text-gray-500 mt-1">All items are currently reserved for build plans.</p>
+      </div>
+    );
+  }
+
   const getSortLabel = () => {
     const direction = sortDirection === 'asc' ? '↑' : '↓';
     switch (sortField) {
@@ -121,8 +136,32 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
     <div className="w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 px-2">
-        <div className="text-sm text-gray-400">
-          {results.length} item{results.length !== 1 ? 's' : ''}
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-gray-400">
+            {showUnreservedOnly ? (
+              <>
+                {filteredResults.length} of {results.length} unreserved item{filteredResults.length !== 1 ? 's' : ''}
+              </>
+            ) : (
+              <>
+                {results.length} item{results.length !== 1 ? 's' : ''}
+              </>
+            )}
+          </div>
+          <button
+            onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+              showUnreservedOnly
+                ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
+                : 'bg-gray-800 text-gray-400 hover:text-gray-300'
+            }`}
+            title={showUnreservedOnly ? 'Show all items' : 'Show only unreserved items'}
+          >
+            {showUnreservedOnly ? <EyeOff size={12} /> : <Eye size={12} />}
+            <span className="hidden sm:inline">
+              {showUnreservedOnly ? 'Show All' : 'Unreserved Only'}
+            </span>
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-gray-500">
@@ -359,8 +398,29 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
       <div className="lg:hidden">
         {/* Mobile sort header */}
         <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-t-lg">
-          <div className="text-sm text-gray-400">
-            {results.length} item{results.length !== 1 ? 's' : ''}
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-400">
+              {showUnreservedOnly ? (
+                <>
+                  {filteredResults.length} of {results.length} unreserved
+                </>
+              ) : (
+                <>
+                  {results.length} item{results.length !== 1 ? 's' : ''}
+                </>
+              )}
+            </div>
+            <button
+              onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                showUnreservedOnly
+                  ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
+                  : 'bg-gray-800 text-gray-400 hover:text-gray-300'
+              }`}
+              title={showUnreservedOnly ? 'Show all items' : 'Show only unreserved items'}
+            >
+              {showUnreservedOnly ? <EyeOff size={10} /> : <Eye size={10} />}
+            </button>
           </div>
           <div className="relative">
             <button
