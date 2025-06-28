@@ -185,7 +185,35 @@ export const isItemReserved = (itemName: string, category: 'prime_parts' | 'reli
   isPriority: boolean;
 } => {
   const storage = loadBuildPlans();
-  const reservation = storage.reservedItems.find(item => item.itemName === itemName && item.category === category);
+
+  // First try exact match
+  let reservation = storage.reservedItems.find(item => item.itemName === itemName && item.category === category);
+
+  // If no exact match found for prime parts, try fuzzy matching
+  if (!reservation && category === 'prime_parts') {
+    // Try matching with/without "Blueprint" suffix
+    const baseItemName = itemName.replace(/ Blueprint$/, '');
+    const itemNameWithBlueprint = itemName.endsWith(' Blueprint') ? itemName : `${itemName} Blueprint`;
+
+    reservation = storage.reservedItems.find(item =>
+      item.category === category && (
+        item.itemName === baseItemName ||
+        item.itemName === itemNameWithBlueprint ||
+        item.itemName.replace(/ Blueprint$/, '') === baseItemName
+      )
+    );
+  }
+
+    // Optional: Add debug logging for specific items (can be removed in production)
+  const shouldDebugLog = false; // Set to true for debugging specific items
+  if (shouldDebugLog && itemName.toLowerCase().includes('debug_item_name')) {
+    console.log(`>>> [Reservation Check] Checking reservation for "${itemName}" (${category}) <<<`);
+    if (reservation) {
+      console.log(`>>> [Reservation Check] Found match: "${reservation.itemName}" <<<`);
+    } else {
+      console.log(`>>> [Reservation Check] No match found for "${itemName}" <<<`);
+    }
+  }
 
   if (!reservation) {
     return { reserved: false, reservedFor: [], isPriority: false };
@@ -224,12 +252,15 @@ export const autoReserveItemsForSet = (
   ownedParts: string[] = [],
   relicsInventory?: VoidRelic[]
 ): void => {
-  // Reserve the prime parts themselves (only those not owned)
-  const missingParts = requiredParts.filter(part => !ownedParts.includes(part));
-
-  missingParts.forEach(partName => {
+  // Reserve ALL required prime parts (both owned and missing)
+  // Owned parts are reserved to prevent accidental selling
+  // Missing parts are reserved to track what we need
+  requiredParts.forEach(partName => {
     reserveItem(partName, 'prime_parts', setName);
   });
+
+  // Only reserve relics for missing parts (avoid unnecessary relic reservations)
+  const missingParts = requiredParts.filter(part => !ownedParts.includes(part));
 
     // Also reserve relics that contain these MISSING parts
   if (relicsInventory && relicsInventory.length > 0) {
@@ -293,19 +324,19 @@ export const autoReserveItemsForSet = (
 };
 
 /**
- * Update all relic reservations for existing build plans
- * This is used to batch update all reservations when relics inventory changes
+ * Update all reservations for existing build plans
+ * This is used to batch update all reservations when inventory changes
  */
-export const updateAllRelicReservations = (
+export const updateAllReservations = (
   sets: Array<{
     set: { name: string, requiredParts: Array<{ name: string, partType: string }> },
     ownedParts: string[]
   }>,
   relicsInventory: VoidRelic[]
 ): void => {
-  // First, clear all relic reservations
+  // First, clear all existing reservations (both prime parts and relics)
   const storage = loadBuildPlans();
-  storage.reservedItems = storage.reservedItems.filter(item => item.category !== 'relics');
+  storage.reservedItems = [];
   saveBuildPlans(storage);
 
   // Then, recreate reservations for all planned sets
@@ -313,6 +344,7 @@ export const updateAllRelicReservations = (
 
   sets.forEach(({ set, ownedParts }) => {
     const isPlanActive = plannedSets.some(plan => plan.setName === set.name);
+
     if (isPlanActive) {
       const requiredPartNames = set.requiredParts.map(part => `${set.name} ${part.partType}`);
       autoReserveItemsForSet(set.name, requiredPartNames, ownedParts, relicsInventory);

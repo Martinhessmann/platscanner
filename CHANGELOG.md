@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.1] - 2025-01-28
+
+### Fixed
+- **🚨 CRITICAL: Owned Prime Parts Not Reserved** - Fixed reservation system to reserve ALL required parts, including owned ones
+  - **🔒 Complete Part Reservation** - Build plans now reserve both owned parts (to prevent selling) and missing parts (to track needs)
+  - **🛡️ Enhanced Selling Protection** - Owned prime parts for planned sets now show proper reservation warnings
+  - **🔧 Comprehensive Fix** - Updated `autoReserveItemsForSet()` to reserve all required parts instead of just missing ones
+  - **📋 Function Rename** - Renamed `updateAllRelicReservations()` to `updateAllReservations()` for clarity
+  - **⚖️ Smart Relic Logic** - Relics still only reserved for missing parts to avoid unnecessary reservations
+- **🚨 CRITICAL: Blueprint Name Mismatch in Reservations** - Fixed fuzzy matching for prime parts with/without "Blueprint" suffix
+    - **🎯 Root Cause Identified** - Prime Sets stored "Wisp Prime Systems" but inventory checked "Wisp Prime Systems Blueprint"
+  - **🔍 Fuzzy Matching Logic** - `isItemReserved()` now matches parts with or without "Blueprint" suffix automatically
+  - **🛡️ Enhanced Protection** - Owned prime parts now properly show reservation warnings regardless of Blueprint naming
+  - **🧹 Production Code Cleanup** - Removed debug logging after successful diagnosis and fix
+
 ## [1.14.0] - 2025-01-28
 
 ### Added

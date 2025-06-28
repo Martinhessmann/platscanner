@@ -33,7 +33,7 @@ import {
   addToBuildPlan,
   removeFromBuildPlan,
   autoReserveItemsForSet,
-  updateAllRelicReservations
+  updateAllReservations
 } from '../services/buildPlanService';
 
 interface PrimeSetsProps {
@@ -97,10 +97,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                     setSetProgress(progress);
           setRecommendations(recs);
 
-          // Update relic reservations for all planned sets after data is loaded
+          // Update all reservations for all planned sets after data is loaded
           // Use type-safe progress data
           setTimeout(() => {
-            updateAllRelicReservations(progress, relicsInventory);
+            updateAllReservations(progress, relicsInventory);
           }, 0);
         }
       } catch (error) {
