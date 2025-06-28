@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.14.5] - 2025-01-28
+## [1.15.0] - 2025-01-28
 
 ### Fixed
 - **🎯 Smart Debounced Sync System** - Eliminated hundreds of rapid sync calls during app initialization
