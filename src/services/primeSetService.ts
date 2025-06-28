@@ -3,6 +3,7 @@
 // Last Updated: 2025-01-03
 
 import { DetectedItem, VoidRelic } from '../types';
+import { cloudSyncService } from './cloudSyncService';
 
 export interface PrimePart {
   name: string;
@@ -194,6 +195,11 @@ export const getMasteredSets = (): string[] => {
 export const setMasteredSets = (masteredIds: string[]): void => {
   try {
     localStorage.setItem(MASTERY_STORAGE_KEY, JSON.stringify(masteredIds));
+
+    // Notify cloud sync of local data modification
+    cloudSyncService.onLocalDataModified().catch(error => {
+      console.error('Failed to sync mastery changes to cloud:', error);
+    });
   } catch (error) {
     console.error('Failed to save mastered sets:', error);
   }

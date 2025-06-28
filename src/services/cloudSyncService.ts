@@ -36,6 +36,9 @@ interface SyncStatus {
 class CloudSyncService {
   private supabase: any;
   private isConfigured: boolean;
+  private isSyncing: boolean = false;
+  private pendingSyncTimeout: NodeJS.Timeout | null = null;
+  private syncDebounceMs: number = 2000; // Wait 2 seconds after last modification before syncing
 
   constructor() {
     this.isConfigured = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
@@ -107,6 +110,29 @@ class CloudSyncService {
   }
 
   /**
+   * Get local modification timestamp
+   */
+  private getLocalModificationTime(): Date {
+    try {
+      const modTime = localStorage.getItem('platscanner_last_modified');
+      return modTime ? new Date(modTime) : new Date(0); // Very old date if never modified
+    } catch (error) {
+      return new Date(0);
+    }
+  }
+
+  /**
+   * Update local modification timestamp
+   */
+  private updateLocalModificationTime(): void {
+    try {
+      localStorage.setItem('platscanner_last_modified', new Date().toISOString());
+    } catch (error) {
+      console.error('Failed to update modification time:', error);
+    }
+  }
+
+  /**
    * Get local data for syncing
    */
   private getLocalData(): UserInventoryData | null {
@@ -115,6 +141,7 @@ class CloudSyncService {
       const buildPlans = localStorage.getItem('platscanner_build_plans');
       const mastery = localStorage.getItem('platscanner_mastery');
       const lastScan = localStorage.getItem('platscanner_last_scan');
+      const lastModified = this.getLocalModificationTime().toISOString();
 
       return {
         user_id: '', // Will be set by caller
@@ -122,7 +149,7 @@ class CloudSyncService {
         build_plans: buildPlans ? JSON.parse(buildPlans) : { buildPlans: [], reservedItems: [], version: 1 },
         mastery_data: mastery ? JSON.parse(mastery) : [],
         last_scan: lastScan || new Date().toISOString(),
-        last_sync: new Date().toISOString()
+        last_sync: lastModified // Use actual modification time instead of current time
       };
     } catch (error) {
       console.error('Failed to get local data:', error);
@@ -132,6 +159,8 @@ class CloudSyncService {
 
   /**
    * Save remote data to local storage
+   * Note: This method is called during sync operations when isSyncing=true,
+   * which prevents onLocalDataModified from being triggered, avoiding infinite loops
    */
   private saveLocalData(data: UserInventoryData): void {
     try {
@@ -165,6 +194,14 @@ class CloudSyncService {
     if (!this.isConfigured) {
       return { success: false, error: 'Cloud sync not configured' };
     }
+
+    // Prevent concurrent sync operations
+    if (this.isSyncing) {
+      console.log('>>> [Cloud Sync] Already syncing - skipping upload <<<');
+      return { success: false, error: 'Sync already in progress' };
+    }
+
+    this.isSyncing = true;
 
     try {
       const userId = await this.getCurrentUserId();
@@ -206,6 +243,8 @@ class CloudSyncService {
         success: false,
         error: error instanceof Error ? error.message : 'Upload failed'
       };
+    } finally {
+      this.isSyncing = false;
     }
   }
 
@@ -216,6 +255,14 @@ class CloudSyncService {
     if (!this.isConfigured) {
       return { success: false, error: 'Cloud sync not configured' };
     }
+
+    // Prevent concurrent sync operations
+    if (this.isSyncing) {
+      console.log('>>> [Cloud Sync] Already syncing - skipping download <<<');
+      return { success: false, error: 'Sync already in progress' };
+    }
+
+    this.isSyncing = true;
 
     try {
       const userId = await this.getCurrentUserId();
@@ -263,7 +310,7 @@ class CloudSyncService {
         }
       }
 
-      // Save to local storage
+      // Save to local storage (this won't trigger onLocalDataModified due to isSyncing flag)
       this.saveLocalData(data);
 
       console.log('>>> [Cloud Sync] Download successful <<<');
@@ -275,11 +322,85 @@ class CloudSyncService {
         success: false,
         error: error instanceof Error ? error.message : 'Download failed'
       };
+    } finally {
+      this.isSyncing = false;
     }
   }
 
   /**
-   * Auto-sync based on user settings
+   * Notify that local data has been modified (call this whenever inventory changes)
+   * Uses debouncing to batch multiple rapid modifications and sync only once
+   */
+  async onLocalDataModified(): Promise<SyncResult> {
+    // Prevent re-entrant sync operations
+    if (this.isSyncing) {
+      return { success: true };
+    }
+
+    const settings = this.getSyncSettings();
+
+    // Update local modification timestamp
+    this.updateLocalModificationTime();
+
+    // If sync is not enabled, return early
+    if (!settings.isEnabled || !this.isConfigured) {
+      return { success: true };
+    }
+
+    // Cancel any pending sync
+    if (this.pendingSyncTimeout) {
+      clearTimeout(this.pendingSyncTimeout);
+    }
+
+    // Schedule a debounced sync
+    this.pendingSyncTimeout = setTimeout(async () => {
+      try {
+        console.log('>>> [Cloud Sync] Debounced sync triggered - uploading to cloud <<<');
+        await this.uploadToCloud();
+      } catch (error) {
+        console.error('Debounced sync failed:', error);
+      } finally {
+        this.pendingSyncTimeout = null;
+      }
+    }, this.syncDebounceMs);
+
+    return { success: true };
+  }
+
+  /**
+   * Force immediate sync (bypasses debouncing) - used for manual sync operations
+   */
+  async forceSync(): Promise<SyncResult> {
+    // Cancel any pending debounced sync
+    if (this.pendingSyncTimeout) {
+      clearTimeout(this.pendingSyncTimeout);
+      this.pendingSyncTimeout = null;
+    }
+
+    const settings = this.getSyncSettings();
+    if (!settings.isEnabled || !this.isConfigured) {
+      return { success: false, error: 'Sync not enabled or configured' };
+    }
+
+    console.log('>>> [Cloud Sync] Force sync triggered <<<');
+    return await this.uploadToCloud();
+  }
+
+  /**
+   * Flush any pending sync operations immediately
+   */
+  async flushPendingSync(): Promise<SyncResult> {
+    if (this.pendingSyncTimeout) {
+      clearTimeout(this.pendingSyncTimeout);
+      this.pendingSyncTimeout = null;
+      console.log('>>> [Cloud Sync] Flushing pending sync <<<');
+      return await this.uploadToCloud();
+    }
+    return { success: true };
+  }
+
+  /**
+   * Smart auto-sync that compares modification times
    */
   async autoSync(): Promise<SyncResult> {
     const settings = this.getSyncSettings();
@@ -288,30 +409,68 @@ class CloudSyncService {
       return { success: false, error: 'Auto-sync disabled' };
     }
 
-    // Try download first, then upload if no conflicts
-    const downloadResult = await this.downloadFromCloud();
-
-    if (downloadResult.success) {
-      return downloadResult;
+    // Prevent concurrent sync operations
+    if (this.isSyncing) {
+      console.log('>>> [Auto-Sync] Already syncing - skipping auto-sync <<<');
+      return { success: false, error: 'Sync already in progress' };
     }
 
-    if (downloadResult.error === 'No cloud data found') {
-      // First time - upload local data
-      return await this.uploadToCloud();
-    }
-
-    if (downloadResult.conflictData) {
-      // Handle conflict based on user preference
-      if (settings.conflictResolution === 'local') {
-        return await this.uploadToCloud();
-      } else if (settings.conflictResolution === 'remote') {
-        return await this.downloadFromCloud(true);
+    try {
+      // Get cloud data info to compare timestamps
+      const userId = await this.getCurrentUserId();
+      if (!userId) {
+        return { success: false, error: 'No API key found' };
       }
-      // Otherwise return conflict for user to resolve
-      return downloadResult;
-    }
 
-    return downloadResult;
+      const { data: cloudData, error } = await this.supabase
+        .from('user_inventories')
+        .select('last_sync, updated_at')
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Auto-sync error:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (!cloudData) {
+        // No cloud data exists - upload local data
+        console.log('>>> [Auto-Sync] No cloud data found - uploading local data <<<');
+        return await this.uploadToCloud();
+      }
+
+      // Compare modification times
+      const localModTime = this.getLocalModificationTime();
+      const cloudModTime = new Date(cloudData.last_sync);
+
+      console.log(`>>> [Auto-Sync] Local modified: ${localModTime.toISOString()}, Cloud modified: ${cloudModTime.toISOString()} <<<`);
+
+      if (localModTime > cloudModTime) {
+        // Local data is newer - upload to cloud
+        console.log('>>> [Auto-Sync] Local data is newer - uploading to cloud <<<');
+        return await this.uploadToCloud();
+      } else if (cloudModTime > localModTime) {
+        // Cloud data is newer - download from cloud
+        console.log('>>> [Auto-Sync] Cloud data is newer - downloading from cloud <<<');
+        const downloadResult = await this.downloadFromCloud();
+        if (downloadResult.success) {
+          // Update our local modification time to match cloud (but don't trigger sync)
+          localStorage.setItem('platscanner_last_modified', cloudModTime.toISOString());
+        }
+        return downloadResult;
+      } else {
+        // Data is in sync
+        console.log('>>> [Auto-Sync] Data is already in sync <<<');
+        return { success: true };
+      }
+
+    } catch (error) {
+      console.error('Auto-sync failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Auto-sync failed'
+      };
+    }
   }
 
   /**
@@ -347,6 +506,16 @@ class CloudSyncService {
         success: false,
         error: error instanceof Error ? error.message : 'Delete failed'
       };
+    }
+  }
+
+  /**
+   * Cleanup method to cancel any pending sync operations
+   */
+  cleanup(): void {
+    if (this.pendingSyncTimeout) {
+      clearTimeout(this.pendingSyncTimeout);
+      this.pendingSyncTimeout = null;
     }
   }
 

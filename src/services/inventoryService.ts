@@ -5,6 +5,7 @@
 import { DetectedItem, PrimePart, VoidRelic, ItemCategory, RelicRewardItem } from '../types';
 import { getRelicDropsByName } from './relicDataService';
 import { fetchSinglePriceData, fetchBatchPriceData } from './warframeMarketService';
+import { cloudSyncService } from './cloudSyncService';
 
 const INVENTORY_STORAGE_KEY = 'platscanner_inventory';
 const LAST_SCAN_STORAGE_KEY = 'platscanner_last_scan';
@@ -131,6 +132,11 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
 
     localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(updatedInventory));
     localStorage.setItem(LAST_SCAN_STORAGE_KEY, now.toISOString());
+
+    // Notify cloud sync of local data modification
+    cloudSyncService.onLocalDataModified().catch(error => {
+      console.error('Failed to sync inventory changes to cloud:', error);
+    });
   } catch (error) {
     console.error('Failed to save inventory:', error);
   }
@@ -201,6 +207,11 @@ export const removeFromInventory = (itemName: string): void => {
     };
 
     localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(updatedInventory));
+
+    // Notify cloud sync of local data modification
+    cloudSyncService.onLocalDataModified().catch(error => {
+      console.error('Failed to sync inventory changes to cloud:', error);
+    });
   } catch (error) {
     console.error('Failed to remove item from inventory:', error);
   }
@@ -213,6 +224,11 @@ export const clearInventory = (): void => {
   try {
     localStorage.removeItem(INVENTORY_STORAGE_KEY);
     localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
+
+    // Notify cloud sync of local data modification
+    cloudSyncService.onLocalDataModified().catch(error => {
+      console.error('Failed to sync inventory changes to cloud:', error);
+    });
   } catch (error) {
     console.error('Failed to clear inventory:', error);
   }
@@ -233,6 +249,11 @@ export const clearInventoryByCategory = (category: ItemCategory): void => {
     };
 
     localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(updatedInventory));
+
+    // Notify cloud sync of local data modification
+    cloudSyncService.onLocalDataModified().catch(error => {
+      console.error('Failed to sync inventory changes to cloud:', error);
+    });
   } catch (error) {
     console.error('Failed to clear category inventory:', error);
   }
@@ -287,6 +308,11 @@ export const updateInventoryPrices = (updatedItems: DetectedItem[]): void => {
     };
 
     localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(updatedInventory));
+
+    // Notify cloud sync of local data modification
+    cloudSyncService.onLocalDataModified().catch(error => {
+      console.error('Failed to sync inventory changes to cloud:', error);
+    });
   } catch (error) {
     console.error('Failed to update inventory prices:', error);
   }

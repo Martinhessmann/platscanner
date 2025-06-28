@@ -1,6 +1,8 @@
 // Purpose: Data Export/Import Service - Export and import all user data for sharing and backup
 // Features: Complete inventory, build plans, and mastery status transfer
 
+import { cloudSyncService } from './cloudSyncService';
+
 interface ExportData {
   version: string;
   exportDate: string;
@@ -196,6 +198,13 @@ export const importUserData = (jsonData: string, options: {
         }
       }
       imported.mastery = true;
+    }
+
+    // Notify cloud sync of local data modification if any data was imported
+    if (imported.inventory || imported.buildPlans || imported.mastery) {
+      cloudSyncService.onLocalDataModified().catch(error => {
+        console.error('Failed to sync imported data to cloud:', error);
+      });
     }
 
     return {

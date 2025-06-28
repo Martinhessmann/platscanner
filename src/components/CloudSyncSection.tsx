@@ -71,7 +71,7 @@ const CloudSyncSection: React.FC<CloudSyncSectionProps> = ({ onDataImported }) =
     setSyncStatus({ status: 'syncing', message: 'Uploading to cloud...' });
 
     try {
-      const result = await cloudSyncService.uploadToCloud();
+      const result = await cloudSyncService.forceSync();
       if (result.success) {
         setSyncStatus({ status: 'success', message: 'Successfully uploaded to cloud!' });
         await loadCloudInfo();

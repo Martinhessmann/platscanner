@@ -2,6 +2,7 @@
 // Features: Track planned builds, reserve items, prevent accidental selling
 
 import { VoidRelic } from '../types';
+import { cloudSyncService } from './cloudSyncService';
 
 interface BuildPlan {
   setName: string;
@@ -56,6 +57,11 @@ export const loadBuildPlans = (): BuildPlanStorage => {
 export const saveBuildPlans = (data: BuildPlanStorage): void => {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+    // Notify cloud sync of local data modification
+    cloudSyncService.onLocalDataModified().catch(error => {
+      console.error('Failed to sync build plan changes to cloud:', error);
+    });
   } catch (error) {
     console.error('Failed to save build plans:', error);
   }

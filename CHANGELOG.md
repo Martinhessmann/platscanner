@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.14.5] - 2025-01-28
+
+### Fixed
+- **🎯 Smart Debounced Sync System** - Eliminated hundreds of rapid sync calls during app initialization
+  - **⏱️ Intelligent Debouncing** - 2-second debounce period batches multiple data modifications into single sync
+  - **🔄 Silent Batching** - No more console spam during bulk operations like price updates and initialization
+  - **⚡ Force Sync Method** - New `forceSync()` for manual sync operations that bypass debouncing
+  - **🧹 Cleanup Management** - Proper timeout cleanup to prevent memory leaks
+  - **📊 Efficient Bulk Operations** - Price updates and inventory changes are batched intelligently
+
+## [1.14.4] - 2025-01-28
+
+### Fixed
+- **🔄 Sync Loop Prevention** - Critical fix for infinite cloud sync loops
+  - **🛡️ Re-entrant Operation Protection** - Added `isSyncing` flag to prevent concurrent sync operations
+  - **⏱️ Sync Cooldown System** - 1-second cooldown between sync operations to prevent rapid-fire triggers
+  - **🎯 Smart State Management** - Distinguishes between user changes and system changes during cloud sync
+  - **📡 Loop-Safe Data Loading** - Cloud downloads no longer trigger upload loops on page refresh
+  - **🔍 Enhanced Logging** - Clear console messages when sync operations are skipped due to state protection
+
+## [1.14.3] - 2025-01-28
+
+### Fixed
+- **🔄 Smart Cloud Sync System** - Major overhaul to prevent local data loss
+  - **⏰ Local Modification Tracking** - New `platscanner_last_modified` timestamp for accurate conflict detection
+  - **🚀 Immediate Sync on Changes** - Automatically uploads to cloud when local data is modified
+  - **🎯 Smart Auto-Sync Logic** - Compares local vs cloud modification times instead of blindly downloading
+  - **🛡️ Preserves Local Changes** - No more overwriting recent local inventory changes with old cloud data
+  - **📡 Real-Time Sync Integration** - All inventory, build plan, and mastery changes trigger instant cloud sync
+  - **🔍 Intelligent Conflict Resolution** - Uses actual modification timestamps for accurate sync decisions
+  - **⚡ Seamless Experience** - Works transparently in background without user intervention
+
+### Enhanced
+- **🔧 Service Layer Integration** - Added cloud sync notifications to all data modification functions
+  - **📦 Inventory Service** - Syncs on save, remove, clear, and price updates
+  - **📋 Build Plan Service** - Syncs on plan changes and item reservations
+  - **🏆 Prime Set Service** - Syncs on mastery status updates
+  - **📊 Data Export Service** - Syncs after importing backup data
+  - **🎯 Error Handling** - Graceful fallbacks when cloud sync unavailable
+
 ## [1.14.2] - 2025-01-28
 
 ### Added
