@@ -359,16 +359,12 @@ export const calculateRelicValueAnalysis = async (
   };
 } | null> => {
   try {
-    console.log(`>>> [Relic Analysis] Starting analysis for: ${relicName} (${rarity}) with market price: ${directSalePrice}p <<<`);
-
     const relicDrops = await getRelicDropsByName(relicName, rarity);
 
     if (!relicDrops || relicDrops.length === 0) {
-      console.warn(`>>> [Relic Analysis] No drop data found for relic: ${relicName} <<<`);
+      console.warn(`No drop data found for relic: ${relicName}`);
       return null;
     }
-
-    console.log(`>>> [Relic Analysis] Found ${relicDrops.length} potential drops:`, relicDrops.map(d => `${d.itemName} (${d.dropChance}%)`));
 
     // Fetch prices for all potential drops using batch API
     const validDrops = relicDrops.filter(drop => drop.warframeMarketUrlName);
@@ -420,8 +416,6 @@ export const calculateRelicValueAnalysis = async (
     let expectedProfit = expectedDropValue - directSalePrice;
     let refinementAnalysis: any = undefined;
 
-    console.log(`>>> [Relic Analysis] Comparison: Expected ${expectedDropValue.toFixed(2)}p vs Market Sale ${directSalePrice}p <<<`);
-
     try {
       // Import and use the new optimal refinement analysis
       const { analyzeOptimalRefinementStrategy } = await import('./relicDataService');
@@ -441,23 +435,15 @@ export const calculateRelicValueAnalysis = async (
         comparison: optimalAnalysis.analysis.comparison
       };
 
-      console.log(`>>> [Relic Analysis] Optimal Strategy: ${recommendation} (+${expectedProfit.toFixed(2)}p) <<<`);
-      console.log(`>>> [Relic Analysis] Optimal Level: ${optimalAnalysis.optimalRefinementLevel} (${optimalAnalysis.optimalExpectedValue}p expected) <<<`);
-      console.log(`>>> [Relic Analysis] Market Price: ${optimalAnalysis.optimalMarketPrice}p (${optimalAnalysis.optimalMarketPriceFallback}) <<<`);
-      console.log(`>>> [Relic Analysis] Investment: ${optimalAnalysis.investmentCost} traces (${optimalAnalysis.platPerVoidTrace.toFixed(3)}p/trace) <<<`);
-      console.log(`>>> [Relic Analysis] Reasoning: ${optimalAnalysis.analysis.reasoning} <<<`);
-
     } catch (error) {
-      console.warn(`>>> [Relic Analysis] Optimal refinement analysis failed, falling back to basic logic:`, error);
+      console.warn(`Optimal refinement analysis failed, falling back to basic logic:`, error);
       // Fallback to basic logic
       if (directSalePrice > expectedDropValue) {
         recommendation = 'SELL';
         expectedProfit = directSalePrice - expectedDropValue;
-        console.log(`>>> [Relic Analysis] SELL recommendation (fallback): +${expectedProfit.toFixed(2)}p profit by selling <<<`);
       } else {
         recommendation = 'OPEN';
         expectedProfit = expectedDropValue - directSalePrice;
-        console.log(`>>> [Relic Analysis] OPEN recommendation (fallback): +${expectedProfit.toFixed(2)}p profit by opening <<<`);
       }
     }
 
@@ -472,18 +458,9 @@ export const calculateRelicValueAnalysis = async (
       refinementAnalysis,
     };
 
-    console.log(`>>> [Relic Analysis] Completed for ${relicName}:`, {
-      expectedValue: result.expectedDropValue,
-      directSalePrice: result.directSalePrice,
-      profit: result.expectedProfit,
-      recommendation: result.recommendation,
-      minMax: `${result.minDropValue}-${result.maxDropValue}`,
-      dropPrices: dropsWithPrices.map(d => `${d.itemName}: ${d.currentPrice}p`)
-    });
-
     return result;
   } catch (error) {
-    console.error('>>> [Relic Analysis] Failed:', error);
+    console.error('Relic analysis failed:', error);
     return null;
   }
 };

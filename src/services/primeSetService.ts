@@ -163,30 +163,15 @@ const transformJsonToPrimeSet = (jsonSet: PrimeSetJson): PrimeSet => {
   };
 };
 
-// Load and cache prime sets data
-let PRIME_SETS: PrimeSet[] = [];
-let primeSetsLoaded = false;
+// Use centralized static data loading
+import { loadPrimeSetsData } from './staticDataService';
 
 const loadPrimeSets = async (): Promise<PrimeSet[]> => {
-  if (primeSetsLoaded && PRIME_SETS.length > 0) {
-    return PRIME_SETS;
-  }
-
   try {
-    const response = await fetch('/primesets.json');
-    if (!response.ok) {
-      throw new Error(`Failed to load prime sets: ${response.statusText}`);
-    }
-
-    const jsonData: PrimeSetJson[] = await response.json();
-    PRIME_SETS = jsonData.map(transformJsonToPrimeSet);
-    primeSetsLoaded = true;
-
-    console.log(`Loaded ${PRIME_SETS.length} prime sets from JSON`);
-    return PRIME_SETS;
+    const jsonData: PrimeSetJson[] = await loadPrimeSetsData() as any;
+    return jsonData.map(transformJsonToPrimeSet);
   } catch (error) {
     console.error('Failed to load prime sets:', error);
-    // Return empty array as fallback
     return [];
   }
 };
@@ -236,18 +221,26 @@ const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedIt
 
 // Check if user can obtain a part from owned relics
 const canObtainFromRelics = (partName: string, relicsInventory: VoidRelic[]): boolean => {
-  return relicsInventory.some(relic =>
-    relic.relicDrops && relic.relicDrops.some(drop => {
+  const matchingRelics = relicsInventory.filter(relic => {
+    if (!relic.relicDrops || relic.relicDrops.length === 0) {
+      return false;
+    }
+
+    const hasMatch = relic.relicDrops.some(drop => {
       const dropName = drop.itemName.toLowerCase();
       const targetPart = partName.toLowerCase();
 
       // Check for exact match
-      if (dropName === targetPart) return true;
+      if (dropName === targetPart) {
+        return true;
+      }
 
       // Check if the drop name contains the part name (removing "prime" for broader matching)
-      if (dropName.includes(targetPart.replace(' prime ', ' '))) return true;
+      if (dropName.includes(targetPart.replace(' prime ', ' '))) {
+        return true;
+      }
 
-      // Check specific part type matching
+      // FIXED: More precise part type matching - require item name to match too
       const partTypes = [
         'blueprint', 'systems', 'chassis', 'neuroptics', 'barrel', 'receiver', 'stock',
         'string', 'grip', 'blade', 'handle', 'link', 'gauntlet', 'carapace', 'cerebrum',
@@ -255,11 +248,34 @@ const canObtainFromRelics = (partName: string, relicsInventory: VoidRelic[]): bo
         'harness', 'wings', 'band', 'buckle', 'blades'
       ];
 
-      return partTypes.some(partType =>
-        targetPart.includes(partType) && dropName.includes(partType)
+      // Extract the prime name from both (e.g., "atlas prime" from "atlas prime chassis")
+      const getBaseName = (name: string) => {
+        const parts = name.split(' ');
+        const primeIndex = parts.findIndex(p => p === 'prime');
+        if (primeIndex >= 0 && primeIndex < parts.length - 1) {
+          return parts.slice(0, primeIndex + 1).join(' '); // e.g., "atlas prime"
+        }
+        return name;
+      };
+
+      const targetBaseName = getBaseName(targetPart);
+      const dropBaseName = getBaseName(dropName);
+
+      // Only match if BOTH the base name AND part type match
+      const typeMatch = partTypes.some(partType =>
+        targetPart.includes(partType) && dropName.includes(partType) &&
+        targetBaseName === dropBaseName
       );
-    })
-  );
+
+      return typeMatch;
+    });
+
+    return hasMatch;
+  });
+
+        // Part analysis complete
+
+  return matchingRelics.length > 0;
 };
 
 // Calculate cost for missing parts (placeholder - would need market data)

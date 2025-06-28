@@ -5,6 +5,7 @@ import InventorySection from '../components/InventorySection';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
 import { fetchPriceData, fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
 import { cloudSyncService } from '../services/cloudSyncService';
+import { initializeStaticData } from '../services/staticDataService';
 import {
   saveToInventory,
   loadInventory,
@@ -64,8 +65,21 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     }
   }, [refreshTrigger]);
 
-  // Auto-sync functionality - try to sync when app loads and when API key is configured
+  // Initialize static data and auto-sync on app load
   useEffect(() => {
+    // Initialize static data once on app startup
+    const initializeApp = async () => {
+      try {
+        await initializeStaticData();
+        console.log('✅ [App Init] Static data initialized');
+      } catch (error) {
+        console.error('❌ [App Init] Failed to initialize static data:', error);
+      }
+    };
+
+    initializeApp();
+
+    // Auto-sync functionality - try to sync when app loads and when API key is configured
     if (isConfigured && cloudSyncService.isAvailable()) {
       const syncSettings = cloudSyncService.getSyncSettings();
       if (syncSettings.isEnabled && syncSettings.autoSync) {

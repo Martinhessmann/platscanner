@@ -92,13 +92,11 @@ const fetchRelicViaSupabase = async (relicName: string) => {
 
   for (const marketName of marketNames) {
     try {
-      console.log(`>>> [Smart Relic Fetch] Trying: ${marketName} <<<`);
       const data = await fetchViaSupabase(marketName);
 
       // Check if the result has an error (but not a 500 server error)
       if (data.error) {
         if (data.error === 'not_found') {
-          console.log(`>>> [Smart Relic Fetch] ${marketName} not found, trying next... <<<`);
           continue; // Try the next name in the fallback list
         } else {
           // Other errors (api_error, fetch_failed) should still throw
@@ -106,10 +104,8 @@ const fetchRelicViaSupabase = async (relicName: string) => {
         }
       }
 
-      console.log(`>>> [Smart Relic Fetch] Success with: ${marketName} (${data.price}p) <<<`);
       return data;
     } catch (error) {
-      console.log(`>>> [Smart Relic Fetch] Failed ${marketName}: ${error instanceof Error ? error.message : String(error)}, trying next... <<<`);
       continue;
     }
   }

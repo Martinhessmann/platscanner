@@ -217,37 +217,75 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     return 'bg-gray-500'; // Always gray as requested
   };
 
-  const getRelicsForPart = (partName: string) => {
+  const getRelicsForPart = (partName: string): string[] => {
     const lowerPartName = partName.toLowerCase();
-    const relics = relicsInventory.filter(relic =>
-      relic.relicDrops?.some(drop => {
-        const dropName = drop.itemName.toLowerCase();
-        const targetPart = lowerPartName;
+    const matchingOwnedRelics: string[] = [];
 
-        // Check for exact match
-        if (dropName === targetPart) return true;
+    // Check each owned relic's drop data to see if it contains our target part
+    for (const ownedRelic of relicsInventory) {
+      // Use the relic's existing drop data (should be populated when scanned)
+      if (ownedRelic.relicDrops && ownedRelic.relicDrops.length > 0) {
+        // Focus on reservation debugging only
 
-        // Check if the drop name contains the part name (removing "prime" for broader matching)
-        if (dropName.includes(targetPart.replace(' prime ', ' '))) return true;
+        const hasTargetPart = ownedRelic.relicDrops.some(drop => {
+          const dropName = drop.itemName.toLowerCase();
+          const targetPart = lowerPartName;
 
-        // Check specific part type matching
-        const partTypes = [
-          'blueprint', 'systems', 'chassis', 'neuroptics', 'barrel', 'receiver', 'stock',
-          'string', 'grip', 'blade', 'handle', 'link', 'gauntlet', 'carapace', 'cerebrum',
-          'pouch', 'stars', 'boot', 'chain', 'disc', 'guard', 'hilt', 'head', 'ornament',
-          'harness', 'wings', 'band', 'buckle', 'blades'
-        ];
+          // Check for exact match
+          if (dropName === targetPart) {
+            return true;
+          }
 
-        return partTypes.some(partType =>
-          targetPart.includes(partType) && dropName.includes(partType)
-        );
-      })
-    );
-    return relics.map(r => r.name.replace(' Relic', ''));
+          // Check if the drop name contains the part name (removing "prime" for broader matching)
+          if (dropName.includes(targetPart.replace(' prime ', ' '))) {
+            return true;
+          }
+
+          // Check specific part type matching
+          const partTypes = [
+            'blueprint', 'systems', 'chassis', 'neuroptics', 'barrel', 'receiver', 'stock',
+            'string', 'grip', 'blade', 'handle', 'link', 'gauntlet', 'carapace', 'cerebrum',
+            'pouch', 'stars', 'boot', 'chain', 'disc', 'guard', 'hilt', 'head', 'ornament',
+            'harness', 'wings', 'band', 'buckle', 'blades'
+          ];
+
+          // Extract the prime name from both (e.g., "atlas prime" from "atlas prime chassis")
+          const getBaseName = (name: string) => {
+            const parts = name.split(' ');
+            const primeIndex = parts.findIndex(p => p === 'prime');
+            if (primeIndex >= 0 && primeIndex < parts.length - 1) {
+              return parts.slice(0, primeIndex + 1).join(' '); // e.g., "atlas prime"
+            }
+            return name;
+          };
+
+          const targetBaseName = getBaseName(targetPart);
+          const dropBaseName = getBaseName(dropName);
+
+          // Only match if BOTH the base name AND part type match
+          const typeMatch = partTypes.some(partType =>
+            targetPart.includes(partType) && dropName.includes(partType) &&
+            targetBaseName === dropBaseName
+          );
+
+          return typeMatch;
+        });
+
+        if (hasTargetPart) {
+          matchingOwnedRelics.push(ownedRelic.name.replace(' Relic', ''));
+        }
+      }
+    }
+
+    // Focus on reservation debugging only
+
+    return matchingOwnedRelics;
   };
 
   // Get better relic source display text
-  const getRelicSourceText = (partName: string, isOwned: boolean, isObtainableFromRelics: boolean) => {
+  const getRelicSourceText = (partName: string, isOwned: boolean, isObtainableFromRelics: boolean): string => {
+    // Focus on reservation debugging only
+
     if (isOwned) {
       return 'Owned'; // Part is already owned
     }
@@ -255,7 +293,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     if (isObtainableFromRelics) {
       const relicSources = getRelicsForPart(partName);
       return relicSources.length > 0
-        ? relicSources.slice(0, 2).join(', ') + (relicSources.length > 2 ? '...' : '')
+        ? relicSources.join(', ') // Show all relics without truncation
         : 'Unknown Source';
     }
 

@@ -231,14 +231,59 @@ export const autoReserveItemsForSet = (
     reserveItem(partName, 'prime_parts', setName);
   });
 
-  // Also reserve relics that contain these MISSING parts
+    // Also reserve relics that contain these MISSING parts
   if (relicsInventory && relicsInventory.length > 0) {
     missingParts.forEach(partName => {
-      const relicsContainingPart = relicsInventory.filter(relic =>
-        relic.relicDrops && relic.relicDrops.some(drop =>
-          drop.itemName.toLowerCase() === partName.toLowerCase()
-        )
-      );
+            const relicsContainingPart = relicsInventory.filter(relic => {
+        if (!relic.relicDrops) return false;
+
+        const hasMatch = relic.relicDrops.some(drop => {
+          const dropName = drop.itemName.toLowerCase();
+          const targetPart = partName.toLowerCase();
+
+          // Use the same smart matching logic as the prime set service
+          // Check for exact match first
+          if (dropName === targetPart) {
+            return true;
+          }
+
+          // Check if the drop name contains the part name (removing "prime" for broader matching)
+          if (dropName.includes(targetPart.replace(' prime ', ' '))) {
+            return true;
+          }
+
+          // Check specific part type matching
+          const partTypes = [
+            'blueprint', 'systems', 'chassis', 'neuroptics', 'barrel', 'receiver', 'stock',
+            'string', 'grip', 'blade', 'handle', 'link', 'gauntlet', 'carapace', 'cerebrum',
+            'pouch', 'stars', 'boot', 'chain', 'disc', 'guard', 'hilt', 'head', 'ornament',
+            'harness', 'wings', 'band', 'buckle', 'blades'
+          ];
+
+          // Extract the prime name from both (e.g., "atlas prime" from "atlas prime chassis")
+          const getBaseName = (name: string) => {
+            const parts = name.split(' ');
+            const primeIndex = parts.findIndex(p => p === 'prime');
+            if (primeIndex >= 0 && primeIndex < parts.length - 1) {
+              return parts.slice(0, primeIndex + 1).join(' '); // e.g., "atlas prime"
+            }
+            return name;
+          };
+
+          const targetBaseName = getBaseName(targetPart);
+          const dropBaseName = getBaseName(dropName);
+
+          // Only match if BOTH the base name AND part type match
+          const typeMatch = partTypes.some(partType =>
+            targetPart.includes(partType) && dropName.includes(partType) &&
+            targetBaseName === dropBaseName
+          );
+
+          return typeMatch;
+        });
+
+        return hasMatch;
+      });
 
       relicsContainingPart.forEach(relic => {
         reserveItem(relic.name, 'relics', setName);
