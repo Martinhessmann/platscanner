@@ -91,13 +91,21 @@ To enable cross-platform inventory synchronization:
 
 1. **Create a Supabase project**: Visit [supabase.com](https://supabase.com) and create a new project
 
-2. **Set up the database**: Run the SQL script in your Supabase SQL Editor:
+2. **Deploy the database schema**:
+
+**Option A: CLI Method (Recommended)**
 ```bash
-# Copy the setup script
+# Deploy the migration using Supabase CLI
+supabase db push
+```
+
+**Option B: Manual Method**
+```bash
+# Copy and run the setup script in Supabase SQL Editor
 cat setup-cloud-sync.sql
 
-# Or run directly in Supabase dashboard:
-# Project Settings > API > SQL Editor > New Query
+# Or go to: Project Settings > API > SQL Editor > New Query
+# Then paste the contents of setup-cloud-sync.sql
 ```
 
 3. **Configure environment variables**:
@@ -107,6 +115,11 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 4. **Enable in app**: Go to Settings > Cloud Sync and enable synchronization
+
+**✅ Verified Working**: The CLI method successfully deploys the cloud sync database schema
+- **Migration File**: `supabase/migrations/001_user_inventories.sql`
+- **Database Features**: User inventories table, RLS security, automatic triggers
+- **Development**: Graceful degradation when cloud sync unavailable
 
 ### Supabase Edge Function Deployment
 

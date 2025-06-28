@@ -220,7 +220,28 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const getRelicsForPart = (partName: string) => {
     const lowerPartName = partName.toLowerCase();
     const relics = relicsInventory.filter(relic =>
-      relic.relicDrops?.some(drop => drop.itemName.toLowerCase() === lowerPartName)
+      relic.relicDrops?.some(drop => {
+        const dropName = drop.itemName.toLowerCase();
+        const targetPart = lowerPartName;
+
+        // Check for exact match
+        if (dropName === targetPart) return true;
+
+        // Check if the drop name contains the part name (removing "prime" for broader matching)
+        if (dropName.includes(targetPart.replace(' prime ', ' '))) return true;
+
+        // Check specific part type matching
+        const partTypes = [
+          'blueprint', 'systems', 'chassis', 'neuroptics', 'barrel', 'receiver', 'stock',
+          'string', 'grip', 'blade', 'handle', 'link', 'gauntlet', 'carapace', 'cerebrum',
+          'pouch', 'stars', 'boot', 'chain', 'disc', 'guard', 'hilt', 'head', 'ornament',
+          'harness', 'wings', 'band', 'buckle', 'blades'
+        ];
+
+        return partTypes.some(partType =>
+          targetPart.includes(partType) && dropName.includes(partType)
+        );
+      })
     );
     return relics.map(r => r.name.replace(' Relic', ''));
   };

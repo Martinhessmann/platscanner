@@ -241,13 +241,23 @@ const canObtainFromRelics = (partName: string, relicsInventory: VoidRelic[]): bo
       const dropName = drop.itemName.toLowerCase();
       const targetPart = partName.toLowerCase();
 
-      // Check for exact match or if the drop name contains the part name
-      return dropName === targetPart ||
-             dropName.includes(targetPart.replace(' prime ', ' ')) ||
-             (targetPart.includes('blueprint') && dropName.includes('blueprint')) ||
-             (targetPart.includes('systems') && dropName.includes('systems')) ||
-             (targetPart.includes('chassis') && dropName.includes('chassis')) ||
-             (targetPart.includes('neuroptics') && dropName.includes('neuroptics'));
+      // Check for exact match
+      if (dropName === targetPart) return true;
+
+      // Check if the drop name contains the part name (removing "prime" for broader matching)
+      if (dropName.includes(targetPart.replace(' prime ', ' '))) return true;
+
+      // Check specific part type matching
+      const partTypes = [
+        'blueprint', 'systems', 'chassis', 'neuroptics', 'barrel', 'receiver', 'stock',
+        'string', 'grip', 'blade', 'handle', 'link', 'gauntlet', 'carapace', 'cerebrum',
+        'pouch', 'stars', 'boot', 'chain', 'disc', 'guard', 'hilt', 'head', 'ornament',
+        'harness', 'wings', 'band', 'buckle', 'blades'
+      ];
+
+      return partTypes.some(partType =>
+        targetPart.includes(partType) && dropName.includes(partType)
+      );
     })
   );
 };
