@@ -7,6 +7,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.0] - 2025-01-28
+
+### Added
+- **🎯 REVOLUTIONARY: Complete Prime Set Market Integration** - Going full circle with complete trading strategy analysis
+  - **💰 Complete Set Pricing** - Fetches real-time market prices for complete Prime Sets (e.g., "Ash Prime Set", "Mesa Prime Set")
+  - **📊 Profit Comparison Analysis** - Compares individual parts value vs complete set value for optimal trading decisions
+  - **🎯 Smart Trading Recommendations** - AI-powered strategy suggestions: SELL_PARTS, BUILD_AND_SELL, or KEEP_FOR_MASTERY
+  - **⚖️ Real Market Economics** - Uses actual Warframe Market data with 5% volatility threshold for intelligent recommendations
+  - **🔄 Batch Market Processing** - Efficient API calls respecting rate limits for multiple set analysis
+  - **👤 Buyer Integration** - Shows top buyers for complete sets with usernames and quantities
+  - **🎨 Visual Strategy Cards** - Color-coded recommendations with profit indicators and clear explanations
+  - **⚡ Performance Optimized** - Only fetches market data for sets with owned parts or buildable status
+  - **🛡️ Error Handling** - Graceful degradation when market data unavailable with informative fallbacks
+- **🚀 REVOLUTIONARY: Investment Strategy Analysis** - Advanced ROI calculations for maximizing trading profits
+  - **🎲 Relic Opening Strategy** - Analyzes void trace investment vs profit potential for missing parts from relics
+  - **🛒 Missing Parts Investment** - Calculates cost to buy missing parts vs complete set profit
+  - **⚖️ Hybrid Investment Strategy** - Optimal combination of relic opening + buying parts for maximum efficiency
+  - **📊 ROI Calculations** - Sophisticated return-on-investment analysis with percentage returns
+  - **💰 Investment Breakdown** - Detailed cost analysis showing relic costs vs buying costs vs expected profits
+  - **🎯 Action-Oriented UI** - "View Relics", "Find Parts", "Message Buyer" buttons for immediate action
+  - **📈 Smart Recommendations** - OPEN_RELICS, BUY_MISSING, HYBRID_STRATEGY based on optimal investment paths
+
+### Enhanced
+- **🏗️ Extended SetProgress Interface** - Added complete market analysis fields for comprehensive trading insights
+- **📡 Warframe Market Service** - New `fetchPrimeSetMarketData()` and `fetchBatchPrimeSetMarketData()` functions
+- **🧮 Intelligent Strategy Logic** - Sophisticated algorithm considering mastery status, buildability, and profit potential
+- **🎨 Prime Sets UI Evolution** - Enhanced cards showing individual vs complete set value with profit indicators
+- **📱 Mobile-Friendly Design** - Responsive trading strategy cards work seamlessly across all devices
+- **🎯 Investment Analysis Engine** - Advanced calculations for relic opening costs, missing parts costs, and ROI optimization
+- **🔍 Smart Price Estimation** - Intelligent fallback pricing for missing parts based on similar items and part types
+- **💡 Action-First UX** - Prominent buttons for immediate trading actions rather than just analytical comparisons
+
+### Technical
+- **🏗️ Complete Set Market Service** - New dedicated functions for fetching complete Prime Set market data
+  - **📡 fetchPrimeSetMarketData()** - Single set market data with proper normalization ("Ash Prime" → "ash_prime_set")
+  - **🔄 fetchBatchPrimeSetMarketData()** - Batch processing for multiple sets with rate limiting
+  - **⚡ Smart Rate Limiting** - Respects 334ms delay between requests (~3 requests/second)
+- **🧮 Market Analysis Engine** - Comprehensive profit analysis with intelligent strategy determination
+  - **💰 calculateIndividualPartsValue()** - Sums market value of owned individual parts
+  - **🎯 determineOptimalStrategy()** - Advanced logic considering mastery, buildability, and profit margins
+  - **📊 analyzeSetProgressWithMarketData()** - Enhanced analysis function with optional market data inclusion
+- **🎨 TradingStrategyCard Component** - Feature-rich UI component for strategy visualization
+  - **🎨 Color-coded Strategies** - Blue (Sell Parts), Green (Build & Sell), Yellow (Keep), Gray (Unknown)
+  - **📊 Profit Indicators** - Shows individual parts vs complete set values with profit difference
+  - **👤 Buyer Information** - Displays top buyer username and quantity when available
+  - **⚡ Loading States** - Smooth loading animations and error state handling
+- **🚀 Investment Analysis System** - Revolutionary ROI calculation engine for Warframe trading optimization
+  - **📊 calculateInvestmentAnalysis()** - Comprehensive investment strategy analysis with void trace costs
+  - **💰 getEstimatedPartPrice()** - Smart price estimation using inventory data and part type fallbacks
+  - **🎯 determineOptimalStrategyWithInvestment()** - Enhanced strategy logic incorporating investment opportunities
+  - **⚖️ ROI Calculations** - Advanced return-on-investment analysis with profit/cost ratios
+  - **🎲 Relic Cost Modeling** - Void trace to platinum conversion (75 traces @ 0.3p = 22.5p per part)
+  - **🛒 Missing Parts Cost Analysis** - Real market price lookup with intelligent fallbacks
+- **🎨 Enhanced TradingStrategyCard UI** - Action-first interface design for immediate trading decisions
+  - **🎨 Expanded Strategy Icons** - Purple (Open Relics), Orange (Buy Missing), Cyan (Hybrid Strategy)
+  - **📊 Investment Breakdown Display** - Detailed cost/profit analysis with visual indicators
+  - **🎯 Action Button Matrix** - Context-sensitive buttons: View Relics, Find Parts, Message Buyer
+  - **📱 Responsive Investment UI** - Complex investment data displayed cleanly on mobile devices
+
+### Validated
+- **🎯 "Going Full Circle" Achievement** - PlatScanner now covers the complete Warframe trading ecosystem:
+  1. **🔍 Scan** → Detect Prime Parts from screenshots
+  2. **💰 Value** → Fetch individual part market prices
+  3. **🔧 Analyze** → Identify buildable sets and completion status
+  4. **📋 Plan** → Build planning with item reservations
+  5. **🎯 Optimize** → Complete set vs parts profit analysis with smart recommendations
+  6. **🚀 Invest** → ROI analysis for relic opening and missing parts purchasing strategies
+- **📊 Real Market Data Integration** - Uses actual Warframe Market API for complete Prime Set pricing
+- **🧮 Intelligent Decision Support** - Helps users maximize platinum through data-driven trading strategies
+- **💰 Investment Optimization** - Revolutionary ROI calculations guide users to optimal investment strategies
+- **🎯 Action-Oriented UX** - Users get immediate actionable recommendations with clear profit projections
+
 ## [1.15.1] - 2025-01-28
 
 ### Fixed

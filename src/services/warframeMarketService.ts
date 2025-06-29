@@ -451,3 +451,106 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
     };
   }
 };
+
+/**
+ * NEW: Fetches market data for complete Prime Sets
+ *
+ * @param setName - Prime Set name (e.g., "Ash Prime", "Mesa Prime")
+ * @returns Market data for the complete set
+ */
+export const fetchPrimeSetMarketData = async (setName: string): Promise<{
+  name: string;
+  price: number;
+  volume: number;
+  average: number;
+  buyerUsername: string | null;
+  buyerQuantity: number;
+  error?: string;
+}> => {
+  const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
+
+  try {
+    // Normalize set name to match Warframe Market format (e.g., "ash_prime_set")
+    const normalizedSetName = normalizeItemName(`${setName} Set`);
+    console.log(`🎯 [Prime Set] Fetching market data for: ${setName} Set (${normalizedSetName})`);
+
+    let data;
+    if (useSupabase) {
+      data = await fetchViaSupabase(normalizedSetName);
+    } else {
+      data = await fetchViaDirect(normalizedSetName);
+    }
+
+    console.log(`🎯 [Prime Set] Raw data for ${setName} Set:`, data);
+
+    return {
+      name: `${setName} Set`,
+      price: data.price || 0,
+      volume: data.volume || 0,
+      average: data.average || 0,
+      buyerUsername: data.buyerUsername || null,
+      buyerQuantity: data.buyerQuantity || 0,
+      error: data.price === 0 ? 'No active buy orders for complete set' : undefined
+    };
+
+  } catch (error) {
+    console.error(`🎯 [Prime Set] Failed to fetch market data for ${setName} Set:`, error);
+    return {
+      name: `${setName} Set`,
+      price: 0,
+      volume: 0,
+      average: 0,
+      buyerUsername: null,
+      buyerQuantity: 0,
+      error: error instanceof Error ? error.message : 'Failed to fetch complete set market data'
+    };
+  }
+};
+
+/**
+ * NEW: Fetches market data for multiple Prime Sets in batch
+ *
+ * @param setNames - Array of Prime Set names
+ * @returns Array of market data for complete sets
+ */
+export const fetchBatchPrimeSetMarketData = async (setNames: string[]): Promise<Array<{
+  name: string;
+  price: number;
+  volume: number;
+  average: number;
+  buyerUsername: string | null;
+  buyerQuantity: number;
+  error?: string;
+}>> => {
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  const RATE_LIMIT_DELAY = 334; // ~3 requests per second
+
+  console.log(`🎯 [Prime Sets Batch] Fetching market data for ${setNames.length} complete sets`);
+
+  const results = [];
+  for (const setName of setNames) {
+    try {
+      const data = await fetchPrimeSetMarketData(setName);
+      results.push(data);
+
+      // Add delay between requests to respect rate limits
+      if (setNames.indexOf(setName) < setNames.length - 1) {
+        await delay(RATE_LIMIT_DELAY);
+      }
+    } catch (error) {
+      console.error(`🎯 [Prime Sets Batch] Failed to fetch ${setName}:`, error);
+      results.push({
+        name: `${setName} Set`,
+        price: 0,
+        volume: 0,
+        average: 0,
+        buyerUsername: null,
+        buyerQuantity: 0,
+        error: error instanceof Error ? error.message : 'Failed to fetch market data'
+      });
+    }
+  }
+
+  console.log(`🎯 [Prime Sets Batch] Completed: ${results.length} sets processed`);
+  return results;
+};

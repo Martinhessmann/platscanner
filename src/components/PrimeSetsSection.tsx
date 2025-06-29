@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { DetectedItem, VoidRelic } from '../types';
 import {
-  analyzeSetProgress,
+  analyzeSetProgressWithMarketData,
   getSetRecommendations,
   toggleSetMastery,
   SetProgress,
@@ -26,7 +26,15 @@ import {
   BookOpen,
   Trash2,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Package,
+  MessageCircle,
+  ShoppingCart,
+  Dices,
+  Combine
 } from 'lucide-react';
 import {
   isSetPlanned,
@@ -89,7 +97,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       try {
         setIsLoading(true);
         const [progress, recs] = await Promise.all([
-          analyzeSetProgress(primePartsInventory, relicsInventory),
+          analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory),
           getSetRecommendations(primePartsInventory, relicsInventory)
         ]);
 
@@ -531,6 +539,273 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const inProgressSets = setProgress.filter(p => plannedSets.get(p.set.id)?.planned || false).length;
   const builtSets = setProgress.filter(p => p.ismastered).length;
 
+  // Helper function to get strategy icon and color
+  const getStrategyDisplay = (strategy?: string) => {
+    switch (strategy) {
+      case 'SELL_PARTS':
+        return {
+          icon: Package,
+          color: 'text-blue-400',
+          bgColor: 'bg-blue-900/20',
+          label: 'Sell Parts',
+          description: 'Higher profit selling individual parts'
+        };
+      case 'BUILD_AND_SELL':
+        return {
+          icon: TrendingUp,
+          color: 'text-green-400',
+          bgColor: 'bg-green-900/20',
+          label: 'Build & Sell',
+          description: 'Higher profit selling complete set'
+        };
+      case 'OPEN_RELICS':
+        return {
+          icon: Dices,
+          color: 'text-purple-400',
+          bgColor: 'bg-purple-900/20',
+          label: 'Open Relics',
+          description: 'Open relics to get missing parts'
+        };
+      case 'BUY_MISSING':
+        return {
+          icon: ShoppingCart,
+          color: 'text-orange-400',
+          bgColor: 'bg-orange-900/20',
+          label: 'Buy Missing',
+          description: 'Buy missing parts to complete set'
+        };
+      case 'HYBRID_STRATEGY':
+        return {
+          icon: Combine,
+          color: 'text-cyan-400',
+          bgColor: 'bg-cyan-900/20',
+          label: 'Hybrid Strategy',
+          description: 'Combine relic opening + buying parts'
+        };
+      case 'KEEP_FOR_MASTERY':
+        return {
+          icon: Trophy,
+          color: 'text-yellow-400',
+          bgColor: 'bg-yellow-900/20',
+          label: 'Keep',
+          description: 'Already mastered'
+        };
+      default:
+        return {
+          icon: DollarSign,
+          color: 'text-gray-400',
+          bgColor: 'bg-gray-900/20',
+          label: 'Unknown',
+          description: 'Insufficient market data'
+        };
+    }
+  };
+
+  // Trading Strategy Card Component
+  const TradingStrategyCard: React.FC<{ progress: SetProgress }> = ({ progress }) => {
+    if (!progress.setMarketStatus || progress.setMarketStatus === 'loading') {
+      return (
+        <div className="mt-3 p-3 bg-gray-900/20 rounded-lg">
+          <div className="flex items-center gap-2 text-gray-400">
+            <DollarSign size={16} className="animate-pulse" />
+            <span className="text-sm">Loading market analysis...</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (progress.setMarketStatus === 'error') {
+      return (
+        <div className="mt-3 p-3 bg-red-900/20 rounded-lg border border-red-800/30">
+          <div className="flex items-center gap-2 text-red-400">
+            <DollarSign size={16} />
+            <span className="text-sm">Market analysis unavailable</span>
+          </div>
+          {progress.setMarketError && (
+            <p className="text-xs text-red-500 mt-1">{progress.setMarketError}</p>
+          )}
+        </div>
+      );
+    }
+
+    const strategy = getStrategyDisplay(progress.recommendedStrategy);
+    const individualValue = progress.individualPartsValue || 0;
+    const completeSetValue = progress.completeSetPrice || 0;
+    const profitDiff = progress.profitDifference || 0;
+    const investment = progress.investmentAnalysis;
+
+    const hasMarketData = individualValue > 0 || completeSetValue > 0;
+
+    if (!hasMarketData) {
+      return (
+        <div className="mt-3 p-3 bg-gray-900/20 rounded-lg">
+          <div className="flex items-center gap-2 text-gray-400">
+            <DollarSign size={16} />
+            <span className="text-sm">No market data available</span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className={`mt-3 p-3 rounded-lg border ${strategy.bgColor} border-gray-700/50`}>
+        {/* Strategy Header */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <strategy.icon size={16} className={strategy.color} />
+            <span className={`text-sm font-medium ${strategy.color}`}>
+              {strategy.label}
+            </span>
+          </div>
+          {/* Profit/ROI Indicator */}
+          {investment ? (
+            <div className={`flex items-center gap-1 text-xs ${investment.expectedProfit > 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {investment.expectedProfit > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+              <span>{investment.expectedProfit > 0 ? '+' : ''}{investment.expectedProfit.toFixed(0)}p</span>
+              <span className="text-gray-400">({investment.roiPercentage.toFixed(0)}% ROI)</span>
+            </div>
+          ) : Math.abs(profitDiff) > 0 && (
+            <div className={`flex items-center gap-1 text-xs ${profitDiff > 0 ? 'text-green-400' : 'text-red-400'}`}>
+              {profitDiff > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+              {profitDiff > 0 ? '+' : ''}{profitDiff.toFixed(0)}p
+            </div>
+          )}
+        </div>
+
+        {/* Investment Analysis Details */}
+        {investment && (progress.recommendedStrategy === 'OPEN_RELICS' || progress.recommendedStrategy === 'BUY_MISSING' || progress.recommendedStrategy === 'HYBRID_STRATEGY') ? (
+          <div className="space-y-3">
+            {/* Current vs Potential */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="space-y-1">
+                <div className="text-gray-400">Current Value</div>
+                <div className="text-white font-medium">{investment.currentValue.toFixed(0)}p</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-gray-400">Potential Value</div>
+                <div className="text-white font-medium">{investment.potentialValue.toFixed(0)}p</div>
+              </div>
+            </div>
+
+            {/* Investment Breakdown */}
+            <div className="bg-gray-800/30 rounded p-2 space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-gray-400">Investment Required:</span>
+                <span className="text-orange-400 font-medium">{investment.totalInvestmentCost.toFixed(0)}p</span>
+              </div>
+
+              {investment.relicInvestmentCost > 0 && (
+                <div className="flex justify-between items-center text-xs pl-2">
+                  <span className="text-gray-500">• Relic opening ({investment.missingPartsFromRelics.length} parts):</span>
+                  <span className="text-purple-400">{investment.relicInvestmentCost.toFixed(0)}p</span>
+                </div>
+              )}
+
+              {investment.buyInvestmentCost > 0 && (
+                <div className="flex justify-between items-center text-xs pl-2">
+                  <span className="text-gray-500">• Buy missing ({investment.missingPartsToBuy.length} parts):</span>
+                  <span className="text-orange-400">{investment.buyInvestmentCost.toFixed(0)}p</span>
+                </div>
+              )}
+
+              <div className="border-t border-gray-700/50 pt-1 flex justify-between items-center text-xs">
+                <span className="text-gray-400">Expected Profit:</span>
+                <span className={`font-medium ${investment.expectedProfit > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {investment.expectedProfit > 0 ? '+' : ''}{investment.expectedProfit.toFixed(0)}p
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              {investment.missingPartsFromRelics.length > 0 && (
+                <button className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded text-xs text-purple-400 hover:bg-purple-600/30 transition-colors">
+                  <Dices size={12} />
+                  View Relics
+                </button>
+              )}
+
+              {investment.missingPartsToBuy.length > 0 && (
+                <button className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-orange-600/20 border border-orange-500/30 rounded text-xs text-orange-400 hover:bg-orange-600/30 transition-colors">
+                  <ShoppingCart size={12} />
+                  Find Parts
+                </button>
+              )}
+
+              {progress.completeSetBuyerUsername && (
+                <button className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded text-xs text-blue-400 hover:bg-blue-600/30 transition-colors">
+                  <MessageCircle size={12} />
+                  Message
+                </button>
+              )}
+            </div>
+
+            {/* Missing Parts List */}
+            {(investment.missingPartsFromRelics.length > 0 || investment.missingPartsToBuy.length > 0) && (
+              <div className="text-xs space-y-1">
+                {investment.missingPartsFromRelics.length > 0 && (
+                  <div>
+                    <span className="text-purple-400">From relics:</span>
+                    <span className="text-gray-300 ml-1">{investment.missingPartsFromRelics.map(part => part.split(' ').pop()).join(', ')}</span>
+                  </div>
+                )}
+                {investment.missingPartsToBuy.length > 0 && (
+                  <div>
+                    <span className="text-orange-400">To buy:</span>
+                    <span className="text-gray-300 ml-1">{investment.missingPartsToBuy.map(part => part.split(' ').pop()).join(', ')}</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          // Original simple comparison for immediate strategies
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="space-y-1">
+                <div className="text-gray-400">Individual Parts</div>
+                <div className="text-white font-medium">
+                  {individualValue > 0 ? `${individualValue.toFixed(0)}p` : 'No data'}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-gray-400">Complete Set</div>
+                <div className="text-white font-medium">
+                  {completeSetValue > 0 ? `${completeSetValue.toFixed(0)}p` : 'No data'}
+                </div>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-400">
+              {strategy.description}
+            </div>
+
+            {/* Action Buttons for immediate strategies */}
+            <div className="flex gap-2">
+              {progress.completeSetBuyerUsername && (
+                <button className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded text-xs text-blue-400 hover:bg-blue-600/30 transition-colors">
+                  <MessageCircle size={12} />
+                  Message {progress.completeSetBuyerUsername}
+                </button>
+              )}
+
+              <button className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-600/20 border border-gray-500/30 rounded text-xs text-gray-400 hover:bg-gray-600/30 transition-colors">
+                <Target size={12} />
+                View Market
+              </button>
+            </div>
+
+            {progress.completeSetBuyerUsername && progress.completeSetBuyerQuantity && progress.completeSetBuyerQuantity > 0 && (
+              <div className="text-xs text-gray-400">
+                Top buyer wants {progress.completeSetBuyerQuantity}x sets
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div ref={sectionRef} className="w-full mb-2">
       {/* Mobile-first sticky header */}
@@ -926,6 +1201,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 })}
               </div>
             </div>
+
+            {/* NEW: Trading Strategy Analysis */}
+            <TradingStrategyCard progress={progress} />
 
             {/* Simple 3-State Toggle - More Compact */}
             <div className="border-t border-gray-700/50 pt-3">

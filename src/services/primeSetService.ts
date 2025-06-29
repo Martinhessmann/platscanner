@@ -34,6 +34,30 @@ export interface SetProgress {
   missingCost: number;
   completionPercentage: number;
   ismastered: boolean;
+  // Complete Set Market Analysis
+  completeSetPrice?: number;
+  completeSetVolume?: number;
+  completeSetAverage?: number;
+  completeSetBuyerUsername?: string;
+  completeSetBuyerQuantity?: number;
+  individualPartsValue?: number;
+  profitDifference?: number;
+  recommendedStrategy?: 'SELL_PARTS' | 'BUILD_AND_SELL' | 'KEEP_FOR_MASTERY' | 'OPEN_RELICS' | 'BUY_MISSING' | 'HYBRID_STRATEGY' | 'INSUFFICIENT_DATA';
+  setMarketStatus?: 'loaded' | 'loading' | 'error';
+  setMarketError?: string;
+  // NEW: Investment Analysis
+  investmentAnalysis?: {
+    currentValue: number;
+    potentialValue: number;
+    missingPartsFromRelics: string[];
+    missingPartsToBuy: string[];
+    relicInvestmentCost: number; // void traces equivalent in platinum
+    buyInvestmentCost: number; // platinum cost to buy missing parts
+    totalInvestmentCost: number;
+    expectedProfit: number;
+    roiPercentage: number;
+    recommendedAction: 'open_relics' | 'buy_parts' | 'hybrid' | 'not_profitable';
+  };
 }
 
 // JSON interface for the imported data
@@ -166,6 +190,7 @@ const transformJsonToPrimeSet = (jsonSet: PrimeSetJson): PrimeSet => {
 
 // Use centralized static data loading
 import { loadPrimeSetsData } from './staticDataService';
+import { fetchBatchPrimeSetMarketData } from './warframeMarketService';
 
 const loadPrimeSets = async (): Promise<PrimeSet[]> => {
   try {
@@ -291,15 +316,212 @@ const calculateMissingCost = (missingParts: string[]): number => {
   return missingParts.length * 50; // Placeholder: 50p per missing part
 };
 
-// Analyze set completion progress
-export const analyzeSetProgress = async (
+// NEW: Calculate the total market value of owned individual parts
+const calculateIndividualPartsValue = (
+  ownedParts: string[],
+  primePartsInventory: DetectedItem[]
+): number => {
+  let totalValue = 0;
+
+  ownedParts.forEach(partName => {
+    const inventoryItem = primePartsInventory.find(item => {
+      const lowerItemName = item.name.toLowerCase();
+      const lowerPartName = partName.toLowerCase();
+      return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+    });
+
+    if (inventoryItem && inventoryItem.price && inventoryItem.price > 0) {
+      const quantity = inventoryItem.quantity || 1;
+      totalValue += inventoryItem.price * quantity;
+    }
+  });
+
+  return totalValue;
+};
+
+// NEW: Calculate investment analysis for completing sets
+const calculateInvestmentAnalysis = (
+  setProgress: SetProgress,
   primePartsInventory: DetectedItem[],
-  relicsInventory: VoidRelic[] = []
+  relicsInventory: VoidRelic[]
+): SetProgress['investmentAnalysis'] => {
+  const currentValue = setProgress.individualPartsValue || 0;
+  const potentialValue = setProgress.completeSetPrice || 0;
+
+  // If no complete set price available, can't do investment analysis
+  if (potentialValue === 0) {
+    return undefined;
+  }
+
+  // Separate missing parts into those obtainable from relics vs those to buy
+  const missingPartsFromRelics = setProgress.obtainableFromRelics.filter(part =>
+    !setProgress.ownedParts.includes(part)
+  );
+
+  const missingPartsToBuy = setProgress.missingParts.filter(part =>
+    !setProgress.obtainableFromRelics.includes(part)
+  );
+
+  // Calculate cost to buy missing parts from market
+  let buyInvestmentCost = 0;
+  missingPartsToBuy.forEach(partName => {
+    // Try to find market price for this part in inventory (even if not owned)
+    const partPrice = getEstimatedPartPrice(partName, primePartsInventory);
+    buyInvestmentCost += partPrice;
+  });
+
+  // Calculate void trace cost for relic opening (estimated)
+  // Assume average 75 void traces per missing part from relics
+  // 1 void trace ≈ 0.3 platinum (rough market equivalent)
+  const avgVoidTracesPerPart = 75;
+  const voidTraceToplatinumRatio = 0.3;
+  const relicInvestmentCost = missingPartsFromRelics.length * avgVoidTracesPerPart * voidTraceToplatinumRatio;
+
+  const totalInvestmentCost = buyInvestmentCost + relicInvestmentCost;
+  const expectedProfit = potentialValue - currentValue - totalInvestmentCost;
+  const roiPercentage = totalInvestmentCost > 0 ? (expectedProfit / totalInvestmentCost) * 100 : 0;
+
+  // Determine recommended action
+  let recommendedAction: 'open_relics' | 'buy_parts' | 'hybrid' | 'not_profitable';
+
+  if (expectedProfit <= 5) { // Not worth it for small gains
+    recommendedAction = 'not_profitable';
+  } else if (missingPartsToBuy.length === 0 && missingPartsFromRelics.length > 0) {
+    recommendedAction = 'open_relics';
+  } else if (missingPartsFromRelics.length === 0 && missingPartsToBuy.length > 0) {
+    recommendedAction = 'buy_parts';
+  } else if (missingPartsFromRelics.length > 0 && missingPartsToBuy.length > 0) {
+    recommendedAction = 'hybrid';
+  } else {
+    recommendedAction = 'not_profitable';
+  }
+
+  return {
+    currentValue,
+    potentialValue,
+    missingPartsFromRelics,
+    missingPartsToBuy,
+    relicInvestmentCost,
+    buyInvestmentCost,
+    totalInvestmentCost,
+    expectedProfit,
+    roiPercentage,
+    recommendedAction
+  };
+};
+
+// NEW: Get estimated price for a part (from existing inventory data)
+const getEstimatedPartPrice = (partName: string, primePartsInventory: DetectedItem[]): number => {
+  // Try to find exact match first
+  const exactMatch = primePartsInventory.find(item => {
+    const lowerItemName = item.name.toLowerCase();
+    const lowerPartName = partName.toLowerCase();
+    return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+  });
+
+  if (exactMatch && exactMatch.price && exactMatch.price > 0) {
+    return exactMatch.price;
+  }
+
+  // If no exact match, try to estimate based on part type
+  const partType = partName.split(' ').pop()?.toLowerCase();
+  const similarParts = primePartsInventory.filter(item =>
+    item.name.toLowerCase().includes(partType || '') && item.price && item.price > 0
+  );
+
+  if (similarParts.length > 0) {
+    // Return average price of similar parts
+    const avgPrice = similarParts.reduce((sum, item) => sum + (item.price || 0), 0) / similarParts.length;
+    return Math.round(avgPrice);
+  }
+
+  // Fallback to estimated prices based on rarity
+  const fallbackPrices: Record<string, number> = {
+    'blueprint': 15,
+    'systems': 25,
+    'chassis': 25,
+    'neuroptics': 45,
+    'barrel': 25,
+    'receiver': 45,
+    'stock': 20,
+    'string': 20,
+    'grip': 20,
+    'blade': 20,
+    'handle': 20,
+    'link': 10,
+    'gauntlet': 25,
+    'carapace': 25,
+    'cerebrum': 25
+  };
+
+  return fallbackPrices[partType || ''] || 20; // Default 20p
+};
+
+// NEW: Enhanced strategy determination with investment analysis
+const determineOptimalStrategyWithInvestment = (
+  setProgress: SetProgress,
+  individualPartsValue: number,
+  completeSetPrice: number,
+  investmentAnalysis?: SetProgress['investmentAnalysis']
+): SetProgress['recommendedStrategy'] => {
+  // If set is already mastered, no recommendation needed
+  if (setProgress.ismastered) {
+    return 'KEEP_FOR_MASTERY';
+  }
+
+  // If no market data available, can't make recommendation
+  if (completeSetPrice === 0 && individualPartsValue === 0) {
+    return 'INSUFFICIENT_DATA';
+  }
+
+  // If we have investment analysis and it shows good ROI
+  if (investmentAnalysis && investmentAnalysis.expectedProfit > 10) {
+    switch (investmentAnalysis.recommendedAction) {
+      case 'open_relics':
+        return 'OPEN_RELICS';
+      case 'buy_parts':
+        return 'BUY_MISSING';
+      case 'hybrid':
+        return 'HYBRID_STRATEGY';
+    }
+  }
+
+  // Fall back to original logic for immediate actions
+  if (!setProgress.canBuild) {
+    return individualPartsValue > 0 ? 'SELL_PARTS' : 'INSUFFICIENT_DATA';
+  }
+
+  if (completeSetPrice === 0) {
+    return 'SELL_PARTS';
+  }
+  if (individualPartsValue === 0) {
+    return 'BUILD_AND_SELL';
+  }
+
+  // Compare profit potential (with 5% threshold to account for market volatility)
+  const profitDifference = completeSetPrice - individualPartsValue;
+  const threshold = Math.max(individualPartsValue * 0.05, 5);
+
+  if (profitDifference > threshold) {
+    return 'BUILD_AND_SELL';
+  } else if (profitDifference < -threshold) {
+    return 'SELL_PARTS';
+  } else {
+    return 'SELL_PARTS';
+  }
+};
+
+// NEW: Enhanced analyze function with complete set market data
+export const analyzeSetProgressWithMarketData = async (
+  primePartsInventory: DetectedItem[],
+  relicsInventory: VoidRelic[] = [],
+  includeMarketData: boolean = true
 ): Promise<SetProgress[]> => {
   const primeSets = await loadPrimeSets();
   const masteredSets = getMasteredSets();
 
-  return primeSets.map(set => {
+  // First, get basic set progress
+  const setProgress: SetProgress[] = primeSets.map(set => {
     const ownedParts: string[] = [];
     const missingParts: string[] = [];
     const obtainableFromRelics: string[] = [];
@@ -334,9 +556,75 @@ export const analyzeSetProgress = async (
       totalCost,
       missingCost,
       completionPercentage,
-      ismastered
+      ismastered,
+      setMarketStatus: 'loading' as const
     };
   });
+
+  // If market data not requested, return basic progress
+  if (!includeMarketData) {
+    return setProgress;
+  }
+
+  // Fetch complete set market data for sets that have owned parts or can be built
+  const setsNeedingMarketData = setProgress.filter(progress =>
+    progress.ownedParts.length > 0 || progress.canBuild
+  );
+
+  if (setsNeedingMarketData.length > 0) {
+    console.log(`🎯 [Market Analysis] Fetching market data for ${setsNeedingMarketData.length} sets with owned parts`);
+
+    try {
+      const setNames = setsNeedingMarketData.map(progress => progress.set.name);
+      const marketData = await fetchBatchPrimeSetMarketData(setNames);
+
+      // Enhance progress with market data
+      setsNeedingMarketData.forEach((progress, index) => {
+        const setMarketData = marketData[index];
+        const individualPartsValue = calculateIndividualPartsValue(progress.ownedParts, primePartsInventory);
+        const completeSetPrice = setMarketData.price;
+        const profitDifference = completeSetPrice - individualPartsValue;
+
+        // Update progress with market analysis
+        progress.completeSetPrice = setMarketData.price;
+        progress.completeSetVolume = setMarketData.volume;
+        progress.completeSetAverage = setMarketData.average;
+        progress.completeSetBuyerUsername = setMarketData.buyerUsername || undefined;
+        progress.completeSetBuyerQuantity = setMarketData.buyerQuantity;
+        progress.individualPartsValue = individualPartsValue;
+        progress.profitDifference = profitDifference;
+
+        // Calculate investment analysis
+        const investmentAnalysis = calculateInvestmentAnalysis(progress, primePartsInventory, relicsInventory);
+        progress.investmentAnalysis = investmentAnalysis;
+
+        progress.recommendedStrategy = determineOptimalStrategyWithInvestment(progress, individualPartsValue, completeSetPrice, investmentAnalysis);
+        progress.setMarketStatus = 'loaded' as const;
+        progress.setMarketError = setMarketData.error;
+
+        console.log(`🎯 [Market Analysis] ${progress.set.name}: Parts=${individualPartsValue}p, Set=${completeSetPrice}p, Strategy=${progress.recommendedStrategy}`);
+      });
+
+    } catch (error) {
+      console.error('🎯 [Market Analysis] Failed to fetch complete set market data:', error);
+
+      // Mark sets as error state
+      setsNeedingMarketData.forEach(progress => {
+        progress.setMarketStatus = 'error' as const;
+        progress.setMarketError = error instanceof Error ? error.message : 'Failed to fetch market data';
+      });
+    }
+  }
+
+  return setProgress;
+};
+
+// BACKWARD COMPATIBILITY: Keep original function for existing code
+export const analyzeSetProgress = async (
+  primePartsInventory: DetectedItem[],
+  relicsInventory: VoidRelic[] = []
+): Promise<SetProgress[]> => {
+  return analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory, false);
 };
 
 // Get sets that can be built immediately
@@ -344,7 +632,7 @@ export const getBuildableSets = async (
   primePartsInventory: DetectedItem[],
   relicsInventory: VoidRelic[] = []
 ): Promise<SetProgress[]> => {
-  const progress = await analyzeSetProgress(primePartsInventory, relicsInventory);
+  const progress = await analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory);
   return progress
     .filter(progress => progress.canBuild && !progress.ismastered)
     .sort((a, b) => b.completionPercentage - a.completionPercentage);
@@ -356,7 +644,7 @@ export const getNearCompleteSets = async (
   relicsInventory: VoidRelic[] = [],
   minCompletion: number = 50
 ): Promise<SetProgress[]> => {
-  const progress = await analyzeSetProgress(primePartsInventory, relicsInventory);
+  const progress = await analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory);
   return progress
     .filter(progress =>
       !progress.canBuild &&
@@ -375,7 +663,7 @@ export const getSetRecommendations = async (
   nearComplete: SetProgress[];
   highValue: SetProgress[];
 }> => {
-  const allProgress = await analyzeSetProgress(primePartsInventory, relicsInventory);
+  const allProgress = await analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory);
 
   const buildable = allProgress
     .filter(p => p.canBuild && !p.ismastered)
