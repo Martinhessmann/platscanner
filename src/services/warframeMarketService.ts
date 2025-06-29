@@ -1,5 +1,5 @@
 import { DetectedItem, VoidRelic } from '../types';
-import { getLocalImageUrl } from './localImageService';
+import { getImageUrl } from './unifiedImageService';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -267,7 +267,7 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
       console.log(`Raw data for ${part.name}:`, data);
 
       // Use local images based on item name instead of external CDN
-      const localImageUrl = await getLocalImageUrl(part.name);
+      const localImageUrl = await getImageUrl(part.name);
 
       updatedParts.push({
         ...part,
@@ -434,7 +434,7 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
     console.log(`Raw data for ${primePart.name}:`, data);
 
     // Use local images based on item name instead of external CDN
-    const localImageUrl = await getLocalImageUrl(primePart.name);
+    const localImageUrl = await getImageUrl(primePart.name);
 
     return {
       ...primePart,

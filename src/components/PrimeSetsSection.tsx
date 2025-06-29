@@ -42,6 +42,7 @@ import {
   Check,
   ExternalLink
 } from 'lucide-react';
+import { getImageUrlSync, preloadImageData } from '../services/unifiedImageService';
 import LastRefreshInfo from './LastRefreshInfo';
 import {
   isSetPlanned,
@@ -424,170 +425,25 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     return 'Not Available'; // Part is not owned and not in relics
   };
 
-    // Get prime set image URL from CDN
-  const getPrimeSetImageUrl = (setName: string) => {
-    // Use local images from public/images/primeparts directory
-    // Mapping based on primesets.json data
-    const imageMap: Record<string, string> = {
-      "Acceltra Prime": "acceltra-prime-5628f3e466.png",
-      "Afuris Prime": "afuris-prime-abcebdfbfa.png",
-      "Akarius Prime": "akarius-prime-7d8f0a0779.png",
-      "Akbolto Prime": "akbolto-prime-1bf267febc.png",
-      "Akbronco Prime": "akbronco-prime-e0b3fd0788.png",
-      "Akjagara Prime": "akjagara-prime-c44280a30c.png",
-      "Aklex Prime": "aklex-prime-3ba6556b1f.png",
-      "Akmagnus Prime": "akmagnus-prime-641a54e112.png",
-      "Aksomati Prime": "aksomati-prime-8fc151cef1.png",
-      "Akstiletto Prime": "akstiletto-prime-a45f9d4e38.png",
-      "Akvasto Prime": "akvasto-prime-9416a0a363.png",
-      "Ankyros Prime": "ankyros-prime-db23dcbd9d.png",
-      "Ash Prime": "ash-prime-bfcb09331e.png",
-      "Astilla Prime": "astilla-prime-41ef61f4d6.png",
-      "Atlas Prime": "atlas-prime-7312f6d838.png",
-      "Ballistica Prime": "ballistica-prime-81feb66ef9.png",
-      "Banshee Prime": "banshee-prime-7bebac6654.png",
-      "Baruuk Prime": "baruuk-prime-7e1a50c877.png",
-      "Baza Prime": "baza-prime-a05bfd6bfc.png",
-      "Bo Prime": "bo-prime-fa6bb7ec1b.png",
-      "Boar Prime": "boar-prime-d357b12d62.png",
-      "Boltor Prime": "boltor-prime-5340f53738.png",
-      "Braton Prime": "braton-prime-f3ebb072cb.png",
-      "Bronco Prime": "bronco-prime-22492b5f01.png",
-      "Burston Prime": "burston-prime-f8bc26c184.png",
-      "Carrier Prime": "carrier-prime-7e84bae628.png",
-      "Cedo Prime": "cedo-prime-348235f853.png",
-      "Cernos Prime": "cernos-prime-e0019e3c84.png",
-      "Chroma Prime": "chroma-prime-2ac05d2866.png",
-      "Cobra & Crane Prime": "cobra-&-crane-prime-bbca3fff77.png",
-      "Corinth Prime": "corinth-prime-cacf3e9a9f.png",
-      "Corvas Prime": "corvas-prime-3a5514ae24.png",
-      "Daikyu Prime": "daikyu-prime-f768625a93.png",
-      "Dakra Prime": "dakra-prime-69b3818b88.png",
-      "Destreza Prime": "destreza-prime-603ac6abce.png",
-      "Dethcube Prime": "dethcube-prime-568b4f3c87.png",
-      "Dual Kamas Prime": "dual-kamas-prime-5f36995f5c.png",
-      "Dual Keres Prime": "dual-keres-prime-7665aa8acb.png",
-      "Dual Zoren Prime": "dual-zoren-prime-e2bddd9954.png",
-      "Ember Prime": "ember-prime-e978f28a35.png",
-      "Epitaph Prime": "epitaph-prime-dbe8d7bab0.png",
-      "Equinox Prime": "equinox-prime-9fbe947b57.png",
-      "Euphona Prime": "euphona-prime-258bec05a5.png",
-      "Fang Prime": "fang-prime-95fac4ad11.png",
-      "Fragor Prime": "fragor-prime-1cc2b31786.png",
-      "Frost Prime": "frost-prime-f177de2e0c.png",
-      "Fulmin Prime": "fulmin-prime-15bc184b1c.png",
-      "Galatine Prime": "galatine-prime-2d040c4b48.png",
-      "Gara Prime": "gara-prime-faf70dfd7c.png",
-      "Garuda Prime": "garuda-prime-2c4ce210a0.png",
-      "Gauss Prime": "gauss-prime-170a77a036.png",
-      "Glaive Prime": "glaive-prime-170ccb6e9a.png",
-      "Gram Prime": "gram-prime-b1c38c96e9.png",
-      "Grendel Prime": "grendel-prime-e23d41072d.png",
-      "Guandao Prime": "guandao-prime-e89da97c23.png",
-      "Gunsen Prime": "gunsen-prime-c221b261c4.png",
-      "Harrow Prime": "harrow-prime-8237c36a69.png",
-      "Helios Prime": "helios-prime-7bd311ccae.png",
-      "Hikou Prime": "hikou-prime-784b21f94c.png",
-      "Hildryn Prime": "hildryn-prime-20937cebe2.png",
-      "Hydroid Prime": "hydroid-prime-718aec2104.png",
-      "Hystrix Prime": "hystrix-prime-234976e66a.png",
-      "Inaros Prime": "inaros-prime-f6689c5568.png",
-      "Ivara Prime": "ivara-prime-1be20f1393.png",
-      "Karyst Prime": "karyst-prime-230341b33d.png",
-      "Kavasa Prime Kubrow Collar": "kavasa-prime-kubrow-collar-2b24095a1f.png",
-      "Khora Prime": "khora-prime-29d9f8a9d7.png",
-      "Knell Prime": "knell-prime-f5518c4cac.png",
-      "Kogake Prime": "kogake-prime-f7272c7662.png",
-      "Kompressa Prime": "kompressa-prime-2facb539ea.png",
-      "Kronen Prime": "kronen-prime-255e32dd58.png",
-      "Larkspur Prime": "larkspur-prime-2320f70a2f.png",
-      "Latron Prime": "latron-prime-aaf23a9b9f.png",
-      "Lavos Prime": "lavos-prime-90a6c16d29.png",
-      "Lex Prime": "lex-prime-547afa0c65.png",
-      "Limbo Prime": "limbo-prime-7449a6c1ce.png",
-      "Loki Prime": "loki-prime-5b192774c4.png",
-      "Mag Prime": "mag-prime-a3d6c2f9ba.png",
-      "Magnus Prime": "magnus-prime-1700bfd0c2.png",
-      "Masseter Prime": "masseter-prime-f6e79a49d7.png",
-      "Mesa Prime": "mesa-prime-f912b57a14.png",
-      "Mirage Prime": "mirage-prime-96a31c01da.png",
-      "Nagantaka Prime": "nagantaka-prime-3505ebdbfa.png",
-      "Nami Skyla Prime": "nami-skyla-prime-e0304be319.png",
-      "Nautilus Prime": "nautilus-prime-710cc92335.png",
-      "Nekros Prime": "nekros-prime-4f3e86be2a.png",
-      "Nezha Prime": "nezha-prime-b5e9ddf42b.png",
-      "Nidus Prime": "nidus-prime-c1781ebcc9.png",
-      "Nikana Prime": "nikana-prime-b28a0c7525.png",
-      "Ninkondi Prime": "ninkondi-prime-9876965440.png",
-      "Nova Prime": "nova-prime-2345192401.png",
-      "Nyx Prime": "nyx-prime-b16b670098.png",
-      "Oberon Prime": "oberon-prime-71fc40c9ca.png",
-      "Octavia Prime": "octavia-prime-93e1ad02f0.png",
-      "Odonata Prime": "odonata-prime-39baaa7427.png",
-      "Okina Prime": "okina-prime-e65052d7fd.png",
-      "Orthos Prime": "orthos-prime-7045c30205.png",
-      "Pandero Prime": "pandero-prime-fad4842362.png",
-      "Pangolin Prime": "pangolin-prime-92db7d4fde.png",
-      "Panthera Prime": "panthera-prime-02f5cc4156.png",
-      "Paris Prime": "paris-prime-0423f3edf6.png",
-      "Phantasma Prime": "phantasma-prime-e76512a07d.png",
-      "Protea Prime": "protea-prime-86cbc2b038.png",
-      "Pyrana Prime": "pyrana-prime-ecb8c95a9d.png",
-      "Quassus Prime": "quassus-prime-f00d65b0fc.png",
-      "Reaper Prime": "reaper-prime-7029342b85.png",
-      "Redeemer Prime": "redeemer-prime-7dacec830a.png",
-      "Revenant Prime": "revenant-prime-a5be34cbf2.png",
-      "Rhino Prime": "rhino-prime-7142165571.png",
-      "Rubico Prime": "rubico-prime-1ea479c379.png",
-      "Saryn Prime": "saryn-prime-8703933001.png",
-      "Scindo Prime": "scindo-prime-a415b305a5.png",
-      "Scourge Prime": "scourge-prime-6c0e894c91.png",
-      "Sevagoth Prime": "sevagoth-prime-5f34bf2dba.png",
-      "Shade Prime": "shade-prime-53572a63b2.png",
-      "Sicarus Prime": "sicarus-prime-1447e9c80e.png",
-      "Silva & Aegis Prime": "silva-&-aegis-prime-9a734db766.png",
-      "Soma Prime": "soma-prime-16e75e3a35.png",
-      "Spira Prime": "spira-prime-6c77a3d5b4.png",
-      "Stradavar Prime": "stradavar-prime-150ba6fb80.png",
-      "Strun Prime": "strun-prime-32870cfe57.png",
-      "Sybaris Prime": "sybaris-prime-42f220480d.png",
-      "Tatsu Prime": "tatsu-prime-3b2ad97000.png",
-      "Tekko Prime": "tekko-prime-9fbefbb1e5.png",
-      "Tenora Prime": "tenora-prime-88bf75873a.png",
-      "Tiberon Prime": "tiberon-prime-5da4edf098.png",
-      "Tigris Prime": "tigris-prime-7f61d1abde.png",
-      "Tipedo Prime": "tipedo-prime-d092468d18.png",
-      "Titania Prime": "titania-prime-7a328a3d8a.png",
-      "Trinity Prime": "trinity-prime-aa68b6373d.png",
-      "Trumna Prime": "trumna-prime-7c10f9cb60.png",
-      "Valkyr Prime": "valkyr-prime-354cd87f77.png",
-      "Vasto Prime": "vasto-prime-7befca7ba9.png",
-      "Vauban Prime": "vauban-prime-f9c539bdde.png",
-      "Vectis Prime": "vectis-prime-2029f25b9e.png",
-      "Velox Prime": "velox-prime-de13b8c526.png",
-      "Venka Prime": "venka-prime-fbb661cdcf.png",
-      "Volnus Prime": "volnus-prime-9c82528e61.png",
-      "Volt Prime": "volt-prime-dd65a6befd.png",
-      "Wisp Prime": "wisp-prime-7a898e071d.png",
-      "Wukong Prime": "wukong-prime-4e1c56fd43.png",
-      "Wyrm Prime": "wyrm-prime-62d6263c3e.png",
-      "Xaku Prime": "xaku-prime-f6213dd36f.png",
-      "Yareli Prime": "yareli-prime-c4dbed6caa.png",
-      "Zakti Prime": "zakti-prime-c9e28219cd.png",
-      "Zephyr Prime": "zephyr-prime-c777d1497b.png",
-      "Zhuge Prime": "zhuge-prime-c282e9ce24.png",
-      "Zylok Prime": "zylok-prime-8922964ebe.png"
-    };
-
-    const imageFilename = imageMap[setName];
-    if (imageFilename) {
-      return `/images/primeparts/${imageFilename}`;
+  // Get prime set image URL using unified service (synchronous)
+  const getPrimeSetImageUrl = (setName: string): string => {
+    // Try to get from unified service cache (after preload)
+    const cachedUrl = getImageUrlSync(setName);
+    if (cachedUrl) {
+      return cachedUrl;
     }
 
-    // Fallback for sets not in mapping
-    const normalizedName = setName.toLowerCase().replace(/ /g, '-');
-    return `/images/primeparts/${normalizedName}.png`;
+    // Fallback for sets not in cache yet
+    const fallbackUrl = `/images/primeparts/${setName.toLowerCase().replace(/ /g, '-')}.png`;
+    return fallbackUrl;
   };
+
+  // Preload image data when component mounts
+  useEffect(() => {
+    preloadImageData().catch(error => {
+      console.error('Failed to preload prime sets image data:', error);
+    });
+  }, []);
 
   const filteredSets = () => {
     switch (activeTab) {

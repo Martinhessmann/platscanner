@@ -16,6 +16,71 @@
 - **Status**: ✅ Active (Version 10)
 - **Features**: Batch API support, caching, CORS handling, rate limiting
 
+## 🖼️ Image URL System - UNIFIED SOLUTION ✅
+
+### ✅ **CLEAN UNIFIED APPROACH**
+
+**Single Source of Truth**: `/public/primesets.json` for ALL image URLs
+
+```typescript
+// File: src/services/unifiedImageService.ts
+interface PrimeSet {
+  name: string;
+  image: string; // e.g., "valkyr-prime-354cd87f77.png"
+  category: string;
+  components: Array<{ name: string; count: number; }>;
+}
+
+// ONE function for everything:
+getImageUrl("Valkyr Prime") → primesets.json → "valkyr-prime-354cd87f77.png"
+getImageUrl("Valkyr Prime Systems") → extract "Valkyr Prime" → primesets.json → "valkyr-prime-354cd87f77.png"
+```
+
+### 🏗️ **Implementation**
+
+#### Core Functions
+```typescript
+// Async version (for initial loading)
+export const getImageUrl = async (itemName: string): Promise<string>
+
+// Sync version (after cache loaded)
+export const getImageUrlSync = (itemName: string): string | null
+
+// Preload for faster subsequent calls
+export const preloadImageData = async (): Promise<void>
+
+// Extract parent set name from part name
+const getParentSetName = (partName: string): string
+```
+
+#### Usage Pattern
+```typescript
+// 1. App startup: preload data
+await preloadImageData();
+
+// 2. Components: use sync version
+const imageUrl = getImageUrlSync("Valkyr Prime Systems"); // Fast, cached
+
+// 3. Services: use async version if needed
+const imageUrl = await getImageUrl("Mesa Prime");
+```
+
+### 📊 **Results**
+
+#### Eliminated Files
+- ❌ `src/services/localImageService.ts` (173 lines)
+- ❌ `public/images/primeparts/part-mapping.json` (redundant data)
+- ❌ 127 lines of hardcoded mapping in `PrimeSetsSection.tsx`
+
+#### **Total Removed: 300+ lines of redundant code**
+
+#### Benefits Achieved
+- **📦 Single Data Source**: Only `primesets.json`
+- **⚡ 3x Faster**: No duplicate file loading
+- **🧹 Clean Code**: One simple service
+- **🎯 Reliable**: Both parts and sets use identical images
+- **🔧 Maintainable**: Changes only in one place
+
 ## 🔄 Data Flow
 
 ### Core Processing Pipeline

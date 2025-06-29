@@ -6,7 +6,7 @@ import { DetectedItem, PrimePart, VoidRelic, ItemCategory, RelicRewardItem } fro
 import { getRelicDropsByName } from './relicDataService';
 import { fetchSinglePriceData, fetchBatchPriceData } from './warframeMarketService';
 import { cloudSyncService } from './cloudSyncService';
-import { getLocalImageUrl } from './localImageService';
+import { getImageUrl } from './unifiedImageService';
 
 const INVENTORY_STORAGE_KEY = 'platscanner_inventory';
 const LAST_SCAN_STORAGE_KEY = 'platscanner_last_scan';
@@ -533,7 +533,7 @@ export const migrateInventoryToLocalImages = async (): Promise<void> => {
         // Check if item has external CDN URL
         if (item.imgUrl && (item.imgUrl.includes('warframe.market') || item.imgUrl.includes('content.warframe.com'))) {
           console.log(`🔄 Migrating ${item.name} from external URL to local image`);
-          const localImageUrl = await getLocalImageUrl(item.name);
+          const localImageUrl = await getImageUrl(item.name);
           hasChanges = true;
           return {
             ...item,
@@ -590,7 +590,7 @@ export const migratePartsToParentImages = async (): Promise<void> => {
       inventory.items.map(async (item) => {
         // Only process prime parts category
         if (item.category === 'prime_parts') {
-          const newImageUrl = await getLocalImageUrl(item.name);
+          const newImageUrl = await getImageUrl(item.name);
 
           // Check if the image URL has changed (indicating we found a better parent mapping)
           if (item.imgUrl !== newImageUrl) {

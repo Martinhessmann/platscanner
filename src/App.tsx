@@ -7,7 +7,7 @@ import AboutPage from './pages/AboutPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import { isGeminiConfigured, setApiKey } from './services/geminiService';
-import { preloadPartMapping } from './services/localImageService';
+import { preloadImageData } from './services/unifiedImageService';
 import { migrateInventoryToLocalImages, verifyLocalImageMigration } from './services/inventoryService';
 
 function App() {
@@ -22,8 +22,8 @@ function App() {
     // Initialize app with local images
     const initializeApp = async () => {
       try {
-        // Preload the part mapping for faster image loading
-        await preloadPartMapping();
+        // Preload the unified image data for faster image loading
+        await preloadImageData();
 
         // Migrate any existing inventory items to use local images
         await migrateInventoryToLocalImages();
