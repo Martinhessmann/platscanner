@@ -167,6 +167,111 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
   return detectedItems;
 };
 
+const determineScreenType = async (model: any, imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'unknown'> => {
+  const screenTypePrompt = `Look at this Warframe screenshot and determine what type of inventory screen this is.
+
+Respond with EXACTLY ONE of these options:
+- PRIME_PARTS (if you see items with "Prime" in their names like "Sevagoth Prime Blueprint", "Mirage Prime Chassis", etc.)
+- RELICS (if you see Void Relics like "Lith A1 Relic", "Meso B2 Relic", "Neo C3 Relic", "Axi D4 Relic")
+- UNKNOWN (if you cannot clearly determine the screen type)`;
+
+  const result = await model.generateContent([
+    screenTypePrompt,
+    {
+      inlineData: {
+        mimeType: mimeType,
+        data: imageBase64
+      }
+    }
+  ]);
+
+  const response = await result.response;
+  const text = response.text().trim().toUpperCase();
+
+  console.log(`>>> [Gemini Screen Type] Raw response: "${text}" <<<`);
+
+  if (text.includes('PRIME_PARTS')) return 'prime_parts';
+  if (text.includes('RELICS')) return 'relics';
+  return 'unknown';
+};
+
+const analyzePrimeParts = async (model: any, imageBase64: string, mimeType: string): Promise<string> => {
+  const primePartsPrompt = `Look at this Warframe Prime Parts inventory screenshot and read the EXACT TEXT of every Prime item you can see.
+
+CRITICAL: You must analyze the ACTUAL IMAGE, not guess or use your memory of Warframe items.
+
+INSTRUCTIONS:
+- Read the text labels under each item icon carefully
+- List ONLY items with "Prime" in their name that you can actually see in this specific image
+- Include the complete name as written (e.g., "Sevagoth Prime Chassis Blueprint", "Mirage Prime Neuroptics")
+- Look for quantity indicators like "x2", "x5", etc. on item icons and include them
+
+FORMAT: List each item name exactly as written, one per line. For items with quantities, use "QUANTITY x ITEM_NAME".
+
+If you cannot clearly see any Prime items, respond with "NONE_DETECTED".`;
+
+  const result = await model.generateContent([
+    primePartsPrompt,
+    {
+      inlineData: {
+        mimeType: mimeType,
+        data: imageBase64
+      }
+    }
+  ]);
+
+  return result.response.text();
+};
+
+const analyzeRelics = async (model: any, imageBase64: string, mimeType: string): Promise<string> => {
+  const relicsPrompt = `Analyze this Warframe Void Relics inventory screenshot and identify ONLY owned relics WITH THEIR QUANTITIES.
+
+CRITICAL INSTRUCTIONS FOR RELICS - STRICT FILTERING REQUIRED:
+- ONLY detect relics that are ACTUALLY OWNED AND AVAILABLE
+- COMPLETELY EXCLUDE any relics that have:
+  * An eye icon in the top left corner (these are unowned)
+  * Semi-transparent or faded appearance
+  * Grayed out or darkened icons
+  * Lower brightness/contrast than fully owned items
+- Focus on the RELIC ICON itself, not just the text label
+- Even if the text is clear, if the relic icon looks faded or has an eye icon, EXCLUDE it
+- ONLY count relics with bright, solid, fully opaque icons
+
+VISUAL DETECTION GUIDELINES:
+- Eye icon in corner = EXCLUDE (unowned relic)
+- Faded/ghosted relic icon = EXCLUDE (unowned relic)
+- Solid, bright relic icon = INCLUDE (owned relic)
+- When in doubt, EXCLUDE the relic rather than include it
+
+QUANTITY DETECTION:
+- Look for quantity indicators like "x2", "x5", "x10" etc. overlayed on item icons
+- Small numbers in the bottom-right corner of item icons indicate quantity
+- Stack indicators or quantity overlays on items show multiple copies
+
+RESPONSE FORMAT:
+List each owned relic with its quantity and refinement level. Use format "QUANTITY x RELIC_NAME (REFINEMENT)" for multiple items.
+For single items (quantity 1), you can omit the "1 x" prefix.
+
+Example format:
+Lith A1 Relic (Intact)
+2 x Meso B2 Relic (Radiant)
+5 x Neo C3 Relic (Flawless)
+
+If you cannot clearly see any owned relics, respond with "NONE_DETECTED".`;
+
+  const result = await model.generateContent([
+    relicsPrompt,
+    {
+      inlineData: {
+        mimeType: mimeType,
+        data: imageBase64
+      }
+    }
+  ]);
+
+  return result.response.text();
+};
+
 export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => {
   if (!isGeminiConfigured()) {
     throw new Error('Gemini API key not configured');
@@ -176,69 +281,42 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     const model = genAI!.getGenerativeModel({ model: "gemini-1.5-flash" });
     const imageBase64 = await fileToBase64(imageFile);
 
-    const prompt = `
-      Analyze this Warframe inventory screenshot and identify ONLY owned items WITH THEIR QUANTITIES from the following categories:
+    // Step 1: Determine screen type
+    console.log(`>>> [Gemini] Step 1: Determining screen type <<<`);
+    const screenType = await determineScreenType(model, imageBase64, imageFile.type);
+    console.log(`>>> [Gemini] Detected screen type: ${screenType} <<<`);
 
-      1. PRIME PARTS: Any items with "Prime" in the name.
-      2. VOID RELICS: Items that are Void Relics (Lith, Meso, Neo, Axi followed by a letter and number).
+    // Step 2: Use appropriate analysis based on screen type
+    let analysisText: string;
 
-      QUANTITY DETECTION - CRITICAL:
-      - Look for quantity indicators like "x2", "x5", "x10" etc. overlayed on item icons
-      - Small numbers in the bottom-right corner of item icons indicate quantity
-      - Stack indicators or quantity overlays on items show multiple copies
-      - If you see multiple identical items stacked or with quantity indicators, COUNT THEM CAREFULLY
-      - Default to quantity 1 if no quantity indicator is visible
+    if (screenType === 'prime_parts') {
+      console.log(`>>> [Gemini] Step 2: Analyzing Prime Parts with focused prompt <<<`);
+      analysisText = await analyzePrimeParts(model, imageBase64, imageFile.type);
+    } else if (screenType === 'relics') {
+      console.log(`>>> [Gemini] Step 2: Analyzing Relics with detailed filtering <<<`);
+      analysisText = await analyzeRelics(model, imageBase64, imageFile.type);
+    } else {
+      console.log(`>>> [Gemini] Unknown screen type, using generic analysis <<<`);
+      analysisText = await analyzePrimeParts(model, imageBase64, imageFile.type); // Default to prime parts
+    }
 
-      CRITICAL INSTRUCTIONS FOR RELICS - STRICT FILTERING REQUIRED:
-      - ONLY detect relics that are ACTUALLY OWNED AND AVAILABLE
-      - COMPLETELY EXCLUDE any relics that have:
-        * An eye icon in the top left corner (these are unowned)
-        * Semi-transparent or faded appearance
-        * Grayed out or darkened icons
-        * Lower brightness/contrast than fully owned items
-      - Focus on the RELIC ICON itself, not just the text label
-      - Even if the text is clear, if the relic icon looks faded or has an eye icon, EXCLUDE it
-      - ONLY count relics with bright, solid, fully opaque icons like the owned inventory items
+    // Debug: Log the raw AI response
+    console.log(`>>> [Gemini Raw Response] <<<`);
+    console.log(analysisText);
+    console.log(`>>> [End Raw Response] <<<`);
 
-      VISUAL DETECTION GUIDELINES:
-      - Compare relic icon brightness to Prime part icons - they should look equally bright
-      - Eye icon in corner = EXCLUDE (unowned relic)
-      - Faded/ghosted relic icon = EXCLUDE (unowned relic)
-      - Solid, bright relic icon = INCLUDE (owned relic)
-      - When in doubt, EXCLUDE the relic rather than include it
-
-      RESPONSE FORMAT:
-      List each detected item with its quantity. Use the format "QUANTITY x ITEM_NAME" for multiple items.
-      For single items (quantity 1), you can omit the "1 x" prefix.
-      Do not include any additional text, explanations, or categories.
-
-      Example format:
-      Mirage Prime Blueprint
-      2 x Kronen Prime Blade
-      5 x Lith A1 Relic (Radiant)
-      Neo Z3 Relic (Intact)
-      3 x Banshee Prime Systems
-    `;
-
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          mimeType: imageFile.type,
-          data: imageBase64
-        }
-      }
-    ]);
-
-    const response = await result.response;
-    const text = response.text();
-
-    if (isErrorResponse(text)) {
+    if (isErrorResponse(analysisText)) {
+      console.log(`>>> [Gemini] Error response detected <<<`);
       return [];
     }
 
-    const detectedItems = parseDetectedItems(text);
-    console.log(`Detected ${detectedItems.length} items:`, detectedItems.map(item => `${item.name} (${item.category})`));
+    if (analysisText.trim() === "NONE_DETECTED") {
+      console.log(`>>> [Gemini] No items detected in image <<<`);
+      return [];
+    }
+
+    const detectedItems = parseDetectedItems(analysisText);
+    console.log(`>>> [Gemini] Parsed ${detectedItems.length} items:`, detectedItems.map(item => `${item.name} (${item.category})`), ` <<<`);
 
     return detectedItems;
   } catch (error) {
