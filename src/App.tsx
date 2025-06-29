@@ -8,6 +8,7 @@ import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import { isGeminiConfigured, setApiKey } from './services/geminiService';
 import { preloadPartMapping } from './services/localImageService';
+import { migrateInventoryToLocalImages, verifyLocalImageMigration } from './services/inventoryService';
 
 function App() {
   const [isConfigured, setIsConfigured] = useState(isGeminiConfigured());
@@ -18,8 +19,28 @@ function App() {
     // Check configuration status on mount
     setIsConfigured(isGeminiConfigured());
 
-    // Preload the part mapping for faster image loading
-    preloadPartMapping().catch(console.error);
+    // Initialize app with local images
+    const initializeApp = async () => {
+      try {
+        // Preload the part mapping for faster image loading
+        await preloadPartMapping();
+
+        // Migrate any existing inventory items to use local images
+        await migrateInventoryToLocalImages();
+
+        // Verify migration completed successfully
+        const verification = verifyLocalImageMigration();
+        if (verification.hasExternalUrls) {
+          console.warn('⚠️ CDN independence incomplete - some external URLs remain:', verification.externalUrls);
+        } else {
+          console.log('✅ CDN independence complete - all images are local');
+        }
+      } catch (error) {
+        console.error('❌ Failed to initialize app with local images:', error);
+      }
+    };
+
+    initializeApp();
   }, []);
 
   const handleApiKeyChange = async (key: string) => {

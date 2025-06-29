@@ -6,6 +6,7 @@ import { DetectedItem, PrimePart, VoidRelic, ItemCategory, RelicRewardItem } fro
 import { getRelicDropsByName } from './relicDataService';
 import { fetchSinglePriceData, fetchBatchPriceData } from './warframeMarketService';
 import { cloudSyncService } from './cloudSyncService';
+import { getLocalImageUrl } from './localImageService';
 
 const INVENTORY_STORAGE_KEY = 'platscanner_inventory';
 const LAST_SCAN_STORAGE_KEY = 'platscanner_last_scan';
@@ -513,5 +514,133 @@ export const getLastRefreshTime = (category: 'prime_parts' | 'relics'): Date | n
   } catch (error) {
     console.error(`Failed to load last refresh time for ${category}:`, error);
     return null;
+  }
+};
+
+/**
+ * Migrate existing inventory items to use local images instead of external CDN URLs
+ */
+export const migrateInventoryToLocalImages = async (): Promise<void> => {
+  try {
+    const inventory = loadInventory();
+    let hasChanges = false;
+
+    console.log('🔄 Migrating inventory to local images...');
+
+    // Update all items to use local images if they have external URLs
+    const updatedItems = await Promise.all(
+      inventory.items.map(async (item) => {
+        // Check if item has external CDN URL
+        if (item.imgUrl && (item.imgUrl.includes('warframe.market') || item.imgUrl.includes('content.warframe.com'))) {
+          console.log(`🔄 Migrating ${item.name} from external URL to local image`);
+          const localImageUrl = await getLocalImageUrl(item.name);
+          hasChanges = true;
+          return {
+            ...item,
+            imgUrl: localImageUrl,
+            lastUpdated: new Date()
+          };
+        }
+        return item;
+      })
+    );
+
+    // Save updated inventory if changes were made
+    if (hasChanges) {
+      const updatedInventory: InventoryStorage = {
+        ...inventory,
+        items: updatedItems,
+        lastScanDate: new Date()
+      };
+
+      localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(updatedInventory));
+      console.log('✅ Inventory migration completed - all items now use local images');
+
+      // Notify cloud sync of local data modification
+      cloudSyncService.onLocalDataModified().catch(error => {
+        console.error('Failed to sync inventory migration to cloud:', error);
+      });
+    } else {
+      console.log('✅ No migration needed - all items already use local images');
+    }
+
+    // Also check and clean any other cached data that might contain external URLs
+    await cleanupExternalImageReferences();
+  } catch (error) {
+    console.error('❌ Failed to migrate inventory to local images:', error);
+  }
+};
+
+/**
+ * Clean up any other localStorage data that might contain external image URLs
+ */
+const cleanupExternalImageReferences = async (): Promise<void> => {
+  try {
+    // Clear any cached data that might contain external URLs
+    const keysToCheck = [
+      'platscanner_prime_sets_cache',
+      'platscanner_scan_results',
+      'platscanner_market_cache'
+    ];
+
+    keysToCheck.forEach(key => {
+      try {
+        const data = localStorage.getItem(key);
+        if (data) {
+          const parsed = JSON.parse(data);
+          if (JSON.stringify(parsed).includes('warframe.market/static')) {
+            console.log(`🔄 Clearing cached data with external URLs: ${key}`);
+            localStorage.removeItem(key);
+          }
+        }
+      } catch (error) {
+        // Ignore parse errors for non-JSON data
+      }
+    });
+
+    console.log('✅ External image reference cleanup completed');
+  } catch (error) {
+    console.error('❌ Failed to cleanup external image references:', error);
+  }
+};
+
+/**
+ * Verify that no external URLs are present in stored data (for debugging)
+ */
+export const verifyLocalImageMigration = (): {
+  hasExternalUrls: boolean;
+  externalUrls: string[];
+  totalItems: number;
+} => {
+  try {
+    const inventory = loadInventory();
+    const externalUrls: string[] = [];
+
+    inventory.items.forEach(item => {
+      if (item.imgUrl && (item.imgUrl.includes('warframe.market') || item.imgUrl.includes('content.warframe.com'))) {
+        externalUrls.push(`${item.name}: ${item.imgUrl}`);
+      }
+    });
+
+    const result = {
+      hasExternalUrls: externalUrls.length > 0,
+      externalUrls,
+      totalItems: inventory.items.length
+    };
+
+    if (result.hasExternalUrls) {
+      console.warn('⚠️ External URLs still found in inventory:', result.externalUrls);
+    } else {
+      console.log('✅ All inventory items use local images');
+    }
+
+    return result;
+  } catch (error) {
+    console.error('❌ Failed to verify image migration:', error);
+    return {
+      hasExternalUrls: false,
+      externalUrls: [],
+      totalItems: 0
+    };
   }
 };
