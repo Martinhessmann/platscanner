@@ -566,8 +566,67 @@ export const migrateInventoryToLocalImages = async (): Promise<void> => {
 
     // Also check and clean any other cached data that might contain external URLs
     await cleanupExternalImageReferences();
+
+    // Run part-to-parent image migration
+    await migratePartsToParentImages();
   } catch (error) {
     console.error('❌ Failed to migrate inventory to local images:', error);
+  }
+};
+
+/**
+ * Migrate prime parts to use their parent item images
+ * e.g., "Akarius Prime Link" should use "Akarius Prime" image
+ */
+export const migratePartsToParentImages = async (): Promise<void> => {
+  try {
+    const inventory = loadInventory();
+    let hasChanges = false;
+
+    console.log('🔗 Migrating prime parts to use parent item images...');
+
+    // Update all prime parts to use correct parent images
+    const updatedItems = await Promise.all(
+      inventory.items.map(async (item) => {
+        // Only process prime parts category
+        if (item.category === 'prime_parts') {
+          const newImageUrl = await getLocalImageUrl(item.name);
+
+          // Check if the image URL has changed (indicating we found a better parent mapping)
+          if (item.imgUrl !== newImageUrl) {
+            console.log(`🔗 Updating part "${item.name}" to use parent image`);
+            hasChanges = true;
+            return {
+              ...item,
+              imgUrl: newImageUrl,
+              lastUpdated: new Date()
+            };
+          }
+        }
+        return item;
+      })
+    );
+
+    // Save updated inventory if changes were made
+    if (hasChanges) {
+      const updatedInventory: InventoryStorage = {
+        ...inventory,
+        items: updatedItems,
+        lastScanDate: new Date()
+      };
+
+      localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(updatedInventory));
+      console.log('✅ Prime parts migration completed - all parts now use parent images');
+
+      // Notify cloud sync of local data modification
+      cloudSyncService.onLocalDataModified().catch(error => {
+        console.error('Failed to sync parts migration to cloud:', error);
+      });
+    } else {
+      console.log('✅ No parts migration needed - all parts already use correct images');
+    }
+  } catch (error) {
+    console.error('❌ Failed to migrate parts to parent images:', error);
   }
 };
 
@@ -611,21 +670,34 @@ export const verifyLocalImageMigration = (): {
   hasExternalUrls: boolean;
   externalUrls: string[];
   totalItems: number;
+  partsUsingParentImages: number;
 } => {
   try {
     const inventory = loadInventory();
     const externalUrls: string[] = [];
+    let partsUsingParentImages = 0;
 
     inventory.items.forEach(item => {
       if (item.imgUrl && (item.imgUrl.includes('warframe.market') || item.imgUrl.includes('content.warframe.com'))) {
         externalUrls.push(`${item.name}: ${item.imgUrl}`);
+      }
+
+      // Count parts that are likely using parent images
+      if (item.category === 'prime_parts' && item.imgUrl && !item.imgUrl.includes('unknown.png')) {
+        // Check if this appears to be a part (has part suffix)
+        const partSuffixes = ['Blueprint', 'Chassis', 'Neuroptics', 'Systems', 'Barrel', 'Receiver', 'Stock', 'Link', 'Grip', 'Handle'];
+        const hasPartSuffix = partSuffixes.some(suffix => item.name.includes(` ${suffix}`));
+        if (hasPartSuffix) {
+          partsUsingParentImages++;
+        }
       }
     });
 
     const result = {
       hasExternalUrls: externalUrls.length > 0,
       externalUrls,
-      totalItems: inventory.items.length
+      totalItems: inventory.items.length,
+      partsUsingParentImages
     };
 
     if (result.hasExternalUrls) {
@@ -634,13 +706,18 @@ export const verifyLocalImageMigration = (): {
       console.log('✅ All inventory items use local images');
     }
 
+    if (result.partsUsingParentImages > 0) {
+      console.log(`🔗 ${result.partsUsingParentImages} prime parts using parent item images`);
+    }
+
     return result;
   } catch (error) {
     console.error('❌ Failed to verify image migration:', error);
     return {
       hasExternalUrls: false,
       externalUrls: [],
-      totalItems: 0
+      totalItems: 0,
+      partsUsingParentImages: 0
     };
   }
 };

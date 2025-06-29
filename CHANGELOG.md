@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.16.3] - 2025-06-29
+
+### Fixed
+- **🔗 Part-to-Parent Image Mapping** - Prime parts now correctly use their parent item images
+  - **🎯 Smart Part Detection** - "Akarius Prime Link" now uses "Akarius Prime" image instead of trying to find part-specific images
+  - **📋 Comprehensive Part Suffixes** - Enhanced detection for all prime part types (Blueprint, Chassis, Link, Upper Limb, etc.)
+  - **🔄 Automatic Migration** - New `migratePartsToParentImages()` function runs on app startup to fix existing inventory
+  - **📏 Sorted Suffix Matching** - Matches longer suffixes first (e.g., "Upper Limb" before "Limb") for accurate parent detection
+  - **🔍 Enhanced Verification** - Updated verification system shows count of parts using parent images
+  - **⚡ Consistent Local Images** - All prime parts now display the main item's image for visual consistency
+
+### Enhanced
+- **🎨 Visual Consistency** - All prime parts within a set now show the same main item image for better recognition
+- **📊 Debug Information** - Console logs show part-to-parent mapping during image resolution for easier troubleshooting
+- **🧹 Migration System** - Comprehensive migration runs automatically to update both external URLs and part image mappings
+
 ## [1.16.2] - 2025-06-29
 
 ### Fixed

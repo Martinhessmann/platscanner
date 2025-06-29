@@ -42,7 +42,7 @@ export const getLocalImageUrl = async (itemName: string): Promise<string> => {
   try {
     const mapping = await loadPartMapping();
 
-    // Check if we have a direct mapping for this item
+    // Check if we have a direct mapping for this item (exact match)
     if (mapping[itemName]) {
       return `/images/primeparts/${mapping[itemName]}`;
     }
@@ -51,6 +51,14 @@ export const getLocalImageUrl = async (itemName: string): Promise<string> => {
     const setName = itemName.replace(' Set', '');
     if (mapping[setName]) {
       return `/images/primeparts/${mapping[setName]}`;
+    }
+
+    // For prime parts, try to get the parent set image
+    // e.g., "Akarius Prime Link" → "Akarius Prime" → use Akarius Prime image
+    const parentSetName = getParentSetName(itemName);
+    if (parentSetName !== itemName && mapping[parentSetName]) {
+      console.log(`🔗 Mapping part "${itemName}" to parent image: ${parentSetName}`);
+      return `/images/primeparts/${mapping[parentSetName]}`;
     }
 
     // Fallback: try to construct filename from item name
@@ -90,6 +98,12 @@ export const getLocalImageUrlSync = (itemName: string): string | null => {
     return `/images/primeparts/${partMappingCache[setName]}`;
   }
 
+  // For prime parts, try to get the parent set image
+  const parentSetName = getParentSetName(itemName);
+  if (parentSetName !== itemName && partMappingCache[parentSetName]) {
+    return `/images/primeparts/${partMappingCache[parentSetName]}`;
+  }
+
   return null;
 };
 
@@ -111,12 +125,19 @@ export const getParentSetName = (partName: string): string => {
   const partSuffixes = [
     'Blueprint', 'Chassis', 'Neuroptics', 'Systems',
     'Barrel', 'Receiver', 'Stock', 'Blade', 'Handle',
-    'Grip', 'String', 'Limb', 'Guard', 'Hilt',
-    'Link', 'Carapace', 'Cerebrum', 'Wings', 'Harness'
+    'Grip', 'String', 'Link', 'Guard', 'Hilt',
+    'Upper Limb', 'Lower Limb', 'Carapace', 'Cerebrum',
+    'Wings', 'Harness', 'Gauntlet', 'Pouch', 'Stars',
+    'Boot', 'Chain', 'Disc', 'Head', 'Ornament',
+    'Band', 'Buckle', 'Blades'
   ];
 
   let setName = partName;
-  for (const suffix of partSuffixes) {
+
+  // Sort by length (descending) to match longer suffixes first (e.g., "Upper Limb" before "Limb")
+  const sortedSuffixes = partSuffixes.sort((a, b) => b.length - a.length);
+
+  for (const suffix of sortedSuffixes) {
     if (partName.endsWith(` ${suffix}`)) {
       setName = partName.replace(` ${suffix}`, '');
       break;
