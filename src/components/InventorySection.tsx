@@ -7,6 +7,7 @@ import { InventoryItem } from '../services/inventoryService';
 import { ItemCategory, VoidRelic } from '../types';
 import ResultsTable from './ResultsTable';
 import RelicResultsTable from './RelicResultsTable';
+import LastRefreshInfo from './LastRefreshInfo';
 
 interface InventorySectionProps {
   category: ItemCategory;
@@ -17,6 +18,7 @@ interface InventorySectionProps {
   totalDucats: number;
   isRefreshing: boolean;
   progress?: { category: string; current: number; total: number };
+  lastRefreshTime?: Date | null;
   onRefreshAll: () => void;
   onClearAll: () => void;
   onRefreshItem: (itemName: string) => void;
@@ -43,6 +45,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   totalDucats,
   isRefreshing,
   progress,
+  lastRefreshTime,
   onRefreshAll,
   onClearAll,
   onRefreshItem,
@@ -134,32 +137,39 @@ const InventorySection: React.FC<InventorySectionProps> = ({
 
         {/* Action buttons - only show when expanded */}
         {isExpanded && items.length > 0 && (
-          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-700/50">
-            <button
-              onClick={onRefreshAll}
-              disabled={isRefreshing}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex-1 justify-center ${
-                isRefreshing
-                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                  : 'bg-tenno-blue/10 hover:bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/20'
-              }`}
-              title={`Refresh all ${getCategoryDisplayName(category).toLowerCase()}`}
-            >
-              <RefreshCw
-                size={14}
-                className={isRefreshing ? 'animate-spin' : ''}
-              />
-              {getRefreshButtonText()}
-            </button>
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700/50">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={onRefreshAll}
+                disabled={isRefreshing}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isRefreshing
+                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'bg-tenno-blue/10 hover:bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/20'
+                }`}
+                title={`Refresh all ${getCategoryDisplayName(category).toLowerCase()}`}
+              >
+                <RefreshCw
+                  size={14}
+                  className={isRefreshing ? 'animate-spin' : ''}
+                />
+                {getRefreshButtonText()}
+              </button>
 
-            <button
-              onClick={onClearAll}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-grineer-red/10 hover:bg-grineer-red/20 text-grineer-red border border-grineer-red/20 transition-colors flex-1 justify-center"
-              title={`Clear all ${getCategoryDisplayName(category).toLowerCase()}`}
-            >
-              <Trash2 size={14} />
-              Clear
-            </button>
+              <button
+                onClick={onClearAll}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-grineer-red/10 hover:bg-grineer-red/20 text-grineer-red border border-grineer-red/20 transition-colors"
+                title={`Clear all ${getCategoryDisplayName(category).toLowerCase()}`}
+              >
+                <Trash2 size={14} />
+                Clear
+              </button>
+            </div>
+
+                        <LastRefreshInfo
+              lastRefreshDate={lastRefreshTime || null}
+              className="ml-auto"
+            />
           </div>
         )}
 

@@ -8,6 +8,8 @@ import {
   analyzeSetProgressWithMarketData,
   getSetRecommendations,
   toggleSetMastery,
+  refreshPrimeSetsMarketData,
+  getPrimeSetsLastRefresh,
   SetProgress,
   PrimeSet
 } from '../services/primeSetService';
@@ -34,8 +36,10 @@ import {
   MessageCircle,
   ShoppingCart,
   Dices,
-  Combine
+  Combine,
+  RefreshCw
 } from 'lucide-react';
+import LastRefreshInfo from './LastRefreshInfo';
 import {
   isSetPlanned,
   addToBuildPlan,
@@ -63,6 +67,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [plannedSets, setPlannedSets] = useState<Map<string, { planned: boolean; isPriority: boolean }>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState<{ current: number; total: number } | undefined>(undefined);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
   const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +84,12 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     localStorage.setItem('accordion_prime_sets', JSON.stringify(isExpanded));
   }, [isExpanded]);
 
+  // Load last refresh time on mount
+  useEffect(() => {
+    const lastRefresh = getPrimeSetsLastRefresh();
+    setLastRefreshTime(lastRefresh);
+  }, []);
+
   // Auto-scroll to section when collapsing
   const handleToggle = () => {
     if (isExpanded && sectionRef.current) {
@@ -87,6 +100,39 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       });
     }
     setIsExpanded(!isExpanded);
+  };
+
+  // Handle refresh Prime Sets market data
+  const handleRefreshPrimeSets = async () => {
+    if (isRefreshing) return;
+
+    try {
+      setIsRefreshing(true);
+      setRefreshProgress({ current: 0, total: setProgress.length });
+
+      console.log('🔄 [Prime Sets] Starting manual refresh...');
+
+      // Force refresh market data
+      const refreshedProgress = await refreshPrimeSetsMarketData(primePartsInventory, relicsInventory);
+
+      setSetProgress(refreshedProgress);
+
+      // Update last refresh time
+      const newRefreshTime = new Date();
+      setLastRefreshTime(newRefreshTime);
+
+      // Update reservations for all planned sets
+      setTimeout(() => {
+        updateAllReservations(refreshedProgress, relicsInventory);
+      }, 0);
+
+      console.log('✅ [Prime Sets] Manual refresh completed');
+    } catch (error) {
+      console.error('❌ [Prime Sets] Refresh failed:', error);
+    } finally {
+      setIsRefreshing(false);
+      setRefreshProgress(undefined);
+    }
   };
 
   // Calculate progress on inventory changes
@@ -844,6 +890,55 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
             </div>
           </div>
         </button>
+
+        {/* Action buttons and refresh info - only show when expanded */}
+        {isExpanded && setProgress.length > 0 && (
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700/50">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefreshPrimeSets}
+                disabled={isRefreshing}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  isRefreshing
+                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                    : 'bg-tenno-blue/10 hover:bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/20'
+                }`}
+                title="Refresh all Prime Sets market data"
+              >
+                <RefreshCw
+                  size={14}
+                  className={isRefreshing ? 'animate-spin' : ''}
+                />
+                {isRefreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+
+            <LastRefreshInfo
+              lastRefreshDate={lastRefreshTime}
+              className="ml-auto"
+            />
+          </div>
+        )}
+
+        {/* Progress bar - show when refreshing */}
+        {isRefreshing && refreshProgress && (
+          <div className="mt-3 pt-3 border-t border-gray-700/50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-400">Refreshing market data...</span>
+              <span className="text-xs text-gray-400">
+                {refreshProgress.current} / {refreshProgress.total}
+              </span>
+            </div>
+            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-tenno-blue transition-all duration-300"
+                style={{
+                  width: `${(refreshProgress.current / refreshProgress.total) * 100}%`
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Content */}

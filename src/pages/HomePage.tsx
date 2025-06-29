@@ -15,6 +15,8 @@ import {
   getInventoryStats,
   getCategorizedInventory,
   calculateRelicValueAnalysis,
+  setLastRefreshTime,
+  getLastRefreshTime,
   InventoryItem
 } from '../services/inventoryService';
 import { ImageState, DetectedItem, ProcessingState, VoidRelic } from '../types';
@@ -39,6 +41,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   });
 
   const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
+  const [lastPrimePartsRefresh, setLastPrimePartsRefresh] = useState<Date | null>(null);
+  const [lastRelicsRefresh, setLastRelicsRefresh] = useState<Date | null>(null);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
   const [fetchingProgress, setFetchingProgress] = useState<{ current: number; total: number } | undefined>(undefined);
@@ -55,6 +59,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   useEffect(() => {
     const inventory = getCategorizedInventory();
     setCategorizedInventory(inventory);
+
+    // Load last refresh times
+    setLastPrimePartsRefresh(getLastRefreshTime('prime_parts'));
+    setLastRelicsRefresh(getLastRefreshTime('relics'));
   }, []);
 
   // Refresh inventory when data is imported
@@ -741,6 +749,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       }
 
       setLastPriceRefresh(new Date());
+
+      // Set category-specific last refresh time
+      setLastRefreshTime(category);
+      if (category === 'prime_parts') {
+        setLastPrimePartsRefresh(new Date());
+      } else if (category === 'relics') {
+        setLastRelicsRefresh(new Date());
+      }
+
       console.log(`>>> [HomePage] Category refresh completed for ${updatedItems.length} items <<<`);
     } catch (error) {
       console.error(`Error refreshing ${category} prices:`, error);
@@ -969,6 +986,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 totalDucats={inventoryStats.byCategory.prime_parts.ducats}
                 isRefreshing={refreshingCategories.has('prime_parts')}
                 progress={categoryProgress?.category === 'prime_parts' ? categoryProgress : undefined}
+                lastRefreshTime={lastPrimePartsRefresh}
                 onRefreshAll={() => handleRefreshCategoryPrices('prime_parts')}
                 onClearAll={() => handleClearInventory('prime_parts')}
                 onRefreshItem={handleRefreshSingleItem}
@@ -985,6 +1003,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 totalDucats={inventoryStats.byCategory.relics.ducats}
                 isRefreshing={refreshingCategories.has('relics')}
                 progress={categoryProgress?.category === 'relics' ? categoryProgress : undefined}
+                lastRefreshTime={lastRelicsRefresh}
                 onRefreshAll={() => handleRefreshCategoryPrices('relics')}
                 onClearAll={() => handleClearInventory('relics')}
                 onRefreshItem={handleRefreshSingleItem}

@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.16.0] - 2025-01-28
+## [1.16.1] - 2025-06-29
+
+### Added
+- **🔄 Unified Refresh System** - All 3 inventory modules now have consistent refresh functionality
+  - **🔄 Prime Sets Refresh Button** - Manual refresh for Prime Sets market data with progress bar and loading states
+  - **⏰ Last Refreshed Timestamps** - "Last refreshed X minutes ago" info for Prime Parts, Void Relics, and Prime Sets
+  - **📊 Consistent Progress Indicators** - Unified refresh UI with progress bars and status counters across all modules
+  - **💾 Prime Sets Persistence** - Prime Sets analysis data now persists in localStorage and doesn't disappear on refresh
+  - **🔄 Smart Caching** - Prime Sets market data cached to avoid unnecessary API calls unless manually refreshed
+
+### Enhanced
+- **🛡️ Prime Sets State Management** - Prime Sets now stay visible during market price refresh, similar to other modules
+- **📱 Consistent UX** - All 3 modules (Prime Parts, Void Relics, Prime Sets) now have matching refresh controls and behavior
+- **🎯 Force Refresh Option** - Manual refresh bypasses cache for up-to-date market data when needed
+
+### Technical
+- **🏗️ Enhanced PrimeSetService** - Added caching functions (`getPrimeSetsCache`, `setPrimeSetsCache`, `clearPrimeSetsCache`)
+- **📡 Refresh Time Tracking** - New functions in inventoryService for tracking last refresh times per module
+- **🎨 LastRefreshInfo Component** - Reusable component for displaying relative refresh times with auto-updating text
+- **🔄 Force Refresh Support** - Added `forceRefresh` parameter to `analyzeSetProgressWithMarketData` function
+
+## [1.16.0] - 2025-06-28
 
 ### Added
 - **🎯 REVOLUTIONARY: Complete Prime Set Market Integration** - Going full circle with complete trading strategy analysis
@@ -79,7 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **💰 Investment Optimization** - Revolutionary ROI calculations guide users to optimal investment strategies
 - **🎯 Action-Oriented UX** - Users get immediate actionable recommendations with clear profit projections
 
-## [1.15.1] - 2025-01-28
+## [1.15.1] - 2025-06-28
 
 ### Fixed
 - **🤖 Smart Two-Step AI Analysis System** - Fixed hallucination while preserving relic detection accuracy
@@ -111,7 +132,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **📡 Loop-Safe Data Loading** - Cloud downloads no longer trigger upload loops on page refresh
   - **🔍 Enhanced Logging** - Clear console messages when sync operations are skipped due to state protection
 
-## [1.14.3] - 2025-01-28
+## [1.14.3] - 2025-06-28
 
 ### Fixed
 - **🔄 Smart Cloud Sync System** - Major overhaul to prevent local data loss
@@ -131,7 +152,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **📊 Data Export Service** - Syncs after importing backup data
   - **🎯 Error Handling** - Graceful fallbacks when cloud sync unavailable
 
-## [1.14.2] - 2025-01-28
+## [1.14.2] - 2025-06-28
 
 ### Added
 - **👁️ Unreserved Items Filter** - New filter to show only items not reserved for build plans
@@ -147,7 +168,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **📱 Consistent Interface** - Unified filter experience across both desktop table and mobile card views
 - **🛡️ Selling Safety** - Easy way to identify items that won't interfere with planned prime builds
 
-## [1.14.1] - 2025-01-28
+## [1.14.1] - 2025-06-28
 
 ### Fixed
 - **🚨 CRITICAL: Owned Prime Parts Not Reserved** - Fixed reservation system to reserve ALL required parts, including owned ones
@@ -162,7 +183,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **🛡️ Enhanced Protection** - Owned prime parts now properly show reservation warnings regardless of Blueprint naming
   - **🧹 Production Code Cleanup** - Removed debug logging after successful diagnosis and fix
 
-## [1.14.0] - 2025-01-28
+## [1.14.0] - 2025-06-28
 
 ### Added
 - **⚡ Static Data Performance Optimization** - Revolutionary caching system eliminating redundant data loading
@@ -203,7 +224,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **📋 Enhanced Type Safety** - Improved function signatures and error handling
   - **🔧 Comprehensive Testing** - Created and validated test cases for matching edge cases
 
-## [1.13.0] - 2025-01-07
+## [1.13.0] - 2025-06-26
 
 ### Added
 - **☁️ REVOLUTIONARY: Cross-Platform Cloud Sync** - Complete inventory synchronization across all devices and browsers

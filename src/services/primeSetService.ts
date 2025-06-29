@@ -1,6 +1,6 @@
 // Purpose: Prime Set Management Service - Detects buildable sets from inventory and tracks mastery status
 // Author: Assistant
-// Last Updated: 2025-01-03
+// Last Updated: 2025-01-28
 
 import { DetectedItem, VoidRelic } from '../types';
 import { cloudSyncService } from './cloudSyncService';
@@ -204,6 +204,54 @@ const loadPrimeSets = async (): Promise<PrimeSet[]> => {
 
 // Mastery tracking storage key
 const MASTERY_STORAGE_KEY = 'platscanner_mastery';
+
+// NEW: Prime Sets analysis cache storage
+const PRIME_SETS_CACHE_KEY = 'platscanner_prime_sets_cache';
+const PRIME_SETS_LAST_REFRESH_KEY = 'platscanner_prime_sets_last_refresh';
+
+// NEW: Cache management for Prime Sets analysis results
+export const getPrimeSetsCache = (): SetProgress[] => {
+  try {
+    const stored = localStorage.getItem(PRIME_SETS_CACHE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('Failed to load prime sets cache:', error);
+    return [];
+  }
+};
+
+export const setPrimeSetsCache = (setProgress: SetProgress[]): void => {
+  try {
+    localStorage.setItem(PRIME_SETS_CACHE_KEY, JSON.stringify(setProgress));
+    localStorage.setItem(PRIME_SETS_LAST_REFRESH_KEY, new Date().toISOString());
+
+    // Notify cloud sync of local data modification
+    cloudSyncService.onLocalDataModified().catch(error => {
+      console.error('Failed to sync prime sets cache to cloud:', error);
+    });
+  } catch (error) {
+    console.error('Failed to save prime sets cache:', error);
+  }
+};
+
+export const getPrimeSetsLastRefresh = (): Date | null => {
+  try {
+    const stored = localStorage.getItem(PRIME_SETS_LAST_REFRESH_KEY);
+    return stored ? new Date(stored) : null;
+  } catch (error) {
+    console.error('Failed to load prime sets last refresh:', error);
+    return null;
+  }
+};
+
+export const clearPrimeSetsCache = (): void => {
+  try {
+    localStorage.removeItem(PRIME_SETS_CACHE_KEY);
+    localStorage.removeItem(PRIME_SETS_LAST_REFRESH_KEY);
+  } catch (error) {
+    console.error('Failed to clear prime sets cache:', error);
+  }
+};
 
 // Get mastered sets from localStorage
 export const getMasteredSets = (): string[] => {
@@ -515,8 +563,18 @@ const determineOptimalStrategyWithInvestment = (
 export const analyzeSetProgressWithMarketData = async (
   primePartsInventory: DetectedItem[],
   relicsInventory: VoidRelic[] = [],
-  includeMarketData: boolean = true
+  includeMarketData: boolean = true,
+  forceRefresh: boolean = false
 ): Promise<SetProgress[]> => {
+  // Check for cached data first (unless force refresh requested)
+  if (!forceRefresh && includeMarketData) {
+    const cachedProgress = getPrimeSetsCache();
+    if (cachedProgress.length > 0) {
+      console.log(`📦 [Prime Sets] Using cached analysis data (${cachedProgress.length} sets)`);
+      return cachedProgress;
+    }
+  }
+
   const primeSets = await loadPrimeSets();
   const masteredSets = getMasteredSets();
 
@@ -616,6 +674,12 @@ export const analyzeSetProgressWithMarketData = async (
     }
   }
 
+  // Cache the results if market data was included
+  if (includeMarketData) {
+    setPrimeSetsCache(setProgress);
+    console.log(`💾 [Prime Sets] Cached analysis data (${setProgress.length} sets)`);
+  }
+
   return setProgress;
 };
 
@@ -679,4 +743,18 @@ export const getSetRecommendations = async (
     .slice(0, 5);
 
   return { buildable, nearComplete, highValue };
+};
+
+// NEW: Refresh Prime Sets market data (force refresh)
+export const refreshPrimeSetsMarketData = async (
+  primePartsInventory: DetectedItem[],
+  relicsInventory: VoidRelic[] = []
+): Promise<SetProgress[]> => {
+  console.log('🔄 [Prime Sets] Force refreshing market data...');
+
+  // Clear cache first
+  clearPrimeSetsCache();
+
+  // Force fetch new data
+  return analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory, true, true);
 };

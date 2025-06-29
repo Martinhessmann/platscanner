@@ -10,6 +10,10 @@ import { cloudSyncService } from './cloudSyncService';
 const INVENTORY_STORAGE_KEY = 'platscanner_inventory';
 const LAST_SCAN_STORAGE_KEY = 'platscanner_last_scan';
 
+// Last refresh tracking for each module
+const PRIME_PARTS_LAST_REFRESH_KEY = 'platscanner_prime_parts_last_refresh';
+const RELICS_LAST_REFRESH_KEY = 'platscanner_relics_last_refresh';
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -487,6 +491,27 @@ export const calculateRelicValueAnalysis = async (
     return result;
   } catch (error) {
     console.error('Relic analysis failed:', error);
+    return null;
+  }
+};
+
+// NEW: Last refresh time tracking for modules
+export const setLastRefreshTime = (category: 'prime_parts' | 'relics'): void => {
+  const key = category === 'prime_parts' ? PRIME_PARTS_LAST_REFRESH_KEY : RELICS_LAST_REFRESH_KEY;
+  try {
+    localStorage.setItem(key, new Date().toISOString());
+  } catch (error) {
+    console.error(`Failed to save last refresh time for ${category}:`, error);
+  }
+};
+
+export const getLastRefreshTime = (category: 'prime_parts' | 'relics'): Date | null => {
+  const key = category === 'prime_parts' ? PRIME_PARTS_LAST_REFRESH_KEY : RELICS_LAST_REFRESH_KEY;
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? new Date(stored) : null;
+  } catch (error) {
+    console.error(`Failed to load last refresh time for ${category}:`, error);
     return null;
   }
 };
