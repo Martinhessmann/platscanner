@@ -22,11 +22,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **📱 Consistent UX** - All 3 modules (Prime Parts, Void Relics, Prime Sets) now have matching refresh controls and behavior
 - **🎯 Force Refresh Option** - Manual refresh bypasses cache for up-to-date market data when needed
 
+### Fixed
+- **🔧 Prime Sets Button Functionality** - Fixed all non-functional buttons in Prime Sets trading strategy cards
+  - **💬 Message Buyer Buttons** - Now properly copy whisper messages to clipboard with visual feedback
+  - **🌐 View Market Buttons** - Now open correct Warframe Market pages for complete sets
+  - **🎲 View Relics Buttons** - Placeholder functionality implemented (shows debug info)
+  - **🛒 Find Parts Buttons** - Opens Warframe Market search for missing parts
+  - **📋 Clipboard Integration** - All message buttons now copy proper `/w` commands and show check marks
+
 ### Technical
 - **🏗️ Enhanced PrimeSetService** - Added caching functions (`getPrimeSetsCache`, `setPrimeSetsCache`, `clearPrimeSetsCache`)
 - **📡 Refresh Time Tracking** - New functions in inventoryService for tracking last refresh times per module
 - **🎨 LastRefreshInfo Component** - Reusable component for displaying relative refresh times with auto-updating text
 - **🔄 Force Refresh Support** - Added `forceRefresh` parameter to `analyzeSetProgressWithMarketData` function
+- **🔄 Individual Set Refresh** - New `refreshIndividualSetMarketData` function for refreshing single Prime Sets
+- **📋 Clipboard Functionality** - Added `handleClipboardCopy` function with visual feedback for message buttons
+- **🌐 Market URL Generation** - Smart URL generation for Warframe Market links and searches
 
 ## [1.16.0] - 2025-06-28
 

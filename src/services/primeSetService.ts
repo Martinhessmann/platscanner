@@ -190,7 +190,7 @@ const transformJsonToPrimeSet = (jsonSet: PrimeSetJson): PrimeSet => {
 
 // Use centralized static data loading
 import { loadPrimeSetsData } from './staticDataService';
-import { fetchBatchPrimeSetMarketData } from './warframeMarketService';
+import { fetchBatchPrimeSetMarketData, fetchPrimeSetMarketData } from './warframeMarketService';
 
 const loadPrimeSets = async (): Promise<PrimeSet[]> => {
   try {
@@ -757,4 +757,100 @@ export const refreshPrimeSetsMarketData = async (
 
   // Force fetch new data
   return analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory, true, true);
+};
+
+// NEW: Refresh individual Prime Set market data
+export const refreshIndividualSetMarketData = async (
+  setName: string,
+  primePartsInventory: DetectedItem[],
+  relicsInventory: VoidRelic[] = []
+): Promise<SetProgress | null> => {
+  console.log(`🔄 [Prime Set] Force refreshing market data for: ${setName}`);
+
+  try {
+    const primeSets = await loadPrimeSets();
+    const masteredSets = getMasteredSets();
+
+    // Find the specific set
+    const targetSet = primeSets.find(set => set.name === setName);
+    if (!targetSet) {
+      console.error(`🔄 [Prime Set] Set not found: ${setName}`);
+      return null;
+    }
+
+    // Calculate basic progress for this set
+    const ownedParts: string[] = [];
+    const missingParts: string[] = [];
+    const obtainableFromRelics: string[] = [];
+    let totalCost = 0;
+
+    targetSet.requiredParts.forEach(part => {
+      const requiredCount = part.itemCount || 1;
+      if (ownsItem(part.name, requiredCount, primePartsInventory)) {
+        ownedParts.push(part.name);
+      } else {
+        missingParts.push(part.name);
+        if (canObtainFromRelics(part.name, relicsInventory)) {
+          obtainableFromRelics.push(part.name);
+        }
+      }
+      totalCost += 50; // Placeholder cost per part
+    });
+
+    const canBuild = missingParts.length === 0;
+    const completionPercentage = (ownedParts.length / targetSet.requiredParts.length) * 100;
+    const missingCost = calculateMissingCost(missingParts);
+    const ismastered = masteredSets.includes(targetSet.id);
+
+    const setProgress: SetProgress = {
+      set: targetSet,
+      ownedParts,
+      missingParts,
+      obtainableFromRelics,
+      canBuild,
+      totalCost,
+      missingCost,
+      completionPercentage,
+      ismastered,
+      setMarketStatus: 'loading' as const
+    };
+
+    // Fetch market data for this specific set if it has owned parts or can be built
+    if (ownedParts.length > 0 || canBuild) {
+      try {
+        const setMarketData = await fetchPrimeSetMarketData(setName);
+        const individualPartsValue = calculateIndividualPartsValue(ownedParts, primePartsInventory);
+        const completeSetPrice = setMarketData.price;
+        const profitDifference = completeSetPrice - individualPartsValue;
+
+        // Update progress with market analysis
+        setProgress.completeSetPrice = setMarketData.price;
+        setProgress.completeSetVolume = setMarketData.volume;
+        setProgress.completeSetAverage = setMarketData.average;
+        setProgress.completeSetBuyerUsername = setMarketData.buyerUsername || undefined;
+        setProgress.completeSetBuyerQuantity = setMarketData.buyerQuantity;
+        setProgress.individualPartsValue = individualPartsValue;
+        setProgress.profitDifference = profitDifference;
+
+        // Calculate investment analysis
+        const investmentAnalysis = calculateInvestmentAnalysis(setProgress, primePartsInventory, relicsInventory);
+        setProgress.investmentAnalysis = investmentAnalysis;
+
+        setProgress.recommendedStrategy = determineOptimalStrategyWithInvestment(setProgress, individualPartsValue, completeSetPrice, investmentAnalysis);
+        setProgress.setMarketStatus = 'loaded' as const;
+        setProgress.setMarketError = setMarketData.error;
+
+        console.log(`🎯 [Individual Set] ${setName}: Parts=${individualPartsValue}p, Set=${completeSetPrice}p, Strategy=${setProgress.recommendedStrategy}`);
+      } catch (error) {
+        console.error(`🔄 [Prime Set] Failed to fetch market data for ${setName}:`, error);
+        setProgress.setMarketStatus = 'error' as const;
+        setProgress.setMarketError = error instanceof Error ? error.message : 'Failed to fetch market data';
+      }
+    }
+
+    return setProgress;
+  } catch (error) {
+    console.error(`🔄 [Prime Set] Failed to refresh ${setName}:`, error);
+    return null;
+  }
 };

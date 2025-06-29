@@ -9,6 +9,7 @@ import {
   getSetRecommendations,
   toggleSetMastery,
   refreshPrimeSetsMarketData,
+  refreshIndividualSetMarketData,
   getPrimeSetsLastRefresh,
   SetProgress,
   PrimeSet
@@ -37,7 +38,9 @@ import {
   ShoppingCart,
   Dices,
   Combine,
-  RefreshCw
+  RefreshCw,
+  Check,
+  ExternalLink
 } from 'lucide-react';
 import LastRefreshInfo from './LastRefreshInfo';
 import {
@@ -70,6 +73,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshProgress, setRefreshProgress] = useState<{ current: number; total: number } | undefined>(undefined);
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
+  const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
 
   const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -90,6 +94,25 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     setLastRefreshTime(lastRefresh);
   }, []);
 
+  // Handle clipboard copy with visual feedback
+  const handleClipboardCopy = async (text: string, itemId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedItems(prev => new Set(prev).add(itemId));
+
+      // Clear the copied state after 2 seconds
+      setTimeout(() => {
+        setCopiedItems(prev => {
+          const updated = new Set(prev);
+          updated.delete(itemId);
+          return updated;
+        });
+      }, 2000);
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+    }
+  };
+
   // Auto-scroll to section when collapsing
   const handleToggle = () => {
     if (isExpanded && sectionRef.current) {
@@ -102,7 +125,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     setIsExpanded(!isExpanded);
   };
 
-  // Handle refresh Prime Sets market data
+    // Handle refresh Prime Sets market data
   const handleRefreshPrimeSets = async () => {
     if (isRefreshing) return;
 
@@ -132,6 +155,53 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     } finally {
       setIsRefreshing(false);
       setRefreshProgress(undefined);
+    }
+  };
+
+    // Handle refresh individual Prime Set
+  const handleRefreshIndividualSet = async (progress: SetProgress) => {
+    try {
+      console.log(`🔄 [Prime Set] Refreshing individual set: ${progress.set.name}`);
+
+      // Update the specific set to loading state
+      setSetProgress(prev => prev.map(p =>
+        p.set.id === progress.set.id
+          ? { ...p, setMarketStatus: 'loading' as const }
+          : p
+      ));
+
+      // Use the new individual refresh function
+      const updatedSet = await refreshIndividualSetMarketData(
+        progress.set.name,
+        primePartsInventory,
+        relicsInventory
+      );
+
+      if (updatedSet) {
+        setSetProgress(prev => prev.map(p =>
+          p.set.id === progress.set.id ? updatedSet : p
+        ));
+
+        // Update last refresh time
+        setLastRefreshTime(new Date());
+
+        console.log(`✅ [Prime Set] Individual refresh completed for ${progress.set.name}`);
+      } else {
+        throw new Error('Failed to refresh individual set data');
+      }
+    } catch (error) {
+      console.error(`❌ [Prime Set] Individual refresh failed for ${progress.set.name}:`, error);
+
+      // Set error state for this set
+      setSetProgress(prev => prev.map(p =>
+        p.set.id === progress.set.id
+          ? {
+              ...p,
+              setMarketStatus: 'error' as const,
+              setMarketError: 'Failed to refresh market data'
+            }
+          : p
+      ));
     }
   };
 
@@ -765,22 +835,46 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
             {/* Action Buttons */}
             <div className="flex gap-2">
               {investment.missingPartsFromRelics.length > 0 && (
-                <button className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded text-xs text-purple-400 hover:bg-purple-600/30 transition-colors">
+                <button
+                  onClick={() => {
+                    // TODO: Show modal or navigate to relics section filtered by needed parts
+                    console.log('View Relics for:', investment.missingPartsFromRelics);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-purple-600/20 border border-purple-500/30 rounded text-xs text-purple-400 hover:bg-purple-600/30 transition-colors"
+                >
                   <Dices size={12} />
                   View Relics
                 </button>
               )}
 
               {investment.missingPartsToBuy.length > 0 && (
-                <button className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-orange-600/20 border border-orange-500/30 rounded text-xs text-orange-400 hover:bg-orange-600/30 transition-colors">
+                <button
+                  onClick={() => {
+                    // Open Warframe Market search for missing parts
+                    const searchQuery = investment.missingPartsToBuy.map(part =>
+                      part.replace(/^.*?\s/, '').toLowerCase() // Remove prime name, keep part type
+                    ).join('%20');
+                    const searchUrl = `https://warframe.market/search?q=${searchQuery}`;
+                    window.open(searchUrl, '_blank', 'noopener,noreferrer');
+                  }}
+                  className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-orange-600/20 border border-orange-500/30 rounded text-xs text-orange-400 hover:bg-orange-600/30 transition-colors"
+                >
                   <ShoppingCart size={12} />
                   Find Parts
                 </button>
               )}
 
               {progress.completeSetBuyerUsername && (
-                <button className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded text-xs text-blue-400 hover:bg-blue-600/30 transition-colors">
-                  <MessageCircle size={12} />
+                <button
+                  onClick={() => {
+                    const message = `/w ${progress.completeSetBuyerUsername} Hi! I want to sell: "${progress.set.name} Set" for ${progress.completeSetPrice} platinum. (warframe.market)`;
+                    handleClipboardCopy(message, `set-${progress.set.id}`);
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded text-xs text-blue-400 hover:bg-blue-600/30 transition-colors ${
+                    copiedItems.has(`set-${progress.set.id}`) ? 'text-green-400' : ''
+                  }`}
+                >
+                  {copiedItems.has(`set-${progress.set.id}`) ? <Check size={12} /> : <MessageCircle size={12} />}
                   Message
                 </button>
               )}
@@ -829,14 +923,28 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
             {/* Action Buttons for immediate strategies */}
             <div className="flex gap-2">
               {progress.completeSetBuyerUsername && (
-                <button className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded text-xs text-blue-400 hover:bg-blue-600/30 transition-colors">
-                  <MessageCircle size={12} />
+                <button
+                  onClick={() => {
+                    const message = `/w ${progress.completeSetBuyerUsername} Hi! I want to sell: "${progress.set.name} Set" for ${progress.completeSetPrice} platinum. (warframe.market)`;
+                    handleClipboardCopy(message, `set-${progress.set.id}`);
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded text-xs text-blue-400 hover:bg-blue-600/30 transition-colors ${
+                    copiedItems.has(`set-${progress.set.id}`) ? 'text-green-400' : ''
+                  }`}
+                >
+                  {copiedItems.has(`set-${progress.set.id}`) ? <Check size={12} /> : <MessageCircle size={12} />}
                   Message {progress.completeSetBuyerUsername}
                 </button>
               )}
 
-              <button className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-600/20 border border-gray-500/30 rounded text-xs text-gray-400 hover:bg-gray-600/30 transition-colors">
-                <Target size={12} />
+              <button
+                onClick={() => {
+                  const marketUrl = `https://warframe.market/items/${progress.set.name.toLowerCase().replace(/\s+/g, '_')}_set`;
+                  window.open(marketUrl, '_blank', 'noopener,noreferrer');
+                }}
+                className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-600/20 border border-gray-500/30 rounded text-xs text-gray-400 hover:bg-gray-600/30 transition-colors"
+              >
+                <ExternalLink size={12} />
                 View Market
               </button>
             </div>
@@ -1196,6 +1304,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               </div>
               {/* Actions for each tab */}
               <div className="flex items-center gap-1">
+                {/* Individual refresh button */}
+                <button
+                  onClick={() => handleRefreshIndividualSet(progress)}
+                  disabled={progress.setMarketStatus === 'loading'}
+                  className={`p-1 rounded-full transition-colors ${
+                    progress.setMarketStatus === 'loading'
+                      ? 'bg-gray-800/30 text-gray-500 cursor-not-allowed'
+                      : 'bg-gray-800/30 text-gray-400 border border-gray-600/30 hover:text-tenno-blue hover:border-tenno-blue/30'
+                  }`}
+                  title="Refresh market data for this set"
+                >
+                  <RefreshCw
+                    size={14}
+                    className={progress.setMarketStatus === 'loading' ? 'animate-spin' : ''}
+                  />
+                </button>
+
                 {/* Priority toggle for planned sets */}
                 {getSetState(progress) === 'planned' && (
                   <button
