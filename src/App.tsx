@@ -7,6 +7,7 @@ import AboutPage from './pages/AboutPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
 import { isGeminiConfigured, setApiKey } from './services/geminiService';
+import { preloadPartMapping } from './services/localImageService';
 
 function App() {
   const [isConfigured, setIsConfigured] = useState(isGeminiConfigured());
@@ -16,6 +17,9 @@ function App() {
   useEffect(() => {
     // Check configuration status on mount
     setIsConfigured(isGeminiConfigured());
+
+    // Preload the part mapping for faster image loading
+    preloadPartMapping().catch(console.error);
   }, []);
 
   const handleApiKeyChange = async (key: string) => {

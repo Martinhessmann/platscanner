@@ -426,6 +426,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
     // Get prime set image URL from CDN
   const getPrimeSetImageUrl = (setName: string) => {
+    // Use local images from public/images/primeparts directory
     // Mapping based on primesets.json data
     const imageMap: Record<string, string> = {
       "Acceltra Prime": "acceltra-prime-5628f3e466.png",
@@ -580,12 +581,12 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
     const imageFilename = imageMap[setName];
     if (imageFilename) {
-      return `https://cdn.warframestat.us/img/${imageFilename}`;
+      return `/images/primeparts/${imageFilename}`;
     }
 
     // Fallback for sets not in mapping
     const normalizedName = setName.toLowerCase().replace(/ /g, '-');
-    return `https://cdn.warframestat.us/img/${normalizedName}.png`;
+    return `/images/primeparts/${normalizedName}.png`;
   };
 
   const filteredSets = () => {

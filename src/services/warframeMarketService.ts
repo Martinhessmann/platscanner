@@ -1,4 +1,5 @@
-import { DetectedItem } from '../types';
+import { DetectedItem, VoidRelic } from '../types';
+import { getLocalImageUrl } from './localImageService';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -265,13 +266,16 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
 
       console.log(`Raw data for ${part.name}:`, data);
 
+      // Use local images based on item name instead of external CDN
+      const localImageUrl = await getLocalImageUrl(part.name);
+
       updatedParts.push({
         ...part,
         price: data.price,
         ducats: data.ducats,
         volume: data.volume,
         average: data.average,
-        imgUrl: data.thumb && `https://warframe.market/static/assets/${data.thumb}`,
+        imgUrl: localImageUrl,
         status: 'loaded' as const,
         error: data.price === 0 ? 'No active buy orders' : undefined,
         buyerUsername: data.buyerUsername,
@@ -429,13 +433,16 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
 
     console.log(`Raw data for ${primePart.name}:`, data);
 
+    // Use local images based on item name instead of external CDN
+    const localImageUrl = await getLocalImageUrl(primePart.name);
+
     return {
       ...primePart,
       price: data.price,
       ducats: data.ducats,
       volume: data.volume,
       average: data.average,
-      imgUrl: data.thumb && `https://warframe.market/static/assets/${data.thumb}`,
+      imgUrl: localImageUrl,
       status: 'loaded' as const,
       error: data.price === 0 ? 'No active buy orders' : undefined,
       buyerUsername: data.buyerUsername,
