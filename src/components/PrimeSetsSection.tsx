@@ -314,6 +314,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     } else if (newState === 'owned') {
       removeFromBuildPlan(setName); // Remove from plan if it was planned
       toggleSetMastery(setId); // Mark as mastered
+      
+      // IMMEDIATE STATE UPDATE - Fix for owned status bug
+      setSetProgress(prev => prev.map(p => 
+        p.set.id === setId 
+          ? { ...p, ismastered: true }
+          : p
+      ));
+    }
+
+    // Clear previous state for transitions from 'owned'
+    if (currentState === 'owned' && newState !== 'owned') {
+      // Immediate state update when removing mastery
+      setSetProgress(prev => prev.map(p => 
+        p.set.id === setId 
+          ? { ...p, ismastered: false }
+          : p
+      ));
     }
 
     // Update local state
