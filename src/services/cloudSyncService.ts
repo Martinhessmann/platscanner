@@ -249,6 +249,57 @@ class CloudSyncService {
   }
 
   /**
+   * Mark that data was intentionally deleted locally (prevents cloud from overriding)
+   */
+  markIntentionalDeletion(dataType: 'inventory' | 'all' = 'all'): void {
+    try {
+      const deletionRecord = {
+        timestamp: new Date().toISOString(),
+        dataType,
+        deletedBy: 'user_action'
+      };
+      localStorage.setItem('platscanner_intentional_deletion', JSON.stringify(deletionRecord));
+      console.log(`>>> [Cloud Sync] Marked intentional deletion for ${dataType} <<<`);
+    } catch (error) {
+      console.error('Failed to mark intentional deletion:', error);
+    }
+  }
+
+  /**
+   * Check if data was recently intentionally deleted
+   */
+  private wasRecentlyDeleted(dataType: 'inventory' | 'all' = 'all'): boolean {
+    try {
+      const deletionRecord = localStorage.getItem('platscanner_intentional_deletion');
+      if (!deletionRecord) return false;
+
+      const record = JSON.parse(deletionRecord);
+      const deletionTime = new Date(record.timestamp);
+      const now = new Date();
+      const hoursSinceDeletion = (now.getTime() - deletionTime.getTime()) / (1000 * 60 * 60);
+
+      // Consider deletion recent if within 24 hours
+      const isRecent = hoursSinceDeletion < 24;
+      const typeMatches = record.dataType === 'all' || record.dataType === dataType;
+
+      if (isRecent && typeMatches) {
+        console.log(`>>> [Cloud Sync] Recent intentional deletion detected for ${dataType} (${hoursSinceDeletion.toFixed(1)} hours ago) <<<`);
+        return true;
+      }
+
+      // Clean up old deletion records
+      if (hoursSinceDeletion >= 24) {
+        localStorage.removeItem('platscanner_intentional_deletion');
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Failed to check deletion status:', error);
+      return false;
+    }
+  }
+
+  /**
    * Download data from cloud
    */
   async downloadFromCloud(overwriteLocal: boolean = false): Promise<SyncResult> {
@@ -260,6 +311,12 @@ class CloudSyncService {
     if (this.isSyncing) {
       console.log('>>> [Cloud Sync] Already syncing - skipping download <<<');
       return { success: false, error: 'Sync already in progress' };
+    }
+
+    // Check for recent intentional deletions
+    if (!overwriteLocal && this.wasRecentlyDeleted('inventory')) {
+      console.log('>>> [Cloud Sync] Skipping download due to recent intentional deletion <<<');
+      return { success: false, error: 'Recent intentional deletion detected - not restoring from cloud' };
     }
 
     this.isSyncing = true;

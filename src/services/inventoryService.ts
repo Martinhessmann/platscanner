@@ -230,6 +230,9 @@ export const clearInventory = (): void => {
     localStorage.removeItem(INVENTORY_STORAGE_KEY);
     localStorage.removeItem(LAST_SCAN_STORAGE_KEY);
 
+    // Mark this as an intentional deletion to prevent cloud sync from restoring data
+    cloudSyncService.markIntentionalDeletion('inventory');
+
     // Notify cloud sync of local data modification
     cloudSyncService.onLocalDataModified().catch(error => {
       console.error('Failed to sync inventory changes to cloud:', error);
@@ -254,6 +257,11 @@ export const clearInventoryByCategory = (category: ItemCategory): void => {
     };
 
     localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(updatedInventory));
+
+    // Mark this as an intentional deletion if clearing all data
+    if (updatedItems.length === 0) {
+      cloudSyncService.markIntentionalDeletion('inventory');
+    }
 
     // Notify cloud sync of local data modification
     cloudSyncService.onLocalDataModified().catch(error => {
