@@ -1,13 +1,13 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { DetectedItem, PrimePart, VoidRelic } from '../types';
 
 const API_KEY_STORAGE_KEY = 'platscanner_gemini_api_key';
 
-let genAI: GoogleGenerativeAI | null = null;
+let genAI: GoogleGenAI | null = null;
 
 export const initializeGemini = (apiKey: string) => {
   try {
-    genAI = new GoogleGenerativeAI(apiKey);
+    genAI = new GoogleGenAI({apiKey: apiKey});
     return true;
   } catch (error) {
     console.error('Failed to initialize Gemini:', error);
@@ -113,9 +113,9 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
 
       console.log(`>>> [AI Parsing] Processing relic line: "${cleanLine}" (quantity: ${quantity}) <<<`);
 
-      // Enhanced regex to capture the relic name and optional refinement level in parentheses OR square brackets
-      // This pattern handles both formats: "Neo W2 Relic (Radiant)" and "Neo W2 Relic [Radiant]"
-      const relicRegex = /(.*?)\s+[\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/i;
+          // Enhanced regex to capture the relic name and optional refinement level in parentheses OR square brackets
+    // This pattern handles both formats: "Neo W2 Relic (Radiant)" and "Neo W2 Relic [Radiant]"
+    const relicRegex = /(.*?)\s+[([](Intact|Exceptional|Flawless|Radiant)[)\]]/i;
       const match = cleanLine.match(relicRegex);
 
       console.log(`>>> [AI Parsing] Regex match result:`, match);
@@ -167,7 +167,7 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
   return detectedItems;
 };
 
-const determineScreenType = async (model: any, imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'unknown'> => {
+const determineScreenType = async (imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'unknown'> => {
   const screenTypePrompt = `Look at this Warframe screenshot and determine what type of inventory screen this is.
 
 Respond with EXACTLY ONE of these options:
@@ -175,18 +175,25 @@ Respond with EXACTLY ONE of these options:
 - RELICS (if you see Void Relics like "Lith A1 Relic", "Meso B2 Relic", "Neo C3 Relic", "Axi D4 Relic")
 - UNKNOWN (if you cannot clearly determine the screen type)`;
 
-  const result = await model.generateContent([
-    screenTypePrompt,
-    {
-      inlineData: {
-        mimeType: mimeType,
-        data: imageBase64
+  const result = await genAI!.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: screenTypePrompt },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: imageBase64
+            }
+          }
+        ]
       }
-    }
-  ]);
+    ]
+  });
 
-  const response = await result.response;
-  const text = response.text().trim().toUpperCase();
+  const text = result.text.trim().toUpperCase();
 
   console.log(`>>> [Gemini Screen Type] Raw response: "${text}" <<<`);
 
@@ -195,7 +202,7 @@ Respond with EXACTLY ONE of these options:
   return 'unknown';
 };
 
-const analyzePrimeParts = async (model: any, imageBase64: string, mimeType: string): Promise<string> => {
+const analyzePrimeParts = async (imageBase64: string, mimeType: string): Promise<string> => {
   const primePartsPrompt = `Look at this Warframe Prime Parts inventory screenshot and read the EXACT TEXT of every Prime item you can see.
 
 CRITICAL: You must analyze the ACTUAL IMAGE, not guess or use your memory of Warframe items.
@@ -210,20 +217,28 @@ FORMAT: List each item name exactly as written, one per line. For items with qua
 
 If you cannot clearly see any Prime items, respond with "NONE_DETECTED".`;
 
-  const result = await model.generateContent([
-    primePartsPrompt,
-    {
-      inlineData: {
-        mimeType: mimeType,
-        data: imageBase64
+  const result = await genAI!.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: primePartsPrompt },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: imageBase64
+            }
+          }
+        ]
       }
-    }
-  ]);
+    ]
+  });
 
-  return result.response.text();
+  return result.text;
 };
 
-const analyzeRelics = async (model: any, imageBase64: string, mimeType: string): Promise<string> => {
+const analyzeRelics = async (imageBase64: string, mimeType: string): Promise<string> => {
   const relicsPrompt = `Analyze this Warframe Void Relics inventory screenshot and identify ONLY owned relics WITH THEIR QUANTITIES.
 
 CRITICAL INSTRUCTIONS FOR RELICS - STRICT FILTERING REQUIRED:
@@ -259,17 +274,25 @@ Lith A1 Relic (Intact)
 
 If you cannot clearly see any owned relics, respond with "NONE_DETECTED".`;
 
-  const result = await model.generateContent([
-    relicsPrompt,
-    {
-      inlineData: {
-        mimeType: mimeType,
-        data: imageBase64
+  const result = await genAI!.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: relicsPrompt },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: imageBase64
+            }
+          }
+        ]
       }
-    }
-  ]);
+    ]
+  });
 
-  return result.response.text();
+  return result.text;
 };
 
 export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => {
@@ -278,12 +301,11 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
   }
 
   try {
-    const model = genAI!.getGenerativeModel({ model: "gemini-1.5-flash" });
     const imageBase64 = await fileToBase64(imageFile);
 
     // Step 1: Determine screen type
     console.log(`>>> [Gemini] Step 1: Determining screen type <<<`);
-    const screenType = await determineScreenType(model, imageBase64, imageFile.type);
+    const screenType = await determineScreenType(imageBase64, imageFile.type);
     console.log(`>>> [Gemini] Detected screen type: ${screenType} <<<`);
 
     // Step 2: Use appropriate analysis based on screen type
@@ -291,13 +313,13 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
 
     if (screenType === 'prime_parts') {
       console.log(`>>> [Gemini] Step 2: Analyzing Prime Parts with focused prompt <<<`);
-      analysisText = await analyzePrimeParts(model, imageBase64, imageFile.type);
+      analysisText = await analyzePrimeParts(imageBase64, imageFile.type);
     } else if (screenType === 'relics') {
       console.log(`>>> [Gemini] Step 2: Analyzing Relics with detailed filtering <<<`);
-      analysisText = await analyzeRelics(model, imageBase64, imageFile.type);
+      analysisText = await analyzeRelics(imageBase64, imageFile.type);
     } else {
       console.log(`>>> [Gemini] Unknown screen type, using generic analysis <<<`);
-      analysisText = await analyzePrimeParts(model, imageBase64, imageFile.type); // Default to prime parts
+      analysisText = await analyzePrimeParts(imageBase64, imageFile.type); // Default to prime parts
     }
 
     // Debug: Log the raw AI response
