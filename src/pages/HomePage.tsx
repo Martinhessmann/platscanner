@@ -19,6 +19,7 @@ import {
   getLastRefreshTime,
   InventoryItem
 } from '../services/inventoryService';
+import { getPrimeSetsCache } from '../services/primeSetService';
 import { ImageState, DetectedItem, ProcessingState, VoidRelic } from '../types';
 import InfoCard from '../components/InfoCard';
 import PrimeSetsSection from '../components/PrimeSetsSection';
@@ -1010,8 +1011,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 onRemoveItem={handleRemoveFromInventory}
               />
 
-              {/* Prime Sets Section - Show when we have prime parts */}
-              {categorizedInventory.prime_parts.length > 0 && (
+              {/* Prime Sets Section - Show when we have prime parts OR existing prime sets cache */}
+              {(categorizedInventory.prime_parts.length > 0 || getPrimeSetsCache().length > 0) && (
                 <PrimeSetsSection
                   primePartsInventory={categorizedInventory.prime_parts}
                   relicsInventory={categorizedInventory.relics as VoidRelic[]}

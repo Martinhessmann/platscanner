@@ -209,6 +209,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   // Calculate progress on inventory changes
   useEffect(() => {
     let isMounted = true;
+    let timeoutId: NodeJS.Timeout;
 
     const loadData = async () => {
       try {
@@ -219,7 +220,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         ]);
 
         if (isMounted) {
-                    setSetProgress(progress);
+          setSetProgress(progress);
           setRecommendations(recs);
 
           // Update all reservations for all planned sets after data is loaded
@@ -231,7 +232,14 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       } catch (error) {
         console.error('Failed to load prime sets data:', error);
         if (isMounted) {
-          setSetProgress([]);
+          // On error, try to load from cache to maintain stability
+          const cachedProgress = getPrimeSetsCache();
+          if (cachedProgress.length > 0) {
+            console.log('Loading prime sets from cache due to error');
+            setSetProgress(cachedProgress);
+          } else {
+            setSetProgress([]);
+          }
           setRecommendations({ buildable: [], nearComplete: [], highValue: [] });
         }
       } finally {
@@ -241,10 +249,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       }
     };
 
-    loadData();
+    // Debounce the data loading to prevent excessive recalculation during rapid inventory changes
+    const debouncedLoadData = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(loadData, 500); // Wait 500ms after last change
+    };
+
+    // Only reload if we have significant changes or if it's the first load
+    if (setProgress.length === 0 || refreshKey > 0) {
+      debouncedLoadData();
+    } else {
+      // For minor changes, just update the existing data without full reload
+      console.log('Prime sets: skipping reload for minor inventory changes');
+    }
 
     return () => {
       isMounted = false;
+      clearTimeout(timeoutId);
     };
   }, [primePartsInventory, relicsInventory, refreshKey]);
 
@@ -278,6 +299,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
     const setName = progress.set.name;
     const setId = progress.set.id;
+
+    console.log(`>>> [Prime Sets] State change: ${setName} from ${currentState} to ${newState} <<<`);
+
+    // Immediate UI state update first
+    if (newState === 'owned') {
+      setSetProgress(prev => prev.map(p => 
+        p.set.id === setId 
+          ? { ...p, ismastered: true }
+          : p
+      ));
+    } else if (currentState === 'owned' && newState !== 'owned') {
+      setSetProgress(prev => prev.map(p => 
+        p.set.id === setId 
+          ? { ...p, ismastered: false }
+          : p
+      ));
+    }
 
     // Clear previous state
     if (currentState === 'planned') {
@@ -314,33 +352,19 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     } else if (newState === 'owned') {
       removeFromBuildPlan(setName); // Remove from plan if it was planned
       toggleSetMastery(setId); // Mark as mastered
-      
-      // IMMEDIATE STATE UPDATE - Fix for owned status bug
-      setSetProgress(prev => prev.map(p => 
-        p.set.id === setId 
-          ? { ...p, ismastered: true }
-          : p
-      ));
     }
 
-    // Clear previous state for transitions from 'owned'
-    if (currentState === 'owned' && newState !== 'owned') {
-      // Immediate state update when removing mastery
-      setSetProgress(prev => prev.map(p => 
-        p.set.id === setId 
-          ? { ...p, ismastered: false }
-          : p
-      ));
-    }
-
-    // Update local state
+    // Update local planned sets state
     setPlannedSets(prev => {
       const updated = new Map(prev);
       updated.set(setId, { planned: newState === 'planned', isPriority: isPriority });
       return updated;
     });
 
+    // Force a refresh of the component to reflect changes
     setRefreshKey(prev => prev + 1);
+    
+    console.log(`>>> [Prime Sets] State change completed for ${setName} <<<`);
   };
 
   const getTypeIcon = (type: PrimeSet['type']) => {
