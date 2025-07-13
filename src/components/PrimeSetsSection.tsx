@@ -81,7 +81,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   // Persistent accordion state for Prime Sets
   const [isExpanded, setIsExpanded] = useState(() => {
     const stored = localStorage.getItem('accordion_prime_sets');
-    return stored !== null ? JSON.parse(stored) : true;
+    return stored !== null ? JSON.parse(stored) : false;
   });
 
   // Save accordion state to localStorage
@@ -1419,11 +1419,37 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       {!isExpanded && (
         <button
           onClick={() => setIsExpanded(true)}
-          className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl text-center p-3 hover:bg-gray-800/50 transition-colors"
+          className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl p-4 hover:bg-gray-800/50 transition-colors group"
         >
-          <p className="text-gray-400 text-sm hover:text-gray-300 transition-colors">
-            Tap to view {totalSets} prime sets • {buildableSets} buildable • {inProgressSets} planned
-          </p>
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-gray-400 group-hover:text-gray-300 transition-colors">
+                {totalSets} prime set{totalSets !== 1 ? 's' : ''}
+              </span>
+              {lastRefreshTime && (
+                <span className="text-xs text-gray-500">
+                  Updated {lastRefreshTime.toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              {buildableSets > 0 && (
+                <div className="flex items-center gap-1 text-green-400">
+                  <CheckCircle size={14} />
+                  <span className="font-medium">{buildableSets} ready</span>
+                </div>
+              )}
+              {inProgressSets > 0 && (
+                <div className="flex items-center gap-1 text-yellow-400">
+                  <Target size={14} />
+                  <span className="font-medium">{inProgressSets} planned</span>
+                </div>
+              )}
+              <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
+                Tap to expand
+              </span>
+            </div>
+          </div>
         </button>
       )}
     </div>

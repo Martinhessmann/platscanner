@@ -58,7 +58,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
 
   const [isExpanded, setIsExpanded] = useState(() => {
     const stored = localStorage.getItem(getStorageKey());
-    return stored !== null ? JSON.parse(stored) : true;
+    return stored !== null ? JSON.parse(stored) : false;
   });
 
   // Save accordion state to localStorage
@@ -218,11 +218,37 @@ const InventorySection: React.FC<InventorySectionProps> = ({
       {!isExpanded && (
         <button
           onClick={() => setIsExpanded(true)}
-          className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl text-center p-3 hover:bg-gray-800/50 transition-colors"
+          className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl p-4 hover:bg-gray-800/50 transition-colors group"
         >
-          <p className="text-gray-400 text-sm hover:text-gray-300 transition-colors">
-            Tap to view {items.length} {getCategoryDisplayName(category).toLowerCase()}
-          </p>
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-gray-400 group-hover:text-gray-300 transition-colors">
+                {items.length} {getCategoryDisplayName(category).toLowerCase()}
+              </span>
+              {lastRefreshTime && (
+                <span className="text-xs text-gray-500">
+                  Updated {lastRefreshTime.toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              {totalValue > 0 && (
+                <div className="flex items-center gap-1 text-yellow-400">
+                  <Coins size={14} />
+                  <span className="font-medium">{totalValue.toFixed(0)}p</span>
+                </div>
+              )}
+              {totalDucats > 0 && (
+                <div className="flex items-center gap-1 text-blue-400">
+                  <Zap size={14} />
+                  <span className="font-medium">{totalDucats}</span>
+                </div>
+              )}
+              <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
+                Tap to expand
+              </span>
+            </div>
+          </div>
         </button>
       )}
     </div>

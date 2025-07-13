@@ -1,7 +1,7 @@
 // Purpose: Trading platform-style table for Void Relics with comprehensive refinement analysis
 // Shows all refinement levels and market comparison in a data-dense table format
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { VoidRelic } from '../types';
 import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, MessageCircle, Info, X, AlertCircle, Check, Shield, Eye, EyeOff } from 'lucide-react';
 import { getRelicImagePath } from '../lib/relicUtils';
@@ -69,7 +69,7 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
 
   return (
     <PortalModal isOpen={isOpen} onClose={onClose}>
-      <div className="bg-gray-900 rounded-lg border border-gray-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-900 rounded-lg border border-gray-700 max-w-4xl w-full max-h-[90vh] overflow-y-auto mx-4 md:mx-0">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-700">
           <div className="flex items-center gap-4">
@@ -314,6 +314,22 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   const [selectedRelic, setSelectedRelic] = useState<SelectedRelic | null>(null);
   const [copiedRelics, setCopiedRelics] = useState<Set<string>>(new Set());
   const [showUnreservedOnly, setShowUnreservedOnly] = useState(false);
+  const [showSortOptions, setShowSortOptions] = useState(false);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
+        setShowSortOptions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleClipboardCopy = async (message: string, relicId: string) => {
     try {
@@ -464,6 +480,22 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
       setSortField(field);
       setSortDirection('desc');
     }
+    setShowSortOptions(false);
+  };
+
+  const getSortLabel = () => {
+    const direction = sortDirection === 'asc' ? '↑' : '↓';
+    switch (sortField) {
+      case 'totalValue': return `Total ${direction}`;
+      case 'bestValue': return `Best ${direction}`;
+      case 'name': return `Name ${direction}`;
+      case 'intact': return `Intact ${direction}`;
+      case 'exceptional': return `Exceptional ${direction}`;
+      case 'flawless': return `Flawless ${direction}`;
+      case 'radiant': return `Radiant ${direction}`;
+      case 'market': return `Market ${direction}`;
+      default: return `Total ${direction}`;
+    }
   };
 
   // Get refinement dot color
@@ -529,6 +561,48 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
               </>
             )}
           </div>
+          
+          {/* Mobile-friendly Sort Dropdown */}
+          <div className="relative" ref={sortDropdownRef}>
+            <button
+              onClick={() => setShowSortOptions(!showSortOptions)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs transition-colors"
+            >
+              <Filter size={12} />
+              <span className="hidden sm:inline">Sort: {getSortLabel()}</span>
+              <span className="sm:hidden">{getSortLabel()}</span>
+            </button>
+            
+            {showSortOptions && (
+              <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10 min-w-[180px]">
+                <div className="p-2 space-y-1">
+                  {[
+                    { field: 'totalValue' as const, label: 'Total Value' },
+                    { field: 'bestValue' as const, label: 'Best Value' },
+                    { field: 'name' as const, label: 'Name' },
+                    { field: 'intact' as const, label: 'Intact Value' },
+                    { field: 'exceptional' as const, label: 'Exceptional Value' },
+                    { field: 'flawless' as const, label: 'Flawless Value' },
+                    { field: 'radiant' as const, label: 'Radiant Value' },
+                    { field: 'market' as const, label: 'Market Sale' }
+                  ].map(({ field, label }) => (
+                    <button
+                      key={field}
+                      onClick={() => handleSort(field)}
+                      className={`w-full text-left px-3 py-2 rounded-md text-xs transition-colors ${
+                        sortField === field
+                          ? 'bg-tenno-blue/20 text-tenno-blue'
+                          : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      }`}
+                    >
+                      {label} {sortField === field && (sortDirection === 'asc' ? '↑' : '↓')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          
           <button
             onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
