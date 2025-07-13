@@ -410,17 +410,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                 </>
               )}
             </div>
-            <button
-              onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-                showUnreservedOnly
-                  ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
-                  : 'bg-gray-800 text-gray-400 hover:text-gray-300'
-              }`}
-              title={showUnreservedOnly ? 'Show all items' : 'Show only unreserved items'}
-            >
-              {showUnreservedOnly ? <EyeOff size={10} /> : <Eye size={10} />}
-            </button>
+
           </div>
           <div className="relative">
             <button
