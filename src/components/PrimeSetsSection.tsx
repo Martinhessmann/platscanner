@@ -171,15 +171,15 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const handleRefreshPrimeSets = async () => {
     setIsRefreshing(true);
     setRefreshProgress({ current: 0, total: setProgress.length });
-    
+
     try {
       await refreshPrimeSetsMarketData(primePartsInventory, relicsInventory);
       setRefreshKey((prev: number) => prev + 1);
-      
+
       // Update last refresh time
       const newLastRefresh = new Date();
       setLastRefreshTime(newLastRefresh);
-      
+
     } catch (error) {
       console.error('Failed to refresh prime sets:', error);
     } finally {
@@ -204,15 +204,15 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       try {
         // Preload image data
         await preloadImageData();
-        
+
         // Analyze sets with market data
         const analyzed = await analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory);
         setSetProgress(analyzed);
-        
+
         // Get recommendations
         const recs = getSetRecommendations(analyzed);
         setRecommendations(recs);
-        
+
         // Load planned sets from localStorage
         const planned = new Map<string, { planned: boolean; isPriority: boolean }>();
         analyzed.forEach(progress => {
@@ -221,7 +221,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           }
         });
         setPlannedSets(planned);
-        
+
       } catch (error) {
         console.error('Failed to load prime sets data:', error);
       } finally {
@@ -269,12 +269,12 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   const handleStateChange = (progress: SetProgress, newState: 'buildable' | 'planned' | 'owned', isPriority: boolean = false) => {
     const currentState = getSetState(progress);
-    
+
     if (currentState === 'planned' && newState !== 'planned') {
       // Remove from build plan
       removeFromBuildPlan(progress.set.id);
       updateAllReservations();
-      
+
       setPlannedSets(prev => {
         const updated = new Map(prev);
         updated.delete(progress.set.id);
@@ -285,7 +285,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       addToBuildPlan(progress.set.id, isPriority);
       autoReserveItemsForSet(progress.set.id, isPriority);
       updateAllReservations();
-      
+
       setPlannedSets(prev => {
         const updated = new Map(prev);
         updated.set(progress.set.id, { planned: true, isPriority });
@@ -295,11 +295,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       // Toggle priority for already planned set
       const currentPriority = plannedSets.get(progress.set.id)?.isPriority || false;
       const newPriority = !currentPriority;
-      
+
       addToBuildPlan(progress.set.id, newPriority);
       autoReserveItemsForSet(progress.set.id, newPriority);
       updateAllReservations();
-      
+
       setPlannedSets(prev => {
         const updated = new Map(prev);
         updated.set(progress.set.id, { planned: true, isPriority: newPriority });
@@ -333,19 +333,19 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   const getRelicsForPart = (partName: string): string[] => {
     const relics: string[] = [];
-    
+
     relicsInventory.forEach(relic => {
       if (relic.relicDrops && relic.relicDrops.some(drop => drop.itemName === partName)) {
         relics.push(relic.name);
       }
     });
-    
+
     return relics;
   };
 
-  // Calculate summary statistics
+  // Calculate summary statistics with safety guards
   const totalSets = setProgress.length;
-  const buildableSets = recommendations.buildable.length;
+  const buildableSets = recommendations?.buildable?.length || 0;
   const inProgressSets = Array.from(plannedSets.values()).filter(p => p.planned).length;
   const builtSets = setProgress.filter(p => {
     try {
@@ -359,19 +359,19 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   // Calculate potential buildable sets with relics
   const potentiallyBuildable = setProgress.filter(progress => {
     if (progress.completionPercentage >= 100) return false;
-    
+
     const missingParts = progress.set.requiredParts.filter(
       part => !progress.ownedParts.includes(part.name)
     );
-    
+
     return missingParts.some(part => {
       const getBaseName = (name: string) => {
         return name.replace(/\s+(Blueprint|Barrel|Receiver|Stock|Blade|Handle|Guard|Gauntlet|Lower Limb|Upper Limb|String|Grip|Link|Chain|Disc|Pouch|Cerebrum|Carapace|Systems|Chassis|Neuroptics|Harness|Wings|Fuselage)$/, '');
       };
-      
+
       const baseName = getBaseName(part.name);
-      return relicsInventory.some(relic => 
-        relic.relicDrops && relic.relicDrops.some(drop => 
+      return relicsInventory.some(relic =>
+        relic.relicDrops && relic.relicDrops.some(drop =>
           getBaseName(drop.itemName) === baseName
         )
       );
@@ -390,19 +390,16 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   };
 
   const getPrimeSetImageUrl = (setName: string): string => {
-    const cleanName = setName.toLowerCase()
-      .replace(/\s+prime$/i, '')
-      .replace(/\s+/g, '_');
-    
-    const imageUrl = getImageUrlSync(`primesets/${cleanName}.png`);
-    return imageUrl || '/images/primesets/unknown.png';
+    // Use the unifiedImageService which handles proper name-to-image mapping
+    const imageUrl = getImageUrlSync(setName);
+    return imageUrl || '/images/primeparts/unknown.png';
   };
 
   const filteredSets = () => {
     const filtered = (() => {
       switch (activeTab) {
         case 'buildable':
-          return recommendations.buildable;
+          return recommendations?.buildable || [];
         case 'relics':
           return potentiallyBuildable;
         case 'progress':
@@ -461,11 +458,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       }
 
       if (sortField === 'name' || sortField === 'type') {
-        return sortDirection === 'asc' 
+        return sortDirection === 'asc'
           ? valueA.localeCompare(valueB)
           : valueB.localeCompare(valueA);
       } else {
-        return sortDirection === 'asc' 
+        return sortDirection === 'asc'
           ? valueA - valueB
           : valueB - valueA;
       }
@@ -476,14 +473,14 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   const getStrategyDisplay = (strategy?: string) => {
     if (!strategy) return { label: 'Unknown', color: 'text-gray-400' };
-    
+
     const strategyMap = {
       'sell_individual': { label: 'Sell Parts', color: 'text-blue-400' },
       'build_and_sell': { label: 'Build & Sell', color: 'text-green-400' },
       'hybrid': { label: 'Hybrid', color: 'text-purple-400' },
       'buy_missing': { label: 'Buy Missing', color: 'text-yellow-400' }
     };
-    
+
     return strategyMap[strategy as keyof typeof strategyMap] || { label: 'Unknown', color: 'text-gray-400' };
   };
 
@@ -491,7 +488,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     const strategy = getStrategyDisplay(progress.recommendedStrategy);
     const completeSetValue = progress.completeSetPrice || 0;
     const individualValue = progress.individualPartsValue || 0;
-    
+
     return (
       <div className="bg-gray-800/30 rounded-lg p-3 mb-3 border border-gray-700/50">
         <div className="flex items-center justify-between mb-2">
@@ -500,7 +497,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
             {strategy.label}
           </span>
         </div>
-        
+
         {/* Simple comparison for mobile */}
         <div className="space-y-2">
           <div className="grid grid-cols-2 gap-2 text-xs">
@@ -634,7 +631,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   <span className="hidden sm:inline">Sort: {getSortLabel()}</span>
                   <span className="sm:hidden">{getSortLabel()}</span>
                 </button>
-                
+
                 {showSortOptions && (
                   <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10 min-w-[140px]">
                     <div className="p-2 space-y-1">
@@ -728,7 +725,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           <span className={`px-1.5 py-0.5 rounded text-xs ${
             activeTab === 'buildable' ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
-            {recommendations.buildable.length}
+            {recommendations?.buildable?.length || 0}
           </span>
         </button>
 
@@ -846,7 +843,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       <div className="space-y-2 px-6 pb-6">
         {sortedSets.map((progress) => {
           const isExpanded = expandedSets.has(progress.set.id);
-          
+
           return (
             <div key={progress.set.id} className="bg-gray-900/50 rounded-lg border border-gray-700/50 overflow-hidden">
               {/* Compact Summary - Always Visible */}
@@ -860,7 +857,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          target.src = '/images/primesets/unknown.png';
+                          target.src = '/images/primeparts/unknown.png';
                         }}
                       />
                     </div>
@@ -879,7 +876,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-1">
                     {/* Individual refresh button */}
                     <button
