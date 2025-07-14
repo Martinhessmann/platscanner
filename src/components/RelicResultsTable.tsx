@@ -126,11 +126,12 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
         {/* Refinement Analysis */}
         <div className="p-6">
           <h3 className="text-lg font-semibold text-white mb-4">Refinement Analysis</h3>
-          
-          {/* Get relic drops data */}
+
+          {/* Use already-processed relic drops data */}
           {(() => {
-            const drops = getRelicDropsByName(relic.name);
-            if (!drops || !drops.drops) {
+            // Use the processed relic drops from the relic object instead of fetching async
+            const drops = relic.relicDrops;
+            if (!drops || drops.length === 0) {
               return (
                 <div className="text-center py-8 text-gray-500">
                   <AlertCircle size={48} className="mx-auto mb-4" />
@@ -140,7 +141,7 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
             }
 
             const refinementLevels = ['intact', 'exceptional', 'flawless', 'radiant'] as const;
-            
+
             return (
               <div className="space-y-4">
                 {refinementLevels.map((level) => {
@@ -162,9 +163,9 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <Circle size={8} className={`${
-                            level === 'radiant' ? 'text-yellow-400' : 
-                            level === 'flawless' ? 'text-blue-400' : 
-                            level === 'exceptional' ? 'text-green-400' : 
+                            level === 'radiant' ? 'text-yellow-400' :
+                            level === 'flawless' ? 'text-blue-400' :
+                            level === 'exceptional' ? 'text-green-400' :
                             'text-gray-400'
                           }`} fill="currentColor" />
                           <span className="font-medium text-white capitalize">{level}</span>
@@ -178,14 +179,14 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
                           {levelValue.toFixed(1)}p
                         </div>
                       </div>
-                      
+
                       <div className="grid grid-cols-3 gap-4">
                         {Object.entries(dropChances[level]).map(([rarity, chance]) => {
-                          const rarityItems = drops.drops.filter(drop => drop.rarity === rarity);
+                          const rarityItems = drops.filter(drop => drop.rarity === rarity);
                           const expectedValue = rarityItems.reduce((sum, item) => {
                             return sum + (item.price || 0) * (chance / 100);
                           }, 0);
-                          
+
                           return (
                             <div key={rarity} className="text-center">
                               <div className={`text-xs font-medium mb-1 ${getRarityColor(rarity).split(' ')[0]}`}>
@@ -227,7 +228,7 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
                 {analysis.marketValue.toFixed(1)}p
               </div>
             </div>
-            
+
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-400">Sell directly to market</span>
               <div className="flex items-center gap-2">
@@ -261,6 +262,92 @@ const RelicDetailModal: React.FC<RelicDetailModalProps> = ({ relic, analysis, is
             </div>
           </div>
         </div>
+
+        {/* Detailed Refinement Analysis */}
+        {relic.refinementAnalysis && (
+          <div className="p-6 pt-0">
+            <div className="border rounded-lg p-4 bg-gray-800/30 border-gray-700/50">
+              <h4 className="text-lg font-medium text-white mb-3">Refinement Economics</h4>
+
+              <div className="space-y-3">
+                {/* Best Refinement Target */}
+                {relic.refinementAnalysis.bestRefinementTarget && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Best Refinement Target:</span>
+                    <span className="text-white font-medium capitalize">
+                      {relic.refinementAnalysis.bestRefinementTarget}
+                    </span>
+                  </div>
+                )}
+
+                {/* Void Trace Cost */}
+                {relic.refinementAnalysis.bestRefinementCost && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Void Trace Cost:</span>
+                    <span className="text-white font-medium">
+                      {relic.refinementAnalysis.bestRefinementCost} traces
+                    </span>
+                  </div>
+                )}
+
+                {/* Expected Gain */}
+                {relic.refinementAnalysis.bestRefinementGain && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Expected Gain:</span>
+                    <span className="text-green-400 font-medium">
+                      +{formatExpectedValue(relic.refinementAnalysis.bestRefinementGain)}p
+                    </span>
+                  </div>
+                )}
+
+                {/* Efficiency */}
+                {relic.refinementAnalysis.platPerVoidTrace && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Efficiency:</span>
+                    <span className="text-blue-400 font-medium">
+                      {(relic.refinementAnalysis.platPerVoidTrace * 100).toFixed(1)}p per 100 traces
+                    </span>
+                  </div>
+                )}
+
+                {/* Optimal Market Price */}
+                {relic.refinementAnalysis.optimalMarketPrice && relic.refinementAnalysis.optimalMarketPrice > 0 && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">
+                      Optimal Market Price
+                      {relic.refinementAnalysis.optimalMarketPriceFallback &&
+                       relic.refinementAnalysis.optimalMarketPriceFallback !== 'exact' && (
+                        <span className="text-xs text-gray-500 ml-1">
+                          ({relic.refinementAnalysis.optimalMarketPriceFallback})
+                        </span>
+                      )}:
+                    </span>
+                    <span className="text-yellow-400 font-medium">
+                      {formatExpectedValue(relic.refinementAnalysis.optimalMarketPrice)}p
+                    </span>
+                  </div>
+                )}
+
+                {/* Reasoning */}
+                {relic.refinementAnalysis.reasoning && (
+                  <div className="pt-2 border-t border-gray-700/50">
+                    <div className="text-xs text-gray-400 mb-1">Analysis:</div>
+                    <div className="text-sm text-gray-300 italic">
+                      {relic.refinementAnalysis.reasoning}
+                    </div>
+                  </div>
+                )}
+
+                {/* Comparison */}
+                {relic.refinementAnalysis.comparison && (
+                  <div className="text-xs text-gray-500">
+                    {relic.refinementAnalysis.comparison}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </PortalModal>
   );
@@ -280,7 +367,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   const [copiedRelics, setCopiedRelics] = useState<Set<string>>(new Set());
   const [selectedRelic, setSelectedRelic] = useState<SelectedRelic | null>(null);
   const [expandedRelics, setExpandedRelics] = useState<Set<string>>(new Set());
-  
+
   const sortDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close sort dropdown when clicking outside
@@ -325,8 +412,9 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
 
   // Calculate expected value for a given refinement level
   const calculateExpectedValueForLevel = (relic: VoidRelic, refinementLevel: VoidRelic['rarity']): number => {
-    const drops = getRelicDropsByName(relic.name);
-    if (!drops || !drops.drops) return 0;
+    // Use the already-processed relic drops instead of fetching async
+    const drops = relic.relicDrops;
+    if (!drops || drops.length === 0) return 0;
 
     const dropChances = {
       'intact': { 'Common': 25.33, 'Uncommon': 11, 'Rare': 2 },
@@ -339,9 +427,12 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     let expectedValue = 0;
 
     for (const [rarity, chance] of Object.entries(levelChances)) {
-      const rarityItems = drops.drops.filter(drop => drop.rarity === rarity);
-      const rarityValue = rarityItems.reduce((sum, item) => sum + (item.price || 0), 0);
-      expectedValue += rarityValue * (chance / 100);
+      const rarityItems = drops.filter(drop => drop.rarity === rarity);
+      // Use the currentPrice from the already processed drops instead of price
+      const rarityExpectedValue = rarityItems.reduce((sum, item) => {
+        return sum + (item.currentPrice || 0) * (chance / 100);
+      }, 0);
+      expectedValue += rarityExpectedValue;
     }
 
     return expectedValue;
@@ -363,7 +454,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
       { type: 'market' as const, value: marketValue, recommendation: 'SELL' as const }
     ];
 
-    const bestOption = options.reduce((best, current) => 
+    const bestOption = options.reduce((best, current) =>
       current.value > best.value ? current : best
     );
 
@@ -400,7 +491,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         valueB = b.bestValue;
         break;
       case 'name':
-        return sortDirection === 'asc' 
+        return sortDirection === 'asc'
           ? a.relic.name.localeCompare(b.relic.name)
           : b.relic.name.localeCompare(a.relic.name);
       case 'intact':
@@ -520,7 +611,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
               </>
             )}
           </div>
-          
+
           {/* Mobile-friendly Sort Dropdown */}
           <div className="relative" ref={sortDropdownRef}>
             <button
@@ -531,7 +622,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
               <span className="hidden sm:inline">Sort: {getSortLabel()}</span>
               <span className="sm:hidden">{getSortLabel()}</span>
             </button>
-            
+
             {showSortOptions && (
               <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10 min-w-[180px]">
                 <div className="p-2 space-y-1">
@@ -561,7 +652,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
               </div>
             )}
           </div>
-          
+
           <button
             onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
