@@ -255,13 +255,13 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
         )}
       </div>
 
-      {/* Detailed Drop Analysis (Expandable) */}
+      {/* Detailed Drop Analysis (Expandable) - Enhanced with more detailed info */}
       {showDetails && relic.relicDrops && relic.relicDrops.length > 0 && (
         <div className="border-t border-gray-700/50 p-3 bg-gray-900/30 mt-3 rounded-b">
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-gray-300 flex items-center gap-2">
               <Package size={14} />
-              Drop Analysis
+              Detailed Drop Analysis
             </h4>
             <div className="space-y-1">
               {relic.relicDrops
@@ -269,7 +269,7 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
                 .map((drop, index) => (
                   <div
                     key={index}
-                    className="flex items-center justify-between text-xs py-1"
+                    className="flex items-center justify-between text-xs py-1.5 px-2 bg-gray-800/50 rounded"
                   >
                     <div className="flex items-center gap-2">
                       <span
@@ -279,16 +279,26 @@ const RelicAnalysisCard: React.FC<RelicAnalysisCardProps> = ({
                           'bg-amber-700' // 🥉 Bronze for Common
                         }`}
                       />
-                      <span className="text-gray-300 truncate max-w-32">
+                      <span className={`font-medium ${
+                        drop.rarity === 'Rare' ? 'text-yellow-400' :
+                        drop.rarity === 'Uncommon' ? 'text-slate-400' :
+                        'text-amber-700'
+                      }`}>
+                        {drop.rarity}
+                      </span>
+                      <span className="text-gray-300 truncate max-w-40">
                         {drop.itemName}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-right">
+                    <div className="flex items-center gap-3 text-right">
                       <span className="text-gray-400">
                         {drop.dropChance}%
                       </span>
-                      <span className="text-white font-medium min-w-8">
+                      <span className="text-white font-medium min-w-12">
                         {drop.currentPrice ? formatExpectedValue(drop.currentPrice) + 'p' : 'no buyers'}
+                      </span>
+                      <span className="text-orange-400 font-medium min-w-12">
+                        {drop.currentPrice ? formatExpectedValue(drop.currentPrice * (drop.dropChance / 100)) + 'p' : '0p'}
                       </span>
                     </div>
                   </div>

@@ -1,7 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DetectedItem } from '../types';
-import { ArrowUpDown, ExternalLink, AlertCircle, Coins, Trash2, RefreshCw, Filter, Zap, MoreVertical, MessageCircle, Check, Shield, Eye, EyeOff } from 'lucide-react';
+import {
+  Zap,
+  Coins,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  RefreshCw,
+  Trash2,
+  MessageCircle,
+  Check,
+  AlertCircle,
+  Shield,
+  ChevronDown
+} from 'lucide-react';
 import { isItemReserved } from '../services/buildPlanService';
+import { getImageUrlSync } from '../services/unifiedImageService';
 
 interface ResultsTableProps {
   results: DetectedItem[];
@@ -23,7 +37,17 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const [showSortOptions, setShowSortOptions] = useState(false);
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
   const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
-  const [showUnreservedOnly, setShowUnreservedOnly] = useState(false);
+
+  // Helper function to get the correct image URL for items
+  const getItemImageUrl = (item: DetectedItem): string => {
+    if (item.category === 'prime_parts') {
+      // For prime parts, use the unified image service to get parent set image
+      const imageUrl = getImageUrlSync(item.name);
+      return imageUrl || '/images/primeparts/unknown.png';
+    }
+    // For other categories, use the original imgUrl
+    return item.imgUrl || '';
+  };
 
   const handleSort = (field: 'price' | 'name' | 'ducats' | 'totalValue') => {
     console.log(`>>> [ResultsTable] Sort clicked: ${field}, current: ${sortField}, direction: ${sortDirection} <<<`);
@@ -159,7 +183,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               }`}
               title={showUnreservedOnly ? 'Show all items' : 'Show only unreserved items'}
             >
-              {showUnreservedOnly ? <EyeOff size={12} /> : <Eye size={12} />}
+              {showUnreservedOnly ? <ChevronDown size={12} /> : <ChevronDown size={12} />}
               <span className="hidden sm:inline">
                 {showUnreservedOnly ? 'Show All' : 'Unreserved Only'}
               </span>
@@ -174,7 +198,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               }}
               className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 transition-colors"
             >
-              <Filter size={14} />
+              <ArrowUpDown size={14} />
               {getSortLabel()}
             </button>
 
@@ -239,17 +263,24 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-gray-900/50 rounded border border-gray-700/50 flex-shrink-0 overflow-hidden">
-                  {item.imgUrl ? (
-                    <img
-                      src={item.imgUrl}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <AlertCircle size={12} className="text-gray-500" />
-                    </div>
-                  )}
+                  {(() => {
+                    const imageUrl = getItemImageUrl(item);
+                    return imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.src = '/images/primeparts/unknown.png';
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <AlertCircle size={12} className="text-gray-500" />
+                      </div>
+                    );
+                  })()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
@@ -330,7 +361,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   </div>
                 )}
               </div>
-              
+
               {item.average && (
                 <div className="text-center">
                   <div className="text-xs text-gray-400 mb-1">Average</div>
@@ -342,7 +373,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   </div>
                 </div>
               )}
-              
+
               <div className="text-center">
                 <div className="text-xs text-gray-400 mb-1">Total</div>
                 <div className="flex items-center justify-center gap-1">
@@ -371,7 +402,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   </div>
                 )}
               </div>
-              
+
               <div className="flex items-center gap-2">
                 {item.buyerUsername && item.price && item.price > 0 && !isItemReserved(item.name, 'prime_parts').reserved ? (
                   <button
@@ -400,7 +431,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 text-gray-500 hover:text-gray-300 transition-colors text-xs"
                 >
-                  <ExternalLink size={10} />
+                  <ChevronDown size={10} />
                   <span className="hidden sm:inline">Market</span>
                 </a>
               </div>
