@@ -190,7 +190,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   const handleRefreshIndividualSet = async (progress: SetProgress) => {
     try {
-      await refreshIndividualSetMarketData(progress.set.id);
+      await refreshIndividualSetMarketData(progress.set.name);
       setRefreshKey(prev => prev + 1);
     } catch (error) {
       console.error('Failed to refresh individual set:', error);

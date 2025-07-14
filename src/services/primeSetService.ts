@@ -245,12 +245,9 @@ export const getPrimeSetsLastRefresh = (): Date | null => {
 };
 
 export const clearPrimeSetsCache = (): void => {
-  try {
-    localStorage.removeItem(PRIME_SETS_CACHE_KEY);
-    localStorage.removeItem(PRIME_SETS_LAST_REFRESH_KEY);
-  } catch (error) {
-    console.error('Failed to clear prime sets cache:', error);
-  }
+  localStorage.removeItem(PRIME_SETS_CACHE_KEY);
+  localStorage.removeItem(PRIME_SETS_LAST_REFRESH_KEY);
+  console.log('>>> [Cache] Prime Sets cache cleared <<<');
 };
 
 // Get mastered sets from localStorage
@@ -295,7 +292,19 @@ const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedIt
     return (lowerInventoryItemName === lowerItemName || lowerInventoryItemName === `${lowerItemName} blueprint`);
   });
 
-  return inventoryItem ? (inventoryItem.quantity || 1) >= requiredCount : false;
+  const result = inventoryItem ? (inventoryItem.quantity || 1) >= requiredCount : false;
+
+  // Debug logging for Sevagoth Prime (can be removed later)
+  if (itemName.toLowerCase().includes('sevagoth')) {
+    console.log(`>>> [Ownership Check] "${itemName}" (need ${requiredCount}) <<<`);
+    console.log(`>>> [Ownership Check] Found in inventory: ${inventoryItem ? 'YES' : 'NO'} <<<`);
+    if (inventoryItem) {
+      console.log(`>>> [Ownership Check] Item: "${inventoryItem.name}", Quantity: ${inventoryItem.quantity || 1} <<<`);
+    }
+    console.log(`>>> [Ownership Check] Result: ${result ? 'OWNS' : 'DOES NOT OWN'} <<<`);
+  }
+
+  return result;
 };
 
 // Check if user can obtain a part from owned relics

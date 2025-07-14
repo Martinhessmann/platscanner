@@ -35,6 +35,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   const [sortField, setSortField] = useState<'price' | 'name' | 'ducats' | 'totalValue'>('price');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSortOptions, setShowSortOptions] = useState(false);
+  const [showUnreservedOnly, setShowUnreservedOnly] = useState(false);
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
   const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
 
