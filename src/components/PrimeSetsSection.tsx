@@ -68,7 +68,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     nearComplete: SetProgress[];
     highValue: SetProgress[];
   }>({ buildable: [], nearComplete: [], highValue: [] });
-  const [activeTab, setActiveTab] = useState<'all' | 'relics' | 'progress' | 'built' | 'vaulted' | 'warframes' | 'weapons' | 'companions'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'planner' | 'priority' | 'built' | 'vaulted' | 'warframes' | 'weapons' | 'companions'>('all');
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['all']));
   const [refreshKey, setRefreshKey] = useState(0);
   const [plannedSets, setPlannedSets] = useState<Map<string, { planned: boolean; isPriority: boolean }>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -259,11 +260,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     const masteredSets = getMasteredSets();
     const isOwned = masteredSets.includes(progress.set.id);
     
-    console.log(`>>> [getSetState] Checking state for "${progress.set.name}" (ID: "${progress.set.id}") <<<`);
-    console.log(`>>> [getSetState] All mastered sets:`, masteredSets);
-    console.log(`>>> [getSetState] Is owned: ${isOwned} <<<`);
-    console.log(`>>> [getSetState] Is planned: ${plannedSets.has(progress.set.id)} <<<`);
-    
     if (isOwned) return 'owned';
     if (plannedSets.has(progress.set.id)) return 'planned';
     return 'default';
@@ -342,15 +338,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   // Calculate summary statistics with safety guards
   const totalSets = setProgress.length;
+  const masteredSets = getMasteredSets();
   const inProgressSets = Array.from(plannedSets.values()).filter(p => p.planned).length;
-  const builtSets = setProgress.filter(p => {
-    try {
-      const setMasteryKey = `set_mastery_${p.set.id}`;
-      return localStorage.getItem(setMasteryKey) === 'true';
-    } catch {
-      return false;
-    }
-  }).length;
+  const prioritySets = Array.from(plannedSets.values()).filter(p => p.isPriority).length;
+  const builtSets = setProgress.filter(p => masteredSets.includes(p.set.id)).length;
   const vaultedSets = setProgress.filter(p => p.set.vaultStatus === 'vaulted').length;
 
   // Calculate potential buildable sets with relics
@@ -383,33 +374,38 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   };
 
   const filteredSets = () => {
-    const filtered = (() => {
-      switch (activeTab) {
-        case 'relics':
-          return potentiallyBuildable;
-        case 'progress':
-          return setProgress.filter(p => plannedSets.has(p.set.id));
-        case 'built':
-          return setProgress.filter(p => {
-            try {
-              const setMasteryKey = `set_mastery_${p.set.id}`;
-              return localStorage.getItem(setMasteryKey) === 'true';
-            } catch {
-              return false;
-            }
-          });
-        case 'vaulted':
-          return setProgress.filter(p => p.set.vaultStatus === 'vaulted');
-        case 'warframes':
-          return setProgress.filter(p => p.set.type === 'Warframe');
-        case 'weapons':
-          return setProgress.filter(p => ['Primary', 'Secondary', 'Melee'].includes(p.set.type));
-        case 'companions':
-          return setProgress.filter(p => ['Sentinel', 'Archwing', 'Companion'].includes(p.set.type));
-        default:
-          return setProgress;
-      }
-    })();
+    const masteredSets = getMasteredSets();
+    
+    let filtered = setProgress;
+
+    // Apply all active filters
+    if (!activeFilters.has('all')) {
+      filtered = filtered.filter(p => {
+        return Array.from(activeFilters).every(filter => {
+          switch (filter) {
+            case 'planner':
+              // Show all sets that are NOT built (everything you can still work on)
+              return !masteredSets.includes(p.set.id);
+            case 'priority':
+              // Show high-priority planned sets
+              return plannedSets.get(p.set.id)?.isPriority || false;
+            case 'built':
+              // Show mastered/built sets
+              return masteredSets.includes(p.set.id);
+            case 'vaulted':
+              return p.set.vaultStatus === 'vaulted';
+            case 'warframes':
+              return p.set.type === 'Warframe';
+            case 'weapons':
+              return ['Primary', 'Secondary', 'Melee'].includes(p.set.type);
+            case 'companions':
+              return ['Sentinel', 'Archwing', 'Companion'].includes(p.set.type);
+            default:
+              return true;
+          }
+        });
+      });
+    }
 
     // Apply sorting
     return filtered.sort((a, b) => {
@@ -447,6 +443,35 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   };
 
   const sortedSets = filteredSets();
+
+  // Helper function to handle filter toggling
+  const toggleFilter = (filter: string) => {
+    setActiveFilters(prev => {
+      const updated = new Set(prev);
+      
+      if (filter === 'all') {
+        // If clicking "All", clear other filters
+        return new Set(['all']);
+      } else {
+        // Remove "all" if selecting specific filters
+        updated.delete('all');
+        
+        // Toggle the specific filter
+        if (updated.has(filter)) {
+          updated.delete(filter);
+        } else {
+          updated.add(filter);
+        }
+        
+        // If no filters remain, default to "all"
+        if (updated.size === 0) {
+          updated.add('all');
+        }
+      }
+      
+      return updated;
+    });
+  };
 
 
   return (
@@ -564,9 +589,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           <div className="flex flex-wrap gap-2 p-6 pb-4">
         {/* All Sets */}
         <button
-          onClick={() => setActiveTab('all')}
+          onClick={() => toggleFilter('all')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-            activeTab === 'all'
+            activeFilters.has('all')
               ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
               : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
@@ -574,7 +599,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           <Shield size={16} />
           <span>All Sets</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
-            activeTab === 'all' ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
+            activeFilters.has('all') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
             {setProgress.length}
           </span>
@@ -583,49 +608,46 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
         {/* Buildable with Relics */}
         <button
-          onClick={() => setActiveTab('relics')}
-          disabled={potentiallyBuildable.length === 0}
+          onClick={() => toggleFilter('planner')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-            activeTab === 'relics'
-              ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
-              : potentiallyBuildable.length > 0
-                ? 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
-                : 'bg-gray-900/30 border-gray-700/50 text-gray-500 opacity-60 cursor-not-allowed'
+            activeFilters.has('planner')
+              ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
+              : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
         >
-          <Hexagon size={16} />
-          <span>With Relics</span>
+          <Target size={16} />
+          <span>Planner</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
-            activeTab === 'relics' ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
+            activeFilters.has('planner') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
-            {potentiallyBuildable.length}
+            {setProgress.length - builtSets}
           </span>
         </button>
 
 
-        {/* In Progress Sets */}
+        {/* Priority Sets */}
         <button
-          onClick={() => setActiveTab('progress')}
+          onClick={() => toggleFilter('priority')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-            activeTab === 'progress'
+            activeFilters.has('priority')
               ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
               : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
         >
           <Star size={16} />
-          <span>Planned</span>
+          <span>Priority</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
-            activeTab === 'progress' ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
+            activeFilters.has('priority') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
-            {inProgressSets}
+            {prioritySets}
           </span>
         </button>
 
         {/* Built Sets */}
         <button
-          onClick={() => setActiveTab('built')}
+          onClick={() => toggleFilter('built')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-            activeTab === 'built'
+            activeFilters.has('built')
               ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
               : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
@@ -633,7 +655,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           <CheckCircle size={16} />
           <span>Built</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
-            activeTab === 'built' ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
+            activeFilters.has('built') ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
             {builtSets}
           </span>
@@ -641,9 +663,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
         {/* Type Filters */}
         <button
-          onClick={() => setActiveTab('warframes')}
+          onClick={() => toggleFilter('warframes')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-            activeTab === 'warframes'
+            activeFilters.has('warframes')
               ? 'bg-cyan-900/50 border-cyan-500/50 text-cyan-400 ring-1 ring-cyan-500/30'
               : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
@@ -651,16 +673,16 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           <Sword size={16} />
           <span>Warframes</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
-            activeTab === 'warframes' ? 'bg-cyan-800/50 text-cyan-300' : 'bg-gray-800/50 text-gray-400'
+            activeFilters.has('warframes') ? 'bg-cyan-800/50 text-cyan-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
             {setProgress.filter(p => p.set.type === 'Warframe').length}
           </span>
         </button>
 
         <button
-          onClick={() => setActiveTab('weapons')}
+          onClick={() => toggleFilter('weapons')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-            activeTab === 'weapons'
+            activeFilters.has('weapons')
               ? 'bg-red-900/50 border-red-500/50 text-red-400 ring-1 ring-red-500/30'
               : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
@@ -668,16 +690,16 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           <Crosshair size={16} />
           <span>Weapons</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
-            activeTab === 'weapons' ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400'
+            activeFilters.has('weapons') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
             {setProgress.filter(p => ['Primary', 'Secondary', 'Melee'].includes(p.set.type)).length}
           </span>
         </button>
 
         <button
-          onClick={() => setActiveTab('companions')}
+          onClick={() => toggleFilter('companions')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-            activeTab === 'companions'
+            activeFilters.has('companions')
               ? 'bg-purple-900/50 border-purple-500/50 text-purple-400 ring-1 ring-purple-500/30'
               : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
@@ -685,16 +707,16 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           <Hexagon size={16} />
           <span>Misc</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
-            activeTab === 'companions' ? 'bg-purple-800/50 text-purple-300' : 'bg-gray-800/50 text-gray-400'
+            activeFilters.has('companions') ? 'bg-purple-800/50 text-purple-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
             {setProgress.filter(p => ['Sentinel', 'Archwing', 'Companion'].includes(p.set.type)).length}
           </span>
         </button>
 
         <button
-          onClick={() => setActiveTab('vaulted')}
+          onClick={() => toggleFilter('vaulted')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-            activeTab === 'vaulted'
+            activeFilters.has('vaulted')
               ? 'bg-amber-900/50 border-amber-500/50 text-amber-400 ring-1 ring-amber-500/30'
               : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
           }`}
@@ -702,12 +724,13 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           <Package size={16} />
           <span>Vaulted</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
-            activeTab === 'vaulted' ? 'bg-amber-800/50 text-amber-300' : 'bg-gray-800/50 text-gray-400'
+            activeFilters.has('vaulted') ? 'bg-amber-800/50 text-amber-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
             {setProgress.filter(p => p.set.vaultStatus === 'vaulted').length}
           </span>
         </button>
       </div>
+
 
       {/* Sets List */}
       <div className="space-y-2 px-6 pb-6">
@@ -771,13 +794,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                     {/* Done toggle button */}
                     <button
                       onClick={() => {
-                        console.log(`>>> [UI] Mark as done button clicked for set: "${progress.set.name}" (ID: "${progress.set.id}") <<<`);
-                        console.log(`>>> [UI] Current state: "${getSetState(progress)}" <<<`);
-                        
                         toggleSetMastery(progress.set.id);
                         setRefreshKey(prev => prev + 1);
-                        
-                        console.log(`>>> [UI] Refresh key updated, should trigger re-render <<<`);
                       }}
                       className={`p-1 rounded-full transition-colors ${
                         getSetState(progress) === 'owned'
@@ -930,24 +948,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       {sortedSets.length === 0 && (
         <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg mx-6 mb-6">
           <div className="text-gray-400 mb-2">
-            {activeTab === 'relics' && 'No sets buildable with relics'}
-            {activeTab === 'progress' && 'No planned sets'}
-            {activeTab === 'vaulted' && 'No vaulted sets found'}
-            {activeTab === 'warframes' && 'No warframe sets found'}
-            {activeTab === 'weapons' && 'No weapon sets found'}
-            {activeTab === 'companions' && 'No misc sets found'}
-            {activeTab === 'all' && 'No prime sets data available'}
-            {activeTab === 'built' && 'No owned sets yet'}
+            No sets match the selected filters
           </div>
           <div className="text-sm text-gray-500">
-            {activeTab === 'relics' && 'Open relics to get missing parts for sets'}
-            {activeTab === 'progress' && 'Mark sets as "Planned" to track your build progress'}
-            {activeTab === 'vaulted' && 'Vaulted sets are no longer obtainable from relics'}
-            {activeTab === 'warframes' && 'Warframe prime sets include chassis, neuroptics, and systems'}
-            {activeTab === 'weapons' && 'Weapon prime sets include barrels, receivers, and other parts'}
-            {activeTab === 'companions' && 'Misc sets include sentinels, archwings, and kubrow collars'}
-            {activeTab === 'all' && 'Prime parts will be analyzed for set completion'}
-            {activeTab === 'built' && 'Mark completed sets as "Done"'}
+            Active filters: {Array.from(activeFilters).join(' + ')}
           </div>
         </div>
       )}
