@@ -69,7 +69,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     nearComplete: SetProgress[];
     highValue: SetProgress[];
   }>({ buildable: [], nearComplete: [], highValue: [] });
-  const [activeTab, setActiveTab] = useState<'all' | 'buildable' | 'relics' | 'progress' | 'built' | 'vaulted' | 'warframes' | 'weapons' | 'companions'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'relics' | 'progress' | 'built' | 'vaulted' | 'warframes' | 'weapons' | 'companions'>('all');
   const [refreshKey, setRefreshKey] = useState(0);
   const [plannedSets, setPlannedSets] = useState<Map<string, { planned: boolean; isPriority: boolean }>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
@@ -235,15 +235,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       return () => clearTimeout(timeoutId);
     };
 
-    if (primePartsInventory.length > 0 || relicsInventory.length > 0) {
-      const cleanup = debouncedLoadData();
-      return cleanup;
-    } else {
-      // If no inventory data, clear the sets
-      setSetProgress([]);
-      setRecommendations({ buildable: [], nearComplete: [], highValue: [] });
-      setIsLoading(false);
-    }
+    // Always load all prime sets (like a CODEX)
+    const cleanup = debouncedLoadData();
+    return cleanup;
   }, [primePartsInventory, relicsInventory, refreshKey]);
 
   // Sync with buildPlanService for planned sets
@@ -261,13 +255,16 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     syncPlannedSets();
   }, [setProgress]);
 
-  const getSetState = (progress: SetProgress): 'buildable' | 'planned' | 'owned' => {
-    if (progress.completionPercentage === 100) return 'buildable';
+  const getSetState = (progress: SetProgress): 'default' | 'planned' | 'owned' => {
+    const setMasteryKey = `set_mastery_${progress.set.id}`;
+    const isOwned = localStorage.getItem(setMasteryKey) === 'true';
+    
+    if (isOwned) return 'owned';
     if (plannedSets.has(progress.set.id)) return 'planned';
-    return 'owned'; // Default state
+    return 'default';
   };
 
-  const handleStateChange = (progress: SetProgress, newState: 'buildable' | 'planned' | 'owned', isPriority: boolean = false) => {
+  const handleStateChange = (progress: SetProgress, newState: 'default' | 'planned' | 'owned', isPriority: boolean = false) => {
     const currentState = getSetState(progress);
 
     if (currentState === 'planned' && newState !== 'planned') {
@@ -345,7 +342,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   // Calculate summary statistics with safety guards
   const totalSets = setProgress.length;
-  const buildableSets = recommendations?.buildable?.length || 0;
   const inProgressSets = Array.from(plannedSets.values()).filter(p => p.planned).length;
   const builtSets = setProgress.filter(p => {
     try {
@@ -355,6 +351,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       return false;
     }
   }).length;
+  const vaultedSets = setProgress.filter(p => p.set.vaultStatus === 'vaulted').length;
 
   // Calculate potential buildable sets with relics
   const potentiallyBuildable = setProgress.filter(progress => {
@@ -398,8 +395,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const filteredSets = () => {
     const filtered = (() => {
       switch (activeTab) {
-        case 'buildable':
-          return recommendations?.buildable || [];
         case 'relics':
           return potentiallyBuildable;
         case 'progress':
@@ -471,95 +466,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   const sortedSets = filteredSets();
 
-  const getStrategyDisplay = (strategy?: string) => {
-    if (!strategy) return { label: 'Unknown', color: 'text-gray-400' };
-
-    const strategyMap = {
-      'sell_individual': { label: 'Sell Parts', color: 'text-blue-400' },
-      'build_and_sell': { label: 'Build & Sell', color: 'text-green-400' },
-      'hybrid': { label: 'Hybrid', color: 'text-purple-400' },
-      'buy_missing': { label: 'Buy Missing', color: 'text-yellow-400' }
-    };
-
-    return strategyMap[strategy as keyof typeof strategyMap] || { label: 'Unknown', color: 'text-gray-400' };
-  };
-
-  const TradingStrategyCard: React.FC<{ progress: SetProgress }> = ({ progress }) => {
-    const strategy = getStrategyDisplay(progress.recommendedStrategy);
-    const completeSetValue = progress.completeSetPrice || 0;
-    const individualValue = progress.individualPartsValue || 0;
-
-    return (
-      <div className="bg-gray-800/30 rounded-lg p-3 mb-3 border border-gray-700/50">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-medium text-gray-300">Trading Strategy</h4>
-          <span className={`text-xs font-medium ${strategy.color}`}>
-            {strategy.label}
-          </span>
-        </div>
-
-        {/* Simple comparison for mobile */}
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="space-y-1">
-              <div className="text-gray-400">Individual Parts</div>
-              <div className="text-white font-medium">
-                {individualValue > 0 ? `${individualValue.toFixed(0)}p` : 'No data'}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <div className="text-gray-400">Complete Set</div>
-              <div className="text-white font-medium">
-                {completeSetValue > 0 ? `${completeSetValue.toFixed(0)}p` : 'No data'}
-              </div>
-            </div>
-          </div>
-
-          <div className="text-xs text-gray-400">
-            {progress.recommendedStrategy === 'sell_individual' && 'Sell parts separately for better profit'}
-            {progress.recommendedStrategy === 'build_and_sell' && 'Build complete set for maximum value'}
-            {progress.recommendedStrategy === 'hybrid' && 'Mixed approach based on market conditions'}
-            {progress.recommendedStrategy === 'buy_missing' && 'Buy missing parts to complete set'}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            {progress.completeSetBuyerUsername && (
-              <button
-                onClick={() => {
-                  const message = `/w ${progress.completeSetBuyerUsername} Hi! I want to sell: "${progress.set.name} Set" for ${progress.completeSetPrice} platinum. (warframe.market)`;
-                  handleClipboardCopy(message, `set-${progress.set.id}`);
-                }}
-                className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-600/20 border border-blue-500/30 rounded text-xs text-blue-400 hover:bg-blue-600/30 transition-colors ${
-                  copiedItems.has(`set-${progress.set.id}`) ? 'text-green-400' : ''
-                }`}
-              >
-                {copiedItems.has(`set-${progress.set.id}`) ? <Check size={12} /> : <MessageCircle size={12} />}
-                Message {progress.completeSetBuyerUsername}
-              </button>
-            )}
-
-            <button
-              onClick={() => {
-                const marketUrl = `https://warframe.market/items/${progress.set.name.toLowerCase().replace(/\s+/g, '_')}_set`;
-                window.open(marketUrl, '_blank', 'noopener,noreferrer');
-              }}
-              className="flex-1 flex items-center justify-center gap-1 px-2 py-1.5 bg-gray-600/20 border border-gray-500/30 rounded text-xs text-gray-400 hover:bg-gray-600/30 transition-colors"
-            >
-              <ExternalLink size={12} />
-              View Market
-            </button>
-          </div>
-
-          {progress.completeSetBuyerUsername && progress.completeSetBuyerQuantity && progress.completeSetBuyerQuantity > 0 && (
-            <div className="text-xs text-gray-400">
-              Top buyer wants {progress.completeSetBuyerQuantity}x sets
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div ref={sectionRef} className="w-full mb-2">
@@ -583,19 +489,19 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 Prime Sets
               </h3>
               <p className="text-xs text-gray-400">
-                {totalSets} set{totalSets !== 1 ? 's' : ''} • {buildableSets} buildable • {inProgressSets} planned
+                {totalSets} set{totalSets !== 1 ? 's' : ''} • {vaultedSets} vaulted • {inProgressSets} planned
               </p>
             </div>
           </div>
 
           <div className="text-right">
             <div className="flex items-center justify-end gap-1 mb-1">
-              <Trophy size={14} className="text-green-400" />
-              <span className="text-lg font-bold text-green-400">{buildableSets}</span>
+              <Star size={14} className="text-yellow-400" />
+              <span className="text-lg font-bold text-yellow-400">{inProgressSets}</span>
             </div>
             <div className="flex items-center justify-end gap-1">
-              <Star size={10} className="text-purple-400" />
-              <span className="text-xs text-purple-400">{builtSets}</span>
+              <CheckCircle size={10} className="text-green-400" />
+              <span className="text-xs text-green-400">{builtSets}</span>
             </div>
           </div>
         </button>
@@ -711,23 +617,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           </span>
         </button>
 
-        {/* Buildable Sets */}
-        <button
-          onClick={() => setActiveTab('buildable')}
-          className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-            activeTab === 'buildable'
-              ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
-              : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
-          }`}
-        >
-          <Trophy size={16} />
-          <span>Buildable</span>
-          <span className={`px-1.5 py-0.5 rounded text-xs ${
-            activeTab === 'buildable' ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
-          }`}>
-            {recommendations?.buildable?.length || 0}
-          </span>
-        </button>
 
         {/* Buildable with Relics */}
         <button
@@ -912,7 +801,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                     {/* Remove for built tab */}
                     {activeTab === 'built' && (
                       <button
-                        onClick={() => handleStateChange(progress, 'buildable')}
+                        onClick={() => handleStateChange(progress, 'default')}
                         className="p-1 rounded transition-colors text-gray-500 hover:text-red-400"
                         title="Remove from built (if marked by mistake)"
                       >
@@ -928,10 +817,19 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                     <span>Progress</span>
                     <span>{Math.round(progress.completionPercentage)}%</span>
                   </div>
-                  <div className="w-full bg-gray-800 rounded-full h-2">
+                  <div className="w-full bg-gray-800 rounded-full h-2 relative overflow-hidden">
+                    {/* Owned parts (green) */}
                     <div
-                      className={`h-2 rounded-full transition-all ${getProgressColor(progress.completionPercentage)}`}
-                      style={{ width: `${progress.completionPercentage}%` }}
+                      className="h-2 bg-green-500 rounded-full transition-all absolute left-0 top-0"
+                      style={{ width: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%` }}
+                    />
+                    {/* Parts obtainable from relics (yellow) */}
+                    <div
+                      className="h-2 bg-yellow-500 rounded-full transition-all absolute top-0"
+                      style={{ 
+                        left: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%`,
+                        width: `${(progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100}%`
+                      }}
                     />
                   </div>
                 </div>
@@ -941,7 +839,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   <div className="text-center">
                     <div className="text-gray-400">Parts</div>
                     <div className="text-white font-medium">
-                      {progress.ownedParts.length}/{progress.set.requiredParts.length}
+                      <span className="text-green-400">{progress.ownedParts.length}</span>
+                      {progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length > 0 && (
+                        <span className="text-yellow-400">+{progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length}</span>
+                      )}
+                      <span className="text-gray-400">/{progress.set.requiredParts.length}</span>
                     </div>
                   </div>
                   <div className="text-center">
@@ -1041,38 +943,35 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       </div>
                     </div>
 
-                    {/* Trading Strategy Analysis */}
-                    <TradingStrategyCard progress={progress} />
-
                     {/* Simple 3-State Toggle - More Compact */}
                     <div className="border-t border-gray-700/50 pt-3">
                       <div className="flex gap-1">
-                        {(['buildable', 'planned', 'owned'] as const).map((state) => {
+                        {(['default', 'planned', 'owned'] as const).map((state) => {
                           const currentState = getSetState(progress);
                           const isActive = currentState === state;
                           const isPriority = plannedSets.get(progress.set.id)?.isPriority || false;
 
                           const stateConfig = {
-                            buildable: {
-                              label: 'Buildable',
-                              icon: <Trophy size={10} />,
+                            default: {
+                              label: 'Default',
+                              icon: <Circle size={10} />,
                               color: 'text-gray-300',
                               bgColor: 'bg-gray-700/20 border-gray-700/30',
                               activeBgColor: 'bg-gray-400/30 border-gray-400/50'
                             },
                             planned: {
-                              label: isPriority ? 'Top Candidate' : 'Planned',
-                              icon: <BookOpen size={10} />,
+                              label: isPriority ? 'Priority' : 'Planned',
+                              icon: <Star size={10} />,
                               color: isPriority ? 'text-red-400' : 'text-yellow-400',
                               bgColor: isPriority ? 'bg-red-600/20 border-red-600/30' : 'bg-yellow-600/20 border-yellow-600/30',
                               activeBgColor: isPriority ? 'bg-red-600/40 border-red-500/50' : 'bg-yellow-600/40 border-yellow-500/50'
                             },
                             owned: {
-                              label: 'Owned',
-                              icon: <Star size={10} />,
-                              color: 'text-purple-400',
-                              bgColor: 'bg-purple-600/20 border-purple-600/30',
-                              activeBgColor: 'bg-purple-600/40 border-purple-500/50'
+                              label: 'Done',
+                              icon: <CheckCircle size={10} />,
+                              color: 'text-green-400',
+                              bgColor: 'bg-green-600/20 border-green-600/30',
+                              activeBgColor: 'bg-green-600/40 border-green-500/50'
                             }
                           };
 
@@ -1115,7 +1014,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       {sortedSets.length === 0 && (
         <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg mx-6 mb-6">
           <div className="text-gray-400 mb-2">
-            {activeTab === 'buildable' && 'No buildable sets yet'}
             {activeTab === 'relics' && 'No sets buildable with relics'}
             {activeTab === 'progress' && 'No planned sets'}
             {activeTab === 'vaulted' && 'No vaulted sets found'}
@@ -1126,7 +1024,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
             {activeTab === 'built' && 'No owned sets yet'}
           </div>
           <div className="text-sm text-gray-500">
-            {activeTab === 'buildable' && 'Collect more prime parts to complete sets'}
             {activeTab === 'relics' && 'Open relics to get missing parts for sets'}
             {activeTab === 'progress' && 'Mark sets as "Planned" to track your build progress'}
             {activeTab === 'vaulted' && 'Vaulted sets are no longer obtainable from relics'}
@@ -1134,7 +1031,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
             {activeTab === 'weapons' && 'Weapon prime sets include barrels, receivers, and other parts'}
             {activeTab === 'companions' && 'Companion sets include sentinels, archwings, and kubrow collars'}
             {activeTab === 'all' && 'Prime parts will be analyzed for set completion'}
-            {activeTab === 'built' && 'Mark completed sets as "Owned"'}
+            {activeTab === 'built' && 'Mark completed sets as "Done"'}
           </div>
         </div>
       )}
@@ -1158,15 +1055,15 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               )}
             </div>
             <div className="flex items-center gap-4">
-              {buildableSets > 0 && (
-                <div className="flex items-center gap-1 text-green-400">
-                  <CheckCircle size={14} />
-                  <span className="font-medium">{buildableSets} ready</span>
+              {vaultedSets > 0 && (
+                <div className="flex items-center gap-1 text-amber-400">
+                  <Package size={14} />
+                  <span className="font-medium">{vaultedSets} vaulted</span>
                 </div>
               )}
               {inProgressSets > 0 && (
                 <div className="flex items-center gap-1 text-yellow-400">
-                  <Target size={14} />
+                  <Star size={14} />
                   <span className="font-medium">{inProgressSets} planned</span>
                 </div>
               )}

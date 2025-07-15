@@ -20,6 +20,7 @@ export interface PrimeSet {
   category: 'Assault Rifle' | 'Bow' | 'Shotgun' | 'Sniper' | 'Pistol' | 'Throwing Knife' | 'Sword' | 'Polearm' | 'Nikana' | 'Warframe' | 'Sentinel' | 'Archwing' | 'Companion';
   requiredParts: PrimePart[];
   vaulted: boolean;
+  vaultStatus: 'active' | 'vaulted' | 'unvaulted';
   masteryRank: number;
   releaseDate: string;
 }
@@ -128,10 +129,10 @@ const mapCategoryToType = (category: string): PrimeSet['type'] => {
   }
 };
 
-// Determine if a prime set is vaulted (simplified logic - newer releases are typically not vaulted)
-const isVaulted = (name: string): boolean => {
-  // Most recent releases that are typically not vaulted
-  const currentUnvaulted = [
+// Determine vault status for a prime set
+const getVaultStatus = (name: string): PrimeSet['vaultStatus'] => {
+  // Most recent releases that are currently active
+  const currentActive = [
     'Gara Prime', 'Nidus Prime', 'Harrow Prime', 'Khora Prime', 'Garuda Prime',
     'Revenant Prime', 'Baruuk Prime', 'Hildryn Prime', 'Wisp Prime', 'Gauss Prime',
     'Atlas Prime', 'Ivara Prime', 'Titania Prime', 'Nezha Prime', 'Inaros Prime',
@@ -139,7 +140,19 @@ const isVaulted = (name: string): boolean => {
     'Protea Prime', 'Xaku Prime', 'Yareli Prime', 'Lavos Prime'
   ];
 
-  return !currentUnvaulted.some(unvaulted => name.includes(unvaulted.split(' ')[0]));
+  // Check if it's currently active
+  if (currentActive.some(active => name.includes(active.split(' ')[0]))) {
+    return 'active';
+  }
+
+  // For now, everything else is considered vaulted
+  // In a real implementation, this would check against Warframe's API or a comprehensive database
+  return 'vaulted';
+};
+
+// Determine if a prime set is vaulted (for backward compatibility)
+const isVaulted = (name: string): boolean => {
+  return getVaultStatus(name) === 'vaulted';
 };
 
 // Get estimated mastery rank requirement
@@ -168,11 +181,14 @@ const transformJsonToPrimeSet = (jsonSet: PrimeSetJson): PrimeSet => {
   const id = jsonSet.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
   const type = mapCategoryToType(jsonSet.category);
 
+  const vaultStatus = getVaultStatus(jsonSet.name);
+  const vaulted = isVaulted(jsonSet.name);
+
   const requiredParts: PrimePart[] = jsonSet.components.map(component => ({
     name: `${jsonSet.name} ${component.name}`,
     partType: component.name as PrimePart['partType'],
     ducats: DUCATS_MAP[component.name] || 45, // Default to 45 ducats
-    vaulted: isVaulted(jsonSet.name),
+    vaulted,
     itemCount: component.count
   }));
 
@@ -182,7 +198,8 @@ const transformJsonToPrimeSet = (jsonSet: PrimeSetJson): PrimeSet => {
     type,
     category: type as any, // Simplified mapping
     requiredParts,
-    vaulted: isVaulted(jsonSet.name),
+    vaulted,
+    vaultStatus,
     masteryRank: getMasteryRank(type),
     releaseDate: '2024-01-01' // Placeholder date
   };
@@ -727,17 +744,14 @@ export const getNearCompleteSets = async (
     .sort((a, b) => b.completionPercentage - a.completionPercentage);
 };
 
-// Get priority recommendations
-export const getSetRecommendations = async (
-  primePartsInventory: DetectedItem[],
-  relicsInventory: VoidRelic[] = []
-): Promise<{
+// Get priority recommendations from analyzed data
+export const getSetRecommendations = (
+  allProgress: SetProgress[]
+): {
   buildable: SetProgress[];
   nearComplete: SetProgress[];
   highValue: SetProgress[];
-}> => {
-  const allProgress = await analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory);
-
+} => {
   const buildable = allProgress
     .filter(p => p.canBuild && !p.ismastered)
     .sort((a, b) => b.set.masteryRank - a.set.masteryRank);
@@ -752,6 +766,19 @@ export const getSetRecommendations = async (
     .slice(0, 5);
 
   return { buildable, nearComplete, highValue };
+};
+
+// Get priority recommendations (async version for backward compatibility)
+export const getSetRecommendationsAsync = async (
+  primePartsInventory: DetectedItem[],
+  relicsInventory: VoidRelic[] = []
+): Promise<{
+  buildable: SetProgress[];
+  nearComplete: SetProgress[];
+  highValue: SetProgress[];
+}> => {
+  const allProgress = await analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory);
+  return getSetRecommendations(allProgress);
 };
 
 // NEW: Refresh Prime Sets market data (force refresh)
