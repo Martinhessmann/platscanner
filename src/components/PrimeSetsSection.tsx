@@ -325,15 +325,59 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   };
 
   const getRelicsForPart = (partName: string): string[] => {
-    const relics: string[] = [];
-
-    relicsInventory.forEach(relic => {
-      if (relic.relicDrops && relic.relicDrops.some(drop => drop.itemName === partName)) {
-        relics.push(relic.name);
+    // Use the same matching logic as the service
+    const matchingRelics = relicsInventory.filter(relic => {
+      if (!relic.relicDrops || relic.relicDrops.length === 0) {
+        return false;
       }
-    });
 
-    return relics;
+      const hasMatch = relic.relicDrops.some(drop => {
+        const dropName = drop.itemName.toLowerCase();
+        const targetPart = partName.toLowerCase();
+
+        // Check for exact match
+        if (dropName === targetPart) {
+          return true;
+        }
+
+        // Check if the drop name contains the part name (removing "prime" for broader matching)
+        if (dropName.includes(targetPart.replace(' prime ', ' '))) {
+          return true;
+        }
+
+        // More precise part type matching - require item name to match too
+        const partTypes = [
+          'blueprint', 'systems', 'chassis', 'neuroptics', 'barrel', 'receiver', 'stock',
+          'string', 'grip', 'blade', 'handle', 'link', 'gauntlet', 'carapace', 'cerebrum',
+          'pouch', 'stars', 'boot', 'chain', 'disc', 'guard', 'hilt', 'head', 'ornament',
+          'harness', 'wings', 'band', 'buckle', 'blades'
+        ];
+
+        // Extract the prime name from both (e.g., "atlas prime" from "atlas prime chassis")
+        const getBaseName = (name: string) => {
+          const parts = name.split(' ');
+          const primeIndex = parts.findIndex(p => p === 'prime');
+          if (primeIndex >= 0 && primeIndex < parts.length - 1) {
+            return parts.slice(0, primeIndex + 1).join(' '); // e.g., "atlas prime"
+          }
+          return name;
+        };
+
+        const targetBaseName = getBaseName(targetPart);
+        const dropBaseName = getBaseName(dropName);
+
+        // Only match if BOTH the base name AND part type match
+        const typeMatch = partTypes.some(partType =>
+          targetPart.includes(partType) && dropName.includes(partType) &&
+          targetBaseName === dropBaseName
+        );
+
+        return typeMatch;
+      });
+
+      return hasMatch;
+    });
+    return matchingRelics.map(relic => relic.name);
   };
 
   // Calculate summary statistics with safety guards
