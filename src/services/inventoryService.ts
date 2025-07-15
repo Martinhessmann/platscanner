@@ -533,13 +533,12 @@ export const migrateInventoryToLocalImages = async (): Promise<void> => {
     const inventory = loadInventory();
     let hasChanges = false;
 
-    console.log('🔄 Migrating inventory to local images...');
 
     // Update all items to use local images if they have external URLs
     const updatedItems = await Promise.all(
       inventory.items.map(async (item) => {
-        // Check if item has external CDN URL
-        if (item.imgUrl && (item.imgUrl.includes('warframe.market') || item.imgUrl.includes('content.warframe.com'))) {
+        // Check if item has external CDN URL and valid name
+        if (item.imgUrl && (item.imgUrl.includes('warframe.market') || item.imgUrl.includes('content.warframe.com')) && isValidPrimePartName(item.name)) {
           console.log(`🔄 Migrating ${item.name} from external URL to local image`);
           const localImageUrl = await getImageUrl(item.name);
           hasChanges = true;
@@ -583,6 +582,46 @@ export const migrateInventoryToLocalImages = async (): Promise<void> => {
 };
 
 /**
+ * Validates if a string is a valid prime part name
+ * Filters out AI responses and invalid item names
+ */
+const isValidPrimePartName = (name: string): boolean => {
+  // Filter out common AI response patterns
+  const invalidPatterns = [
+    /here are the/i,
+    /screenshot/i,
+    /image/i,
+    /visible/i,
+    /detected/i,
+    /found/i,
+    /see/i,
+    /items/i,
+    /following/i,
+    /^i /i,
+    /^the /i,
+    /analysis/i,
+    /result/i
+  ];
+  
+  // Check for invalid patterns
+  if (invalidPatterns.some(pattern => pattern.test(name))) {
+    return false;
+  }
+  
+  // Must contain "Prime" and have reasonable length
+  if (!name.includes('Prime') || name.length < 5 || name.length > 50) {
+    return false;
+  }
+  
+  // Should not contain multiple sentences or question marks
+  if (name.includes('.') || name.includes('?') || name.includes(':')) {
+    return false;
+  }
+  
+  return true;
+};
+
+/**
  * Migrate prime parts to use their parent item images
  * e.g., "Akarius Prime Link" should use "Akarius Prime" image
  */
@@ -591,13 +630,12 @@ export const migratePartsToParentImages = async (): Promise<void> => {
     const inventory = loadInventory();
     let hasChanges = false;
 
-    console.log('🔗 Migrating prime parts to use parent item images...');
 
     // Update all prime parts to use correct parent images
     const updatedItems = await Promise.all(
       inventory.items.map(async (item) => {
-        // Only process prime parts category
-        if (item.category === 'prime_parts') {
+        // Only process prime parts category with valid prime part names
+        if (item.category === 'prime_parts' && isValidPrimePartName(item.name)) {
           const newImageUrl = await getImageUrl(item.name);
 
           // Check if the image URL has changed (indicating we found a better parent mapping)

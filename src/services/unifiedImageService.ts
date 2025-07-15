@@ -91,7 +91,6 @@ export const getImageUrl = async (itemName: string): Promise<string> => {
     if (parentSetName !== itemName) {
       const parentMatch = primeSets.find(set => set.name === parentSetName);
       if (parentMatch) {
-        console.log(`🔗 Using parent set image for "${itemName}" → "${parentSetName}"`);
         return `/images/primeparts/${parentMatch.image}`;
       }
     }
@@ -106,7 +105,6 @@ export const getImageUrl = async (itemName: string): Promise<string> => {
     }
 
     // Fallback: normalize name and try to construct filename
-    console.warn(`⚠️ No image found for "${itemName}", using fallback`);
     const normalizedName = itemName.toLowerCase()
       .replace(/\s+/g, '-')
       .replace(/&/g, '')
