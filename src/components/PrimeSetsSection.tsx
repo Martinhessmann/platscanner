@@ -6,6 +6,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { DetectedItem, VoidRelic } from '../types';
 import {
   analyzeSetProgressWithMarketData,
+  analyzeSetProgress,
   getSetRecommendations,
   toggleSetMastery,
   getMasteredSets,
