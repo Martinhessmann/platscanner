@@ -109,3 +109,60 @@ The app requires a Gemini API key to function, stored in localStorage. Cloud syn
 - Services are designed to be stateless and testable
 - Error handling is comprehensive with user-friendly messages
 - The architecture supports easy extension for new item types or analysis features
+
+## Recent Updates (2025-07-15)
+
+### Major Prime Sets UI/UX Overhaul
+
+The Prime Sets section has been completely refactored with improved filtering and sorting:
+
+#### Combinable Filter System
+- **Multi-select filters**: Users can combine filters (e.g., "vaulted + weapons")
+- **New filter logic**: `activeFilters` Set-based state management instead of single activeTab
+- **Filter categories**:
+  - All Sets (148 total)
+  - Planner (129 - all non-built sets)
+  - Priority (2 - starred builds)
+  - Built (19 - completed sets)
+  - Vaulted, Warframes, Weapons, Misc (companions/sentinels)
+
+#### Advanced Sorting Algorithm
+- **Priority-first sorting**: Starred sets always appear at top
+- **Weighted completion scoring**: `(owned × 10 + obtainable) / (total × 10)`
+- **Logic**: Owned parts worth 10x more than obtainable parts in sorting
+- **Examples**: `2/3 owned` > `1+1/3 owned+obtainable` > `1/3 owned`
+
+#### Fixed Relic Logic & Progress Tracking
+- **Accurate yellow bars**: Only show for parts obtainable from YOUR owned relics, not all relics in game
+- **Unified matching algorithms**: `getRelicsForPart` UI function now uses same logic as `canObtainFromRelics` service
+- **Sophisticated part matching**: Handles exact matches, base name matching, and part type validation
+- **RELIC tags**: Only shown for parts actually obtainable from owned relics
+
+#### Simplified Build Management
+- **Removed market analysis**: Eliminated warframe.market API calls and trading strategy complexity
+- **Unified mastery storage**: Fixed inconsistency between UI (`getSetState`) and service (`toggleSetMastery`)
+- **Storage mechanism**: Uses centralized `platscanner_mastery` array instead of individual localStorage keys
+- **"Mark as done" functionality**: Now works correctly with proper state synchronization
+
+### Technical Improvements
+
+#### Service Layer Changes
+- **primeSetService.ts**: Removed market analysis, simplified to focus on build progress
+- **buildPlanService.ts**: Enhanced with priority system and proper reservation logic
+- **PrimeSetsSection.tsx**: Complete rewrite with Set-based multi-select filtering
+
+#### Key Functions Fixed
+- `analyzeSetProgress()`: Now used instead of market-heavy `analyzeSetProgressWithMarketData()`
+- `canObtainFromRelics()`: Properly matches parts to owned relics with sophisticated algorithms
+- `toggleSetMastery()`: Fixed storage inconsistency between component and service layers
+- `getRelicsForPart()`: Synchronized matching logic with service layer for consistent results
+
+#### Console Log Analysis
+From recent debugging, the system now shows clean logs:
+- Static data initialization (prime sets: 148, relics: 2762)
+- Image migration system working properly
+- Cloud sync functioning correctly
+- No more market API calls
+- Clean ownership checks without debug spam
+
+The application is now focused on core build planning functionality without the complexity of market analysis, providing a cleaner and more maintainable codebase.
