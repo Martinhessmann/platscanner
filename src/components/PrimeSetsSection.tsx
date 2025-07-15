@@ -8,6 +8,7 @@ import {
   analyzeSetProgressWithMarketData,
   getSetRecommendations,
   toggleSetMastery,
+  getMasteredSets,
   refreshPrimeSetsMarketData,
   refreshIndividualSetMarketData,
   getPrimeSetsLastRefresh,
@@ -255,8 +256,13 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   }, [setProgress]);
 
   const getSetState = (progress: SetProgress): 'default' | 'planned' | 'owned' => {
-    const setMasteryKey = `set_mastery_${progress.set.id}`;
-    const isOwned = localStorage.getItem(setMasteryKey) === 'true';
+    const masteredSets = getMasteredSets();
+    const isOwned = masteredSets.includes(progress.set.id);
+    
+    console.log(`>>> [getSetState] Checking state for "${progress.set.name}" (ID: "${progress.set.id}") <<<`);
+    console.log(`>>> [getSetState] All mastered sets:`, masteredSets);
+    console.log(`>>> [getSetState] Is owned: ${isOwned} <<<`);
+    console.log(`>>> [getSetState] Is planned: ${plannedSets.has(progress.set.id)} <<<`);
     
     if (isOwned) return 'owned';
     if (plannedSets.has(progress.set.id)) return 'planned';
@@ -765,8 +771,13 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                     {/* Done toggle button */}
                     <button
                       onClick={() => {
+                        console.log(`>>> [UI] Mark as done button clicked for set: "${progress.set.name}" (ID: "${progress.set.id}") <<<`);
+                        console.log(`>>> [UI] Current state: "${getSetState(progress)}" <<<`);
+                        
                         toggleSetMastery(progress.set.id);
                         setRefreshKey(prev => prev + 1);
+                        
+                        console.log(`>>> [UI] Refresh key updated, should trigger re-render <<<`);
                       }}
                       className={`p-1 rounded-full transition-colors ${
                         getSetState(progress) === 'owned'

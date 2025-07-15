@@ -294,11 +294,22 @@ export const setMasteredSets = (masteredIds: string[]): void => {
 
 // Toggle mastery status for a set
 export const toggleSetMastery = (setId: string): void => {
+  console.log(`>>> [Toggle Mastery] Called for setId: "${setId}" <<<`);
+  
   const current = getMasteredSets();
-  const updated = current.includes(setId)
+  console.log(`>>> [Toggle Mastery] Current mastered sets:`, current);
+  
+  const wasAlreadyMastered = current.includes(setId);
+  console.log(`>>> [Toggle Mastery] Was already mastered: ${wasAlreadyMastered} <<<`);
+  
+  const updated = wasAlreadyMastered
     ? current.filter(id => id !== setId)
     : [...current, setId];
+    
+  console.log(`>>> [Toggle Mastery] Updated mastered sets:`, updated);
+  
   setMasteredSets(updated);
+  console.log(`>>> [Toggle Mastery] Mastery toggle completed for "${setId}" <<<`);
 };
 
 // Check if user owns a specific part
