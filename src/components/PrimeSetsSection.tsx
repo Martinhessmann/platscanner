@@ -409,6 +409,15 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
     // Apply sorting
     return filtered.sort((a, b) => {
+      // First, check priority status
+      const aPriority = plannedSets.get(a.set.id)?.isPriority || false;
+      const bPriority = plannedSets.get(b.set.id)?.isPriority || false;
+      
+      // Priority sets always come first
+      if (aPriority && !bPriority) return -1;
+      if (!aPriority && bPriority) return 1;
+      
+      // Within same priority level, apply user-selected sorting
       let valueA: any;
       let valueB: any;
 
@@ -418,16 +427,35 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           valueB = b.set.name;
           break;
         case 'completion':
-          valueA = a.completionPercentage;
-          valueB = b.completionPercentage;
+          // Advanced completion scoring: owned parts worth more than obtainable
+          const aOwned = a.ownedParts.length;
+          const aObtainable = a.obtainableFromRelics.length;
+          const aTotal = a.set.requiredParts.length;
+          
+          const bOwned = b.ownedParts.length;
+          const bObtainable = b.obtainableFromRelics.length;
+          const bTotal = b.set.requiredParts.length;
+          
+          // Weighted score: owned parts worth 10x, obtainable worth 1x
+          valueA = (aOwned * 10 + aObtainable) / (aTotal * 10);
+          valueB = (bOwned * 10 + bObtainable) / (bTotal * 10);
           break;
         case 'type':
           valueA = a.set.type;
           valueB = b.set.type;
           break;
         default:
-          valueA = a.completionPercentage;
-          valueB = b.completionPercentage;
+          // Default to advanced completion scoring
+          const aOwnedDefault = a.ownedParts.length;
+          const aObtainableDefault = a.obtainableFromRelics.length;
+          const aTotalDefault = a.set.requiredParts.length;
+          
+          const bOwnedDefault = b.ownedParts.length;
+          const bObtainableDefault = b.obtainableFromRelics.length;
+          const bTotalDefault = b.set.requiredParts.length;
+          
+          valueA = (aOwnedDefault * 10 + aObtainableDefault) / (aTotalDefault * 10);
+          valueB = (bOwnedDefault * 10 + bObtainableDefault) / (bTotalDefault * 10);
       }
 
       if (sortField === 'name' || sortField === 'type') {
