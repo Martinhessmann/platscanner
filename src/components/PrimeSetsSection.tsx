@@ -375,16 +375,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     });
   });
 
-  const getRelicSourceText = (partName: string, isOwned: boolean, isObtainableFromRelics: boolean): string => {
-    if (isOwned) return 'Owned';
-    if (isObtainableFromRelics) {
-      const relics = getRelicsForPart(partName);
-      if (relics.length > 0) {
-        return relics.length > 1 ? `${relics.length} relics` : relics[0];
-      }
-    }
-    return 'Market only';
-  };
 
   const getPrimeSetImageUrl = (setName: string): string => {
     // Use the unifiedImageService which handles proper name-to-image mapping
@@ -784,30 +774,62 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       />
                     </button>
 
-                    {/* Priority toggle for planned sets */}
-                    {getSetState(progress) === 'planned' && (
-                      <button
-                        onClick={() => handleStateChange(progress, 'planned', !plannedSets.get(progress.set.id)?.isPriority)}
-                        className={`p-1 rounded-full transition-colors ${
-                          plannedSets.get(progress.set.id)?.isPriority
+                    {/* Planned/Priority toggle button */}
+                    <button
+                      onClick={() => {
+                        const currentState = getSetState(progress);
+                        if (currentState === 'planned') {
+                          // If already planned, toggle priority or remove from planned
+                          const isPriority = plannedSets.get(progress.set.id)?.isPriority || false;
+                          if (isPriority) {
+                            // Remove from planned entirely
+                            handleStateChange(progress, 'default');
+                          } else {
+                            // Make it priority
+                            handleStateChange(progress, 'planned', true);
+                          }
+                        } else {
+                          // Add to planned
+                          handleStateChange(progress, 'planned', false);
+                        }
+                      }}
+                      className={`p-1 rounded-full transition-colors ${
+                        getSetState(progress) === 'planned'
+                          ? plannedSets.get(progress.set.id)?.isPriority
                             ? 'bg-red-700/30 text-red-400 border border-red-500/30'
-                            : 'bg-gray-800/30 text-gray-400 border border-gray-600/30 hover:text-red-300'
-                        }`}
-                        title={plannedSets.get(progress.set.id)?.isPriority ? "Remove from top candidates" : "Mark as top candidate"}
-                      >
-                        <Star size={12} />
-                      </button>
-                    )}
-                    {/* Remove for built tab */}
-                    {activeTab === 'built' && (
-                      <button
-                        onClick={() => handleStateChange(progress, 'default')}
-                        className="p-1 rounded transition-colors text-gray-500 hover:text-red-400"
-                        title="Remove from built (if marked by mistake)"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    )}
+                            : 'bg-yellow-700/30 text-yellow-400 border border-yellow-500/30'
+                          : 'bg-gray-800/30 text-gray-400 border border-gray-600/30 hover:text-yellow-300'
+                      }`}
+                      title={
+                        getSetState(progress) === 'planned'
+                          ? plannedSets.get(progress.set.id)?.isPriority
+                            ? "Remove from planned"
+                            : "Mark as priority"
+                          : "Add to planned"
+                      }
+                    >
+                      <Star size={12} />
+                    </button>
+
+                    {/* Done toggle button */}
+                    <button
+                      onClick={() => {
+                        const currentState = getSetState(progress);
+                        if (currentState === 'owned') {
+                          handleStateChange(progress, 'default');
+                        } else {
+                          handleStateChange(progress, 'owned');
+                        }
+                      }}
+                      className={`p-1 rounded-full transition-colors ${
+                        getSetState(progress) === 'owned'
+                          ? 'bg-green-700/30 text-green-400 border border-green-500/30'
+                          : 'bg-gray-800/30 text-gray-400 border border-gray-600/30 hover:text-green-300'
+                      }`}
+                      title={getSetState(progress) === 'owned' ? "Mark as not done" : "Mark as done"}
+                    >
+                      <CheckCircle size={12} />
+                    </button>
                   </div>
                 </div>
 
@@ -835,28 +857,14 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 </div>
 
                 {/* Compact Info Grid */}
-                <div className="grid grid-cols-3 gap-2 text-xs mb-2">
-                  <div className="text-center">
-                    <div className="text-gray-400">Parts</div>
-                    <div className="text-white font-medium">
-                      <span className="text-green-400">{progress.ownedParts.length}</span>
-                      {progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length > 0 && (
-                        <span className="text-yellow-400">+{progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length}</span>
-                      )}
-                      <span className="text-gray-400">/{progress.set.requiredParts.length}</span>
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-gray-400">Investment</div>
-                    <div className="text-white font-medium">
-                      {progress.investmentRequired ? `${progress.investmentRequired}p` : 'None'}
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-gray-400">Profit</div>
-                    <div className="text-white font-medium">
-                      {progress.expectedProfit ? `${progress.expectedProfit}p` : 'Unknown'}
-                    </div>
+                <div className="text-center mb-2">
+                  <div className="text-gray-400 text-xs mb-1">Parts</div>
+                  <div className="text-white font-medium">
+                    <span className="text-green-400">{progress.ownedParts.length}</span>
+                    {progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length > 0 && (
+                      <span className="text-yellow-400">+{progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length}</span>
+                    )}
+                    <span className="text-gray-400">/{progress.set.requiredParts.length}</span>
                   </div>
                 </div>
 
@@ -934,7 +942,16 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                   <span className="bg-yellow-900/30 text-yellow-400 px-1 py-0.5 text-[10px] rounded">RELIC</span>
                                 )}
                                 <span className={`${textColor} truncate text-xs text-right ml-1`}>
-                                  {getRelicSourceText(part.name, isOwned, isObtainableFromRelics)}
+                                  {isOwned ? 'Owned' : isObtainableFromRelics ? (
+                                    <span className="text-yellow-400" title={getRelicsForPart(part.name).join(', ')}>
+                                      {getRelicsForPart(part.name).length > 1 
+                                        ? `${getRelicsForPart(part.name).length} relics`
+                                        : getRelicsForPart(part.name)[0] || 'Market only'
+                                      }
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-500">Market only</span>
+                                  )}
                                 </span>
                               </div>
                             </div>
@@ -943,65 +960,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       </div>
                     </div>
 
-                    {/* Simple 3-State Toggle - More Compact */}
-                    <div className="border-t border-gray-700/50 pt-3">
-                      <div className="flex gap-1">
-                        {(['default', 'planned', 'owned'] as const).map((state) => {
-                          const currentState = getSetState(progress);
-                          const isActive = currentState === state;
-                          const isPriority = plannedSets.get(progress.set.id)?.isPriority || false;
-
-                          const stateConfig = {
-                            default: {
-                              label: 'Default',
-                              icon: <Circle size={10} />,
-                              color: 'text-gray-300',
-                              bgColor: 'bg-gray-700/20 border-gray-700/30',
-                              activeBgColor: 'bg-gray-400/30 border-gray-400/50'
-                            },
-                            planned: {
-                              label: isPriority ? 'Priority' : 'Planned',
-                              icon: <Star size={10} />,
-                              color: isPriority ? 'text-red-400' : 'text-yellow-400',
-                              bgColor: isPriority ? 'bg-red-600/20 border-red-600/30' : 'bg-yellow-600/20 border-yellow-600/30',
-                              activeBgColor: isPriority ? 'bg-red-600/40 border-red-500/50' : 'bg-yellow-600/40 border-yellow-500/50'
-                            },
-                            owned: {
-                              label: 'Done',
-                              icon: <CheckCircle size={10} />,
-                              color: 'text-green-400',
-                              bgColor: 'bg-green-600/20 border-green-600/30',
-                              activeBgColor: 'bg-green-600/40 border-green-500/50'
-                            }
-                          };
-
-                          const config = stateConfig[state];
-
-                          // Keep existing isPriority if staying in planned state, otherwise false
-                          const nextPriority = state === 'planned' && currentState === 'planned'
-                            ? isPriority
-                            : state === 'planned' ? false : false;
-
-                          return (
-                            <button
-                              key={state}
-                              onClick={() => handleStateChange(progress, state, nextPriority)}
-                              className={`flex-1 px-2 py-1.5 text-xs border rounded transition-colors ${
-                                isActive
-                                  ? `${config.activeBgColor} ${config.color}`
-                                  : `${config.bgColor} text-gray-400 hover:bg-opacity-30`
-                              }`}
-                              title={`Mark as ${config.label.toLowerCase()}`}
-                            >
-                              <div className="flex items-center justify-center gap-1">
-                                {config.icon}
-                                <span>{config.label}</span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
