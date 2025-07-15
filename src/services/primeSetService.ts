@@ -326,6 +326,13 @@ const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedIt
 
 // Check if user can obtain a part from owned relics
 const canObtainFromRelics = (partName: string, relicsInventory: VoidRelic[]): boolean => {
+  // Debug: Check if relicsInventory is actually YOUR relics or all relics
+  if (partName.toLowerCase().includes('sevagoth')) {
+    console.log(`>>> [canObtainFromRelics] Checking "${partName}" <<<`);
+    console.log(`>>> [canObtainFromRelics] Relics inventory size: ${relicsInventory.length} <<<`);
+    console.log(`>>> [canObtainFromRelics] First few relics:`, relicsInventory.slice(0, 3).map(r => r.name));
+  }
+  
   const matchingRelics = relicsInventory.filter(relic => {
     if (!relic.relicDrops || relic.relicDrops.length === 0) {
       return false;
@@ -378,9 +385,16 @@ const canObtainFromRelics = (partName: string, relicsInventory: VoidRelic[]): bo
     return hasMatch;
   });
 
-        // Part analysis complete
-
-  return matchingRelics.length > 0;
+  const result = matchingRelics.length > 0;
+  
+  if (partName.toLowerCase().includes('sevagoth')) {
+    console.log(`>>> [canObtainFromRelics] Result for "${partName}": ${result} <<<`);
+    if (result) {
+      console.log(`>>> [canObtainFromRelics] Matching relics:`, matchingRelics.map(r => r.name));
+    }
+  }
+  
+  return result;
 };
 
 // Calculate cost for missing parts (placeholder - would need market data)

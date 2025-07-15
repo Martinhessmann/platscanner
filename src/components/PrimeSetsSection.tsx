@@ -204,8 +204,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Preload image data
         await preloadImageData();
 
-        // Analyze sets with market data
-        const analyzed = await analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory);
+        // Analyze sets without market data
+        const analyzed = await analyzeSetProgress(primePartsInventory, relicsInventory);
         setSetProgress(analyzed);
 
         // Get recommendations
