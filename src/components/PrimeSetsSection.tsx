@@ -432,7 +432,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               // Show all sets that are NOT built (everything you can still work on)
               return !masteredSets.includes(p.set.id);
             case 'priority':
-              // Show high-priority planned sets
+              // Show starred/priority sets (regardless of built status)
               return plannedSets.get(p.set.id)?.isPriority || false;
             case 'built':
               // Show mastered/built sets
@@ -844,22 +844,35 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1">
-                    {/* Planned toggle button */}
+                    {/* Priority star button - toggles priority status only */}
                     <button
                       onClick={() => {
-                        const currentState = getSetState(progress);
-                        if (currentState === 'planned') {
-                          handleStateChange(progress, 'default');
+                        const currentPriority = plannedSets.get(progress.set.id)?.isPriority || false;
+                        
+                        if (currentPriority) {
+                          // Remove from priority (but keep as "planned" since all non-built are planned)
+                          removeFromBuildPlan(progress.set.id);
+                          setPlannedSets(prev => {
+                            const updated = new Map(prev);
+                            updated.delete(progress.set.id);
+                            return updated;
+                          });
                         } else {
-                          handleStateChange(progress, 'planned', false);
+                          // Add to priority
+                          addToBuildPlan(progress.set.id, true);
+                          setPlannedSets(prev => {
+                            const updated = new Map(prev);
+                            updated.set(progress.set.id, { planned: true, isPriority: true });
+                            return updated;
+                          });
                         }
                       }}
                       className={`p-1 rounded-full transition-colors ${
-                        getSetState(progress) === 'planned'
-                          ? 'bg-yellow-700/30 text-yellow-400 border border-yellow-500/30'
+                        plannedSets.get(progress.set.id)?.isPriority
+                          ? 'bg-yellow-600/50 text-yellow-300 border border-yellow-400/50'
                           : 'bg-gray-800/30 text-gray-400 border border-gray-600/30 hover:text-yellow-300'
                       }`}
-                      title={getSetState(progress) === 'planned' ? "Remove from planned" : "Add to planned"}
+                      title={plannedSets.get(progress.set.id)?.isPriority ? "Remove from priority" : "Mark as priority"}
                     >
                       <Star size={12} />
                     </button>
