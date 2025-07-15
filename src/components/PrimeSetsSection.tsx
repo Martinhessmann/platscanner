@@ -49,9 +49,7 @@ import LastRefreshInfo from './LastRefreshInfo';
 import {
   isSetPlanned,
   addToBuildPlan,
-  removeFromBuildPlan,
-  autoReserveItemsForSet,
-  updateAllReservations
+  removeFromBuildPlan
 } from '../services/buildPlanService';
 
 interface PrimeSetsProps {
@@ -216,8 +214,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Load planned sets from localStorage
         const planned = new Map<string, { planned: boolean; isPriority: boolean }>();
         analyzed.forEach(progress => {
-          if (isSetPlanned(progress.set.id)) {
-            planned.set(progress.set.id, { planned: true, isPriority: false });
+          const planStatus = isSetPlanned(progress.set.id);
+          if (planStatus.planned) {
+            planned.set(progress.set.id, { planned: true, isPriority: planStatus.isPriority });
           }
         });
         setPlannedSets(planned);
@@ -245,8 +244,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     const syncPlannedSets = () => {
       const updated = new Map<string, { planned: boolean; isPriority: boolean }>();
       setProgress.forEach(progress => {
-        if (isSetPlanned(progress.set.id)) {
-          updated.set(progress.set.id, { planned: true, isPriority: false });
+        const planStatus = isSetPlanned(progress.set.id);
+        if (planStatus.planned) {
+          updated.set(progress.set.id, { planned: true, isPriority: planStatus.isPriority });
         }
       });
       setPlannedSets(updated);
@@ -270,7 +270,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     if (currentState === 'planned' && newState !== 'planned') {
       // Remove from build plan
       removeFromBuildPlan(progress.set.id);
-      updateAllReservations();
 
       setPlannedSets(prev => {
         const updated = new Map(prev);
@@ -280,8 +279,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     } else if (newState === 'planned' && currentState !== 'planned') {
       // Add to build plan
       addToBuildPlan(progress.set.id, isPriority);
-      autoReserveItemsForSet(progress.set.id, isPriority);
-      updateAllReservations();
 
       setPlannedSets(prev => {
         const updated = new Map(prev);
@@ -294,8 +291,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       const newPriority = !currentPriority;
 
       addToBuildPlan(progress.set.id, newPriority);
-      autoReserveItemsForSet(progress.set.id, newPriority);
-      updateAllReservations();
 
       setPlannedSets(prev => {
         const updated = new Map(prev);

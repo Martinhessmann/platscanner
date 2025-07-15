@@ -254,10 +254,16 @@ export const getAllReservedItems = (): ReservedItem[] => {
  */
 export const autoReserveItemsForSet = (
   setName: string,
-  requiredParts: string[],
+  requiredParts: string[] = [],
   ownedParts: string[] = [],
   relicsInventory?: VoidRelic[]
 ): void => {
+  // Ensure requiredParts is an array
+  if (!Array.isArray(requiredParts)) {
+    console.warn('autoReserveItemsForSet: requiredParts is not an array, skipping reservation');
+    return;
+  }
+
   // Reserve ALL required prime parts (both owned and missing)
   // Owned parts are reserved to prevent accidental selling
   // Missing parts are reserved to track what we need
@@ -334,16 +340,22 @@ export const autoReserveItemsForSet = (
  * This is used to batch update all reservations when inventory changes
  */
 export const updateAllReservations = (
-  sets: Array<{
+  sets?: Array<{
     set: { name: string, requiredParts: Array<{ name: string, partType: string }> },
     ownedParts: string[]
   }>,
-  relicsInventory: VoidRelic[]
+  relicsInventory?: VoidRelic[]
 ): void => {
   // First, clear all existing reservations (both prime parts and relics)
   const storage = loadBuildPlans();
   storage.reservedItems = [];
   saveBuildPlans(storage);
+
+  // If no sets provided, just clear reservations and return
+  if (!sets || !Array.isArray(sets)) {
+    console.warn('updateAllReservations: No sets provided, only clearing reservations');
+    return;
+  }
 
   // Then, recreate reservations for all planned sets
   const plannedSets = getAllPlannedSets();
@@ -356,6 +368,40 @@ export const updateAllReservations = (
       autoReserveItemsForSet(set.name, requiredPartNames, ownedParts, relicsInventory);
     }
   });
+};
+
+/**
+ * Combined function to toggle set planning status
+ * Handles both adding/removing from build plan and managing reservations
+ */
+export const toggleSetPlanning = (
+  setName: string,
+  isPriority: boolean = false,
+  setData?: {
+    requiredParts: string[],
+    ownedParts: string[],
+    relicsInventory?: VoidRelic[]
+  }
+): void => {
+  const currentStatus = isSetPlanned(setName);
+  
+  if (currentStatus.planned) {
+    // Remove from build plan
+    removeFromBuildPlan(setName);
+  } else {
+    // Add to build plan
+    addToBuildPlan(setName, isPriority);
+    
+    // Optionally auto-reserve items if set data is provided
+    if (setData) {
+      autoReserveItemsForSet(
+        setName,
+        setData.requiredParts,
+        setData.ownedParts,
+        setData.relicsInventory
+      );
+    }
+  }
 };
 
 /**
