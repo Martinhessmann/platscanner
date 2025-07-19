@@ -12,10 +12,14 @@ import {
   Check,
   AlertCircle,
   Shield,
-  ChevronDown
+  ChevronDown,
+  ExternalLink,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { isItemReserved } from '../services/buildPlanService';
 import { getImageUrlSync } from '../services/unifiedImageService';
+import LastRefreshInfo from './LastRefreshInfo';
 
 interface ResultsTableProps {
   results: DetectedItem[];
@@ -23,6 +27,7 @@ interface ResultsTableProps {
   onRemoveItem?: (itemName: string) => void;
   onRefreshItem?: (itemName: string) => void;
   showActionButtons?: boolean;
+  lastRefreshTime?: Date | null;
 }
 
 const ResultsTable: React.FC<ResultsTableProps> = ({
@@ -30,12 +35,14 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   isLoading = false,
   onRemoveItem,
   onRefreshItem,
-  showActionButtons = false
+  showActionButtons = false,
+  lastRefreshTime
 }) => {
   const [sortField, setSortField] = useState<'price' | 'name' | 'ducats' | 'totalValue'>('price');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSortOptions, setShowSortOptions] = useState(false);
   const [showUnreservedOnly, setShowUnreservedOnly] = useState(false);
+  const [hideReservedMissing, setHideReservedMissing] = useState(false);
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
   const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
 
@@ -81,10 +88,19 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
     }
   };
 
-  // Apply filter for unreserved items only
-  const filteredResults = showUnreservedOnly
-    ? results.filter(item => !isItemReserved(item.name, 'prime_parts').reserved)
-    : results;
+  // Apply filters
+  let filteredResults = results;
+  
+  if (showUnreservedOnly) {
+    filteredResults = filteredResults.filter(item => !isItemReserved(item.name, 'prime_parts').reserved);
+  }
+  
+  if (hideReservedMissing) {
+    filteredResults = filteredResults.filter(item => {
+      const reservation = isItemReserved(item.name, 'prime_parts');
+      return !reservation.reserved || (item.price && item.price > 0);
+    });
+  }
 
   const sortedResults = [...filteredResults].sort((a, b) => {
     if (sortField === 'price') {
@@ -164,47 +180,64 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
         <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-t-lg">
           <div className="flex items-center gap-3">
             <div className="text-sm text-gray-400">
-              {showUnreservedOnly ? (
-                <>
-                  {filteredResults.length} of {results.length} unreserved
-                </>
-              ) : (
-                <>
-                  {results.length} item{results.length !== 1 ? 's' : ''}
-                </>
-              )}
+              {filteredResults.length} of {results.length} item{results.length !== 1 ? 's' : ''} 
+              {(showUnreservedOnly || hideReservedMissing) && ' filtered'}
             </div>
 
-            <button
-              onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                showUnreservedOnly
-                  ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
-                  : 'bg-gray-800 text-gray-400 hover:text-gray-300'
-              }`}
-              title={showUnreservedOnly ? 'Show all items' : 'Show only unreserved items'}
-            >
-              {showUnreservedOnly ? <ChevronDown size={12} /> : <ChevronDown size={12} />}
-              <span className="hidden sm:inline">
-                {showUnreservedOnly ? 'Show All' : 'Unreserved Only'}
-              </span>
-            </button>
-          </div>
-          <div className="relative">
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowSortOptions(!showSortOptions);
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 transition-colors"
-            >
-              <ArrowUpDown size={14} />
-              {getSortLabel()}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                  showUnreservedOnly
+                    ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
+                    : 'bg-gray-800 text-gray-400 hover:text-gray-300'
+                }`}
+                title={showUnreservedOnly ? 'Show all items' : 'Show only unreserved items'}
+              >
+                {showUnreservedOnly ? <Eye size={12} /> : <EyeOff size={12} />}
+                <span className="hidden sm:inline">
+                  {showUnreservedOnly ? 'Show All' : 'Unreserved'}
+                </span>
+              </button>
 
-            {showSortOptions && (
-              <div className="absolute right-0 top-full mt-1 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-50 min-w-32">
+              <button
+                onClick={() => setHideReservedMissing(!hideReservedMissing)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                  hideReservedMissing
+                    ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
+                    : 'bg-gray-800 text-gray-400 hover:text-gray-300'
+                }`}
+                title={hideReservedMissing ? 'Show reserved missing items' : 'Hide reserved items with zero value'}
+              >
+                {hideReservedMissing ? <EyeOff size={12} /> : <Eye size={12} />}
+                <span className="hidden sm:inline">
+                  {hideReservedMissing ? 'Show Missing' : 'Hide Missing'}
+                </span>
+              </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {lastRefreshTime && (
+              <LastRefreshInfo 
+                lastRefreshDate={lastRefreshTime} 
+                className="text-xs text-gray-500"
+              />
+            )}
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowSortOptions(!showSortOptions);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                <ArrowUpDown size={14} />
+                {getSortLabel()}
+              </button>
+
+              {showSortOptions && (
+                <div className="absolute right-0 top-full mt-1 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-50 min-w-32">
                 <button
                   onClick={(e) => {
                     e.preventDefault();
@@ -248,8 +281,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                 >
                   Name {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
                 </button>
-              </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -350,7 +384,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
             {/* Compact Price Display */}
             <div className="grid grid-cols-3 gap-2 text-sm mb-2">
               <div className="text-center">
-                <div className="text-xs text-gray-400 mb-1">Current</div>
+                <div className="text-xs text-gray-400 mb-1">
+                  {item.average ? `Current / Avg` : 'Current'}
+                </div>
                 {item.status === 'loading' ? (
                   <div className="h-5 w-12 bg-gray-700 rounded animate-pulse mx-auto"></div>
                 ) : (
@@ -358,22 +394,27 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                     <Zap size={12} className="text-gray-300" />
                     <span className="font-semibold text-gray-300">
                       {item.price || 0}p
+                      {item.average && (
+                        <span className="text-gray-500 ml-1">/ {item.average}p</span>
+                      )}
                     </span>
                   </div>
                 )}
               </div>
 
-              {item.average && (
-                <div className="text-center">
-                  <div className="text-xs text-gray-400 mb-1">Average</div>
+              <div className="text-center">
+                <div className="text-xs text-gray-400 mb-1">Ducats</div>
+                {item.ducats ? (
                   <div className="flex items-center justify-center gap-1">
-                    <Zap size={12} className="text-gray-500" />
-                    <span className="font-semibold text-gray-500">
-                      {item.average}p
+                    <Coins size={12} className="text-yellow-500" />
+                    <span className="font-semibold text-yellow-500">
+                      {item.ducats}
                     </span>
                   </div>
-                </div>
-              )}
+                ) : (
+                  <span className="text-gray-600 text-xs">-</span>
+                )}
+              </div>
 
               <div className="text-center">
                 <div className="text-xs text-gray-400 mb-1">Total</div>
@@ -386,17 +427,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               </div>
             </div>
 
-            {/* Compact Ducats & Market Actions */}
+            {/* Market Actions */}
             <div className="flex items-center justify-between pt-2 border-t border-gray-700/50">
               <div className="flex items-center gap-3">
-                {item.ducats && (
-                  <div className="flex items-center gap-1">
-                    <Coins size={12} className="text-yellow-500" />
-                    <span className="text-sm font-medium text-yellow-500">
-                      {item.ducats}
-                    </span>
-                  </div>
-                )}
                 {item.volume && (
                   <div className="text-xs text-gray-500">
                     Vol: {item.volume}
@@ -432,7 +465,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 text-gray-500 hover:text-gray-300 transition-colors text-xs"
                 >
-                  <ChevronDown size={10} />
+                  <ExternalLink size={10} />
                   <span className="hidden sm:inline">Market</span>
                 </a>
               </div>

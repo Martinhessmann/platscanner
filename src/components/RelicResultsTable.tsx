@@ -7,6 +7,7 @@ import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, Messa
 import { getRelicImagePath } from '../lib/relicUtils';
 import { getRelicDropsByName } from '../services/relicDataService';
 import { isItemReserved } from '../services/buildPlanService';
+import LastRefreshInfo from './LastRefreshInfo';
 
 interface RelicResultsTableProps {
   results: VoidRelic[];
@@ -14,6 +15,7 @@ interface RelicResultsTableProps {
   onRemoveItem?: (itemName: string) => void;
   onRefreshItem?: (itemName: string) => void;
   showActionButtons?: boolean;
+  lastRefreshTime?: Date | null;
 }
 
 interface RelicAnalysis {
@@ -33,7 +35,8 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   isLoading = false,
   onRemoveItem,
   onRefreshItem,
-  showActionButtons = false
+  showActionButtons = false,
+  lastRefreshTime
 }) => {
   const [sortField, setSortField] = useState<'totalValue' | 'bestValue' | 'name' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market'>('totalValue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -288,17 +291,10 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     <div className="w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 px-2">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="text-sm text-gray-400">
-            {showUnreservedOnly ? (
-              <>
-                {finalFilteredRelics.length} of {filteredResults.length} unreserved relic{finalFilteredRelics.length !== 1 ? 's' : ''}
-              </>
-            ) : (
-              <>
-                {filteredResults.length} relic{filteredResults.length !== 1 ? 's' : ''}
-              </>
-            )}
+            {finalFilteredRelics.length} of {filteredResults.length} relic{filteredResults.length !== 1 ? 's' : ''}
+            {showUnreservedOnly && ' filtered'}
           </div>
 
           {/* Mobile-friendly Sort Dropdown */}
@@ -353,15 +349,16 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
           >
             {showUnreservedOnly ? <EyeOff size={12} /> : <Eye size={12} />}
             <span className="hidden sm:inline">
-              {showUnreservedOnly ? 'Show All' : 'Unreserved Only'}
+              {showUnreservedOnly ? 'Show All' : 'Unreserved'}
             </span>
           </button>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-xs text-gray-500">
-            <span className="hidden lg:inline">Trading Platform View • All values in Platinum</span>
-            <span className="lg:hidden">All values in Platinum</span>
-          </div>
+
+          {lastRefreshTime && (
+            <LastRefreshInfo 
+              lastRefreshDate={lastRefreshTime} 
+              className="text-xs text-gray-500"
+            />
+          )}
         </div>
       </div>
 
@@ -834,12 +831,12 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                   </div>
                 </div>
 
-                {/* Relic Contents Preview - Always Visible */}
-                {relic.relicDrops && relic.relicDrops.length > 0 && (
+                {/* Relic Contents Preview - Show/Hide via toggle */}
+                {isExpanded && relic.relicDrops && relic.relicDrops.length > 0 && (
                   <div className="mt-3 text-xs text-gray-400 px-2 py-2 bg-gray-800/30 rounded">
                     <div className="flex items-center gap-1 mb-2">
                       <Package size={12} />
-                      <span className="font-medium">Contains:</span>
+                      <span className="font-medium">Contents:</span>
                     </div>
                     <div className="grid grid-cols-1 gap-1">
                       {relic.relicDrops
@@ -887,170 +884,16 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                   {isExpanded ? (
                     <>
                       <ChevronUp size={16} />
-                      Hide Details
+                      Hide Contents
                     </>
                   ) : (
                     <>
                       <ChevronDown size={16} />
-                      Show Details
+                      Show Contents
                     </>
                   )}
                 </button>
               </div>
-
-              {/* Expandable Detail Section - Inline accordion like prime sets */}
-              {isExpanded && (
-                <div className="px-4 pb-4 border-t border-gray-700/50">
-                  <div className="space-y-3 pt-3">
-                    {/* Opening Values */}
-                    <div>
-                      <h4 className="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Opening Values</h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className={`flex items-center justify-between p-2 rounded ${analysis.bestOption === 'intact' ? 'bg-green-900/20 text-green-300' : 'bg-gray-800/50'} ${isRefinementDisabled(relic, 'intact') ? 'opacity-50' : ''}`}>
-                          <div className="flex items-center gap-1">
-                            <Circle size={4} className="text-gray-400" fill="currentColor" />
-                            <span>Intact</span>
-                          </div>
-                          <span className="font-medium">{analysis.intactValue.toFixed(1)}p</span>
-                        </div>
-                        <div className={`flex items-center justify-between p-2 rounded ${analysis.bestOption === 'exceptional' ? 'bg-green-900/20 text-green-300' : 'bg-gray-800/50'} ${isRefinementDisabled(relic, 'exceptional') ? 'opacity-50' : ''}`}>
-                          <div className="flex items-center gap-1">
-                            <Circle size={4} className="text-green-400" fill="currentColor" />
-                            <span>Exceptional</span>
-                          </div>
-                          <span className="font-medium">{analysis.exceptionalValue.toFixed(1)}p</span>
-                        </div>
-                        <div className={`flex items-center justify-between p-2 rounded ${analysis.bestOption === 'flawless' ? 'bg-green-900/20 text-green-300' : 'bg-gray-800/50'} ${isRefinementDisabled(relic, 'flawless') ? 'opacity-50' : ''}`}>
-                          <div className="flex items-center gap-1">
-                            <Circle size={4} className="text-blue-400" fill="currentColor" />
-                            <span>Flawless</span>
-                          </div>
-                          <span className="font-medium">{analysis.flawlessValue.toFixed(1)}p</span>
-                        </div>
-                        <div className={`flex items-center justify-between p-2 rounded ${analysis.bestOption === 'radiant' ? 'bg-green-900/20 text-green-300' : 'bg-gray-800/50'} ${isRefinementDisabled(relic, 'radiant') ? 'opacity-50' : ''}`}>
-                          <div className="flex items-center gap-1">
-                            <Circle size={4} className="text-yellow-400" fill="currentColor" />
-                            <span>Radiant</span>
-                          </div>
-                          <span className="font-medium">{analysis.radiantValue.toFixed(1)}p</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Detailed Relic Contents Analysis */}
-                    {relic.relicDrops && relic.relicDrops.length > 0 && (
-                      <div>
-                        <h4 className="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Detailed Drop Analysis</h4>
-                        <div className="space-y-1">
-                          {relic.relicDrops
-                            .sort((a, b) => (b.currentPrice || 0) - (a.currentPrice || 0))
-                            .map((drop, index) => {
-                              const reservation = isItemReserved(drop.itemName, 'prime_parts');
-                              const isReserved = reservation.reserved;
-                              return (
-                                <div
-                                  key={index}
-                                  className="flex items-center justify-between text-xs py-2 px-3 bg-gray-800/50 rounded"
-                                >
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className={`w-2 h-2 rounded-full ${
-                                        drop.rarity === 'Rare' ? 'bg-yellow-400' :
-                                        drop.rarity === 'Uncommon' ? 'bg-slate-400' :
-                                        'bg-amber-700'
-                                      }`}
-                                    />
-                                    <span className={`font-medium ${
-                                      drop.rarity === 'Rare' ? 'text-yellow-400' :
-                                      drop.rarity === 'Uncommon' ? 'text-slate-400' :
-                                      'text-amber-700'
-                                    }`}>
-                                      {drop.rarity}
-                                    </span>
-                                    <div className="flex items-center gap-1">
-                                      {isReserved && <Shield size={10} className="text-yellow-400" />}
-                                      <span className={`${isReserved ? 'text-yellow-400' : 'text-gray-300'} truncate max-w-32`}>
-                                        {drop.itemName}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-3 text-right">
-                                    <span className="text-gray-400">
-                                      {drop.dropChance}%
-                                    </span>
-                                    <span className="text-white font-medium min-w-12">
-                                      {drop.currentPrice ? formatExpectedValue(drop.currentPrice) + 'p' : 'no buyers'}
-                                    </span>
-                                    <span className="text-orange-400 font-medium min-w-12">
-                                      {drop.currentPrice ? formatExpectedValue(drop.currentPrice * (drop.dropChance / 100)) + 'p' : '0p'}
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                        </div>
-                        <div className="pt-2 border-t border-gray-700/30 text-xs text-gray-400">
-                          <div className="flex justify-between">
-                            <span>Weighted Expected Value:</span>
-                            <span className="text-orange-400 font-medium">
-                              {formatExpectedValue(relic.expectedDropValue)}p
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Refinement Economics */}
-                    {relic.refinementAnalysis && (
-                      <div>
-                        <h4 className="text-xs font-medium text-gray-400 mb-2 uppercase tracking-wider">Refinement Economics</h4>
-                        <div className="bg-gray-800/50 rounded p-3 space-y-2 text-xs">
-                          {relic.refinementAnalysis.bestRefinementTarget && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-400">Best Refinement Target:</span>
-                              <span className="text-white font-medium capitalize">
-                                {relic.refinementAnalysis.bestRefinementTarget}
-                              </span>
-                            </div>
-                          )}
-                          {relic.refinementAnalysis.bestRefinementCost && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-400">Void Trace Cost:</span>
-                              <span className="text-white font-medium">
-                                {relic.refinementAnalysis.bestRefinementCost} traces
-                              </span>
-                            </div>
-                          )}
-                          {relic.refinementAnalysis.bestRefinementGain && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-400">Expected Gain:</span>
-                              <span className="text-green-400 font-medium">
-                                +{formatExpectedValue(relic.refinementAnalysis.bestRefinementGain)}p
-                              </span>
-                            </div>
-                          )}
-                          {relic.refinementAnalysis.platPerVoidTrace && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-400">Efficiency:</span>
-                              <span className="text-blue-400 font-medium">
-                                {(relic.refinementAnalysis.platPerVoidTrace * 100).toFixed(1)}p per 100 traces
-                              </span>
-                            </div>
-                          )}
-                          {relic.refinementAnalysis.reasoning && (
-                            <div className="pt-2 border-t border-gray-700/50">
-                              <div className="text-xs text-gray-400 mb-1">Analysis:</div>
-                              <div className="text-sm text-gray-300 italic">
-                                {relic.refinementAnalysis.reasoning}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           );
         })}
@@ -1059,7 +902,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
       {/* Footer */}
       <div className="mt-4 text-xs text-gray-500 px-2">
         <div className="flex items-center justify-between">
-          <span>💡 Green highlights show the most profitable option • Expand for detailed analysis</span>
+          <span>💡 Green highlights show the most profitable option • Tap "Show Contents" to see drop details</span>
           <span className="hidden lg:inline">Yellow items with shield icons are reserved for builds</span>
         </div>
       </div>

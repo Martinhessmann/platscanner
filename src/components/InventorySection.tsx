@@ -82,22 +82,16 @@ const InventorySection: React.FC<InventorySectionProps> = ({
     return null; // Don't render empty sections
   }
 
-  const getRefreshButtonText = () => {
-    if (isRefreshing && progress) {
-      return `${progress.current}/${progress.total}`;
-    }
-    return 'Refresh';
-  };
 
   return (
     <div ref={sectionRef} className="mb-2">
       {/* Mobile-first sticky header */}
       <div className="bg-gray-900/50 backdrop-blur-sm p-3 rounded-t-xl border border-gray-700/50 border-b-0 sticky top-0 z-20">
-        <button
-          onClick={handleToggle}
-          className="flex items-center justify-between w-full text-left group"
-        >
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between w-full">
+          <button
+            onClick={handleToggle}
+            className="flex items-center gap-3 text-left group flex-1"
+          >
             <div className="flex items-center gap-2">
               {isExpanded ? (
                 <ChevronDown size={16} className="text-gray-400 group-hover:text-orokin-gold transition-colors" />
@@ -110,68 +104,66 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
                 {title}
               </h3>
-              <p className="text-xs text-gray-400">
-                {items.length} item{items.length !== 1 ? 's' : ''}
+              <div className="flex items-center gap-4 text-xs text-gray-400">
+                <span>
+                  {items.length} item{items.length !== 1 ? 's' : ''}
+                </span>
+                {totalValue > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Zap size={10} className="text-gray-300" />
+                    <span className="text-gray-300">{totalValue}p</span>
+                  </div>
+                )}
+                {category === 'prime_parts' && totalDucats > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Coins size={10} className="text-yellow-500" />
+                    <span className="text-yellow-500">{totalDucats}d</span>
+                  </div>
+                )}
                 {isRefreshing && progress && (
-                  <span className="text-tenno-blue ml-2">
-                    • Refreshing {progress.current}/{progress.total}
+                  <span className="text-tenno-blue">
+                    Refreshing {progress.current}/{progress.total}
                   </span>
                 )}
-              </p>
-            </div>
-          </div>
-
-          <div className="text-right">
-            <div className="flex items-center justify-end gap-1 mb-1">
-              <Zap size={14} className="text-gray-300" />
-              <span className="text-lg font-bold text-gray-300">{totalValue}</span>
-            </div>
-            {category === 'prime_parts' && (
-              <div className="flex items-center justify-end gap-1">
-                <Coins size={10} className="text-yellow-500" />
-                <span className="text-xs text-yellow-500">{totalDucats}</span>
               </div>
+            </div>
+          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onRefreshAll}
+              disabled={isRefreshing}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                isRefreshing
+                  ? 'text-gray-500 cursor-not-allowed'
+                  : 'text-tenno-blue hover:bg-tenno-blue/10'
+              }`}
+              title={`Refresh all ${getCategoryDisplayName(category).toLowerCase()}`}
+            >
+              <RefreshCw
+                size={12}
+                className={isRefreshing ? 'animate-spin' : ''}
+              />
+              {isRefreshing && progress ? `${progress.current}/${progress.total}` : ''}
+            </button>
+
+            <button
+              onClick={onClearAll}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-grineer-red hover:bg-grineer-red/10 transition-colors"
+              title={`Clear all ${getCategoryDisplayName(category).toLowerCase()}`}
+            >
+              <Trash2 size={12} />
+            </button>
+
+            {lastRefreshTime && (
+              <LastRefreshInfo
+                lastRefreshDate={lastRefreshTime}
+                className="text-xs text-gray-500"
+              />
             )}
           </div>
-        </button>
+        </div>
 
-        {/* Action buttons - only show when expanded */}
-        {isExpanded && items.length > 0 && (
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700/50">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={onRefreshAll}
-                disabled={isRefreshing}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  isRefreshing
-                    ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                    : 'bg-tenno-blue/10 hover:bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/20'
-                }`}
-                title={`Refresh all ${getCategoryDisplayName(category).toLowerCase()}`}
-              >
-                <RefreshCw
-                  size={14}
-                  className={isRefreshing ? 'animate-spin' : ''}
-                />
-                {getRefreshButtonText()}
-              </button>
-
-              <button
-                onClick={onClearAll}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-grineer-red/10 hover:bg-grineer-red/20 text-grineer-red border border-grineer-red/20 transition-colors"
-                title={`Clear all ${getCategoryDisplayName(category).toLowerCase()}`}
-              >
-                <Trash2 size={14} />
-                Clear
-              </button>
-            </div>
-
-                        <LastRefreshInfo
-              lastRefreshDate={lastRefreshTime || null}
-              className="ml-auto"
-            />
-          </div>
-        )}
 
         {/* Progress bar - show when refreshing */}
         {isRefreshing && progress && (
@@ -203,6 +195,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               onRemoveItem={onRemoveItem}
               onRefreshItem={onRefreshItem}
               showActionButtons={true}
+              lastRefreshTime={lastRefreshTime}
             />
           ) : (
             <ResultsTable
@@ -210,6 +203,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               onRemoveItem={onRemoveItem}
               onRefreshItem={onRefreshItem}
               showActionButtons={true}
+              lastRefreshTime={lastRefreshTime}
             />
           )}
         </div>
@@ -220,34 +214,10 @@ const InventorySection: React.FC<InventorySectionProps> = ({
           onClick={() => setIsExpanded(true)}
           className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl p-4 hover:bg-gray-800/50 transition-colors group"
         >
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-3">
-              <span className="text-gray-400 group-hover:text-gray-300 transition-colors">
-                {items.length} {getCategoryDisplayName(category).toLowerCase()}
-              </span>
-              {lastRefreshTime && (
-                <span className="text-xs text-gray-500">
-                  Updated {lastRefreshTime.toLocaleDateString()}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-4">
-              {totalValue > 0 && (
-                <div className="flex items-center gap-1 text-yellow-400">
-                  <Coins size={14} />
-                  <span className="font-medium">{totalValue.toFixed(0)}p</span>
-                </div>
-              )}
-              {totalDucats > 0 && (
-                <div className="flex items-center gap-1 text-blue-400">
-                  <Zap size={14} />
-                  <span className="font-medium">{totalDucats}</span>
-                </div>
-              )}
-              <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
-                Tap to expand
-              </span>
-            </div>
+          <div className="flex items-center justify-center text-sm">
+            <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
+              Tap to expand
+            </span>
           </div>
         </button>
       )}

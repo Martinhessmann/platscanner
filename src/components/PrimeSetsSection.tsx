@@ -627,10 +627,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               </div>
             </div>
 
-            <LastRefreshInfo
-              lastRefreshDate={lastRefreshTime}
-              className="ml-auto"
-            />
           </div>
         )}
 
@@ -918,17 +914,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   </div>
                 </div>
 
-                {/* Compact Info Grid */}
-                <div className="text-center mb-2">
-                  <div className="text-gray-400 text-xs mb-1">Parts</div>
-                  <div className="text-white font-medium">
-                    <span className="text-green-400">{progress.ownedParts.length}</span>
-                    {progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length > 0 && (
-                      <span className="text-yellow-400">+{progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length}</span>
-                    )}
-                    <span className="text-gray-400">/{progress.set.requiredParts.length}</span>
-                  </div>
-                </div>
 
                 {/* Toggle Button */}
                 <button
@@ -953,16 +938,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               {isExpanded && (
                 <div className="px-3 pb-3 border-t border-gray-700/50">
                   <div className="space-y-3 pt-3">
-                    {/* Parts Status */}
-                    <div>
-                      <div className="text-xs text-gray-400 mb-2">
-                        {progress.ownedParts.length} / {progress.set.requiredParts.length} parts owned
-                        {progress.obtainableFromRelics.length > 0 && (
-                          <span className="text-yellow-400 ml-2">
-                            +{progress.obtainableFromRelics.length} in relics
-                          </span>
-                        )}
-                      </div>
 
                       {/* Parts List */}
                       <div className="space-y-1">
@@ -999,13 +974,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                   <span className="text-xs text-blue-400">x{part.itemCount}</span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1">
-                                {isObtainableFromRelics && !isOwned && (
-                                  <span className="bg-yellow-900/30 text-yellow-400 px-1 py-0.5 text-[10px] rounded">RELIC</span>
-                                )}
-                                <span className={`${textColor} truncate text-xs text-right ml-1`}>
+                              <div className="flex flex-col items-end gap-1 text-right">
+                                <span className={`${textColor} text-xs`}>
                                   {isOwned ? 'Owned' : isObtainableFromRelics ? (
-                                    <span className="text-yellow-400" title={getRelicsForPart(part.name).join(', ')}>
+                                    <span className="text-yellow-400">
                                       {getRelicsForPart(part.name).length > 1 
                                         ? `${getRelicsForPart(part.name).length} relics`
                                         : getRelicsForPart(part.name)[0] || 'Market only'
@@ -1015,6 +987,12 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                     <span className="text-gray-500">Market only</span>
                                   )}
                                 </span>
+                                {isObtainableFromRelics && !isOwned && relicSources.length > 0 && (
+                                  <div className="text-[10px] text-yellow-400/80 max-w-32">
+                                    {relicSources.slice(0, 3).join(', ')}
+                                    {relicSources.length > 3 && ` +${relicSources.length - 3} more`}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
@@ -1054,11 +1032,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               <span className="text-gray-400 group-hover:text-gray-300 transition-colors">
                 {totalSets} prime set{totalSets !== 1 ? 's' : ''}
               </span>
-              {lastRefreshTime && (
-                <span className="text-xs text-gray-500">
-                  Updated {lastRefreshTime.toLocaleDateString()}
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-4">
               {vaultedSets > 0 && (
