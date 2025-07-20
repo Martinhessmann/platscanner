@@ -44,8 +44,44 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   const [showUnreservedOnly, setShowUnreservedOnly] = useState(false);
   const [copiedRelics, setCopiedRelics] = useState<Set<string>>(new Set());
   const [expandedRelics, setExpandedRelics] = useState<Set<string>>(new Set());
+  const [activeEraFilters, setActiveEraFilters] = useState<Set<string>>(new Set(['all']));
 
   const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Extract era from relic name (Lith, Meso, Neo, Axi, Requiem)
+  const getRelicEra = (relicName: string): string => {
+    const eraMatch = relicName.match(/^(Lith|Meso|Neo|Axi|Requiem)/i);
+    return eraMatch ? eraMatch[1].toLowerCase() : 'unknown';
+  };
+
+  // Toggle era filter
+  const toggleEraFilter = (era: string) => {
+    setActiveEraFilters(prev => {
+      const newFilters = new Set(prev);
+      
+      if (era === 'all') {
+        // If clicking "all", clear all other filters and set only "all"
+        return new Set(['all']);
+      } else {
+        // Remove "all" if it exists
+        newFilters.delete('all');
+        
+        // Toggle the specific era
+        if (newFilters.has(era)) {
+          newFilters.delete(era);
+        } else {
+          newFilters.add(era);
+        }
+        
+        // If no filters selected, default back to "all"
+        if (newFilters.size === 0) {
+          newFilters.add('all');
+        }
+      }
+      
+      return newFilters;
+    });
+  };
 
   // Close sort dropdown when clicking outside
   useEffect(() => {
@@ -164,9 +200,20 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   };
 
   // Apply filters
-  const filteredResults = showUnreservedOnly
-    ? results.filter(relic => !isItemReserved(relic.name, 'relics').reserved)
-    : results;
+  let filteredResults = results;
+  
+  // Apply unreserved filter
+  if (showUnreservedOnly) {
+    filteredResults = filteredResults.filter(relic => !isItemReserved(relic.name, 'relics').reserved);
+  }
+
+  // Apply era filters
+  if (!activeEraFilters.has('all')) {
+    filteredResults = filteredResults.filter(relic => {
+      const relicEra = getRelicEra(relic.name);
+      return activeEraFilters.has(relicEra);
+    });
+  }
 
   // Analyze and sort relics
   const sortedRelics = filteredResults.map(analyzeRelic).sort((a, b) => {
@@ -278,11 +325,14 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     );
   }
 
-  if (finalFilteredRelics.length === 0 && showUnreservedOnly) {
+  if (finalFilteredRelics.length === 0 && (showUnreservedOnly || !activeEraFilters.has('all'))) {
     return (
       <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">
-        <p className="text-gray-400">No unreserved relics found.</p>
-        <p className="text-sm text-gray-500 mt-1">All relics are currently reserved for build plans.</p>
+        <p className="text-gray-400">No relics match the current filters.</p>
+        <p className="text-sm text-gray-500 mt-1">
+          {showUnreservedOnly && 'All relics are reserved for build plans. '}
+          {!activeEraFilters.has('all') && `Active era filters: ${Array.from(activeEraFilters).join(', ')}`}
+        </p>
       </div>
     );
   }
@@ -293,8 +343,8 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
       <div className="flex items-center justify-between mb-4 px-2">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="text-sm text-gray-400">
-            {finalFilteredRelics.length} of {filteredResults.length} relic{filteredResults.length !== 1 ? 's' : ''}
-            {showUnreservedOnly && ' filtered'}
+            {finalFilteredRelics.length} of {results.length} relic{results.length !== 1 ? 's' : ''}
+            {(showUnreservedOnly || !activeEraFilters.has('all')) && ' filtered'}
           </div>
 
           {/* Mobile-friendly Sort Dropdown */}
@@ -352,6 +402,37 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
               {showUnreservedOnly ? 'Show All' : 'Unreserved'}
             </span>
           </button>
+
+          {/* Era Filter Pills */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {['all', 'lith', 'meso', 'neo', 'axi', 'requiem'].map((era) => {
+              const isActive = activeEraFilters.has(era);
+              const eraCount = era === 'all' 
+                ? results.length 
+                : results.filter(relic => getRelicEra(relic.name) === era).length;
+              
+              // Don't show era pills with 0 count unless it's "all"
+              if (eraCount === 0 && era !== 'all') return null;
+              
+              return (
+                <button
+                  key={era}
+                  onClick={() => toggleEraFilter(era)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                    isActive
+                      ? 'bg-orokin-gold/20 text-orokin-gold border border-orokin-gold/30'
+                      : 'bg-gray-800/50 text-gray-400 hover:text-gray-300'
+                  }`}
+                  title={`${era === 'all' ? 'All eras' : era.charAt(0).toUpperCase() + era.slice(1)} relics (${eraCount})`}
+                >
+                  <span className="capitalize">{era}</span>
+                  <span className={`text-[10px] ${isActive ? 'text-orokin-gold/70' : 'text-gray-500'}`}>
+                    {eraCount}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
           {lastRefreshTime && (
             <LastRefreshInfo 
@@ -902,7 +983,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
       {/* Footer */}
       <div className="mt-4 text-xs text-gray-500 px-2">
         <div className="flex items-center justify-between">
-          <span>💡 Green highlights show the most profitable option • Tap "Show Contents" to see drop details</span>
+          <span>💡 Green highlights show most profitable option • Filter by era (Lith, Meso, Neo, Axi, Requiem)</span>
           <span className="hidden lg:inline">Yellow items with shield icons are reserved for builds</span>
         </div>
       </div>

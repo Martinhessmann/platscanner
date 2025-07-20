@@ -43,8 +43,7 @@ import {
   Combine,
   RefreshCw,
   Check,
-  ExternalLink,
-  Filter
+  ExternalLink
 } from 'lucide-react';
 import { getImageUrlSync, preloadImageData } from '../services/unifiedImageService';
 import LastRefreshInfo from './LastRefreshInfo';
@@ -79,12 +78,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set());
-  const [sortField, setSortField] = useState<'name' | 'completion' | 'type'>('completion');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [showSortOptions, setShowSortOptions] = useState(false);
 
   const sectionRef = useRef<HTMLDivElement>(null);
-  const sortDropdownRef = useRef<HTMLDivElement>(null);
 
   // Persistent accordion state for Prime Sets
   const [isExpanded, setIsExpanded] = useState(() => {
@@ -148,25 +143,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     });
   };
 
-  const handleSort = (field: typeof sortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      // Default to ascending for name and type, descending for others
-      setSortDirection(field === 'name' || field === 'type' ? 'asc' : 'desc');
-    }
-    setShowSortOptions(false);
-  };
-
-  const getSortLabel = () => {
-    const labels: Record<string, string> = {
-      name: 'Name',
-      completion: 'Progress',
-      type: 'Type'
-    };
-    return labels[sortField] || 'Sort';
-  };
 
   const handleRefreshPrimeSets = async () => {
     setIsRefreshing(true);
@@ -452,66 +428,29 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       });
     }
 
-    // Apply sorting
+    // Apply simple priority-first + completion-based sorting
     return filtered.sort((a, b) => {
-      // First, check priority status
+      // Priority sets always come first
       const aPriority = plannedSets.get(a.set.id)?.isPriority || false;
       const bPriority = plannedSets.get(b.set.id)?.isPriority || false;
       
-      // Priority sets always come first
       if (aPriority && !bPriority) return -1;
       if (!aPriority && bPriority) return 1;
       
-      // Within same priority level, apply user-selected sorting
-      let valueA: any;
-      let valueB: any;
-
-      switch (sortField) {
-        case 'name':
-          valueA = a.set.name;
-          valueB = b.set.name;
-          break;
-        case 'completion':
-          // Advanced completion scoring: owned parts worth more than obtainable
-          const aOwned = a.ownedParts.length;
-          const aObtainable = a.obtainableFromRelics.length;
-          const aTotal = a.set.requiredParts.length;
-          
-          const bOwned = b.ownedParts.length;
-          const bObtainable = b.obtainableFromRelics.length;
-          const bTotal = b.set.requiredParts.length;
-          
-          // Weighted score: owned parts worth 10x, obtainable worth 1x
-          valueA = (aOwned * 10 + aObtainable) / (aTotal * 10);
-          valueB = (bOwned * 10 + bObtainable) / (bTotal * 10);
-          break;
-        case 'type':
-          valueA = a.set.type;
-          valueB = b.set.type;
-          break;
-        default:
-          // Default to advanced completion scoring
-          const aOwnedDefault = a.ownedParts.length;
-          const aObtainableDefault = a.obtainableFromRelics.length;
-          const aTotalDefault = a.set.requiredParts.length;
-          
-          const bOwnedDefault = b.ownedParts.length;
-          const bObtainableDefault = b.obtainableFromRelics.length;
-          const bTotalDefault = b.set.requiredParts.length;
-          
-          valueA = (aOwnedDefault * 10 + aObtainableDefault) / (aTotalDefault * 10);
-          valueB = (bOwnedDefault * 10 + bObtainableDefault) / (bTotalDefault * 10);
-      }
-
-      if (sortField === 'name' || sortField === 'type') {
-        return sortDirection === 'asc'
-          ? valueA.localeCompare(valueB)
-          : valueB.localeCompare(valueA);
-      } else {
-        return sortDirection === 'asc'
-          ? valueA - valueB
-          : valueB - valueA;
-      }
+      // Within same priority level, sort by completion progress (highest first)
+      const aOwned = a.ownedParts.length;
+      const aObtainable = a.obtainableFromRelics.length;
+      const aTotal = a.set.requiredParts.length;
+      
+      const bOwned = b.ownedParts.length;
+      const bObtainable = b.obtainableFromRelics.length;
+      const bTotal = b.set.requiredParts.length;
+      
+      // Weighted score: owned parts worth 10x more than obtainable parts
+      const aScore = (aOwned * 10 + aObtainable) / (aTotal * 10);
+      const bScore = (bOwned * 10 + bObtainable) / (bTotal * 10);
+      
+      return bScore - aScore; // Highest completion first
     });
   };
 
@@ -586,49 +525,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           </div>
         </button>
 
-        {/* Action buttons and refresh info - only show when expanded */}
-        {isExpanded && setProgress.length > 0 && (
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-700/50">
-            <div className="flex items-center gap-2">
-              {/* Sort Dropdown */}
-              <div className="relative" ref={sortDropdownRef}>
-                <button
-                  onClick={() => setShowSortOptions(!showSortOptions)}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors"
-                >
-                  <Filter size={12} />
-                  <span className="hidden sm:inline">Sort: {getSortLabel()}</span>
-                  <span className="sm:hidden">{getSortLabel()}</span>
-                </button>
-
-                {showSortOptions && (
-                  <div className="absolute top-full left-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10 min-w-[140px]">
-                    <div className="p-2 space-y-1">
-                      {[
-                        { field: 'completion' as const, label: 'Progress' },
-                        { field: 'name' as const, label: 'Name' },
-                        { field: 'type' as const, label: 'Type' }
-                      ].map(({ field, label }) => (
-                        <button
-                          key={field}
-                          onClick={() => handleSort(field)}
-                          className={`w-full text-left px-3 py-2 rounded-md text-xs transition-colors ${
-                            sortField === field
-                              ? 'bg-tenno-blue/20 text-tenno-blue'
-                              : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                          }`}
-                        >
-                          {label} {sortField === field && (sortDirection === 'asc' ? '↑' : '↓')}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-          </div>
-        )}
 
         {/* Progress bar - show when refreshing */}
         {isRefreshing && refreshProgress && (
@@ -998,7 +894,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           );
                         })}
                       </div>
-                    </div>
 
                   </div>
                 </div>
