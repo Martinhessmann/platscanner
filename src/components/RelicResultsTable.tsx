@@ -477,6 +477,14 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                         {relic.rarity}
                       </div>
                     )}
+                    {relic.lastUpdated && (
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        <LastRefreshInfo 
+                          lastRefreshDate={relic.lastUpdated} 
+                          className="text-xs text-gray-500"
+                        />
+                      </div>
+                    )}
                     {/* Relic Contents */}
                     {relic.relicDrops && relic.relicDrops.length > 0 && (
                       <div className="text-xs text-gray-400 mt-1">
@@ -800,6 +808,14 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                         <div className="flex items-center gap-1 text-xs text-gray-400 capitalize mt-0.5">
                           <Circle size={6} className={refinementColor} fill={refinementColor} />
                           {relic.rarity}
+                        </div>
+                      )}
+                      {relic.lastUpdated && (
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          <LastRefreshInfo 
+                            lastRefreshDate={relic.lastUpdated} 
+                            className="text-xs text-gray-500"
+                          />
                         </div>
                       )}
                     </div>
