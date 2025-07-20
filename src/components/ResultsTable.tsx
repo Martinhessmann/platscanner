@@ -15,7 +15,8 @@ import {
   ChevronDown,
   ExternalLink,
   Eye,
-  EyeOff
+  EyeOff,
+  X
 } from 'lucide-react';
 import { isItemReserved } from '../services/buildPlanService';
 import { getImageUrlSync } from '../services/unifiedImageService';
@@ -209,7 +210,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                 }`}
                 title={hideReservedMissing ? 'Show reserved missing items' : 'Hide reserved items with zero value'}
               >
-                {hideReservedMissing ? <EyeOff size={12} /> : <Eye size={12} />}
+                {hideReservedMissing ? <Check size={12} /> : <X size={12} />}
                 <span className="hidden sm:inline">
                   {hideReservedMissing ? 'Show Missing' : 'Hide Missing'}
                 </span>
