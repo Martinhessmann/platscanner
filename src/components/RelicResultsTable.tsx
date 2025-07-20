@@ -222,8 +222,8 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
 
     switch (sortField) {
       case 'totalValue':
-        valueA = a.bestValue * (a.relic.quantity || 1);
-        valueB = b.bestValue * (b.relic.quantity || 1);
+        valueA = a.marketValue * (a.relic.quantity || 1);
+        valueB = b.marketValue * (b.relic.quantity || 1);
         break;
       case 'bestValue':
         valueA = a.bestValue;
@@ -566,7 +566,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                   <div className="flex items-center justify-center gap-1">
                     <Zap size={12} className="text-yellow-400" />
                     <span className="font-semibold text-yellow-400">
-                      {(analysis.bestValue * (relic.quantity || 1)).toFixed(1)}p
+                      {(analysis.marketValue * (relic.quantity || 1)).toFixed(1)}p
                     </span>
                   </div>
                 </div>
@@ -906,7 +906,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                     <div className="flex items-center gap-1">
                       <Zap size={14} className="text-yellow-400" />
                       <span className="text-lg font-semibold text-yellow-400">
-                        {(analysis.bestValue * (relic.quantity || 1)).toFixed(1)}p
+                        {(analysis.marketValue * (relic.quantity || 1)).toFixed(1)}p
                       </span>
                     </div>
                   </div>

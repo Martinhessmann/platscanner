@@ -437,7 +437,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       if (aPriority && !bPriority) return -1;
       if (!aPriority && bPriority) return 1;
       
-      // Within same priority level, sort by completion progress (highest first)
+      // Within same priority level, sort by smart completion logic
       const aOwned = a.ownedParts.length;
       const aObtainable = a.obtainableFromRelics.length;
       const aTotal = a.set.requiredParts.length;
@@ -446,11 +446,36 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       const bObtainable = b.obtainableFromRelics.length;
       const bTotal = b.set.requiredParts.length;
       
-      // Weighted score: owned parts worth 10x more than obtainable parts
-      const aScore = (aOwned * 10 + aObtainable) / (aTotal * 10);
-      const bScore = (bOwned * 10 + bObtainable) / (bTotal * 10);
+      // Calculate completion potential
+      const aCompletable = aOwned + aObtainable;
+      const bCompletable = bOwned + bObtainable;
       
-      return bScore - aScore; // Highest completion first
+      // Priority order:
+      // 1. Fully completable sets (owned + obtainable = total) - sort by owned parts
+      // 2. Partially completable sets - sort by completion potential, then owned parts
+      // 3. Non-completable sets - sort by owned parts only
+      
+      const aFullyCompletable = aCompletable >= aTotal;
+      const bFullyCompletable = bCompletable >= bTotal;
+      
+      if (aFullyCompletable && !bFullyCompletable) return -1;
+      if (!aFullyCompletable && bFullyCompletable) return 1;
+      
+      if (aFullyCompletable && bFullyCompletable) {
+        // Both fully completable - prioritize by owned parts, then total completion
+        if (aOwned !== bOwned) return bOwned - aOwned;
+        return bCompletable - aCompletable;
+      }
+      
+      // Neither fully completable - sort by completion potential, then owned
+      const aCompletionPercent = aCompletable / aTotal;
+      const bCompletionPercent = bCompletable / bTotal;
+      
+      if (Math.abs(aCompletionPercent - bCompletionPercent) > 0.01) {
+        return bCompletionPercent - aCompletionPercent;
+      }
+      
+      return bOwned - aOwned;
     });
   };
 
@@ -872,19 +897,12 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                               </div>
                               <div className="flex flex-col items-end gap-1 text-right">
                                 <span className={`${textColor} text-xs`}>
-                                  {isOwned ? 'Owned' : isObtainableFromRelics ? (
-                                    <span className="text-yellow-400">
-                                      {getRelicsForPart(part.name).length > 1 
-                                        ? `${getRelicsForPart(part.name).length} relics`
-                                        : getRelicsForPart(part.name)[0] || 'Market only'
-                                      }
-                                    </span>
-                                  ) : (
+                                  {isOwned ? 'Owned' : (
                                     <span className="text-gray-500">Market only</span>
                                   )}
                                 </span>
                                 {isObtainableFromRelics && !isOwned && relicSources.length > 0 && (
-                                  <div className="text-[10px] text-yellow-400/80 max-w-32">
+                                  <div className="text-[10px] text-yellow-400 max-w-32 text-right">
                                     {relicSources.slice(0, 3).join(', ')}
                                     {relicSources.length > 3 && ` +${relicSources.length - 3} more`}
                                   </div>
