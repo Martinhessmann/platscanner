@@ -75,10 +75,31 @@ const isErrorResponse = (text: string): boolean => {
  * Parse the AI response to categorize detected items with quantity support
  */
 const parseDetectedItems = (responseText: string): DetectedItem[] => {
+  // Filter helper to remove generic preamble/heading lines Gemini sometimes adds
+  const isPreambleOrNoteLine = (line: string): boolean => {
+    const lower = line.trim().toLowerCase();
+
+    // Headings or explanatory sentences
+    if (lower.endsWith(':')) return true;
+    if (/^here\s+(are|is)\b/.test(lower)) return true;
+    if (/^list(ing)?\b/.test(lower)) return true;
+    if (/^owned\b/.test(lower)) return true;
+    if (/^(void\s+relics|prime\s+parts)\b/.test(lower)) return true;
+    if (/quantit(y|ies)/.test(lower)) return true;
+    if (/refinement\s+level/.test(lower)) return true;
+    if (/the\s+following/.test(lower)) return true;
+    if (/summary/.test(lower)) return true;
+
+    // Known exact phrase we've seen in responses
+    if (lower.includes('here are the owned void relics')) return true;
+
+    return false;
+  };
+
   const lines = responseText
     .split('\n')
     .map(line => line.trim())
-    .filter(line => line.length > 0);
+    .filter(line => line.length > 0 && !isPreambleOrNoteLine(line));
 
   const detectedItems: DetectedItem[] = [];
 
