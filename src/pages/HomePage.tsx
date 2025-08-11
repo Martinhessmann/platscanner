@@ -56,6 +56,20 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     relics: [] as InventoryItem[]
   });
 
+  // Only sellable Prime Parts (uncrafted Blueprints)
+  const sellablePrimeParts = useMemo(() => {
+    return categorizedInventory.prime_parts.filter(item =>
+      item.name.toLowerCase().endsWith(' blueprint')
+    );
+  }, [categorizedInventory.prime_parts]);
+
+  // Totals for the sellable subset
+  const sellablePrimePartsTotals = useMemo(() => {
+    const value = sellablePrimeParts.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
+    const ducats = sellablePrimeParts.reduce((sum, item) => sum + ((item.ducats || 0) * (item.quantity || 1)), 0);
+    return { value, ducats };
+  }, [sellablePrimeParts]);
+
   // Load persistent inventory on component mount
   useEffect(() => {
     const inventory = getCategorizedInventory();
@@ -546,6 +560,16 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     }));
   }, []);
 
+  // Clear only sellable (Blueprint) prime parts
+  const handleClearSellablePrimeParts = useCallback(() => {
+    const namesToRemove = new Set(sellablePrimeParts.map(i => i.name));
+    namesToRemove.forEach(name => removeFromInventory(name));
+    setCategorizedInventory(prev => ({
+      ...prev,
+      prime_parts: prev.prime_parts.filter(item => !namesToRemove.has(item.name))
+    }));
+  }, [sellablePrimeParts]);
+
   // Individual item price refresh
   const handleRefreshSingleItem = useCallback(async (itemName: string) => {
     console.log(`>>> [HomePage] Refreshing single item: ${itemName} <<<`);
@@ -776,6 +800,80 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     }
   }, [categorizedInventory, refreshingCategories, shouldStopProcessing]);
 
+  // Refresh only sellable (Blueprint) prime parts in the Prime Parts section
+  const handleRefreshSellablePrimeParts = useCallback(async () => {
+    const items = sellablePrimeParts;
+    if (items.length === 0 || refreshingCategories.has('prime_parts')) {
+      return;
+    }
+
+    setRefreshingCategories(prev => new Set(prev).add('prime_parts'));
+    setCategoryProgress({ category: 'prime_parts', current: 0, total: items.length });
+    setShouldStopProcessing(false);
+
+    try {
+      const updatedItems: InventoryItem[] = [];
+
+      // Mark only sellable items as loading
+      const targetNames = new Set(items.map(i => i.name));
+      setCategorizedInventory(prev => ({
+        ...prev,
+        prime_parts: prev.prime_parts.map(item => targetNames.has(item.name) ? { ...item, status: 'loading' as const } : item)
+      }));
+
+      for (let i = 0; i < items.length; i++) {
+        if (shouldStopProcessing) {
+          break;
+        }
+        const item = items[i];
+        try {
+          const updatedItem = await fetchSinglePriceOnly(item);
+          updatedItems.push({
+            ...updatedItem,
+            addedAt: item.addedAt,
+            lastUpdated: new Date(Date.now())
+          });
+        } catch (error) {
+          updatedItems.push({
+            ...item,
+            status: 'error',
+            error: 'Failed to fetch price',
+            lastUpdated: new Date(Date.now())
+          });
+        }
+        if (i % 3 === 0 || i === items.length - 1) {
+          setCategoryProgress({ category: 'prime_parts', current: i + 1, total: items.length });
+        }
+      }
+
+      if (updatedItems.length > 0) {
+        updateInventoryPrices(updatedItems);
+        setCategorizedInventory(prev => ({
+          ...prev,
+          prime_parts: prev.prime_parts.map(inventoryItem => {
+            const updated = updatedItems.find(u => u.name === inventoryItem.name);
+            return updated ? { ...inventoryItem, ...updated, addedAt: inventoryItem.addedAt } : inventoryItem;
+          })
+        }));
+      }
+
+      setLastPriceRefresh(new Date());
+      setLastRefreshTime('prime_parts');
+      setLastPrimePartsRefresh(new Date());
+    } catch (error) {
+      // Reload from storage on error
+      const updatedInventory = getCategorizedInventory();
+      setCategorizedInventory(updatedInventory);
+    } finally {
+      setRefreshingCategories(prev => {
+        const updated = new Set(prev);
+        updated.delete('prime_parts');
+        return updated;
+      });
+      setCategoryProgress(undefined);
+    }
+  }, [sellablePrimeParts, refreshingCategories, shouldStopProcessing]);
+
   // Refresh all market prices
   const handleRefreshPrices = useCallback(async () => {
     console.log('>>> [HomePage] Starting bulk price refresh <<<');
@@ -982,14 +1080,14 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 category="prime_parts"
                 title="Prime Parts"
                 icon={<Package size={20} className="text-orokin-gold" />}
-                items={categorizedInventory.prime_parts}
-                totalValue={inventoryStats.byCategory.prime_parts.value}
-                totalDucats={inventoryStats.byCategory.prime_parts.ducats}
+                items={sellablePrimeParts}
+                totalValue={sellablePrimePartsTotals.value}
+                totalDucats={sellablePrimePartsTotals.ducats}
                 isRefreshing={refreshingCategories.has('prime_parts')}
                 progress={categoryProgress?.category === 'prime_parts' ? categoryProgress : undefined}
                 lastRefreshTime={lastPrimePartsRefresh}
-                onRefreshAll={() => handleRefreshCategoryPrices('prime_parts')}
-                onClearAll={() => handleClearInventory('prime_parts')}
+                onRefreshAll={handleRefreshSellablePrimeParts}
+                onClearAll={handleClearSellablePrimeParts}
                 onRefreshItem={handleRefreshSingleItem}
                 onRemoveItem={handleRemoveFromInventory}
               />

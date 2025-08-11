@@ -95,13 +95,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   if (showUnreservedOnly) {
     filteredResults = filteredResults.filter(item => !isItemReserved(item.name, 'prime_parts').reserved);
   }
-  
-  if (hideReservedMissing) {
-    filteredResults = filteredResults.filter(item => {
-      const reservation = isItemReserved(item.name, 'prime_parts');
-      return !reservation.reserved || (item.price && item.price > 0);
-    });
-  }
 
   const sortedResults = [...filteredResults].sort((a, b) => {
     if (sortField === 'price') {
@@ -182,40 +175,23 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
           <div className="flex items-center gap-3">
             <div className="text-sm text-gray-400">
               {filteredResults.length} of {results.length} item{results.length !== 1 ? 's' : ''} 
-              {(showUnreservedOnly || hideReservedMissing) && ' filtered'}
+              {showUnreservedOnly && ' filtered'}
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                  showUnreservedOnly
-                    ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
-                    : 'bg-gray-800 text-gray-400 hover:text-gray-300'
-                }`}
-                title={showUnreservedOnly ? 'Show all items' : 'Show only unreserved items'}
-              >
-                {showUnreservedOnly ? <Eye size={12} /> : <EyeOff size={12} />}
-                <span className="hidden sm:inline">
-                  {showUnreservedOnly ? 'Show All' : 'Unreserved'}
-                </span>
-              </button>
-
-              <button
-                onClick={() => setHideReservedMissing(!hideReservedMissing)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                  hideReservedMissing
-                    ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                    : 'bg-gray-800 text-gray-400 hover:text-gray-300'
-                }`}
-                title={hideReservedMissing ? 'Show reserved missing items' : 'Hide reserved items with zero value'}
-              >
-                {hideReservedMissing ? <Check size={12} /> : <X size={12} />}
-                <span className="hidden sm:inline">
-                  {hideReservedMissing ? 'Show Missing' : 'Hide Missing'}
-                </span>
-              </button>
-            </div>
+            <button
+              onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                showUnreservedOnly
+                  ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
+                  : 'bg-gray-800 text-gray-400 hover:text-gray-300'
+              }`}
+              title={showUnreservedOnly ? 'Show all items' : 'Show only unreserved items'}
+            >
+              {showUnreservedOnly ? <Eye size={12} /> : <EyeOff size={12} />}
+              <span className="hidden sm:inline">
+                {showUnreservedOnly ? 'Show All' : 'Unreserved'}
+              </span>
+            </button>
           </div>
           <div className="flex items-center gap-3">
             {lastRefreshTime && (
