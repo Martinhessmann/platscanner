@@ -26,13 +26,13 @@ This is a React-based Warframe inventory scanner that uses AI to analyze screens
 
 The application is built around several key services located in `src/services/`:
 
-- **geminiService.ts**: Handles Google Gemini Vision API integration for image analysis. Uses multi-step analysis: first determines screen type (prime_parts/relics), then applies specialized prompts for each category.
+- **geminiService.ts**: Handles Google Gemini Vision API integration for image analysis using Gemini 2.5 Flash model. Uses multi-step analysis: first determines screen type (prime_parts/relics), then applies specialized prompts for each category.
 - **warframeMarketService.ts**: Integrates with Warframe.market API for real-time pricing data
 - **unifiedImageService.ts**: Manages local image assets for Prime parts and relics to reduce CDN dependencies
-- **inventoryService.ts**: Handles inventory data persistence and local storage management
+- **inventoryService.ts**: Handles inventory data persistence and local storage management with intentional deletion tracking
 - **relicDataService.ts**: Manages Void relic data including reward tables and value calculations
 - **primeSetService.ts**: Handles Prime set tracking and completion calculations
-- **cloudSyncService.ts**: Manages cross-device synchronization via Supabase
+- **cloudSyncService.ts**: Manages cross-device synchronization via Supabase with protection against restoring intentionally deleted data
 - **buildPlanService.ts**: Handles build planning and tracking features
 - **dataExportService.ts**: Manages data export functionality
 
@@ -91,7 +91,7 @@ The Edge Function is essential for production deployment as it provides a reliab
 
 ### External Dependencies
 
-- Google Gemini Vision API for image analysis
+- Google Gemini Vision API for image analysis (Gemini 2.5 Flash via @google/genai SDK)
 - Warframe.market API for pricing data (accessed via Supabase Edge Function)
 - Supabase for cloud sync (optional) and Edge Functions
 - React Router for navigation
@@ -110,7 +110,30 @@ The app requires a Gemini API key to function, stored in localStorage. Cloud syn
 - Error handling is comprehensive with user-friendly messages
 - The architecture supports easy extension for new item types or analysis features
 
-## Recent Updates (2025-07-15)
+## Recent Updates
+
+### Gemini 2.5 Flash Upgrade (2025-01)
+
+- **Model upgrade**: From `gemini-1.5-flash` to `gemini-2.5-flash` for better performance and reasoning
+- **SDK migration**: From deprecated `@google/generative-ai` to new `@google/genai` unified SDK
+- **API structure**: Updated to use new SDK's `genAI.models.generateContent()` format
+- **Benefits**: Enhanced AI capabilities, future-proof integration, same speed/cost with higher quality
+
+### Mobile UX Improvements (2025-01)
+
+- **Collapsible cards by default**: All inventory sections start collapsed for better mobile experience
+- **Enhanced collapsed summaries**: Shows key metrics (item count, total value, ducats, buildable sets)
+- **Unified sorting dropdown**: Mobile-friendly sorting for RelicResultsTable with all sort options
+- **Responsive design**: Improved touch targets, spacing, and mobile-first patterns throughout
+
+### Inventory Management Fixes (2025-01)
+
+- **Prime Sets persistence**: Fixed issue where Prime Sets would disappear when inventory cleared
+- **Debounced reloading**: Added 500ms debounce to prevent excessive recalculation during image processing
+- **State synchronization**: Fixed "owned" button functionality with immediate UI updates
+- **Cloud sync protection**: Added 24-hour protection against restoring intentionally deleted data
+
+### Major Prime Sets UI/UX Overhaul (2025-07-15)
 
 ### Major Prime Sets UI/UX Overhaul
 
