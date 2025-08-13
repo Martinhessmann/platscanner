@@ -448,6 +448,109 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     intact: 'bg-gray-400'
   };
 
+  // Drop chance map (per single item) by rarity and refinement level
+  const PART_DROP_CHANCE: Record<'Common' | 'Uncommon' | 'Rare', Record<'intact' | 'exceptional' | 'flawless' | 'radiant', number>> = {
+    Common: { intact: 25.33, exceptional: 23.33, flawless: 20, radiant: 16.67 },
+    Uncommon: { intact: 11, exceptional: 13, flawless: 17, radiant: 20 },
+    Rare: { intact: 2, exceptional: 4, flawless: 6, radiant: 10 }
+  };
+
+  type RefinementLevel = 'intact' | 'exceptional' | 'flawless' | 'radiant';
+
+  // Find the matching drop object for a part within a relic (robust matching)
+  const findMatchingDrop = (partName: string, relic: VoidRelic) => {
+    if (!relic.relicDrops) return undefined;
+    const target = partName.toLowerCase();
+    // Exact match first
+    let drop = relic.relicDrops.find(d => d.itemName.toLowerCase() === target);
+    if (drop) return drop;
+    // Fallback: base-name + part-type match
+    const partTypes = [
+      'blueprint', 'systems', 'chassis', 'neuroptics', 'barrel', 'receiver', 'stock',
+      'string', 'grip', 'blade', 'handle', 'link', 'gauntlet', 'carapace', 'cerebrum',
+      'pouch', 'stars', 'boot', 'chain', 'disc', 'guard', 'hilt', 'head', 'ornament',
+      'harness', 'wings', 'band', 'buckle', 'blades'
+    ];
+    const getBaseName = (name: string) => {
+      const parts = name.split(' ');
+      const primeIndex = parts.findIndex(p => p === 'prime');
+      if (primeIndex >= 0 && primeIndex < parts.length - 1) {
+        return parts.slice(0, primeIndex + 1).join(' ');
+      }
+      return name;
+    };
+    const targetBase = getBaseName(target);
+    return relic.relicDrops.find(d => {
+      const dn = d.itemName.toLowerCase();
+      const dnBase = getBaseName(dn);
+      return dnBase === targetBase && partTypes.some(t => target.includes(t) && dn.includes(t));
+    });
+  };
+
+  // Compute minimal traces needed across owned relics to reach a target level
+  const computeMinTracesToReach = (target: RefinementLevel, counts: Record<RefinementLevel, number>): number => {
+    const have = (lvl: RefinementLevel) => (counts[lvl] || 0) > 0;
+    if (target === 'radiant') {
+      if (have('radiant')) return 0;
+      if (have('flawless')) return 100;
+      if (have('exceptional')) return 150;
+      if (have('intact')) return 175;
+      return 175;
+    }
+    if (target === 'flawless') {
+      if (have('radiant') || have('flawless')) return 0;
+      if (have('exceptional')) return 50;
+      if (have('intact')) return 75;
+      return 75;
+    }
+    if (target === 'exceptional') {
+      if (have('radiant') || have('flawless') || have('exceptional')) return 0;
+      if (have('intact')) return 25;
+      return 25;
+    }
+    return 0; // intact
+  };
+
+  // Determine recommended refinement for a part based on drop rarity with a minimal-trace heuristic
+  const getRefinementRecommendationForPart = (partName: string) => {
+    // Gather all matching relics with their drop rarity
+    const matches = relicsInventory
+      .map(relic => ({ relic, drop: findMatchingDrop(partName, relic) }))
+      .filter(x => !!x.drop)
+      .map(x => ({
+        baseName: formatRelicName(x.relic.name),
+        level: (x.relic.rarity as RefinementLevel) || 'intact',
+        dropRarity: x.drop!.rarity as 'Common' | 'Uncommon' | 'Rare'
+      }));
+
+    if (matches.length === 0) return null;
+
+    // Tally counts per level for all matching relics
+    const { counts } = getRefinementInfoForPart(partName);
+
+    // Majority rarity (fallback to the first)
+    const rarityCounts: Record<'Common' | 'Uncommon' | 'Rare', number> = { Common: 0, Uncommon: 0, Rare: 0 };
+    matches.forEach(m => { rarityCounts[m.dropRarity] += 1; });
+    const dropRarity = (Object.entries(rarityCounts).sort((a, b) => b[1] - a[1])[0][0] as 'Common' | 'Uncommon' | 'Rare') || matches[0].dropRarity;
+
+    // Heuristic: choose minimal refinement that gives near-max chance
+    let target: RefinementLevel;
+    if (dropRarity === 'Rare') {
+      target = 'radiant';
+    } else if (dropRarity === 'Uncommon') {
+      // Radiant=20, Flawless=17 (85% of max). Choose Flawless to save traces.
+      target = 'flawless';
+    } else {
+      // Common best at Intact
+      target = 'intact';
+    }
+
+    const chance = PART_DROP_CHANCE[dropRarity][target];
+    const traces = computeMinTracesToReach(target, counts as any);
+
+    return { target, chance, dropRarity, traces };
+  };
+
   // Calculate summary statistics with safety guards
   const totalSets = setProgress.length;
   const masteredSets = getMasteredSets();
@@ -1023,7 +1126,25 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                      )
                                    )}
                                  </span>
-                                                                 {isObtainableFromRelics && !isOwned && relicSources.length > 0 && (
+                                {!isOwned && isObtainableFromRelics && (() => {
+                                  const rec = getRefinementRecommendationForPart(part.name);
+                                  if (!rec) return null;
+                                  const level = rec.target;
+                                  const classes = refinementChipClasses[level];
+                                  return (
+                                    <div className="flex items-center gap-1 justify-end">
+                                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${classes}`} title={`Drop: ${rec.dropRarity} • Chance: ${rec.chance}%`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[level]}`} />
+                                        <span className="capitalize">{level}</span>
+                                        <span>{rec.chance}%</span>
+                                      </span>
+                                      <span className="text-[10px] text-gray-400">
+                                        {rec.traces > 0 ? `+${rec.traces} traces` : 'ready'}
+                                      </span>
+                                    </div>
+                                  );
+                                })()}
+                                 {isObtainableFromRelics && !isOwned && relicSources.length > 0 && (
                                    <div className="flex items-end gap-2 flex-col">
                                      <div className="flex items-center gap-1 flex-wrap justify-end">
                                        {(['radiant','flawless','exceptional','intact'] as const).map(level => (
