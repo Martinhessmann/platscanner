@@ -305,6 +305,16 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     return 'bg-gray-500';
   };
 
+  // Helper: Simplify relic names to base form (e.g., "Neo W2")
+  const formatRelicName = (name: string): string => {
+    // Remove trailing " Relic"
+    let formatted = name.replace(/\s+Relic$/, '');
+    // Remove refinement suffix like " [Radiant]" or standalone refinement words
+    formatted = formatted.replace(/\s+\[(Intact|Exceptional|Flawless|Radiant)\]$/, '');
+    formatted = formatted.replace(/\s+(Intact|Exceptional|Flawless|Radiant)$/i, '');
+    return formatted;
+  };
+
   const getRelicsForPart = (partName: string): string[] => {
     // Use the same matching logic as the service
     const matchingRelics = relicsInventory.filter(relic => {
@@ -358,7 +368,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
       return hasMatch;
     });
-    return matchingRelics.map(relic => relic.name);
+    return matchingRelics.map(relic => formatRelicName(relic.name));
   };
 
   // NEW: Get refinement-level info for a part based on owned relics
@@ -416,7 +426,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         const level = (relic.rarity as 'radiant' | 'flawless' | 'exceptional' | 'intact') || 'intact';
         const qty = relic.quantity || 1;
         counts[level] += qty;
-        namesByLevel[level].push(relic.name);
+        namesByLevel[level].push(formatRelicName(relic.name));
       }
     });
 
@@ -427,8 +437,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     radiant: 'text-yellow-400 border-yellow-500/30',
     flawless: 'text-blue-400 border-blue-500/30',
     exceptional: 'text-green-400 border-green-500/30',
-    intact: 'text-gray-400 border-gray-600/30'
+    intact: 'text-gray-300 border-gray-500/30'
   };
+
 
   const refinementDotClasses: Record<'radiant' | 'flawless' | 'exceptional' | 'intact', string> = {
     radiant: 'bg-yellow-400',
@@ -997,41 +1008,44 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                             <div key={index} className="flex items-center justify-between text-xs bg-gray-800/20 rounded px-2 py-1">
                               <div className={`flex items-center gap-1 ${textColor}`}>
                                 <span className={iconColor}>{icon}</span>
-                                {reservedForThisSet && (
-                                  <Shield size={10} className="text-yellow-400" />
-                                )}
                                 <span className="truncate">{part.partType}</span>
                                 {part.itemCount && part.itemCount > 1 && (
                                   <span className="text-xs text-blue-400">x{part.itemCount}</span>
                                 )}
                               </div>
                               <div className="flex flex-col items-end gap-1 text-right">
-                                <span className={`${textColor} text-xs`}>
-                                  {isOwned ? 'Owned' : (
-                                    isObtainableFromRelics ? (
-                                      <span className="text-gray-400">From relics</span>
-                                    ) : (
-                                      <span className="text-gray-500">Market only</span>
-                                    )
-                                  )}
-                                </span>
-                                {isObtainableFromRelics && !isOwned && relicSources.length > 0 && (
-                                  <div className="flex items-center gap-1 flex-wrap justify-end">
-                                    {(['radiant','flawless','exceptional','intact'] as const).map(level => (
-                                      counts[level] > 0 ? (
-                                        <span
-                                          key={level}
-                                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[level]} capitalize`}
-                                          title={`${namesByLevel[level].slice(0,3).join(', ')}${namesByLevel[level].length > 3 ? ` +${namesByLevel[level].length - 3} more` : ''}`}
-                                        >
-                                          <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[level]}`} />
-                                          <span>{level}</span>
-                                          <span>x{counts[level]}</span>
-                                        </span>
-                                      ) : null
-                                    ))}
-                                  </div>
-                                )}
+                                                                 <span className={`${textColor} text-xs`}>
+                                   {isOwned ? 'Owned' : (
+                                     isObtainableFromRelics ? (
+                                       <span className="text-gray-400"></span>
+                                     ) : (
+                                       <span className="text-gray-500">Market only</span>
+                                     )
+                                   )}
+                                 </span>
+                                                                 {isObtainableFromRelics && !isOwned && relicSources.length > 0 && (
+                                   <div className="flex items-end gap-2 flex-col">
+                                     <div className="flex items-center gap-1 flex-wrap justify-end">
+                                       {(['radiant','flawless','exceptional','intact'] as const).map(level => (
+                                         counts[level] > 0 ? (
+                                           <span
+                                             key={level}
+                                             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[level]} capitalize`}
+                                             title={`${namesByLevel[level].slice(0,3).join(', ')}${namesByLevel[level].length > 3 ? ` +${namesByLevel[level].length - 3} more` : ''}`}
+                                           >
+                                             <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[level]}`} />
+                                             <span className="capitalize">{level}</span>
+                                             <span>x{counts[level]}</span>
+                                           </span>
+                                         ) : null
+                                       ))}
+                                     </div>
+                                     <div className="text-[10px] text-gray-400 max-w-48 text-right">
+                                       {relicSources.slice(0, 3).join(', ')}
+                                       {relicSources.length > 3 && ` +${relicSources.length - 3} more`}
+                                     </div>
+                                   </div>
+                                 )}
                               </div>
                             </div>
                           );
