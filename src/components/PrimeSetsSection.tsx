@@ -50,7 +50,10 @@ import LastRefreshInfo from './LastRefreshInfo';
 import {
   isSetPlanned,
   addToBuildPlan,
-  removeFromBuildPlan
+  removeFromBuildPlan,
+  autoReserveItemsForSet,
+  updateAllReservations,
+  isItemReserved
 } from '../services/buildPlanService';
 
 interface PrimeSetsProps {
@@ -79,9 +82,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set());
 
-  const sectionRef = useRef<HTMLDivElement>(null);
-
-  // Persistent accordion state for Prime Sets
+    const sectionRef = useRef<HTMLDivElement>(null);
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+ 
+   // Persistent accordion state for Prime Sets
   const [isExpanded, setIsExpanded] = useState(() => {
     const stored = localStorage.getItem('accordion_prime_sets');
     return stored !== null ? JSON.parse(stored) : false;
@@ -192,7 +196,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Load planned sets from localStorage
         const planned = new Map<string, { planned: boolean; isPriority: boolean }>();
         analyzed.forEach(progress => {
-          const planStatus = isSetPlanned(progress.set.id);
+          const planStatus = isSetPlanned(progress.set.name);
           if (planStatus.planned) {
             planned.set(progress.set.id, { planned: true, isPriority: planStatus.isPriority });
           }
@@ -222,7 +226,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     const syncPlannedSets = () => {
       const updated = new Map<string, { planned: boolean; isPriority: boolean }>();
       setProgress.forEach(progress => {
-        const planStatus = isSetPlanned(progress.set.id);
+        const planStatus = isSetPlanned(progress.set.name);
         if (planStatus.planned) {
           updated.set(progress.set.id, { planned: true, isPriority: planStatus.isPriority });
         }
@@ -247,7 +251,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
     if (currentState === 'planned' && newState !== 'planned') {
       // Remove from build plan
-      removeFromBuildPlan(progress.set.id);
+      removeFromBuildPlan(progress.set.name);
 
       setPlannedSets(prev => {
         const updated = new Map(prev);
@@ -256,7 +260,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       });
     } else if (newState === 'planned' && currentState !== 'planned') {
       // Add to build plan
-      addToBuildPlan(progress.set.id, isPriority);
+      addToBuildPlan(progress.set.name, isPriority);
 
       setPlannedSets(prev => {
         const updated = new Map(prev);
@@ -268,7 +272,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       const currentPriority = plannedSets.get(progress.set.id)?.isPriority || false;
       const newPriority = !currentPriority;
 
-      addToBuildPlan(progress.set.id, newPriority);
+      addToBuildPlan(progress.set.name, newPriority);
 
       setPlannedSets(prev => {
         const updated = new Map(prev);
@@ -299,6 +303,16 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     if (percentage >= 75) return 'bg-yellow-500';
     if (percentage >= 50) return 'bg-blue-500';
     return 'bg-gray-500';
+  };
+
+  // Helper: Simplify relic names to base form (e.g., "Neo W2")
+  const formatRelicName = (name: string): string => {
+    // Remove trailing " Relic"
+    let formatted = name.replace(/\s+Relic$/, '');
+    // Remove refinement suffix like " [Radiant]" or standalone refinement words
+    formatted = formatted.replace(/\s+\[(Intact|Exceptional|Flawless|Radiant)\]$/, '');
+    formatted = formatted.replace(/\s+(Intact|Exceptional|Flawless|Radiant)$/i, '');
+    return formatted;
   };
 
   const getRelicsForPart = (partName: string): string[] => {
@@ -354,7 +368,229 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
       return hasMatch;
     });
-    return matchingRelics.map(relic => relic.name);
+    return matchingRelics.map(relic => formatRelicName(relic.name));
+  };
+
+  // NEW: Get refinement-level info for a part based on owned relics
+  const getRefinementInfoForPart = (partName: string) => {
+    const levels: Array<'radiant' | 'flawless' | 'exceptional' | 'intact'> = ['radiant', 'flawless', 'exceptional', 'intact'];
+    const counts: Record<typeof levels[number], number> = {
+      radiant: 0,
+      flawless: 0,
+      exceptional: 0,
+      intact: 0
+    } as const;
+    const namesByLevel: Record<typeof levels[number], string[]> = {
+      radiant: [],
+      flawless: [],
+      exceptional: [],
+      intact: []
+    } as const;
+
+    // Reuse the same match logic as above
+    relicsInventory.forEach(relic => {
+      if (!relic.relicDrops || relic.relicDrops.length === 0) return;
+
+      const hasMatch = relic.relicDrops.some(drop => {
+        const dropName = drop.itemName.toLowerCase();
+        const targetPart = partName.toLowerCase();
+
+        if (dropName === targetPart) return true;
+        if (dropName.includes(targetPart.replace(' prime ', ' '))) return true;
+
+        const partTypes = [
+          'blueprint', 'systems', 'chassis', 'neuroptics', 'barrel', 'receiver', 'stock',
+          'string', 'grip', 'blade', 'handle', 'link', 'gauntlet', 'carapace', 'cerebrum',
+          'pouch', 'stars', 'boot', 'chain', 'disc', 'guard', 'hilt', 'head', 'ornament',
+          'harness', 'wings', 'band', 'buckle', 'blades'
+        ];
+
+        const getBaseName = (name: string) => {
+          const parts = name.split(' ');
+          const primeIndex = parts.findIndex(p => p === 'prime');
+          if (primeIndex >= 0 && primeIndex < parts.length - 1) {
+            return parts.slice(0, primeIndex + 1).join(' ');
+          }
+          return name;
+        };
+
+        const targetBaseName = getBaseName(targetPart);
+        const dropBaseName = getBaseName(dropName);
+
+        return partTypes.some(partType =>
+          targetPart.includes(partType) && dropName.includes(partType) && targetBaseName === dropBaseName
+        );
+      });
+
+      if (hasMatch) {
+        const level = (relic.rarity as 'radiant' | 'flawless' | 'exceptional' | 'intact') || 'intact';
+        const qty = relic.quantity || 1;
+        counts[level] += qty;
+        namesByLevel[level].push(formatRelicName(relic.name));
+      }
+    });
+
+    return { counts, namesByLevel };
+  };
+
+  const refinementChipClasses: Record<'radiant' | 'flawless' | 'exceptional' | 'intact', string> = {
+    radiant: 'text-yellow-400 border-yellow-500/30',
+    flawless: 'text-blue-400 border-blue-500/30',
+    exceptional: 'text-green-400 border-green-500/30',
+    intact: 'text-gray-300 border-gray-500/30'
+  };
+
+
+  const refinementDotClasses: Record<'radiant' | 'flawless' | 'exceptional' | 'intact', string> = {
+    radiant: 'bg-yellow-400',
+    flawless: 'bg-blue-400',
+    exceptional: 'bg-green-400',
+    intact: 'bg-gray-400'
+  };
+
+  // Map refinement level to overlay color class
+  const overlayColorForLevel: Record<'radiant' | 'flawless' | 'exceptional' | 'intact', string> = {
+    radiant: 'bg-yellow-500',
+    flawless: 'bg-blue-500',
+    exceptional: 'bg-green-500',
+    intact: 'bg-gray-500'
+  };
+
+  // Drop chance map (per single item) by rarity and refinement level
+  const PART_DROP_CHANCE: Record<'Common' | 'Uncommon' | 'Rare', Record<'intact' | 'exceptional' | 'flawless' | 'radiant', number>> = {
+    Common: { intact: 25.33, exceptional: 23.33, flawless: 20, radiant: 16.67 },
+    Uncommon: { intact: 11, exceptional: 13, flawless: 17, radiant: 20 },
+    Rare: { intact: 2, exceptional: 4, flawless: 6, radiant: 10 }
+  };
+
+  type RefinementLevel = 'intact' | 'exceptional' | 'flawless' | 'radiant';
+
+  // Find the matching drop object for a part within a relic (robust matching)
+  const findMatchingDrop = (partName: string, relic: VoidRelic) => {
+    if (!relic.relicDrops) return undefined;
+    const target = partName.toLowerCase();
+    // Exact match first
+    let drop = relic.relicDrops.find(d => d.itemName.toLowerCase() === target);
+    if (drop) return drop;
+    // Fallback: base-name + part-type match
+    const partTypes = [
+      'blueprint', 'systems', 'chassis', 'neuroptics', 'barrel', 'receiver', 'stock',
+      'string', 'grip', 'blade', 'handle', 'link', 'gauntlet', 'carapace', 'cerebrum',
+      'pouch', 'stars', 'boot', 'chain', 'disc', 'guard', 'hilt', 'head', 'ornament',
+      'harness', 'wings', 'band', 'buckle', 'blades'
+    ];
+    const getBaseName = (name: string) => {
+      const parts = name.split(' ');
+      const primeIndex = parts.findIndex(p => p === 'prime');
+      if (primeIndex >= 0 && primeIndex < parts.length - 1) {
+        return parts.slice(0, primeIndex + 1).join(' ');
+      }
+      return name;
+    };
+    const targetBase = getBaseName(target);
+    return relic.relicDrops.find(d => {
+      const dn = d.itemName.toLowerCase();
+      const dnBase = getBaseName(dn);
+      return dnBase === targetBase && partTypes.some(t => target.includes(t) && dn.includes(t));
+    });
+  };
+
+  // Compute minimal traces needed across owned relics to reach a target level
+  const computeMinTracesToReach = (target: RefinementLevel, counts: Record<RefinementLevel, number>): number => {
+    const have = (lvl: RefinementLevel) => (counts[lvl] || 0) > 0;
+    if (target === 'radiant') {
+      if (have('radiant')) return 0;
+      if (have('flawless')) return 50;
+      if (have('exceptional')) return 75;
+      if (have('intact')) return 100;
+      return 100;
+    }
+    if (target === 'flawless') {
+      if (have('radiant') || have('flawless')) return 0;
+      if (have('exceptional')) return 25;
+      if (have('intact')) return 50;
+      return 50;
+    }
+    if (target === 'exceptional') {
+      if (have('radiant') || have('flawless') || have('exceptional')) return 0;
+      if (have('intact')) return 25;
+      return 25;
+    }
+    return 0; // intact
+  };
+
+  // Determine recommended refinement for a part based on drop rarity with a minimal-trace heuristic
+  const getRefinementRecommendationForPart = (partName: string) => {
+    // Gather all matching relics with their drop rarity
+    const matches = relicsInventory
+      .map(relic => ({ relic, drop: findMatchingDrop(partName, relic) }))
+      .filter(x => !!x.drop)
+      .map(x => ({
+        baseName: formatRelicName(x.relic.name),
+        level: (x.relic.rarity as RefinementLevel) || 'intact',
+        dropRarity: x.drop!.rarity as 'Common' | 'Uncommon' | 'Rare'
+      }));
+
+    if (matches.length === 0) return null;
+
+    // Tally counts per level for all matching relics
+    const { counts } = getRefinementInfoForPart(partName);
+
+    // Majority rarity (fallback to the first)
+    const rarityCounts: Record<'Common' | 'Uncommon' | 'Rare', number> = { Common: 0, Uncommon: 0, Rare: 0 };
+    matches.forEach(m => { rarityCounts[m.dropRarity] += 1; });
+    const dropRarity = (Object.entries(rarityCounts).sort((a, b) => b[1] - a[1])[0][0] as 'Common' | 'Uncommon' | 'Rare') || matches[0].dropRarity;
+
+    // Heuristic: choose minimal refinement that gives near-max chance
+    let target: RefinementLevel;
+    if (dropRarity === 'Rare') {
+      target = 'radiant';
+    } else if (dropRarity === 'Uncommon') {
+      // Radiant=20, Flawless=17 (85% of max). Choose Flawless to save traces.
+      target = 'flawless';
+    } else {
+      // Common best at Intact
+      target = 'intact';
+    }
+
+    const chance = PART_DROP_CHANCE[dropRarity][target];
+    const traces = computeMinTracesToReach(target, counts as any);
+
+    return { target, chance, dropRarity, traces };
+  };
+
+  // Aggregate base relic names with quantities for a part, not truncated
+  const getRelicBaseCountsForPart = (partName: string): Array<{ base: string; total: number }> => {
+    const map = new Map<string, number>();
+    relicsInventory.forEach(relic => {
+      if (!relic.relicDrops || relic.relicDrops.length === 0) return;
+      const drop = findMatchingDrop(partName, relic);
+      if (!drop) return;
+      const base = formatRelicName(relic.name);
+      const qty = relic.quantity || 1;
+      map.set(base, (map.get(base) || 0) + qty);
+    });
+    return Array.from(map.entries()).map(([base, total]) => ({ base, total }));
+  };
+
+  // Pick an overlay color for a set based on hardest recommended among obtainable missing parts
+  const getOverlayColorForSet = (progress: SetProgress): string => {
+    const missingParts = progress.set.requiredParts
+      .filter(p => !progress.ownedParts.includes(p.name) && progress.obtainableFromRelics.includes(p.name));
+    let hasRadiant = false;
+    let hasFlawless = false;
+    let hasExceptional = false;
+    for (const part of missingParts) {
+      const rec = getRefinementRecommendationForPart(part.name);
+      if (!rec) continue;
+      if (rec.target === 'radiant') hasRadiant = true;
+      else if (rec.target === 'flawless') hasFlawless = true;
+      else if (rec.target === 'exceptional') hasExceptional = true;
+    }
+    if (hasRadiant) return overlayColorForLevel.radiant;
+    if (hasFlawless) return overlayColorForLevel.flawless;
+    if (hasExceptional) return overlayColorForLevel.exceptional;
+    return overlayColorForLevel.intact;
   };
 
   // Calculate summary statistics with safety guards
@@ -509,6 +745,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       return updated;
     });
   };
+
+  useEffect(() => {
+    // Keep reservations in sync with current analysis and planned sets
+    if (!setProgress || setProgress.length === 0) return;
+    try {
+      const setsForUpdate = setProgress.map(p => ({
+        set: {
+          name: p.set.name,
+          requiredParts: p.set.requiredParts.map(rp => ({ name: rp.name, partType: rp.partType }))
+        },
+        ownedParts: p.ownedParts
+      }));
+      updateAllReservations(setsForUpdate, relicsInventory);
+    } catch (e) {
+      console.error('Failed to update reservations', e);
+    }
+  }, [setProgress, relicsInventory]);
 
 
   return (
@@ -768,7 +1021,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         
                         if (currentPriority) {
                           // Remove from priority (but keep as "planned" since all non-built are planned)
-                          removeFromBuildPlan(progress.set.id);
+                          removeFromBuildPlan(progress.set.name);
                           setPlannedSets(prev => {
                             const updated = new Map(prev);
                             updated.delete(progress.set.id);
@@ -776,7 +1029,14 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           });
                         } else {
                           // Add to priority
-                          addToBuildPlan(progress.set.id, true);
+                          addToBuildPlan(progress.set.name, true);
+                          // Auto-reserve all parts and relevant relics for this set
+                          autoReserveItemsForSet(
+                            progress.set.name,
+                            progress.set.requiredParts.map(p => p.name),
+                            progress.ownedParts,
+                            relicsInventory
+                          );
                           setPlannedSets(prev => {
                             const updated = new Map(prev);
                             updated.set(progress.set.id, { planned: true, isPriority: true });
@@ -824,14 +1084,19 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       className="h-2 bg-green-500 rounded-full transition-all absolute left-0 top-0"
                       style={{ width: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%` }}
                     />
-                    {/* Parts obtainable from relics (yellow) */}
-                    <div
-                      className="h-2 bg-yellow-500 rounded-full transition-all absolute top-0"
-                      style={{ 
-                        left: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%`,
-                        width: `${(progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100}%`
-                      }}
-                    />
+                    {/* Parts obtainable from relics (recommended color) */}
+                    {(() => {
+                      const overlayColorClass = getOverlayColorForSet(progress);
+                      return (
+                        <div
+                          className={`h-2 ${overlayColorClass} rounded-full transition-all absolute top-0`}
+                          style={{ 
+                            left: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%`,
+                            width: `${(progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100}%`
+                          }}
+                        />
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -866,7 +1131,24 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           <span className="text-gray-400/70">Part</span>
                           <span className="text-gray-400/70">Source</span>
                         </div>
-                        {progress.set.requiredParts.map((part, index) => {
+                        {[...progress.set.requiredParts]
+                          .sort((a, b) => {
+                            const aOwned = progress.ownedParts.includes(a.name);
+                            const bOwned = progress.ownedParts.includes(b.name);
+                            if (aOwned !== bOwned) return aOwned ? -1 : 1;
+                            const aObtain = progress.obtainableFromRelics.includes(a.name);
+                            const bObtain = progress.obtainableFromRelics.includes(b.name);
+                            if (aObtain && bObtain) {
+                              const aRec = getRefinementRecommendationForPart(a.name);
+                              const bRec = getRefinementRecommendationForPart(b.name);
+                              const aCost = aRec ? aRec.traces : Number.POSITIVE_INFINITY;
+                              const bCost = bRec ? bRec.traces : Number.POSITIVE_INFINITY;
+                              return aCost - bCost;
+                            }
+                            if (aObtain !== bObtain) return aObtain ? -1 : 1;
+                            return 0;
+                          })
+                          .map((part, index) => {
                           const isOwned = progress.ownedParts.includes(part.name);
                           const isObtainableFromRelics = progress.obtainableFromRelics.includes(part.name);
 
@@ -884,7 +1166,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                             icon = <Hexagon size={12} />;
                           }
 
-                          const relicSources = getRelicsForPart(part.name);
+                          const relicBaseCounts = getRelicBaseCountsForPart(part.name);
+                          const reservation = isItemReserved(part.name, 'prime_parts');
+                          const reservedForThisSet = reservation.reserved && reservation.reservedFor.includes(progress.set.name);
+                          const { counts, namesByLevel } = getRefinementInfoForPart(part.name);
+                          const rec = getRefinementRecommendationForPart(part.name);
 
                           return (
                             <div key={index} className="flex items-center justify-between text-xs bg-gray-800/20 rounded px-2 py-1">
@@ -898,13 +1184,37 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                               <div className="flex flex-col items-end gap-1 text-right">
                                 <span className={`${textColor} text-xs`}>
                                   {isOwned ? 'Owned' : (
-                                    <span className="text-gray-500">Market only</span>
+                                    isObtainableFromRelics ? (
+                                      <span className="text-gray-400"></span>
+                                    ) : (
+                                      <span className="text-gray-500">Market only</span>
+                                    )
                                   )}
                                 </span>
-                                {isObtainableFromRelics && !isOwned && relicSources.length > 0 && (
-                                  <div className="text-[10px] text-yellow-400 max-w-32 text-right">
-                                    {relicSources.slice(0, 3).join(', ')}
-                                    {relicSources.length > 3 && ` +${relicSources.length - 3} more`}
+                                {!isOwned && isObtainableFromRelics && rec && (
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[rec.target]}`} title={`Recommended refinement`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[rec.target]}`} />
+                                      <span className="capitalize">{rec.target}</span>
+                                    </span>
+                                  </div>
+                                )}
+                                {isObtainableFromRelics && !isOwned && relicBaseCounts.length > 0 && (
+                                  <div className="flex items-end gap-2 flex-col">
+                                    <div className="flex items-start gap-2 flex-col text-right">
+                                      {relicBaseCounts.map(({ base, total }) => (
+                                        <button
+                                          key={base}
+                                          onClick={() => {
+                                            window.dispatchEvent(new CustomEvent('focus-relic', { detail: { name: base } }));
+                                          }}
+                                          className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2"
+                                          title={`Focus ${base}`}
+                                        >
+                                          {base}{total > 1 ? ` x${total}` : ''}
+                                        </button>
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
                               </div>
