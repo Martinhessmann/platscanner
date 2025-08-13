@@ -448,6 +448,14 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     intact: 'bg-gray-400'
   };
 
+  // Map refinement level to overlay color class
+  const overlayColorForLevel: Record<'radiant' | 'flawless' | 'exceptional' | 'intact', string> = {
+    radiant: 'bg-yellow-500',
+    flawless: 'bg-blue-500',
+    exceptional: 'bg-green-500',
+    intact: 'bg-gray-500'
+  };
+
   // Drop chance map (per single item) by rarity and refinement level
   const PART_DROP_CHANCE: Record<'Common' | 'Uncommon' | 'Rare', Record<'intact' | 'exceptional' | 'flawless' | 'radiant', number>> = {
     Common: { intact: 25.33, exceptional: 23.33, flawless: 20, radiant: 16.67 },
@@ -549,6 +557,40 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     const traces = computeMinTracesToReach(target, counts as any);
 
     return { target, chance, dropRarity, traces };
+  };
+
+  // Aggregate base relic names with quantities for a part, not truncated
+  const getRelicBaseCountsForPart = (partName: string): Array<{ base: string; total: number }> => {
+    const map = new Map<string, number>();
+    relicsInventory.forEach(relic => {
+      if (!relic.relicDrops || relic.relicDrops.length === 0) return;
+      const drop = findMatchingDrop(partName, relic);
+      if (!drop) return;
+      const base = formatRelicName(relic.name);
+      const qty = relic.quantity || 1;
+      map.set(base, (map.get(base) || 0) + qty);
+    });
+    return Array.from(map.entries()).map(([base, total]) => ({ base, total }));
+  };
+
+  // Pick an overlay color for a set based on hardest recommended among obtainable missing parts
+  const getOverlayColorForSet = (progress: SetProgress): string => {
+    const missingParts = progress.set.requiredParts
+      .filter(p => !progress.ownedParts.includes(p.name) && progress.obtainableFromRelics.includes(p.name));
+    let hasRadiant = false;
+    let hasFlawless = false;
+    let hasExceptional = false;
+    for (const part of missingParts) {
+      const rec = getRefinementRecommendationForPart(part.name);
+      if (!rec) continue;
+      if (rec.target === 'radiant') hasRadiant = true;
+      else if (rec.target === 'flawless') hasFlawless = true;
+      else if (rec.target === 'exceptional') hasExceptional = true;
+    }
+    if (hasRadiant) return overlayColorForLevel.radiant;
+    if (hasFlawless) return overlayColorForLevel.flawless;
+    if (hasExceptional) return overlayColorForLevel.exceptional;
+    return overlayColorForLevel.intact;
   };
 
   // Calculate summary statistics with safety guards
@@ -1042,14 +1084,19 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       className="h-2 bg-green-500 rounded-full transition-all absolute left-0 top-0"
                       style={{ width: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%` }}
                     />
-                    {/* Parts obtainable from relics (yellow) */}
-                    <div
-                      className="h-2 bg-yellow-500 rounded-full transition-all absolute top-0"
-                      style={{ 
-                        left: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%`,
-                        width: `${(progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100}%`
-                      }}
-                    />
+                    {/* Parts obtainable from relics (recommended color) */}
+                    {(() => {
+                      const overlayColorClass = getOverlayColorForSet(progress);
+                      return (
+                        <div
+                          className={`h-2 ${overlayColorClass} rounded-full transition-all absolute top-0`}
+                          style={{ 
+                            left: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%`,
+                            width: `${(progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100}%`
+                          }}
+                        />
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -1084,7 +1131,24 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           <span className="text-gray-400/70">Part</span>
                           <span className="text-gray-400/70">Source</span>
                         </div>
-                        {progress.set.requiredParts.map((part, index) => {
+                        {[...progress.set.requiredParts]
+                          .sort((a, b) => {
+                            const aOwned = progress.ownedParts.includes(a.name);
+                            const bOwned = progress.ownedParts.includes(b.name);
+                            if (aOwned !== bOwned) return aOwned ? -1 : 1;
+                            const aObtain = progress.obtainableFromRelics.includes(a.name);
+                            const bObtain = progress.obtainableFromRelics.includes(b.name);
+                            if (aObtain && bObtain) {
+                              const aRec = getRefinementRecommendationForPart(a.name);
+                              const bRec = getRefinementRecommendationForPart(b.name);
+                              const aCost = aRec ? aRec.traces : Number.POSITIVE_INFINITY;
+                              const bCost = bRec ? bRec.traces : Number.POSITIVE_INFINITY;
+                              return aCost - bCost;
+                            }
+                            if (aObtain !== bObtain) return aObtain ? -1 : 1;
+                            return 0;
+                          })
+                          .map((part, index) => {
                           const isOwned = progress.ownedParts.includes(part.name);
                           const isObtainableFromRelics = progress.obtainableFromRelics.includes(part.name);
 
@@ -1102,10 +1166,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                             icon = <Hexagon size={12} />;
                           }
 
-                          const relicSources = getRelicsForPart(part.name);
+                          const relicBaseCounts = getRelicBaseCountsForPart(part.name);
                           const reservation = isItemReserved(part.name, 'prime_parts');
                           const reservedForThisSet = reservation.reserved && reservation.reservedFor.includes(progress.set.name);
                           const { counts, namesByLevel } = getRefinementInfoForPart(part.name);
+                          const rec = getRefinementRecommendationForPart(part.name);
 
                           return (
                             <div key={index} className="flex items-center justify-between text-xs bg-gray-800/20 rounded px-2 py-1">
@@ -1117,50 +1182,41 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                 )}
                               </div>
                               <div className="flex flex-col items-end gap-1 text-right">
-                                                                 <span className={`${textColor} text-xs`}>
-                                   {isOwned ? 'Owned' : (
-                                     isObtainableFromRelics ? (
-                                       <span className="text-gray-400"></span>
-                                     ) : (
-                                       <span className="text-gray-500">Market only</span>
-                                     )
-                                   )}
-                                 </span>
-                                {!isOwned && isObtainableFromRelics && (() => {
-                                  const rec = getRefinementRecommendationForPart(part.name);
-                                  if (!rec) return null;
-                                  const level = rec.target;
-                                  return (
-                                    <div className="flex items-center gap-1 justify-end">
-                                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[level]}`} title={`Recommended refinement`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[level]}`} />
-                                      </span>
+                                <span className={`${textColor} text-xs`}>
+                                  {isOwned ? 'Owned' : (
+                                    isObtainableFromRelics ? (
+                                      <span className="text-gray-400"></span>
+                                    ) : (
+                                      <span className="text-gray-500">Market only</span>
+                                    )
+                                  )}
+                                </span>
+                                {!isOwned && isObtainableFromRelics && rec && (
+                                  <div className="flex items-center gap-1 justify-end">
+                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[rec.target]}`} title={`Recommended refinement`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[rec.target]}`} />
+                                      <span className="capitalize">{rec.target}</span>
+                                    </span>
+                                  </div>
+                                )}
+                                {isObtainableFromRelics && !isOwned && relicBaseCounts.length > 0 && (
+                                  <div className="flex items-end gap-2 flex-col">
+                                    <div className="flex items-start gap-2 flex-col text-right">
+                                      {relicBaseCounts.map(({ base, total }) => (
+                                        <button
+                                          key={base}
+                                          onClick={() => {
+                                            window.dispatchEvent(new CustomEvent('focus-relic', { detail: { name: base } }));
+                                          }}
+                                          className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2"
+                                          title={`Focus ${base}`}
+                                        >
+                                          {base}{total > 1 ? ` x${total}` : ''}
+                                        </button>
+                                      ))}
                                     </div>
-                                  );
-                                })()}
-                                 {isObtainableFromRelics && !isOwned && relicSources.length > 0 && (
-                                   <div className="flex items-end gap-2 flex-col">
-                                     <div className="flex items-center gap-1 flex-wrap justify-end">
-                                       {(['radiant','flawless','exceptional','intact'] as const).map(level => (
-                                         counts[level] > 0 ? (
-                                           <span
-                                             key={level}
-                                             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[level]} capitalize`}
-                                             title={`${namesByLevel[level].slice(0,3).join(', ')}${namesByLevel[level].length > 3 ? ` +${namesByLevel[level].length - 3} more` : ''}`}
-                                           >
-                                             <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[level]}`} />
-                                             <span className="capitalize">{level}</span>
-                                             <span>x{counts[level]}</span>
-                                           </span>
-                                         ) : null
-                                       ))}
-                                     </div>
-                                     <div className="text-[10px] text-gray-400 max-w-48 text-right">
-                                       {relicSources.slice(0, 3).join(', ')}
-                                       {relicSources.length > 3 && ` +${relicSources.length - 3} more`}
-                                     </div>
-                                   </div>
-                                 )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           );
