@@ -492,16 +492,16 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     const have = (lvl: RefinementLevel) => (counts[lvl] || 0) > 0;
     if (target === 'radiant') {
       if (have('radiant')) return 0;
-      if (have('flawless')) return 100;
-      if (have('exceptional')) return 150;
-      if (have('intact')) return 175;
-      return 175;
+      if (have('flawless')) return 50;
+      if (have('exceptional')) return 75;
+      if (have('intact')) return 100;
+      return 100;
     }
     if (target === 'flawless') {
       if (have('radiant') || have('flawless')) return 0;
-      if (have('exceptional')) return 50;
-      if (have('intact')) return 75;
-      return 75;
+      if (have('exceptional')) return 25;
+      if (have('intact')) return 50;
+      return 50;
     }
     if (target === 'exceptional') {
       if (have('radiant') || have('flawless') || have('exceptional')) return 0;
@@ -1130,16 +1130,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                   const rec = getRefinementRecommendationForPart(part.name);
                                   if (!rec) return null;
                                   const level = rec.target;
-                                  const classes = refinementChipClasses[level];
                                   return (
                                     <div className="flex items-center gap-1 justify-end">
-                                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${classes}`} title={`Drop: ${rec.dropRarity} • Chance: ${rec.chance}%`}>
+                                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[level]}`} title={`Recommended refinement`}>
                                         <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[level]}`} />
-                                        <span className="capitalize">{level}</span>
-                                        <span>{rec.chance}%</span>
-                                      </span>
-                                      <span className="text-[10px] text-gray-400">
-                                        {rec.traces > 0 ? `+${rec.traces} traces` : 'ready'}
                                       </span>
                                     </div>
                                   );
