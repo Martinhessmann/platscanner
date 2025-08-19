@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Crosshair, Target, Package, Star, Heart, Hexagon } from 'lucide-react';
 import { SyndicateReward } from '../types';
 import {
   getAllSyndicateRewards,
@@ -158,15 +158,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     return sortOrder === 'desc' ? '↓' : '↑';
   };
 
-  const formatPlatPerStanding = (value: number | undefined) => {
-    if (!value) return 'N/A';
-    return `${value.toFixed(4)}`;
-  };
-
-  const formatStanding = (value: number) => {
-    return value.toLocaleString();
-  };
-
   const getItemTypeColor = (itemType: string) => {
     switch (itemType) {
       case 'weapon': return 'text-red-400';
@@ -177,11 +168,63 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     }
   };
 
+  const getTypeIcon = (itemType: string) => {
+    switch (itemType) {
+      case 'weapon': return <Sword size={14} />;
+      case 'mod': return <Star size={14} />;
+      case 'cosmetic': return <Heart size={14} />;
+      case 'resource': return <Package size={14} />;
+      default: return <Package size={14} />;
+    }
+  };
+
+  const formatPlatPerStanding = (value: number | undefined) => {
+    if (!value) return 'N/A';
+    return `${value.toFixed(2)}`;
+  };
+
+  const formatStanding = (value: number) => {
+    return value.toLocaleString();
+  };
+
+  const handleOpenMarket = (itemName: string) => {
+    const urlName = itemName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    window.open(`https://warframe.market/items/${urlName}`, '_blank');
+  };
+
+  const getPriceComparisonDisplay = (reward: SyndicateReward) => {
+    if (!reward.price || reward.price === 0) {
+      return null;
+    }
+
+    // For syndicate rewards, we don't have an "expected" value like relics
+    // So we'll show the current price vs average (if available)
+    const currentPrice = reward.price;
+    const averagePrice = reward.average || currentPrice;
+
+    if (averagePrice && averagePrice !== currentPrice) {
+      const diff = currentPrice - averagePrice;
+      const percentage = averagePrice > 0 ? (diff / averagePrice) * 100 : 0;
+
+      return (
+        <div className="flex items-center gap-1 text-xs">
+          <span className="text-gray-300">vs</span>
+          <span className="text-gray-400">{averagePrice.toFixed(1)}p</span>
+          <span className={diff > 0 ? 'text-green-400' : 'text-red-400'}>
+            ({diff > 0 ? '+' : ''}{diff.toFixed(1)}p)
+          </span>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   const syndicates = getAvailableSyndicates();
 
   return (
     <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-700/50 mb-4">
-      {/* Header */}
+      {/* Header - Simplified to match other sections */}
       <div className="p-4 border-b border-gray-700/50">
         <div className="flex items-center justify-between">
           <button
@@ -195,252 +238,299 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                 <ChevronRight size={16} className="text-gray-400 group-hover:text-orokin-gold transition-colors" />
               )}
               <Shield size={20} className="text-orokin-gold" />
-              <span className="font-semibold text-lg">Syndicate Rewards</span>
-              {recommendations.length > 0 && (
-                <span className="text-xs bg-orokin-gold text-black px-2 py-1 rounded-full">
-                  {recommendations.length} from scan
+            </div>
+            <div>
+              <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
+                Syndicate Rewards
+              </h3>
+              <div className="flex items-center gap-4 text-xs text-gray-400">
+                <span>
+                  {totals.totalCount} item{totals.totalCount !== 1 ? 's' : ''}
                 </span>
+                {totals.totalValue > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Zap size={10} className="text-gray-300" />
+                    <span className="text-gray-300">{totals.totalValue}p</span>
+                  </div>
+                )}
+                {totals.totalStanding > 0 && (
+                  <div className="flex items-center gap-1">
+                    <TrendingUp size={10} className="text-purple-400" />
+                    <span className="text-purple-400">{formatStanding(totals.totalStanding)}</span>
+                  </div>
+                )}
+                {recommendations.length > 0 && (
+                  <span className="text-orokin-gold">
+                    {recommendations.length} from scan
+                  </span>
+                )}
+                {isRefreshing && (
+                  <span className="text-tenno-blue">
+                    Refreshing...
+                  </span>
+                )}
+              </div>
+              {!isExpanded && (
+                <div className="text-xs text-gray-500 mt-1">Tap to expand</div>
               )}
             </div>
           </button>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`p-2 rounded-lg transition-colors ${
-                showFilters ? 'bg-orokin-gold/20 text-orokin-gold' : 'bg-gray-700/50 text-gray-400 hover:text-white'
-              }`}
-            >
-              <Filter size={16} />
-            </button>
-
-            <button
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="p-2 rounded-lg bg-gray-700/50 text-gray-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                isRefreshing
+                  ? 'text-gray-500 cursor-not-allowed'
+                  : 'text-tenno-blue hover:bg-tenno-blue/10'
+              }`}
+              title="Refresh all syndicate rewards"
             >
-              <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+              <RefreshCw
+                size={12}
+                className={isRefreshing ? 'animate-spin' : ''}
+              />
             </button>
-          </div>
-        </div>
 
-        {/* Summary Stats */}
-        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div className="bg-gray-800/50 rounded-lg p-3">
-            <div className="text-gray-400">Best Value Item</div>
-            <div className="text-orokin-gold font-semibold">
-              {totals.bestValueItem ? `${totals.bestValueItem.name} (${totals.bestValueItem.platPerStanding?.toFixed(4)})` : 'N/A'}
-            </div>
-          </div>
-          <div className="bg-gray-800/50 rounded-lg p-3">
-            <div className="text-gray-400">Avg Plat/Standing</div>
-            <div className="text-green-400 font-semibold">{formatPlatPerStanding(totals.avgPlatPerStanding)}</div>
-          </div>
-          <div className="bg-gray-800/50 rounded-lg p-3">
-            <div className="text-gray-400">Items with Prices</div>
-            <div className="text-blue-400 font-semibold">{totals.loadedCount}/{totals.totalCount}</div>
-          </div>
-          <div className="bg-gray-800/50 rounded-lg p-3">
-            <div className="text-gray-400">Total Standing Cost</div>
-            <div className="text-purple-400 font-semibold">{formatStanding(totals.totalStanding)}</div>
-          </div>
-        </div>
+            {recommendations.length > 0 && onClearRecommendations && (
+              <button
+                onClick={onClearRecommendations}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs text-grineer-red hover:bg-grineer-red/10 transition-colors"
+                title="Clear all recommendations"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
 
-        {/* Action Buttons */}
-        {recommendations.length > 0 && (
-          <div className="mt-3 flex gap-2">
             <button
-              onClick={onClearRecommendations}
-              className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                showFilters
+                  ? 'text-orokin-gold bg-orokin-gold/10'
+                  : 'text-gray-400 hover:text-gray-300 hover:bg-gray-700/50'
+              }`}
+              title="Toggle filters"
             >
-              Clear All Recommendations
+              <Filter size={12} />
             </button>
           </div>
-        )}
-      </div>
-
-      {/* Filters */}
-      {showFilters && (
-        <div className="p-4 border-b border-gray-700/50 bg-gray-800/30">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Syndicate</label>
-              <select
-                value={filters.syndicate}
-                onChange={(e) => setFilters(prev => ({ ...prev, syndicate: e.target.value }))}
-                className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-orokin-gold"
-              >
-                <option value="">All Syndicates</option>
-                {syndicates.map(syndicate => (
-                  <option key={syndicate} value={syndicate}>{syndicate}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Item Type</label>
-              <select
-                value={filters.itemType}
-                onChange={(e) => setFilters(prev => ({ ...prev, itemType: e.target.value }))}
-                className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-orokin-gold"
-              >
-                <option value="">All Types</option>
-                <option value="weapon">Weapons</option>
-                <option value="mod">Mods</option>
-                <option value="cosmetic">Cosmetics</option>
-                <option value="resource">Resources</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Min Price (plat)</label>
-              <input
-                type="number"
-                value={filters.minPrice}
-                onChange={(e) => setFilters(prev => ({ ...prev, minPrice: e.target.value }))}
-                placeholder="0"
-                className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-orokin-gold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Max Price (plat)</label>
-              <input
-                type="number"
-                value={filters.maxPrice}
-                onChange={(e) => setFilters(prev => ({ ...prev, maxPrice: e.target.value }))}
-                placeholder="∞"
-                className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-orokin-gold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Min Plat/Standing</label>
-              <input
-                type="number"
-                step="0.0001"
-                value={filters.minPlatPerStanding}
-                onChange={(e) => setFilters(prev => ({ ...prev, minPlatPerStanding: e.target.value }))}
-                placeholder="0.0000"
-                className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-orokin-gold"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Max Standing Cost</label>
-              <input
-                type="number"
-                value={filters.maxStandingCost}
-                onChange={(e) => setFilters(prev => ({ ...prev, maxStandingCost: e.target.value }))}
-                placeholder="∞"
-                className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-orokin-gold"
-              />
-            </div>
-          </div>
         </div>
-      )}
+      </div>
 
       {/* Content */}
       {isExpanded && (
         <div className="p-4">
-          {filteredAndSortedRewards.length === 0 ? (
-            <div className="text-center text-gray-400 py-8">
-              No syndicate rewards found matching the current filters.
+          {/* Stats Cards - Only show when expanded */}
+          {totals.totalCount > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+                <div className="text-xs text-gray-400 mb-1">Best Value Item</div>
+                <div className="text-sm font-medium text-tenno-blue">
+                  {totals.bestValueItem ? (
+                    `${totals.bestValueItem.name} (${formatPlatPerStanding(totals.bestValueItem.platPerStanding)})`
+                  ) : (
+                    'N/A'
+                  )}
+                </div>
+              </div>
+              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+                <div className="text-xs text-gray-400 mb-1">Avg Plat/1k Standing</div>
+                <div className="text-sm font-medium text-green-400">
+                  {formatPlatPerStanding(totals.avgPlatPerStanding)}
+                </div>
+              </div>
+              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+                <div className="text-xs text-gray-400 mb-1">Items with Prices</div>
+                <div className="text-sm font-medium text-tenno-blue">
+                  {totals.loadedCount}/{totals.totalCount}
+                </div>
+              </div>
+              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+                <div className="text-xs text-gray-400 mb-1">Total Standing Cost</div>
+                <div className="text-sm font-medium text-purple-400">
+                  {formatStanding(totals.totalStanding)}
+                </div>
+              </div>
             </div>
-          ) : (
+          )}
+
+          {/* Filters */}
+          {showFilters && (
+            <div className="bg-gray-800/30 rounded-lg p-4 mb-4 border border-gray-700/50">
+              <h4 className="text-sm font-medium text-white mb-3">Filters</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Syndicate</label>
+                  <select
+                    value={filters.syndicate}
+                    onChange={(e) => setFilters({ ...filters, syndicate: e.target.value })}
+                    className="w-full bg-gray-700/50 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                  >
+                    <option value="">All Syndicates</option>
+                    {syndicates.map(syndicate => (
+                      <option key={syndicate} value={syndicate}>{syndicate}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Item Type</label>
+                  <select
+                    value={filters.itemType}
+                    onChange={(e) => setFilters({ ...filters, itemType: e.target.value })}
+                    className="w-full bg-gray-700/50 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                  >
+                    <option value="">All Types</option>
+                    <option value="weapon">Weapon</option>
+                    <option value="mod">Mod</option>
+                    <option value="cosmetic">Cosmetic</option>
+                    <option value="resource">Resource</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Min Plat/1k Standing</label>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    value={filters.minPlatPerStanding}
+                    onChange={(e) => setFilters({ ...filters, minPlatPerStanding: e.target.value })}
+                    className="w-full bg-gray-700/50 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                    placeholder="0.0001"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Results Table */}
+          {filteredAndSortedRewards.length > 0 ? (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-700/50">
-                    <th className="text-left p-2">
+                    <th className="text-left py-2 px-2 font-medium text-gray-300">
                       <button
                         onClick={() => handleSort('name')}
-                        className="flex items-center gap-1 hover:text-orokin-gold transition-colors"
+                        className="flex items-center gap-1 hover:text-white transition-colors"
                       >
                         Item Name {getSortIcon('name')}
                       </button>
                     </th>
-                    <th className="text-left p-2">
+                    <th className="text-left py-2 px-2 font-medium text-gray-300">
                       <button
                         onClick={() => handleSort('syndicate')}
-                        className="flex items-center gap-1 hover:text-orokin-gold transition-colors"
+                        className="flex items-center gap-1 hover:text-white transition-colors"
                       >
                         Syndicate {getSortIcon('syndicate')}
                       </button>
                     </th>
-                    <th className="text-left p-2">
+                    <th className="text-left py-2 px-2 font-medium text-gray-300">Type</th>
+                    <th className="text-left py-2 px-2 font-medium text-gray-300">
                       <button
                         onClick={() => handleSort('standingCost')}
-                        className="flex items-center gap-1 hover:text-orokin-gold transition-colors"
+                        className="flex items-center gap-1 hover:text-white transition-colors"
                       >
-                        Standing Cost {getSortIcon('standingCost')}
+                        Standing {getSortIcon('standingCost')}
                       </button>
                     </th>
-                    <th className="text-left p-2">
+                    <th className="text-left py-2 px-2 font-medium text-gray-300">
                       <button
                         onClick={() => handleSort('price')}
-                        className="flex items-center gap-1 hover:text-orokin-gold transition-colors"
+                        className="flex items-center gap-1 hover:text-white transition-colors"
                       >
-                        Market Price {getSortIcon('price')}
+                        Price {getSortIcon('price')}
                       </button>
                     </th>
-                    <th className="text-left p-2">
+                    <th className="text-left py-2 px-2 font-medium text-gray-300">
                       <button
                         onClick={() => handleSort('platPerStanding')}
-                        className="flex items-center gap-1 hover:text-orokin-gold transition-colors"
+                        className="flex items-center gap-1 hover:text-white transition-colors"
                       >
-                        <TrendingUp size={14} />
-                        Plat/Standing {getSortIcon('platPerStanding')}
+                        Plat/1k Standing {getSortIcon('platPerStanding')}
                       </button>
                     </th>
-                    <th className="text-left p-2">Type</th>
-                    <th className="text-left p-2">Volume</th>
+                    <th className="text-left py-2 px-2 font-medium text-gray-300">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredAndSortedRewards.map((reward) => {
-                    return (
-                      <tr key={reward.id} className="border-b border-gray-700/30 hover:bg-gray-800/30 transition-colors">
-                        <td className="p-2">
-                          <div className="font-medium">
-                            {reward.name}
-                          </div>
-                          {reward.masteryRank && (
-                            <div className="text-xs text-gray-400">MR {reward.masteryRank}</div>
-                          )}
-                        </td>
-                        <td className="p-2 text-gray-300">{reward.syndicate}</td>
-                        <td className="p-2 text-purple-400">{formatStanding(reward.standingCost)}</td>
-                        <td className="p-2">
-                          {reward.price && reward.price > 0 ? (
-                            <div className="text-orokin-gold font-semibold">{reward.price.toLocaleString()}p</div>
-                          ) : (
-                            <div className="text-gray-400 text-sm">No price data</div>
-                          )}
-                        </td>
-                        <td className="p-2">
-                          {reward.platPerStanding ? (
-                            <div className="text-green-400 font-semibold">
-                              {formatPlatPerStanding(reward.platPerStanding)}
-                            </div>
-                          ) : (
-                            <div className="text-gray-400 text-sm">N/A</div>
-                          )}
-                        </td>
-                        <td className="p-2">
-                          <span className={`text-xs px-2 py-1 rounded-full bg-gray-700/50 ${getItemTypeColor(reward.itemType)}`}>
+                  {filteredAndSortedRewards.map((reward, index) => (
+                    <tr
+                      key={`${reward.name}-${index}`}
+                      className="border-b border-gray-700/30 hover:bg-gray-700/20 transition-colors"
+                    >
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white">{reward.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-gray-300">{reward.syndicate || 'Unknown'}</td>
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-2">
+                          <span className={getItemTypeColor(reward.itemType)}>
+                            {getTypeIcon(reward.itemType)}
+                          </span>
+                          <span className={`text-xs px-2 py-1 rounded ${getItemTypeColor(reward.itemType)}`}>
                             {reward.itemType}
                           </span>
-                        </td>
-                        <td className="p-2 text-gray-400">
-                          {reward.marketVolume ? reward.marketVolume.toLocaleString() : 'N/A'}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-gray-300">{formatStanding(reward.standingCost)}</td>
+                      <td className="py-2 px-2">
+                        <div className="flex flex-col gap-1">
+                          {reward.price && reward.price > 0 ? (
+                            <>
+                              <span className="text-green-400">{reward.price}p</span>
+                              {getPriceComparisonDisplay(reward)}
+                            </>
+                          ) : (
+                            <span className="text-gray-500">No price</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-2 px-2">
+                        <span className={reward.platPerStanding && reward.platPerStanding > 0 ? 'text-blue-400' : 'text-gray-500'}>
+                          {formatPlatPerStanding(reward.platPerStanding)}
+                        </span>
+                      </td>
+                      <td className="py-2 px-2">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleOpenMarket(reward.name)}
+                            className="text-tenno-blue hover:text-tenno-light p-1 transition-colors"
+                            title="View on Warframe Market"
+                          >
+                            <ExternalLink size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              {filters.syndicate || filters.itemType || filters.minPlatPerStanding ? (
+                <div>
+                  <p>No items match the current filters.</p>
+                  <button
+                    onClick={() => setFilters({
+                      syndicate: '',
+                      itemType: '',
+                      minPrice: '',
+                      maxPrice: '',
+                      minPlatPerStanding: '',
+                      maxStandingCost: ''
+                    })}
+                    className="text-tenno-blue hover:underline mt-2"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              ) : (
+                <p>No syndicate rewards found. Upload a screenshot to get started.</p>
+              )}
             </div>
           )}
         </div>

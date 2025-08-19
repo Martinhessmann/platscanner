@@ -1,114 +1,157 @@
 import { SyndicateReward } from '../types';
 import { fetchSinglePriceData } from './warframeMarketService';
+import { getCategorizedInventory } from './inventoryService';
 
-// Syndicate data structure
-export interface SyndicateData {
-  name: string;
-  rewards: SyndicateReward[];
-}
-
-// Load syndicate rewards data from JSON file
-let SYNDICATE_REWARDS_DATA: SyndicateData[] = [];
-
-/**
- * Load syndicate rewards data from JSON file
- */
-const loadSyndicateData = async (): Promise<SyndicateData[]> => {
-  try {
-    const response = await fetch('/syndicate-rewards.json');
-    if (!response.ok) {
-      throw new Error(`Failed to load syndicate data: ${response.statusText}`);
-    }
-    const data = await response.json();
-
-    // Transform the data to include required fields
-    return data.syndicates.map((syndicate: any) => ({
-      name: syndicate.name,
-      rewards: syndicate.rewards.map((reward: any) => ({
-        ...reward,
-        addedAt: new Date(),
-        lastUpdated: new Date()
-      }))
-    }));
-  } catch (error) {
-    console.error('Failed to load syndicate data:', error);
-    return [];
-  }
+// Default standing costs by item type
+const DEFAULT_STANDING_COSTS: Record<string, number> = {
+  'weapon': 125000,
+  'mod': 25000,
+  'cosmetic': 5000,
+  'resource': 5000,
+  'other': 5000
 };
 
-// Initialize data on module load
-loadSyndicateData().then(data => {
-  SYNDICATE_REWARDS_DATA = data;
-}).catch(error => {
-  console.error('Failed to initialize syndicate data:', error);
-});
+/**
+ * Determine item type based on name patterns
+ */
+const determineItemType = (itemName: string): 'weapon' | 'mod' | 'cosmetic' | 'resource' | 'other' => {
+  const name = itemName.toLowerCase();
+  
+  // Weapon patterns (syndicate weapons)
+  if (name.includes('telos') || name.includes('synoid') || name.includes('secura') || 
+      name.includes('sancti') || name.includes('rakta') || name.includes('vaykor')) {
+    if (name.includes('syandana')) return 'cosmetic';
+    return 'weapon';
+  }
+  
+  // Syndicate mod patterns
+  if (name.includes('entropy') || name.includes('sequence') || name.includes('purity') ||
+      name.includes('truth') || name.includes('justice') || name.includes('blight')) {
+    return 'mod';
+  }
+  
+  // Augment mods (common patterns)
+  if (name.includes('seeking') || name.includes('shuriken') || name.includes('decoy') ||
+      name.includes('trickster') || name.includes('burst') || name.includes('flight')) {
+    return 'mod';
+  }
+  
+  // Cosmetics
+  if (name.includes('sigil') || name.includes('syandana') || name.includes('armor')) {
+    return 'cosmetic';
+  }
+  
+  return 'other';
+};
 
 /**
- * Get all syndicate rewards
+ * Get estimated standing cost for an item that shows a checkmark (owned)
+ */
+export const getEstimatedStandingCost = (itemName: string): number => {
+  const itemType = determineItemType(itemName);
+  return DEFAULT_STANDING_COSTS[itemType] || 5000;
+};
+
+/**
+ * Get all syndicate rewards from user inventory
  */
 export const getAllSyndicateRewards = (): SyndicateReward[] => {
-  console.log(`>>> [SyndicateService] getAllSyndicateRewards called, data length: ${SYNDICATE_REWARDS_DATA.length} <<<`);
-  const rewards = SYNDICATE_REWARDS_DATA.flatMap(syndicate => syndicate.rewards);
-  console.log(`>>> [SyndicateService] Returning ${rewards.length} total rewards <<<`);
-  return rewards;
+  console.log('>>> [SyndicateService] Getting all syndicate rewards from inventory <<<');
+  const inventory = getCategorizedInventory();
+  const syndicateItems = inventory.syndicate_rewards;
+  
+  // Convert InventoryItem to SyndicateReward format for compatibility
+  return syndicateItems.map(item => ({
+    id: item.id,
+    name: item.name,
+    category: 'syndicate_rewards' as const,
+    syndicate: item.syndicate || 'Unknown',
+    standingCost: item.standingCost || getEstimatedStandingCost(item.name),
+    masteryRank: item.masteryRank,
+    itemType: item.itemType || determineItemType(item.name),
+    platPerStanding: item.platPerStanding,
+    marketVolume: item.marketVolume,
+    availability: item.availability,
+    price: item.price,
+    volume: item.volume,
+    average: item.average,
+    status: item.status,
+    error: item.error,
+    quantity: item.quantity,
+    imgUrl: item.imgUrl,
+    ducats: item.ducats
+  }));
 };
 
 /**
- * Get syndicate rewards by syndicate name
+ * Get syndicate rewards by syndicate name from inventory
  */
 export const getSyndicateRewards = (syndicateName: string): SyndicateReward[] => {
-  const syndicate = SYNDICATE_REWARDS_DATA.find(s => s.name === syndicateName);
-  return syndicate ? syndicate.rewards : [];
+  const allRewards = getAllSyndicateRewards();
+  return allRewards.filter(reward => reward.syndicate === syndicateName);
 };
 
 /**
- * Get all available syndicates
+ * Get all unique syndicates that user has scanned
  */
 export const getAvailableSyndicates = (): string[] => {
-  return SYNDICATE_REWARDS_DATA.map(s => s.name);
+  const allRewards = getAllSyndicateRewards();
+  const syndicates = new Set(allRewards.map(r => r.syndicate));
+  return Array.from(syndicates).sort();
 };
 
 /**
  * Fetch market prices for syndicate rewards
  */
 export const fetchSyndicateRewardPrices = async (rewards: SyndicateReward[]): Promise<SyndicateReward[]> => {
-  const updatedRewards: SyndicateReward[] = [];
-
   console.log(`>>> [SyndicateService] Fetching prices for ${rewards.length} rewards <<<`);
-
+  const updatedRewards: SyndicateReward[] = [];
+  
   for (const reward of rewards) {
+    // Skip if no name
+    if (!reward.name) {
+      console.warn(`>>> [SyndicateService] Skipping reward with undefined name:`, reward);
+      continue;
+    }
+    
+    console.log(`>>> [SyndicateService] Fetching price for: ${reward.name} <<<`);
     try {
-      // Validate reward has required fields
-      if (!reward.name) {
-        console.warn(`>>> [SyndicateService] Skipping reward with undefined name:`, reward);
-        continue;
-      }
-
-      console.log(`>>> [SyndicateService] Fetching price for: ${reward.name} <<<`);
       const priceData = await fetchSinglePriceData(reward);
-
+      
       if (priceData && priceData.price) {
-        const platPerStanding = priceData.price / reward.standingCost;
-
+        // Calculate plat per 1000 standing (more readable than per-standing)
+        const effectiveStandingCost = reward.standingCost || getEstimatedStandingCost(reward.name);
+        const platPer1000Standing = (priceData.price * 1000) / effectiveStandingCost;
+        
         updatedRewards.push({
           ...reward,
           price: priceData.price,
           volume: priceData.volume,
           average: priceData.average,
-          platPerStanding,
-          marketVolume: priceData.volume
+          platPerStanding: platPer1000Standing, // Now represents plat per 1000 standing
+          marketVolume: priceData.volume,
+          status: 'loaded' as const,
+          standingCost: effectiveStandingCost // Ensure we have a standing cost
         });
       } else {
-        // Keep the original reward if no price data
-        updatedRewards.push(reward);
+        updatedRewards.push({
+          ...reward,
+          status: 'error' as const,
+          error: 'No price data available',
+          standingCost: reward.standingCost || getEstimatedStandingCost(reward.name)
+        });
       }
     } catch (error) {
       console.error(`>>> [SyndicateService] Error fetching price for ${reward.name}:`, error);
-      // Keep the original reward if there's an error
-      updatedRewards.push(reward);
+      updatedRewards.push({
+        ...reward,
+        status: 'error' as const,
+        error: error instanceof Error ? error.message : 'Failed to fetch price',
+        standingCost: reward.standingCost || getEstimatedStandingCost(reward.name)
+      });
     }
   }
-
+  
   return updatedRewards;
 };
 
@@ -122,7 +165,7 @@ export const sortSyndicateRewards = (
 ): SyndicateReward[] => {
   return [...rewards].sort((a, b) => {
     let comparison = 0;
-
+    
     switch (sortBy) {
       case 'platPerStanding': {
         const aRatio = a.platPerStanding || 0;
@@ -143,7 +186,7 @@ export const sortSyndicateRewards = (
         comparison = a.syndicate.localeCompare(b.syndicate);
         break;
     }
-
+    
     return sortOrder === 'desc' ? -comparison : comparison;
   });
 };

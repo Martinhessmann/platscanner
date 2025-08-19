@@ -51,6 +51,15 @@ export interface InventoryItem {
     reasoning?: string; // Human-readable explanation
     comparison?: string; // Comparison details
   };
+  
+  // Syndicate reward properties (for SyndicateReward items)
+  syndicate?: string;
+  standingCost?: number;
+  masteryRank?: number;
+  itemType?: 'weapon' | 'mod' | 'cosmetic' | 'resource' | 'other';
+  platPerStanding?: number;
+  marketVolume?: number;
+  availability?: 'always' | 'rotation' | 'limited';
 }
 
 export interface CategorizedInventory {

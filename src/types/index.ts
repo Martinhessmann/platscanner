@@ -66,6 +66,7 @@ export interface ImageState {
   preview: string;
   status: 'queued' | 'analyzing' | 'analyzed' | 'fetching' | 'complete' | 'error';
   results: DetectedItem[];
+  syndicateRewards?: SyndicateReward[]; // Track syndicate rewards for price fetching
   error?: string;
 }
 

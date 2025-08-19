@@ -80,22 +80,22 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   // Handle syndicate rewards refresh - define early for use in useEffect
   const handleRefreshSyndicateRewards = useCallback(async () => {
     if (isRefreshingSyndicateRewards) return;
-    
+
     console.log('>>> [HomePage] Starting syndicate rewards refresh <<<');
     setIsRefreshingSyndicateRewards(true);
-    
+
     try {
       const { getAllSyndicateRewards, fetchSyndicateRewardPrices } = await import('../services/syndicateService');
       const allSyndicateRewards = getAllSyndicateRewards();
-      
+
       if (allSyndicateRewards.length === 0) {
         console.log('>>> [HomePage] No syndicate rewards to refresh <<<');
         return;
       }
-      
+
       console.log(`>>> [HomePage] Found ${allSyndicateRewards.length} syndicate rewards to refresh <<<`);
       const updatedRewards = await fetchSyndicateRewardPrices(allSyndicateRewards);
-      
+
       // Update syndicate recommendations with fresh price data
       setSyndicateRecommendations(updatedRewards);
       setLastSyndicateRewardsRefresh(new Date());
@@ -116,14 +116,14 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     setLastPrimePartsRefresh(getLastRefreshTime('prime_parts'));
     setLastRelicsRefresh(getLastRefreshTime('relics'));
   }, []);
-  
-  // Auto-fetch syndicate reward prices on initial load if configured
+
+  // Auto-fetch syndicate reward prices on initial load if configured and has syndicate rewards
   useEffect(() => {
-    if (isConfigured && !isRefreshingSyndicateRewards) {
+    if (isConfigured && !isRefreshingSyndicateRewards && categorizedInventory.syndicate_rewards.length > 0) {
       console.log('>>> [HomePage] Auto-fetching syndicate rewards on app load <<<');
       handleRefreshSyndicateRewards();
     }
-  }, [isConfigured]); // Only depend on isConfigured, not handleRefreshSyndicateRewards
+  }, [isConfigured, categorizedInventory.syndicate_rewards.length]); // Only auto-fetch if we have syndicate rewards
 
   // Refresh inventory when data is imported
   useEffect(() => {
@@ -305,7 +305,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             images: new Map(current.images).set(nextImage.id, {
               ...nextImage,
               status: 'analyzed', // New status indicating ready for price fetching
-              results: newItems
+              results: newItems,
+              syndicateRewards: syndicateRewards // Store syndicate rewards for price fetching
             })
           }));
 
@@ -344,6 +345,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
       const nextImage = analyzedImages[0];
       const newItems = nextImage.results;
+
+      // Check if this image had syndicate rewards (they would have been added to recommendations)
+      // We need to fetch prices for both newItems and any syndicate rewards from this image
+      const hasSyndicateRewards = nextImage.syndicateRewards && nextImage.syndicateRewards.length > 0;
 
       if (!newItems || newItems.length === 0) {
         // Mark as complete if no items to process
@@ -398,83 +403,105 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 const updatedInventory = getCategorizedInventory();
                 setCategorizedInventory(updatedInventory);
               }
-
-              setFetchingProgress(undefined);
               return;
             }
 
             const item = newItems[index];
+            console.log(`>>> [Price Fetching] Processing item ${index + 1}/${newItems.length}: ${item.name} <<<`);
+
             try {
-              let processedItem: DetectedItem;
+              // Fetch price data for this item
+              const priceData = await fetchSinglePriceData(item);
 
-              if (item.category === 'relics') {
-                // For relics, fetch basic price data AND calculate relic value analysis
-                const basicItem = await fetchSinglePriceData(item);
+              if (priceData) {
+                // Add to processed items with price data
+                processedItems.push({
+                  ...item,
+                  price: priceData.price,
+                  marketVolume: priceData.volume,
+                  lastUpdated: new Date()
+                });
 
-                // Calculate relic value analysis using the actual detected rarity and market price
-                const relicItem = item as VoidRelic;
-                const relicAnalysis = await calculateRelicValueAnalysis(
-                  item.name,
-                  relicItem.rarity || 'intact',
-                  basicItem.price || 0
-                );
+                // Update progress
+                setFetchingProgress({ current: index + 1, total: newItems.length });
 
-                if (relicAnalysis) {
-                  processedItem = {
-                    ...basicItem,
-                    category: 'relics' as const,
-                    rarity: relicItem.rarity,
-                    minDropValue: relicAnalysis.minDropValue,
-                    maxDropValue: relicAnalysis.maxDropValue,
-                    expectedDropValue: relicAnalysis.expectedDropValue,
-                    recommendation: relicAnalysis.recommendation,
-                    expectedProfit: relicAnalysis.expectedProfit,
-                    directSalePrice: relicAnalysis.directSalePrice,
-                    relicDrops: relicAnalysis.relicDrops
-                  };
-                } else {
-                  processedItem = basicItem;
-                }
+                // Save to inventory immediately
+                saveToInventory([processedItems[processedItems.length - 1]], sessionId);
+
+                // Update categorized inventory display
+                const updatedInventory = getCategorizedInventory();
+                setCategorizedInventory(updatedInventory);
+
+                console.log(`>>> [Price Fetching] Added ${item.name} to inventory with price ${priceData.price} (${index + 1}/${newItems.length}) <<<`);
               } else {
-                // For prime parts, just fetch basic price data
-                processedItem = await fetchSinglePriceData(item);
+                console.log(`>>> [Price Fetching] No price data for ${item.name} <<<`);
+                // Still add to processed items but without price
+                processedItems.push({
+                  ...item,
+                  price: 0,
+                  marketVolume: 0,
+                  lastUpdated: new Date()
+                });
+                setFetchingProgress({ current: index + 1, total: newItems.length });
               }
-
-              processedItems.push(processedItem);
-
-              // Add to inventory immediately as it's processed
-              saveToInventory([processedItem], sessionId);
-
-              // Update local inventory state
-              const updatedInventory = getCategorizedInventory();
-              setCategorizedInventory(updatedInventory);
-
-              // Update progress after processing each item
-              setFetchingProgress({ current: index + 1, total: newItems.length });
-
-              console.log(`>>> [Price Fetching] Added ${processedItem.name} to inventory with price ${processedItem.price} (${index + 1}/${newItems.length}) <<<`);
             } catch (error) {
-              console.error(`>>> [Price Fetching] Failed to process ${item.name}:`, error);
-              const errorItem = { ...item, status: 'error' as const, error: 'Failed to fetch price' };
-              processedItems.push(errorItem);
-
-              // Update progress even for failed items
+              console.error(`>>> [Price Fetching] Error fetching price for ${item.name}:`, error);
+              // Add item without price data
+              processedItems.push({
+                ...item,
+                price: 0,
+                marketVolume: 0,
+                lastUpdated: new Date()
+              });
               setFetchingProgress({ current: index + 1, total: newItems.length });
             }
+
+            // Small delay to avoid overwhelming the API
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
 
-          // Clear progress tracking when done
-          setFetchingProgress(undefined);
+          // After processing regular items, handle syndicate rewards if any
+          if (hasSyndicateRewards && nextImage.syndicateRewards) {
+            console.log(`>>> [Price Fetching] Processing ${nextImage.syndicateRewards.length} syndicate rewards <<<`);
 
-          // Mark image as complete
-          setProcessingState(final => ({
-            ...final,
-            images: new Map(final.images).set(nextImage.id, {
+            // Update syndicate recommendations with prices
+            setSyndicateRecommendations(prev => {
+              const updatedRecommendations = [...prev];
+
+              // Process each syndicate reward from this image
+              nextImage.syndicateRewards.forEach(async (syndicateReward) => {
+                try {
+                  const priceData = await fetchSinglePriceData(syndicateReward);
+                  if (priceData) {
+                    // Find and update the recommendation with price data
+                    const index = updatedRecommendations.findIndex(r => r.name === syndicateReward.name);
+                    if (index >= 0) {
+                      updatedRecommendations[index] = {
+                        ...updatedRecommendations[index],
+                        price: priceData.price,
+                        marketVolume: priceData.volume,
+                        lastUpdated: new Date()
+                      };
+                    }
+                  }
+                } catch (error) {
+                  console.error(`>>> [Price Fetching] Error fetching price for syndicate reward ${syndicateReward.name}:`, error);
+                }
+              });
+
+              return updatedRecommendations;
+            });
+          }
+
+          // Mark as complete
+          setProcessingState(current => ({
+            ...current,
+            images: new Map(current.images).set(nextImage.id, {
               ...nextImage,
               status: 'complete',
               results: processedItems
             }),
-            processedCount: final.processedCount + 1
+            processedCount: current.processedCount + 1
           }));
 
           console.log(`>>> [Price Fetching] Completed for image: ${nextImage.id} <<<`);
@@ -490,12 +517,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             }),
             processedCount: errorState.processedCount + 1
           }));
-          setFetchingProgress(undefined);
         }
       })();
 
       return {
         ...prev,
+        activeImageId: nextImage.id,
         images: newImages
       };
     });
@@ -1051,7 +1078,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       setIsRefreshingPrices(false);
       setFetchingProgress({ current: 0, total: 0 });
     }
-    
+
     // Also refresh syndicate rewards during bulk refresh
     if (!shouldStopProcessing) {
       console.log('>>> [HomePage] Including syndicate rewards in bulk refresh <<<');
