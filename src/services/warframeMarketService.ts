@@ -403,13 +403,47 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
 };
 
 /**
- * COMPLETE: Fetches market data for a single prime part (includes images)
+ * Determine item type based on item name
+ */
+const determineItemType = (itemName: string): 'weapon' | 'mod' | 'cosmetic' | 'resource' | 'other' => {
+  const name = itemName.toLowerCase();
+
+  // Weapon prefixes
+  if (name.includes('telos ') || name.includes('secura ') || name.includes('synoid ') ||
+      name.includes('rakta ') || name.includes('sancti ') || name.includes('vaykor ') ||
+      name.includes('prime ') || name.includes(' vandal') || name.includes(' wraith') ||
+      name.includes(' prisma ') || name.includes(' mara ') || name.includes(' dex ')) {
+    return 'weapon';
+  }
+
+  // Mod indicators
+  if (name.includes(' augment') || name.includes(' mod') || name.includes(' stance') ||
+      name.includes(' aura') || name.includes(' exilus') || name.includes(' nightmare')) {
+    return 'mod';
+  }
+
+  // Cosmetic indicators
+  if (name.includes(' syandana') || name.includes(' sugatra') || name.includes(' armor') ||
+      name.includes(' skin') || name.includes(' ephemera') || name.includes(' noggle') ||
+      name.includes(' decoration') || name.includes(' emote')) {
+    return 'cosmetic';
+  }
+
+  // Resource indicators
+  if (name.includes(' alloy') || name.includes(' polymer') || name.includes(' ferrite') ||
+      name.includes(' plastids') || name.includes(' neurodes') || name.includes(' orokin cell') ||
+      name.includes(' argon') || name.includes(' oxium') || name.includes(' tellurium')) {
+    return 'resource';
+  }
+
+  return 'other';
+};
+
+/**
+ * Fetches market data for a single item (Prime Part, Relic, or Syndicate Reward)
  *
- * Use this for: Initial scans, new items that need images
- * Performance: Slower - fetches everything including imgUrl
- *
- * @param primePart - Single PrimePart object to fetch data for
- * @returns Updated PrimePart with market data
+ * @param primePart - Single DetectedItem object to fetch data for
+ * @returns Updated DetectedItem with market data
  */
 export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<DetectedItem> => {
   const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
@@ -436,6 +470,12 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
     // Use local images based on item name instead of external CDN
     const localImageUrl = await getImageUrl(primePart.name);
 
+    // Determine item type for syndicate rewards
+    let itemType = primePart.itemType;
+    if (primePart.category === 'syndicate_rewards' && itemType === 'other') {
+      itemType = determineItemType(primePart.name);
+    }
+
     return {
       ...primePart,
       price: data.price,
@@ -443,6 +483,7 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
       volume: data.volume,
       average: data.average,
       imgUrl: localImageUrl,
+      itemType: itemType,
       status: 'loaded' as const,
       error: data.price === 0 ? 'No active buy orders' : undefined,
       buyerUsername: data.buyerUsername,

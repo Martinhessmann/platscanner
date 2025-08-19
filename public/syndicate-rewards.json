@@ -1,0 +1,134 @@
+{
+  "syndicates": [
+    {
+      "name": "Arbiters of Hexis",
+      "rewards": [
+        {
+          "id": "arbiters-savior-decoy",
+          "name": "Savior Decoy",
+          "category": "syndicate_rewards",
+          "syndicate": "Arbiters of Hexis",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "availability": "always"
+        },
+        {
+          "id": "arbiters-seeking-shuriken",
+          "name": "Seeking Shuriken",
+          "category": "syndicate_rewards",
+          "syndicate": "Arbiters of Hexis",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "availability": "always"
+        },
+        {
+          "id": "arbiters-telos-akbolto",
+          "name": "Telos Akbolto",
+          "category": "syndicate_rewards",
+          "syndicate": "Arbiters of Hexis",
+          "standingCost": 100000,
+          "itemType": "weapon",
+          "masteryRank": 8,
+          "availability": "always"
+        },
+        {
+          "id": "arbiters-telos-boltace",
+          "name": "Telos Boltace",
+          "category": "syndicate_rewards",
+          "syndicate": "Arbiters of Hexis",
+          "standingCost": 125000,
+          "itemType": "weapon",
+          "masteryRank": 8,
+          "availability": "always"
+        },
+        {
+          "id": "arbiters-telos-boltor",
+          "name": "Telos Boltor",
+          "category": "syndicate_rewards",
+          "syndicate": "Arbiters of Hexis",
+          "standingCost": 125000,
+          "itemType": "weapon",
+          "masteryRank": 8,
+          "availability": "always"
+        },
+        {
+          "id": "arbiters-telos-syandana",
+          "name": "Telos Syandana",
+          "category": "syndicate_rewards",
+          "syndicate": "Arbiters of Hexis",
+          "standingCost": 100000,
+          "itemType": "cosmetic",
+          "availability": "always"
+        }
+      ]
+    },
+    {
+      "name": "Steel Meridian",
+      "rewards": [
+        {
+          "id": "steel-meridian-vengeful-trickster",
+          "name": "Vengeful Trickster",
+          "category": "syndicate_rewards",
+          "syndicate": "Steel Meridian",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "availability": "always"
+        },
+        {
+          "id": "steel-meridian-vaykor-hek",
+          "name": "Vaykor Hek",
+          "category": "syndicate_rewards",
+          "syndicate": "Steel Meridian",
+          "standingCost": 125000,
+          "itemType": "weapon",
+          "masteryRank": 12,
+          "availability": "always"
+        },
+        {
+          "id": "steel-meridian-vaykor-marelok",
+          "name": "Vaykor Marelok",
+          "category": "syndicate_rewards",
+          "syndicate": "Steel Meridian",
+          "standingCost": 100000,
+          "itemType": "weapon",
+          "masteryRank": 8,
+          "availability": "always"
+        }
+      ]
+    },
+    {
+      "name": "Cephalon Suda",
+      "rewards": [
+        {
+          "id": "suda-entropy-burst",
+          "name": "Entropy Burst",
+          "category": "syndicate_rewards",
+          "syndicate": "Cephalon Suda",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "availability": "always"
+        },
+        {
+          "id": "suda-synoid-gammacor",
+          "name": "Synoid Gammacor",
+          "category": "syndicate_rewards",
+          "syndicate": "Cephalon Suda",
+          "standingCost": 100000,
+          "itemType": "weapon",
+          "masteryRank": 8,
+          "availability": "always"
+        },
+        {
+          "id": "suda-synoid-simulor",
+          "name": "Synoid Simulor",
+          "category": "syndicate_rewards",
+          "syndicate": "Cephalon Suda",
+          "standingCost": 125000,
+          "itemType": "weapon",
+          "masteryRank": 8,
+          "availability": "always"
+        }
+      ]
+    }
+  ]
+}

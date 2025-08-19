@@ -56,6 +56,7 @@ export interface InventoryItem {
 export interface CategorizedInventory {
   prime_parts: InventoryItem[];
   relics: InventoryItem[];
+  syndicate_rewards: InventoryItem[];
 }
 
 export interface InventoryStorage {
@@ -193,7 +194,8 @@ export const getCategorizedInventory = (): CategorizedInventory => {
 
   return {
     prime_parts: inventory.items.filter(item => item.category === 'prime_parts'),
-    relics: inventory.items.filter(item => item.category === 'relics')
+    relics: inventory.items.filter(item => item.category === 'relics'),
+    syndicate_rewards: inventory.items.filter(item => item.category === 'syndicate_rewards')
   };
 };
 
@@ -602,22 +604,22 @@ const isValidPrimePartName = (name: string): boolean => {
     /analysis/i,
     /result/i
   ];
-  
+
   // Check for invalid patterns
   if (invalidPatterns.some(pattern => pattern.test(name))) {
     return false;
   }
-  
+
   // Must contain "Prime" and have reasonable length
   if (!name.includes('Prime') || name.length < 5 || name.length > 50) {
     return false;
   }
-  
+
   // Should not contain multiple sentences or question marks
   if (name.includes('.') || name.includes('?') || name.includes(':')) {
     return false;
   }
-  
+
   return true;
 };
 

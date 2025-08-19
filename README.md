@@ -12,7 +12,8 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 - 🖼️ **Multi-Image Support**: Process multiple inventory screenshots at once
 - 🔄 **Smart Refresh System**: Update prices without re-uploading screenshots
 - 📦 **Persistent Inventory**: Your scanned items save automatically across sessions
-- 🎮 **Extended Item Support**: Scan both Prime Parts and Void Relics
+- 🎮 **Extended Item Support**: Scan Prime Parts, Void Relics, and Syndicate Rewards
+- 🛡️ **Syndicate Market Analysis**: Compare plat/standing ratios to optimize standing spending
 - 📱 **Mobile-First Design**: Optimized interface with touch-friendly controls
 - 🎨 **Warframe-Themed UI**: Beautiful interface matching the game's aesthetic
 - ⚡ **Reliable Processing**: Robust queue system with automatic error handling
@@ -36,7 +37,13 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 - Remove individual items or clear entire categories
 - Click item names to view detailed market listings on Warframe Market
 
-### 4. Cloud Sync (Optional)
+### 4. Syndicate Rewards Analysis
+- View all syndicate rewards with current market prices
+- Sort by plat/standing ratio to find the best value items
+- Filter by syndicate, item type, price range, and standing cost
+- Compare different syndicates to optimize your standing spending
+
+### 5. Cloud Sync (Optional)
 - Enable cross-platform synchronization in Settings > Cloud Sync
 - Your inventory, build plans, and progress sync across all devices
 - Uses your Gemini API key as a secure unique identifier

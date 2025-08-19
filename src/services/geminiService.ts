@@ -1,5 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
-import { DetectedItem, PrimePart, VoidRelic } from '../types';
+import { DetectedItem, PrimePart, VoidRelic, SyndicateReward } from '../types';
 
 const API_KEY_STORAGE_KEY = 'platscanner_gemini_api_key';
 
@@ -102,8 +102,35 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
     .filter(line => line.length > 0 && !isPreambleOrNoteLine(line));
 
   const detectedItems: DetectedItem[] = [];
+  let detectedSyndicate = 'Unknown';
 
   lines.forEach((line, index) => {
+    // Check for syndicate name line: "SYNDICATE: Arbiters of Hexis"
+    const syndicateMatch = line.match(/^SYNDICATE:\s*(.+)$/i);
+    if (syndicateMatch) {
+      detectedSyndicate = syndicateMatch[1].trim();
+      console.log(`>>> [AI Parsing] Detected syndicate: "${detectedSyndicate}" <<<`);
+      return; // Continue to next line
+    }
+
+    // Syndicate reward format: "ITEM_NAME | 25,000"
+    const syndicateRewardMatch = line.match(/^(.*?)\s*\|\s*([\d,]+)/);
+    if (syndicateRewardMatch) {
+      const name = syndicateRewardMatch[1].trim();
+      const standingStr = syndicateRewardMatch[2].replace(/,/g, '');
+      const standingCost = parseInt(standingStr, 10);
+
+      const reward: SyndicateReward = {
+        id: `syndicate-${Date.now()}-${index}`,
+        name,
+        category: 'syndicate_rewards',
+        syndicate: detectedSyndicate,
+        standingCost: isNaN(standingCost) ? 0 : standingCost,
+        itemType: 'other'
+      };
+      detectedItems.push(reward);
+      return; // Continue to next line
+    }
     // Parse quantity from formats like "5 x Item Name", "x5 Item Name", "2x Item Name"
     let quantity = 1;
     let cleanLine = line;
@@ -188,12 +215,13 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
   return detectedItems;
 };
 
-const determineScreenType = async (imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'unknown'> => {
+const determineScreenType = async (imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'syndicate' | 'unknown'> => {
   const screenTypePrompt = `Look at this Warframe screenshot and determine what type of inventory screen this is.
 
 Respond with EXACTLY ONE of these options:
 - PRIME_PARTS (if you see items with "Prime" in their names like "Sevagoth Prime Blueprint", "Mirage Prime Chassis", etc.)
 - RELICS (if you see Void Relics like "Lith A1 Relic", "Meso B2 Relic", "Neo C3 Relic", "Axi D4 Relic")
+- SYNDICATE (if you see a Syndicate Offerings shop with items that cost Standing values like 5,000 / 25,000 / 100,000, words like "Offerings", "Syndicate", "Sigil", or faction names like Telos, Secura, Synoid, Rakta, Sancti)
 - UNKNOWN (if you cannot clearly determine the screen type)`;
 
   const result = await genAI!.models.generateContent({
@@ -220,6 +248,7 @@ Respond with EXACTLY ONE of these options:
 
   if (text.includes('PRIME_PARTS')) return 'prime_parts';
   if (text.includes('RELICS')) return 'relics';
+  if (text.includes('SYNDICATE')) return 'syndicate';
   return 'unknown';
 };
 
@@ -316,6 +345,49 @@ If you cannot clearly see any owned relics, respond with "NONE_DETECTED".`;
   return result.text;
 };
 
+const analyzeSyndicate = async (imageBase64: string, mimeType: string): Promise<string> => {
+  const syndicatePrompt = `Analyze this Warframe Syndicate Offerings screen. First identify the syndicate name from the title/header, then extract tradable rewards and their Standing costs.
+
+STRICT RULES:
+- Read the ACTUAL image. Do not invent items.
+- Identify the syndicate name from the screen title (e.g., "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda")
+- Prefer items likely tradable on Warframe Market (e.g., Telos/Secura/Synoid/Rakta/Sancti weapons, augment mods)
+- Ignore pure sigils, simulacrum access, caches, or consumable blueprints unless clearly visible and tradable
+- Use the standing price numbers shown on each card (e.g., 25,000 or 100,000)
+
+RESPONSE FORMAT:
+First line: SYNDICATE: [Syndicate Name]
+Then each item on its own line:
+ITEM_NAME | STANDING
+
+Example:
+SYNDICATE: Arbiters of Hexis
+Telos Akbolto | 100,000
+Stinging Truth | 25,000
+
+If you cannot clearly see any items or syndicate name, respond with "NONE_DETECTED".`;
+
+  const result = await genAI!.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: syndicatePrompt },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: imageBase64
+            }
+          }
+        ]
+      }
+    ]
+  });
+
+  return result.text;
+};
+
 export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => {
   if (!isGeminiConfigured()) {
     throw new Error('Gemini API key not configured');
@@ -338,6 +410,9 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     } else if (screenType === 'relics') {
       console.log(`>>> [Gemini] Step 2: Analyzing Relics with detailed filtering <<<`);
       analysisText = await analyzeRelics(imageBase64, imageFile.type);
+    } else if (screenType === 'syndicate') {
+      console.log(`>>> [Gemini] Step 2: Analyzing Syndicate Offerings <<<`);
+      analysisText = await analyzeSyndicate(imageBase64, imageFile.type);
     } else {
       console.log(`>>> [Gemini] Unknown screen type, using generic analysis <<<`);
       analysisText = await analyzePrimeParts(imageBase64, imageFile.type); // Default to prime parts
