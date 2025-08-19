@@ -134,8 +134,9 @@ export const fetchSyndicateRewardPrices = async (
   for (const reward of rewards) {
     // Check for cancellation
     if (shouldCancel && shouldCancel()) {
-      console.log(`>>> [SyndicateService] Cancellation requested, stopping at ${updatedRewards.length} items <<<`);
-      break;
+      console.log(`>>> [SyndicateService] Cancellation requested, stopping at item ${updatedRewards.length + 1}/${rewards.length} <<<`);
+      // Return what we have so far
+      return updatedRewards;
     }
 
     // Skip if no name
@@ -147,6 +148,12 @@ export const fetchSyndicateRewardPrices = async (
     console.log(`>>> [SyndicateService] Fetching price for: ${reward.name} <<<`);
     try {
       const priceData = await fetchSinglePriceData(reward);
+      
+      // Check for cancellation after API call
+      if (shouldCancel && shouldCancel()) {
+        console.log(`>>> [SyndicateService] Cancellation detected after fetching ${reward.name}, stopping <<<`);
+        return updatedRewards;
+      }
 
       if (priceData && priceData.price) {
         // Calculate plat per 1000 standing (more readable than per-standing)

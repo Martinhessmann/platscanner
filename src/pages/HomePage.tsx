@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import ImageUploader from '../components/ImageUploader';
 import ProcessingAnimation from '../components/ProcessingAnimation';
 import InventorySection from '../components/InventorySection';
@@ -49,6 +49,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [isRefreshingSyndicateRewards, setIsRefreshingSyndicateRewards] = useState(false);
   const [shouldCancelSyndicateRefresh, setShouldCancelSyndicateRefresh] = useState(false);
+  const cancelSyndicateRefreshRef = useRef(false);
   const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
   const [fetchingProgress, setFetchingProgress] = useState<{ current: number; total: number } | undefined>(undefined);
   const [categoryProgress, setCategoryProgress] = useState<{ category: string; current: number; total: number } | undefined>(undefined);
@@ -79,11 +80,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
   // Handle syndicate rewards refresh - define early for use in useEffect
   const handleRefreshSyndicateRewards = useCallback(async () => {
-    if (isRefreshingSyndicateRewards) return;
+    if (isRefreshingSyndicateRewards) {
+      console.log('>>> [HomePage] Syndicate refresh already in progress, skipping <<<');
+      return;
+    }
 
     console.log('>>> [HomePage] Starting syndicate rewards refresh <<<');
     setIsRefreshingSyndicateRewards(true);
     setShouldCancelSyndicateRefresh(false);
+    cancelSyndicateRefreshRef.current = false;
 
     try {
       const { getAllSyndicateRewards, fetchSyndicateRewardPrices } = await import('../services/syndicateService');
@@ -97,11 +102,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       console.log(`>>> [HomePage] Found ${allSyndicateRewards.length} syndicate rewards to refresh <<<`);
       const updatedRewards = await fetchSyndicateRewardPrices(
         allSyndicateRewards,
-        () => shouldCancelSyndicateRefresh
+        () => cancelSyndicateRefreshRef.current
       );
 
-      // Update syndicate rewards in inventory
-      if (updatedRewards.length > 0) {
+      // Update syndicate rewards in inventory only if not cancelled
+      if (updatedRewards.length > 0 && !cancelSyndicateRefreshRef.current) {
         const { updateInventoryPrices } = await import('../services/inventoryService');
         updateInventoryPrices(updatedRewards);
 
@@ -109,6 +114,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         const inventory = getCategorizedInventory();
         setCategorizedInventory(inventory);
         setInventoryRefreshTrigger(prev => prev + 1);
+      } else if (cancelSyndicateRefreshRef.current) {
+        console.log('>>> [HomePage] Skipping inventory update due to cancellation <<<');
       }
       setLastSyndicateRewardsRefresh(new Date());
       console.log(`>>> [HomePage] Syndicate rewards refresh completed for ${updatedRewards.length} items <<<`);
@@ -117,6 +124,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     } finally {
       setIsRefreshingSyndicateRewards(false);
       setShouldCancelSyndicateRefresh(false);
+      cancelSyndicateRefreshRef.current = false;
     }
   }, [isRefreshingSyndicateRewards]);
 
@@ -124,6 +132,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const handleCancelSyndicateRefresh = useCallback(() => {
     console.log('>>> [HomePage] Cancelling syndicate rewards refresh <<<');
     setShouldCancelSyndicateRefresh(true);
+    cancelSyndicateRefreshRef.current = true;
   }, []);
 
   // Handle individual syndicate reward refresh
@@ -167,13 +176,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     setLastRelicsRefresh(getLastRefreshTime('relics'));
   }, []);
 
-  // Auto-fetch syndicate reward prices on initial load if configured and has syndicate rewards
-  useEffect(() => {
-    if (isConfigured && !isRefreshingSyndicateRewards && categorizedInventory.syndicate_rewards.length > 0) {
-      console.log('>>> [HomePage] Auto-fetching syndicate rewards on app load <<<');
-      handleRefreshSyndicateRewards();
-    }
-  }, [isConfigured, categorizedInventory.syndicate_rewards.length]); // Only auto-fetch if we have syndicate rewards
+  // Note: Auto-fetch disabled - users should manually refresh prices when needed
+  // useEffect(() => {
+  //   if (isConfigured && !isRefreshingSyndicateRewards && categorizedInventory.syndicate_rewards.length > 0) {
+  //     console.log('>>> [HomePage] Auto-fetching syndicate rewards on app load <<<');
+  //     handleRefreshSyndicateRewards();
+  //   }
+  // }, [isConfigured, categorizedInventory.syndicate_rewards.length]);
 
   // Refresh inventory when data is imported
   useEffect(() => {
@@ -650,12 +659,22 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   }, []);
 
   const handleClearInventory = useCallback((category: 'prime_parts' | 'relics' | 'syndicate_rewards') => {
+    // Cancel syndicate refresh if we're clearing syndicate rewards
+    if (category === 'syndicate_rewards' && isRefreshingSyndicateRewards) {
+      console.log('>>> [HomePage] Cancelling syndicate refresh before clearing inventory <<<');
+      cancelSyndicateRefreshRef.current = true;
+      setShouldCancelSyndicateRefresh(true);
+    }
+    
     clearInventoryByCategory(category);
     setCategorizedInventory(prev => ({
       ...prev,
       [category]: []
     }));
-  }, []);
+    
+    // Trigger inventory refresh
+    setInventoryRefreshTrigger(prev => prev + 1);
+  }, [isRefreshingSyndicateRewards]);
 
   // Clear only sellable (Blueprint) prime parts
   const handleClearSellablePrimeParts = useCallback(() => {

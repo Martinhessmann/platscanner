@@ -119,18 +119,8 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
   }, [filteredAndSortedRewards]);
 
   const handleRefresh = async () => {
+    // This local refresh should not be used - use parent's refresh instead
     onRefreshStart();
-    try {
-      console.log(`>>> [SyndicateRewardsSection] Starting refresh with ${rewards.length} rewards <<<`);
-      const updatedRewards = await fetchSyndicateRewardPrices(rewards);
-      console.log(`>>> [SyndicateRewardsSection] Received ${updatedRewards.length} updated rewards <<<`);
-      setRewards(updatedRewards);
-      console.log(`>>> [SyndicateRewardsSection] Updated rewards state <<<`);
-    } catch (error) {
-      console.error('Failed to refresh syndicate rewards:', error);
-    } finally {
-      onRefreshComplete();
-    }
   };
 
   const handleRefreshItem = async (itemName: string) => {
