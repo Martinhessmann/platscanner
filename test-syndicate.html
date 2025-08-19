@@ -98,14 +98,14 @@
     </div>
 
     <script type="module">
-        // Import the syndicate service functions
+        // Import the syndicate service functions (use Vite aliasing for TS modules)
         import { 
             getAllSyndicateRewards, 
             fetchSyndicateRewardPrices, 
             sortSyndicateRewards, 
             filterSyndicateRewards,
             getAvailableSyndicates 
-        } from './src/services/syndicateService.js';
+        } from '/src/services/syndicateService.ts';
 
         // Make functions available globally for testing
         window.testDataLoading = async function() {
