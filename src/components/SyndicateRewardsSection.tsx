@@ -42,10 +42,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     };
 
     loadRewards();
-
-    // Reload when inventory changes (e.g., after scanning new items)
-    const interval = setInterval(loadRewards, 1000);
-    return () => clearInterval(interval);
   }, []);
 
   // Use rewards directly from inventory
@@ -93,7 +89,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
       return best;
     }) : undefined;
 
-    console.log(`>>> [SyndicateRewardsSection] Totals calculation - loaded: ${loadedRewards.length}, total: ${filteredAndSortedRewards.length}, totalValue: ${totalValue} <<<`);
 
     return {
       totalValue,

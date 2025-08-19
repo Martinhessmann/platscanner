@@ -78,7 +78,6 @@ export const getEstimatedStandingCost = (itemName: string): number => {
  * Get all syndicate rewards from user inventory
  */
 export const getAllSyndicateRewards = (): SyndicateReward[] => {
-  console.log('>>> [SyndicateService] Getting all syndicate rewards from inventory <<<');
   const inventory = getCategorizedInventory();
   const syndicateItems = inventory.syndicate_rewards;
   

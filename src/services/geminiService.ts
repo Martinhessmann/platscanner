@@ -1,7 +1,143 @@
 import { GoogleGenAI } from '@google/genai';
 import { DetectedItem, PrimePart, VoidRelic, SyndicateReward } from '../types';
+import { getCategorizedInventory } from './inventoryService';
 
 const API_KEY_STORAGE_KEY = 'platscanner_gemini_api_key';
+const IMAGE_CACHE_KEY = 'platscanner_image_cache';
+const CACHE_EXPIRY_HOURS = 24; // Cache results for 24 hours
+
+// Cache structure for storing analysis results
+interface ImageCacheEntry {
+  hash: string;
+  timestamp: number;
+  screenType: 'prime_parts' | 'relics' | 'syndicate' | 'unknown';
+  detectedItems: DetectedItem[];
+}
+
+// Generate a simple hash from image data for caching
+const generateImageHash = async (imageBase64: string): Promise<string> => {
+  // Use a sample of the image data for hashing (first 1000 chars to avoid memory issues)
+  const sample = imageBase64.substring(0, 1000);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(sample);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+};
+
+// Get cached analysis result
+const getCachedAnalysis = (imageHash: string): DetectedItem[] | null => {
+  try {
+    const cacheData = localStorage.getItem(IMAGE_CACHE_KEY);
+    if (!cacheData) return null;
+
+    const cache: ImageCacheEntry[] = JSON.parse(cacheData);
+    const now = Date.now();
+    const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
+
+    // Find matching cache entry that's not expired
+    const entry = cache.find(e =>
+      e.hash === imageHash &&
+      (now - e.timestamp) < expiryTime
+    );
+
+    if (entry) {
+      console.log(`>>> [Gemini Cache] Found cached result for image hash ${imageHash} <<<`);
+      return entry.detectedItems;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Failed to read image cache:', error);
+    return null;
+  }
+};
+
+// Store analysis result in cache
+const setCachedAnalysis = (imageHash: string, screenType: string, detectedItems: DetectedItem[]): void => {
+  try {
+    const cacheData = localStorage.getItem(IMAGE_CACHE_KEY);
+    let cache: ImageCacheEntry[] = cacheData ? JSON.parse(cacheData) : [];
+
+    // Remove old entries (keep cache size manageable)
+    const now = Date.now();
+    const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
+    cache = cache.filter(e => (now - e.timestamp) < expiryTime);
+
+    // Add new entry
+    const newEntry: ImageCacheEntry = {
+      hash: imageHash,
+      timestamp: now,
+      screenType: screenType as any,
+      detectedItems
+    };
+
+    cache.push(newEntry);
+
+    // Keep only the 50 most recent entries to avoid storage bloat
+    if (cache.length > 50) {
+      cache = cache.slice(-50);
+    }
+
+    localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(cache));
+    console.log(`>>> [Gemini Cache] Stored result for image hash ${imageHash} <<<`);
+  } catch (error) {
+    console.error('Failed to store image cache:', error);
+  }
+};
+
+// Filter out items that are already in inventory to avoid duplicates
+const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
+  const inventory = getCategorizedInventory();
+  const existingItems = new Set();
+
+  // Build set of existing item names by category
+  inventory.prime_parts.forEach(item => existingItems.add(`${item.category}:${item.name}`));
+  inventory.relics.forEach(item => existingItems.add(`${item.category}:${item.name}`));
+  inventory.syndicate_rewards.forEach(item => existingItems.add(`${item.category}:${item.name}`));
+
+  const newItems = detectedItems.filter(item => {
+    const itemKey = `${item.category}:${item.name}`;
+    return !existingItems.has(itemKey);
+  });
+
+  if (newItems.length < detectedItems.length) {
+    console.log(`>>> [Gemini Filter] Filtered ${detectedItems.length - newItems.length} duplicate items, ${newItems.length} are new <<<`);
+  }
+
+  return newItems;
+};
+
+// Clear image cache (useful if user wants to force re-analysis)
+export const clearImageCache = (): void => {
+  try {
+    localStorage.removeItem(IMAGE_CACHE_KEY);
+    console.log('>>> [Gemini Cache] Cleared image cache <<<');
+  } catch (error) {
+    console.error('Failed to clear image cache:', error);
+  }
+};
+
+// Get cache statistics for debugging
+export const getCacheStats = (): { entries: number; oldestEntry?: Date; newestEntry?: Date } => {
+  try {
+    const cacheData = localStorage.getItem(IMAGE_CACHE_KEY);
+    if (!cacheData) return { entries: 0 };
+
+    const cache: ImageCacheEntry[] = JSON.parse(cacheData);
+    if (cache.length === 0) return { entries: 0 };
+
+    const timestamps = cache.map(e => e.timestamp).sort();
+    return {
+      entries: cache.length,
+      oldestEntry: new Date(timestamps[0]),
+      newestEntry: new Date(timestamps[timestamps.length - 1])
+    };
+  } catch (error) {
+    console.error('Failed to get cache stats:', error);
+    return { entries: 0 };
+  }
+};
 
 let genAI: GoogleGenAI | null = null;
 
@@ -396,6 +532,17 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
   try {
     const imageBase64 = await fileToBase64(imageFile);
 
+    // Generate hash for caching
+    const imageHash = await generateImageHash(imageBase64);
+
+    // Check cache first to avoid redundant Gemini calls
+    const cachedResult = getCachedAnalysis(imageHash);
+    if (cachedResult) {
+      console.log(`>>> [Gemini] Using cached analysis result - avoiding API call <<<`);
+      // Still filter out duplicates in case inventory changed
+      return filterNewItems(cachedResult);
+    }
+
     // Step 1: Determine screen type
     console.log(`>>> [Gemini] Step 1: Determining screen type <<<`);
     const screenType = await determineScreenType(imageBase64, imageFile.type);
@@ -436,7 +583,14 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     const detectedItems = parseDetectedItems(analysisText);
     console.log(`>>> [Gemini] Parsed ${detectedItems.length} items:`, detectedItems.map(item => `${item.name} (${item.category})`), ` <<<`);
 
-    return detectedItems;
+    // Cache the results for future use
+    setCachedAnalysis(imageHash, screenType, detectedItems);
+
+    // Filter out items that already exist in inventory
+    const newItems = filterNewItems(detectedItems);
+    console.log(`>>> [Gemini] ${newItems.length} new items after deduplication <<<`);
+
+    return newItems;
   } catch (error) {
     console.error('Error analyzing image with Gemini:', error);
     throw new Error('Failed to analyze image. Please try again.');
