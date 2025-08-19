@@ -1,0 +1,475 @@
+{
+  "syndicates": [
+    {
+      "name": "Steel Meridian",
+      "rewards": [
+        {
+          "id": "steel_meridian_hema",
+          "name": "Hema",
+          "category": "syndicate_rewards",
+          "syndicate": "Steel Meridian",
+          "standingCost": 125000,
+          "masteryRank": 7,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "steel_meridian_justice_blades",
+          "name": "Justice Blades",
+          "category": "syndicate_rewards",
+          "syndicate": "Steel Meridian",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "status": "loading"
+        },
+        {
+          "id": "steel_meridian_red_veil_specter",
+          "name": "Red Veil Specter Blueprint",
+          "category": "syndicate_rewards",
+          "syndicate": "Steel Meridian",
+          "standingCost": 5000,
+          "itemType": "other",
+          "status": "loading"
+        },
+        {
+          "id": "steel_meridian_justice",
+          "name": "Justice",
+          "category": "syndicate_rewards",
+          "syndicate": "Steel Meridian",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "status": "loading"
+        },
+        {
+          "id": "steel_meridian_steel_meridian_sigil",
+          "name": "Steel Meridian Sigil",
+          "category": "syndicate_rewards",
+          "syndicate": "Steel Meridian",
+          "standingCost": 5000,
+          "itemType": "cosmetic",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "Arbiters of Hexis",
+      "rewards": [
+        {
+          "id": "arbiters_secura_dual_cestra",
+          "name": "Secura Dual Cestra",
+          "category": "syndicate_rewards",
+          "syndicate": "Arbiters of Hexis",
+          "standingCost": 125000,
+          "masteryRank": 7,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "arbiters_truth",
+          "name": "Truth",
+          "category": "syndicate_rewards",
+          "syndicate": "Arbiters of Hexis",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "status": "loading"
+        },
+        {
+          "id": "arbiters_arbiters_of_hexis_sigil",
+          "name": "Arbiters of Hexis Sigil",
+          "category": "syndicate_rewards",
+          "syndicate": "Arbiters of Hexis",
+          "standingCost": 5000,
+          "itemType": "cosmetic",
+          "status": "loading"
+        },
+        {
+          "id": "arbiters_arbiters_of_hexis_specter",
+          "name": "Arbiters of Hexis Specter Blueprint",
+          "category": "syndicate_rewards",
+          "syndicate": "Arbiters of Hexis",
+          "standingCost": 5000,
+          "itemType": "other",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "Cephalon Suda",
+      "rewards": [
+        {
+          "id": "suda_synoid_gammacor",
+          "name": "Synoid Gammacor",
+          "category": "syndicate_rewards",
+          "syndicate": "Cephalon Suda",
+          "standingCost": 125000,
+          "masteryRank": 7,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "suda_entropy_burst",
+          "name": "Entropy Burst",
+          "category": "syndicate_rewards",
+          "syndicate": "Cephalon Suda",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "status": "loading"
+        },
+        {
+          "id": "suda_entropy",
+          "name": "Entropy",
+          "category": "syndicate_rewards",
+          "syndicate": "Cephalon Suda",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "status": "loading"
+        },
+        {
+          "id": "suda_cephalon_suda_sigil",
+          "name": "Cephalon Suda Sigil",
+          "category": "syndicate_rewards",
+          "syndicate": "Cephalon Suda",
+          "standingCost": 5000,
+          "itemType": "cosmetic",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "Perrin Sequence",
+      "rewards": [
+        {
+          "id": "perrin_secura_lecta",
+          "name": "Secura Lecta",
+          "category": "syndicate_rewards",
+          "syndicate": "Perrin Sequence",
+          "standingCost": 125000,
+          "masteryRank": 7,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "perrin_sequence",
+          "name": "Sequence",
+          "category": "syndicate_rewards",
+          "syndicate": "Perrin Sequence",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "status": "loading"
+        },
+        {
+          "id": "perrin_perrin_sequence_sigil",
+          "name": "Perrin Sequence Sigil",
+          "category": "syndicate_rewards",
+          "syndicate": "Perrin Sequence",
+          "standingCost": 5000,
+          "itemType": "cosmetic",
+          "status": "loading"
+        },
+        {
+          "id": "perrin_perrin_sequence_specter",
+          "name": "Perrin Sequence Specter Blueprint",
+          "category": "syndicate_rewards",
+          "syndicate": "Perrin Sequence",
+          "standingCost": 5000,
+          "itemType": "other",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "Red Veil",
+      "rewards": [
+        {
+          "id": "red_veil_rakta_ballistica",
+          "name": "Rakta Ballistica",
+          "category": "syndicate_rewards",
+          "syndicate": "Red Veil",
+          "standingCost": 125000,
+          "masteryRank": 7,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "red_veil_blight",
+          "name": "Blight",
+          "category": "syndicate_rewards",
+          "syndicate": "Red Veil",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "status": "loading"
+        },
+        {
+          "id": "red_veil_red_veil_sigil",
+          "name": "Red Veil Sigil",
+          "category": "syndicate_rewards",
+          "syndicate": "Red Veil",
+          "standingCost": 5000,
+          "itemType": "cosmetic",
+          "status": "loading"
+        },
+        {
+          "id": "red_veil_red_veil_specter",
+          "name": "Red Veil Specter Blueprint",
+          "category": "syndicate_rewards",
+          "syndicate": "Red Veil",
+          "standingCost": 5000,
+          "itemType": "other",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "New Loka",
+      "rewards": [
+        {
+          "id": "new_loka_sancti_tigris",
+          "name": "Sancti Tigris",
+          "category": "syndicate_rewards",
+          "syndicate": "New Loka",
+          "standingCost": 125000,
+          "masteryRank": 7,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "new_loka_purity",
+          "name": "Purity",
+          "category": "syndicate_rewards",
+          "syndicate": "New Loka",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "status": "loading"
+        },
+        {
+          "id": "new_loka_new_loka_sigil",
+          "name": "New Loka Sigil",
+          "category": "syndicate_rewards",
+          "syndicate": "New Loka",
+          "standingCost": 5000,
+          "itemType": "cosmetic",
+          "status": "loading"
+        },
+        {
+          "id": "new_loka_new_loka_specter",
+          "name": "New Loka Specter Blueprint",
+          "category": "syndicate_rewards",
+          "syndicate": "New Loka",
+          "standingCost": 5000,
+          "itemType": "other",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "Ostron",
+      "rewards": [
+        {
+          "id": "ostron_amp_111",
+          "name": "Amp (1-1-1)",
+          "category": "syndicate_rewards",
+          "syndicate": "Ostron",
+          "standingCost": 1000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "ostron_amp_222",
+          "name": "Amp (2-2-2)",
+          "category": "syndicate_rewards",
+          "syndicate": "Ostron",
+          "standingCost": 5000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "ostron_amp_333",
+          "name": "Amp (3-3-3)",
+          "category": "syndicate_rewards",
+          "syndicate": "Ostron",
+          "standingCost": 10000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "ostron_amp_444",
+          "name": "Amp (4-4-4)",
+          "category": "syndicate_rewards",
+          "syndicate": "Ostron",
+          "standingCost": 15000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "ostron_amp_555",
+          "name": "Amp (5-5-5)",
+          "category": "syndicate_rewards",
+          "syndicate": "Ostron",
+          "standingCost": 20000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "ostron_amp_666",
+          "name": "Amp (6-6-6)",
+          "category": "syndicate_rewards",
+          "syndicate": "Ostron",
+          "standingCost": 25000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "ostron_amp_777",
+          "name": "Amp (7-7-7)",
+          "category": "syndicate_rewards",
+          "syndicate": "Ostron",
+          "standingCost": 30000,
+          "itemType": "weapon",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "Solaris United",
+      "rewards": [
+        {
+          "id": "solaris_kitgun_primary",
+          "name": "Kitgun Primary",
+          "category": "syndicate_rewards",
+          "syndicate": "Solaris United",
+          "standingCost": 5000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "solaris_kitgun_secondary",
+          "name": "Kitgun Secondary",
+          "category": "syndicate_rewards",
+          "syndicate": "Solaris United",
+          "standingCost": 5000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "solaris_moa_pet",
+          "name": "MOA Pet",
+          "category": "syndicate_rewards",
+          "syndicate": "Solaris United",
+          "standingCost": 10000,
+          "itemType": "other",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "Entrati",
+      "rewards": [
+        {
+          "id": "entrati_nepheri",
+          "name": "Nepheri",
+          "category": "syndicate_rewards",
+          "syndicate": "Entrati",
+          "standingCost": 5000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "entrati_voidrig",
+          "name": "Voidrig Necramech",
+          "category": "syndicate_rewards",
+          "syndicate": "Entrati",
+          "standingCost": 50000,
+          "itemType": "other",
+          "status": "loading"
+        },
+        {
+          "id": "entrati_bonewidow",
+          "name": "Bonewidow Necramech",
+          "category": "syndicate_rewards",
+          "syndicate": "Entrati",
+          "standingCost": 50000,
+          "itemType": "other",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "Necraloid",
+      "rewards": [
+        {
+          "id": "necraloid_voidrig",
+          "name": "Voidrig Necramech",
+          "category": "syndicate_rewards",
+          "syndicate": "Necraloid",
+          "standingCost": 50000,
+          "itemType": "other",
+          "status": "loading"
+        },
+        {
+          "id": "necraloid_bonewidow",
+          "name": "Bonewidow Necramech",
+          "category": "syndicate_rewards",
+          "syndicate": "Necraloid",
+          "standingCost": 50000,
+          "itemType": "other",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "Holdfasts",
+      "rewards": [
+        {
+          "id": "holdfasts_laetum",
+          "name": "Laetum",
+          "category": "syndicate_rewards",
+          "syndicate": "Holdfasts",
+          "standingCost": 20000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "holdfasts_phenmor",
+          "name": "Phenmor",
+          "category": "syndicate_rewards",
+          "syndicate": "Holdfasts",
+          "standingCost": 20000,
+          "itemType": "weapon",
+          "status": "loading"
+        },
+        {
+          "id": "holdfasts_praxaris",
+          "name": "Praxaris",
+          "category": "syndicate_rewards",
+          "syndicate": "Holdfasts",
+          "standingCost": 20000,
+          "itemType": "weapon",
+          "status": "loading"
+        }
+      ]
+    },
+    {
+      "name": "Cavalero",
+      "rewards": [
+        {
+          "id": "cavalero_archon_shard",
+          "name": "Archon Shard",
+          "category": "syndicate_rewards",
+          "syndicate": "Cavalero",
+          "standingCost": 150000,
+          "itemType": "resource",
+          "status": "loading"
+        },
+        {
+          "id": "cavalero_archon_mod",
+          "name": "Archon Mod",
+          "category": "syndicate_rewards",
+          "syndicate": "Cavalero",
+          "standingCost": 25000,
+          "itemType": "mod",
+          "status": "loading"
+        }
+      ]
+    }
+  ]
+}

@@ -31,6 +31,8 @@ const getCategoryDisplayName = (category: ItemCategory): string => {
       return 'Prime Parts';
     case 'relics':
       return 'Void Relics';
+    case 'syndicate_rewards':
+      return 'Syndicate Rewards';
     default:
       return category;
   }

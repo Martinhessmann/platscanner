@@ -1,6 +1,6 @@
 import { FileWithPath } from 'react-dropzone';
 
-export type ItemCategory = 'prime_parts' | 'relics';
+export type ItemCategory = 'prime_parts' | 'relics' | 'syndicate_rewards';
 
 export interface BaseItem {
   id: string;
@@ -47,7 +47,18 @@ export interface VoidRelic extends BaseItem {
   };
 }
 
-export type DetectedItem = PrimePart | VoidRelic;
+export interface SyndicateReward extends BaseItem {
+  category: 'syndicate_rewards';
+  syndicate: string;
+  standingCost: number;
+  masteryRank?: number;
+  itemType: 'weapon' | 'mod' | 'cosmetic' | 'resource' | 'other';
+  platPerStanding?: number;
+  marketVolume?: number;
+  availability?: 'always' | 'rotation' | 'limited';
+}
+
+export type DetectedItem = PrimePart | VoidRelic | SyndicateReward;
 
 export interface ImageState {
   id: string;

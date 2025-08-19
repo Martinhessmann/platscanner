@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Syndicate Rewards Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .reward-item {
+            background-color: #3a3a3a;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #ffd700;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background-color: #4a4a4a;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffd700;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #cccccc;
+        }
+        button {
+            background-color: #ffd700;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #ffed4e;
+        }
+        .loading {
+            color: #ffd700;
+        }
+        .error {
+            color: #ff6b6b;
+        }
+        .success {
+            color: #51cf66;
+        }
+    </style>
+</head>
+<body>
+    <h1>Syndicate Rewards Test</h1>
+    
+    <div class="test-section">
+        <h2>Data Loading Test</h2>
+        <button onclick="testDataLoading()">Load Syndicate Data</button>
+        <div id="loading-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Price Fetching Test</h2>
+        <button onclick="testPriceFetching()">Fetch Prices</button>
+        <div id="price-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Sorting Test</h2>
+        <button onclick="testSorting()">Sort by Plat/Standing</button>
+        <div id="sort-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Filtering Test</h2>
+        <button onclick="testFiltering()">Filter Weapons Only</button>
+        <div id="filter-result"></div>
+    </div>
+
+    <script type="module">
+        // Import the syndicate service functions
+        import { 
+            getAllSyndicateRewards, 
+            fetchSyndicateRewardPrices, 
+            sortSyndicateRewards, 
+            filterSyndicateRewards,
+            getAvailableSyndicates 
+        } from './src/services/syndicateService.js';
+
+        // Make functions available globally for testing
+        window.testDataLoading = async function() {
+            const resultDiv = document.getElementById('loading-result');
+            resultDiv.innerHTML = '<div class="loading">Loading syndicate data...</div>';
+            
+            try {
+                // Wait a bit for data to load
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                const rewards = getAllSyndicateRewards();
+                const syndicates = getAvailableSyndicates();
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        ✅ Successfully loaded ${rewards.length} rewards from ${syndicates.length} syndicates
+                    </div>
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div class="stat-value">${rewards.length}</div>
+                            <div class="stat-label">Total Rewards</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${syndicates.length}</div>
+                            <div class="stat-label">Syndicates</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${rewards.filter(r => r.itemType === 'weapon').length}</div>
+                            <div class="stat-label">Weapons</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value">${rewards.filter(r => r.itemType === 'mod').length}</div>
+                            <div class="stat-label">Mods</div>
+                        </div>
+                    </div>
+                    <h3>Sample Rewards:</h3>
+                    ${rewards.slice(0, 5).map(reward => `
+                        <div class="reward-item">
+                            <strong>${reward.name}</strong> (${reward.syndicate})<br>
+                            Standing Cost: ${reward.standingCost.toLocaleString()}<br>
+                            Type: ${reward.itemType}
+                        </div>
+                    `).join('')}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        };
+
+        window.testPriceFetching = async function() {
+            const resultDiv = document.getElementById('price-result');
+            resultDiv.innerHTML = '<div class="loading">Fetching prices...</div>';
+            
+            try {
+                const rewards = getAllSyndicateRewards();
+                const sampleRewards = rewards.slice(0, 3); // Test with first 3 items
+                
+                const updatedRewards = await fetchSyndicateRewardPrices(sampleRewards);
+                
+                resultDiv.innerHTML = `
+                    <div class="success">✅ Successfully fetched prices for ${updatedRewards.length} items</div>
+                    ${updatedRewards.map(reward => `
+                        <div class="reward-item">
+                            <strong>${reward.name}</strong><br>
+                            Price: ${reward.price ? reward.price + 'p' : 'N/A'}<br>
+                            Plat/Standing: ${reward.platPerStanding ? reward.platPerStanding.toFixed(4) : 'N/A'}<br>
+                            Status: ${reward.status}
+                        </div>
+                    `).join('')}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        };
+
+        window.testSorting = async function() {
+            const resultDiv = document.getElementById('sort-result');
+            resultDiv.innerHTML = '<div class="loading">Sorting rewards...</div>';
+            
+            try {
+                const rewards = getAllSyndicateRewards();
+                const sortedRewards = sortSyndicateRewards(rewards, 'platPerStanding', 'desc');
+                
+                resultDiv.innerHTML = `
+                    <div class="success">✅ Sorted ${sortedRewards.length} rewards by plat/standing ratio</div>
+                    <h3>Top 5 by Plat/Standing Ratio:</h3>
+                    ${sortedRewards.slice(0, 5).map((reward, index) => `
+                        <div class="reward-item">
+                            <strong>#${index + 1}: ${reward.name}</strong> (${reward.syndicate})<br>
+                            Standing Cost: ${reward.standingCost.toLocaleString()}<br>
+                            Plat/Standing: ${reward.platPerStanding ? reward.platPerStanding.toFixed(4) : 'N/A'}
+                        </div>
+                    `).join('')}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        };
+
+        window.testFiltering = async function() {
+            const resultDiv = document.getElementById('filter-result');
+            resultDiv.innerHTML = '<div class="loading">Filtering weapons...</div>';
+            
+            try {
+                const rewards = getAllSyndicateRewards();
+                const weaponRewards = filterSyndicateRewards(rewards, { itemType: 'weapon' });
+                
+                resultDiv.innerHTML = `
+                    <div class="success">✅ Found ${weaponRewards.length} weapon rewards</div>
+                    <h3>Weapon Rewards:</h3>
+                    ${weaponRewards.map(reward => `
+                        <div class="reward-item">
+                            <strong>${reward.name}</strong> (${reward.syndicate})<br>
+                            Standing Cost: ${reward.standingCost.toLocaleString()}<br>
+                            Mastery Rank: ${reward.masteryRank || 'N/A'}
+                        </div>
+                    `).join('')}
+                `;
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        };
+    </script>
+</body>
+</html>

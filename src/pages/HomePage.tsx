@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import ImageUploader from '../components/ImageUploader';
 import ProcessingAnimation from '../components/ProcessingAnimation';
 import InventorySection from '../components/InventorySection';
+import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
 import { fetchPriceData, fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
 import { cloudSyncService } from '../services/cloudSyncService';
@@ -44,7 +45,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
   const [lastPrimePartsRefresh, setLastPrimePartsRefresh] = useState<Date | null>(null);
   const [lastRelicsRefresh, setLastRelicsRefresh] = useState<Date | null>(null);
+  const [lastSyndicateRewardsRefresh, setLastSyndicateRewardsRefresh] = useState<Date | null>(null);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
+  const [isRefreshingSyndicateRewards, setIsRefreshingSyndicateRewards] = useState(false);
   const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
   const [fetchingProgress, setFetchingProgress] = useState<{ current: number; total: number } | undefined>(undefined);
   const [categoryProgress, setCategoryProgress] = useState<{ category: string; current: number; total: number } | undefined>(undefined);
@@ -53,7 +56,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   // Story #3 & #8: Categorized Persistent Inventory State
   const [categorizedInventory, setCategorizedInventory] = useState({
     prime_parts: [] as InventoryItem[],
-    relics: [] as InventoryItem[]
+    relics: [] as InventoryItem[],
+    syndicate_rewards: [] as InventoryItem[]
   });
 
   // Only sellable Prime Parts (uncrafted Blueprints)
@@ -1038,7 +1042,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           )}
 
           {/* Upload section - show at top when we have results but not processing */}
-          {isConfigured && !isProcessing && (categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0) && (
+          {isConfigured && !isProcessing && (categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0 || categorizedInventory.syndicate_rewards.length > 0) && (
             <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-semibold">Add More Screenshots</h3>
@@ -1072,7 +1076,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           )}
 
           {/* Story #8: Categorized Inventory Sections */}
-          {(categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0) && (
+          {(categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0 || categorizedInventory.syndicate_rewards.length > 0) && (
             <div className="space-y-2">
 
               {/* Prime Parts Section */}
@@ -1118,6 +1122,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               )}
             </div>
           )}
+
+          {/* Syndicate Rewards Section - Always show for market analysis */}
+          <SyndicateRewardsSection
+            isRefreshing={isRefreshingSyndicateRewards}
+            onRefreshStart={() => setIsRefreshingSyndicateRewards(true)}
+            onRefreshComplete={() => setIsRefreshingSyndicateRewards(false)}
+          />
 
           {/* Empty state - only show when no processing and no results */}
           {!isProcessing && categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && processingState.images.size === 0 && (
