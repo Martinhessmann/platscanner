@@ -311,15 +311,6 @@ const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedIt
 
   const result = inventoryItem ? (inventoryItem.quantity || 1) >= requiredCount : false;
 
-  // Debug logging for Sevagoth Prime (can be removed later)
-  if (itemName.toLowerCase().includes('sevagoth')) {
-    console.log(`>>> [Ownership Check] "${itemName}" (need ${requiredCount}) <<<`);
-    console.log(`>>> [Ownership Check] Found in inventory: ${inventoryItem ? 'YES' : 'NO'} <<<`);
-    if (inventoryItem) {
-      console.log(`>>> [Ownership Check] Item: "${inventoryItem.name}", Quantity: ${inventoryItem.quantity || 1} <<<`);
-    }
-    console.log(`>>> [Ownership Check] Result: ${result ? 'OWNS' : 'DOES NOT OWN'} <<<`);
-  }
 
   return result;
 };

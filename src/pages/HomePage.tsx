@@ -292,7 +292,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               ...nextImage,
               status: 'analyzed', // New status indicating ready for price fetching
               results: newItems,
-              syndicateRewards: syndicateRewards // Store syndicate rewards for price fetching
+              syndicateRewards: newItems.filter(item => item.category === 'syndicate_rewards') // Store syndicate rewards for price fetching
             })
           }));
 
@@ -449,34 +449,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           // After processing regular items, handle syndicate rewards if any
           if (hasSyndicateRewards && nextImage.syndicateRewards) {
             console.log(`>>> [Price Fetching] Processing ${nextImage.syndicateRewards.length} syndicate rewards <<<`);
-
-            // Update syndicate recommendations with prices
-            setSyndicateRecommendations(prev => {
-              const updatedRecommendations = [...prev];
-
-              // Process each syndicate reward from this image
-              nextImage.syndicateRewards.forEach(async (syndicateReward) => {
-                try {
-                  const priceData = await fetchSinglePriceData(syndicateReward);
-                  if (priceData) {
-                    // Find and update the recommendation with price data
-                    const index = updatedRecommendations.findIndex(r => r.name === syndicateReward.name);
-                    if (index >= 0) {
-                      updatedRecommendations[index] = {
-                        ...updatedRecommendations[index],
-                        price: priceData.price,
-                        marketVolume: priceData.volume,
-                        lastUpdated: new Date()
-                      };
-                    }
-                  }
-                } catch (error) {
-                  console.error(`>>> [Price Fetching] Error fetching price for syndicate reward ${syndicateReward.name}:`, error);
-                }
-              });
-
-              return updatedRecommendations;
-            });
+            // Syndicate rewards are already added to inventory and will be handled by SyndicateRewardsSection
           }
 
           // Mark as complete
