@@ -51,7 +51,7 @@ export interface InventoryItem {
     reasoning?: string; // Human-readable explanation
     comparison?: string; // Comparison details
   };
-  
+
   // Syndicate reward properties (for SyndicateReward items)
   syndicate?: string;
   standingCost?: number;
@@ -368,6 +368,11 @@ export const getInventoryStats = (): {
       count: categorized.relics.reduce((sum, item) => sum + (item.quantity || 1), 0),
       value: categorized.relics.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0),
       ducats: categorized.relics.reduce((sum, item) => sum + ((item.ducats || 0) * (item.quantity || 1)), 0)
+    },
+    syndicate_rewards: {
+      count: categorized.syndicate_rewards.reduce((sum, item) => sum + (item.quantity || 1), 0),
+      value: categorized.syndicate_rewards.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0),
+      ducats: categorized.syndicate_rewards.reduce((sum, item) => sum + ((item.ducats || 0) * (item.quantity || 1)), 0)
     }
   };
 

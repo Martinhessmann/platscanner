@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Package, Star, Heart } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Package, Star, Heart, X } from 'lucide-react';
 import { SyndicateReward } from '../types';
 import {
   getAllSyndicateRewards,
@@ -13,14 +13,25 @@ interface SyndicateRewardsSectionProps {
   isRefreshing: boolean;
   onRefreshStart: () => void;
   onRefreshComplete: () => void;
+  onCancel?: () => void; // Add cancellation function
+  onClearAll: () => void;
+  onRemoveItem: (itemName: string) => void;
+  onRefreshItem?: (itemName: string) => void; // Add individual item refresh function
+  refreshTrigger?: number; // Add this prop to trigger refresh when inventory changes
 }
 
 const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
   isRefreshing,
   onRefreshStart,
-  onRefreshComplete
+  onRefreshComplete,
+  onCancel,
+  onClearAll,
+  onRemoveItem,
+  onRefreshItem,
+  refreshTrigger
 }) => {
   const [rewards, setRewards] = useState<SyndicateReward[]>([]);
+  const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState<'platPerStanding' | 'price' | 'standingCost' | 'name' | 'syndicate'>('platPerStanding');
@@ -34,15 +45,22 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     maxStandingCost: ''
   });
 
-  // Load syndicate rewards from inventory
+    // Load syndicate rewards from inventory
   useEffect(() => {
     const loadRewards = () => {
       const syndicateRewards = getAllSyndicateRewards();
-      setRewards(syndicateRewards);
+
+      // Mark items as loading if they're being refreshed
+      const updatedRewards = syndicateRewards.map(reward => ({
+        ...reward,
+        status: refreshingItems.has(reward.name) ? 'loading' as const : reward.status
+      }));
+
+      setRewards(updatedRewards);
     };
 
     loadRewards();
-  }, []);
+  }, [refreshTrigger, refreshingItems]); // Refresh when refreshTrigger or refreshingItems changes
 
   // Use rewards directly from inventory
   const allRewards = rewards;
@@ -112,6 +130,39 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
       console.error('Failed to refresh syndicate rewards:', error);
     } finally {
       onRefreshComplete();
+    }
+  };
+
+  const handleRefreshItem = async (itemName: string) => {
+    const item = rewards.find(r => r.name === itemName);
+    if (!item) return;
+
+    // Mark this item as refreshing
+    setRefreshingItems(prev => new Set(prev).add(itemName));
+
+    try {
+      if (onRefreshItem) {
+        // Use the parent's refresh function if available
+        await onRefreshItem(itemName);
+      } else {
+        // Fallback to local refresh
+        const { fetchSyndicateRewardPrices } = await import('../services/syndicateService');
+        const updatedRewards = await fetchSyndicateRewardPrices([item]);
+
+        if (updatedRewards.length > 0) {
+          const updatedReward = updatedRewards[0];
+          setRewards(prev => prev.map(r => r.name === itemName ? updatedReward : r));
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to refresh ${itemName}:`, error);
+    } finally {
+      // Remove from refreshing items
+      setRefreshingItems(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(itemName);
+        return newSet;
+      });
     }
   };
 
@@ -243,19 +294,20 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
 
           <div className="flex items-center gap-2">
             <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
+              onClick={isRefreshing ? onCancel : handleRefresh}
+              disabled={!isRefreshing && !onCancel}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
                 isRefreshing
-                  ? 'text-gray-500 cursor-not-allowed'
+                  ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
                   : 'text-tenno-blue hover:bg-tenno-blue/10'
               }`}
-              title="Refresh all syndicate rewards"
+              title={isRefreshing ? "Cancel refresh" : "Refresh all syndicate rewards"}
             >
-              <RefreshCw
-                size={12}
-                className={isRefreshing ? 'animate-spin' : ''}
-              />
+              {isRefreshing ? (
+                <X size={12} />
+              ) : (
+                <RefreshCw size={12} />
+              )}
             </button>
 
             <button
@@ -268,6 +320,14 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
               title="Toggle filters"
             >
               <Filter size={12} />
+            </button>
+
+            <button
+              onClick={onClearAll}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+              title="Delete all syndicate rewards"
+            >
+              <Trash2 size={12} />
             </button>
           </div>
         </div>
@@ -433,7 +493,12 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                       <td className="py-2 px-2 text-gray-300">{formatStanding(reward.standingCost)}</td>
                       <td className="py-2 px-2">
                         <div className="flex flex-col gap-1">
-                          {reward.price && reward.price > 0 ? (
+                          {refreshingItems.has(reward.name) ? (
+                            <div className="animate-pulse">
+                              <div className="h-4 bg-gray-700 rounded w-12 mb-1"></div>
+                              <div className="h-3 bg-gray-700 rounded w-8"></div>
+                            </div>
+                          ) : reward.price && reward.price > 0 ? (
                             <>
                               <span className="text-green-400">{reward.price}p</span>
                               {getPriceComparisonDisplay(reward)}
@@ -441,25 +506,53 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                           ) : reward.status === 'error' && reward.error?.includes('not found') ? (
                             <span className="text-gray-500 text-xs">Not traded</span>
                           ) : reward.status === 'loading' ? (
-                            <span className="text-gray-400 text-xs">Loading...</span>
+                            <div className="animate-pulse">
+                              <div className="h-4 bg-gray-700 rounded w-12 mb-1"></div>
+                              <div className="h-3 bg-gray-700 rounded w-8"></div>
+                            </div>
                           ) : (
                             <span className="text-gray-500 text-xs">Not offered</span>
                           )}
                         </div>
                       </td>
                       <td className="py-2 px-2">
-                        <span className={reward.platPerStanding && reward.platPerStanding > 0 ? 'text-blue-400' : 'text-gray-500'}>
-                          {formatPlatPerStanding(reward.platPerStanding)}
-                        </span>
+                        {refreshingItems.has(reward.name) ? (
+                          <div className="animate-pulse">
+                            <div className="h-4 bg-gray-700 rounded w-16"></div>
+                          </div>
+                        ) : (
+                          <span className={reward.platPerStanding && reward.platPerStanding > 0 ? 'text-blue-400' : 'text-gray-500'}>
+                            {formatPlatPerStanding(reward.platPerStanding)}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 px-2">
                         <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleRefreshItem(reward.name)}
+                            disabled={refreshingItems.has(reward.name)}
+                            className={`p-1 transition-colors ${
+                              refreshingItems.has(reward.name)
+                                ? 'text-gray-500 cursor-not-allowed'
+                                : 'text-tenno-blue hover:text-tenno-light'
+                            }`}
+                            title="Refresh price"
+                          >
+                            <RefreshCw size={14} className={refreshingItems.has(reward.name) ? 'animate-spin' : ''} />
+                          </button>
                           <button
                             onClick={() => handleOpenMarket(reward.name)}
                             className="text-tenno-blue hover:text-tenno-light p-1 transition-colors"
                             title="View on Warframe Market"
                           >
                             <ExternalLink size={14} />
+                          </button>
+                          <button
+                            onClick={() => onRemoveItem(reward.name)}
+                            className="text-red-400 hover:text-red-300 p-1 transition-colors"
+                            title="Remove from inventory"
+                          >
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>

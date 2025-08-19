@@ -48,10 +48,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const [lastSyndicateRewardsRefresh, setLastSyndicateRewardsRefresh] = useState<Date | null>(null);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [isRefreshingSyndicateRewards, setIsRefreshingSyndicateRewards] = useState(false);
+  const [shouldCancelSyndicateRefresh, setShouldCancelSyndicateRefresh] = useState(false);
   const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
   const [fetchingProgress, setFetchingProgress] = useState<{ current: number; total: number } | undefined>(undefined);
   const [categoryProgress, setCategoryProgress] = useState<{ category: string; current: number; total: number } | undefined>(undefined);
   const [shouldStopProcessing, setShouldStopProcessing] = useState(false);
+  const [inventoryRefreshTrigger, setInventoryRefreshTrigger] = useState(0);
 
   // Story #3 & #8: Categorized Persistent Inventory State
   const [categorizedInventory, setCategorizedInventory] = useState({
@@ -81,6 +83,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     console.log('>>> [HomePage] Starting syndicate rewards refresh <<<');
     setIsRefreshingSyndicateRewards(true);
+    setShouldCancelSyndicateRefresh(false);
 
     try {
       const { getAllSyndicateRewards, fetchSyndicateRewardPrices } = await import('../services/syndicateService');
@@ -92,16 +95,20 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       }
 
       console.log(`>>> [HomePage] Found ${allSyndicateRewards.length} syndicate rewards to refresh <<<`);
-      const updatedRewards = await fetchSyndicateRewardPrices(allSyndicateRewards);
+      const updatedRewards = await fetchSyndicateRewardPrices(
+        allSyndicateRewards,
+        () => shouldCancelSyndicateRefresh
+      );
 
       // Update syndicate rewards in inventory
       if (updatedRewards.length > 0) {
         const { updateInventoryPrices } = await import('../services/inventoryService');
         updateInventoryPrices(updatedRewards);
-        
+
         // Refresh local inventory state
         const inventory = getCategorizedInventory();
         setCategorizedInventory(inventory);
+        setInventoryRefreshTrigger(prev => prev + 1);
       }
       setLastSyndicateRewardsRefresh(new Date());
       console.log(`>>> [HomePage] Syndicate rewards refresh completed for ${updatedRewards.length} items <<<`);
@@ -109,13 +116,51 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       console.error('Failed to refresh syndicate rewards:', error);
     } finally {
       setIsRefreshingSyndicateRewards(false);
+      setShouldCancelSyndicateRefresh(false);
     }
   }, [isRefreshingSyndicateRewards]);
+
+  // Handle syndicate rewards cancellation
+  const handleCancelSyndicateRefresh = useCallback(() => {
+    console.log('>>> [HomePage] Cancelling syndicate rewards refresh <<<');
+    setShouldCancelSyndicateRefresh(true);
+  }, []);
+
+  // Handle individual syndicate reward refresh
+  const handleRefreshSingleSyndicateReward = useCallback(async (itemName: string) => {
+    console.log(`>>> [HomePage] Refreshing single syndicate reward: ${itemName} <<<`);
+
+    try {
+      const { getAllSyndicateRewards, fetchSyndicateRewardPrices } = await import('../services/syndicateService');
+      const allSyndicateRewards = getAllSyndicateRewards();
+      const item = allSyndicateRewards.find(r => r.name === itemName);
+
+      if (!item) {
+        console.log(`>>> [HomePage] Syndicate reward not found: ${itemName} <<<`);
+        return;
+      }
+
+      const updatedRewards = await fetchSyndicateRewardPrices([item]);
+
+      if (updatedRewards.length > 0) {
+        const { updateInventoryPrices } = await import('../services/inventoryService');
+        updateInventoryPrices(updatedRewards);
+
+        // Refresh local inventory state
+        const inventory = getCategorizedInventory();
+        setCategorizedInventory(inventory);
+        setInventoryRefreshTrigger(prev => prev + 1);
+      }
+    } catch (error) {
+      console.error(`Failed to refresh syndicate reward ${itemName}:`, error);
+    }
+  }, []);
 
   // Load persistent inventory on component mount
   useEffect(() => {
     const inventory = getCategorizedInventory();
     setCategorizedInventory(inventory);
+    setInventoryRefreshTrigger(prev => prev + 1);
 
     // Load last refresh times
     setLastPrimePartsRefresh(getLastRefreshTime('prime_parts'));
@@ -135,6 +180,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     if (refreshTrigger !== undefined && refreshTrigger > 0) {
       const inventory = getCategorizedInventory();
       setCategorizedInventory(inventory);
+      setInventoryRefreshTrigger(prev => prev + 1);
     }
   }, [refreshTrigger]);
 
@@ -388,6 +434,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 saveToInventory(processedItems, sessionId);
                 const updatedInventory = getCategorizedInventory();
                 setCategorizedInventory(updatedInventory);
+                setInventoryRefreshTrigger(prev => prev + 1);
               }
               return;
             }
@@ -417,6 +464,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 // Update categorized inventory display
                 const updatedInventory = getCategorizedInventory();
                 setCategorizedInventory(updatedInventory);
+                setInventoryRefreshTrigger(prev => prev + 1);
 
                 console.log(`>>> [Price Fetching] Added ${item.name} to inventory with price ${priceData.price} (${index + 1}/${newItems.length}) <<<`);
               } else {
@@ -601,7 +649,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     }));
   }, []);
 
-  const handleClearInventory = useCallback((category: 'prime_parts' | 'relics') => {
+  const handleClearInventory = useCallback((category: 'prime_parts' | 'relics' | 'syndicate_rewards') => {
     clearInventoryByCategory(category);
     setCategorizedInventory(prev => ({
       ...prev,
@@ -1179,6 +1227,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             isRefreshing={isRefreshingSyndicateRewards}
             onRefreshStart={handleRefreshSyndicateRewards}
             onRefreshComplete={() => setIsRefreshingSyndicateRewards(false)}
+            onCancel={handleCancelSyndicateRefresh}
+            onClearAll={() => handleClearInventory('syndicate_rewards')}
+            onRemoveItem={handleRemoveFromInventory}
+            onRefreshItem={handleRefreshSingleSyndicateReward}
+            refreshTrigger={inventoryRefreshTrigger}
           />
 
           {/* Empty state - only show when no processing and no results */}

@@ -16,14 +16,14 @@ const DEFAULT_STANDING_COSTS: Record<string, number> = {
  */
 const determineItemType = (itemName: string): 'weapon' | 'mod' | 'cosmetic' | 'resource' | 'other' => {
   const name = itemName.toLowerCase();
-  
+
   // Syndicate weapons (high-tier rewards)
-  if (name.includes('telos') || name.includes('synoid') || name.includes('secura') || 
+  if (name.includes('telos') || name.includes('synoid') || name.includes('secura') ||
       name.includes('sancti') || name.includes('rakta') || name.includes('vaykor')) {
     if (name.includes('syandana')) return 'cosmetic';
     return 'weapon';
   }
-  
+
   // Syndicate augment mods (Warframe ability mods)
   const augmentPatterns = [
     'seeking', 'shuriken', 'decoy', 'trickster', 'burst', 'flight', 'javelin',
@@ -35,33 +35,33 @@ const determineItemType = (itemName: string): 'weapon' | 'mod' | 'cosmetic' | 'r
     'negation', 'omikui', 'pacifying', 'peaceful', 'primal', 'radiant',
     'reactive', 'repair', 'rift', 'rising', 'safeguard'
   ];
-  
+
   if (augmentPatterns.some(pattern => name.includes(pattern))) {
     return 'mod';
   }
-  
+
   // Syndicate mod patterns (weapon augments)
   if (name.includes('entropy') || name.includes('sequence') || name.includes('purity') ||
       name.includes('justice') || name.includes('blight')) {
     return 'mod';
   }
-  
+
   // Scenes and decorations
   if (name.includes('scene') || name.includes('sculpture') || name.includes('decoration')) {
     return 'cosmetic';
   }
-  
+
   // Cosmetics
   if (name.includes('sigil') || name.includes('syandana') || name.includes('armor') ||
       name.includes('skin') || name.includes('ephemera')) {
     return 'cosmetic';
   }
-  
+
   // Resources and blueprints
   if (name.includes('blueprint') || name.includes('part') || name.includes('relic')) {
     return 'resource';
   }
-  
+
   // Default to mod for most syndicate items (most are augment mods)
   return 'mod';
 };
@@ -80,7 +80,7 @@ export const getEstimatedStandingCost = (itemName: string): number => {
 export const getAllSyndicateRewards = (): SyndicateReward[] => {
   const inventory = getCategorizedInventory();
   const syndicateItems = inventory.syndicate_rewards;
-  
+
   // Convert InventoryItem to SyndicateReward format for compatibility
   return syndicateItems.map(item => ({
     id: item.id,
@@ -124,26 +124,35 @@ export const getAvailableSyndicates = (): string[] => {
 /**
  * Fetch market prices for syndicate rewards
  */
-export const fetchSyndicateRewardPrices = async (rewards: SyndicateReward[]): Promise<SyndicateReward[]> => {
+export const fetchSyndicateRewardPrices = async (
+  rewards: SyndicateReward[],
+  shouldCancel?: () => boolean
+): Promise<SyndicateReward[]> => {
   console.log(`>>> [SyndicateService] Fetching prices for ${rewards.length} rewards <<<`);
   const updatedRewards: SyndicateReward[] = [];
-  
+
   for (const reward of rewards) {
+    // Check for cancellation
+    if (shouldCancel && shouldCancel()) {
+      console.log(`>>> [SyndicateService] Cancellation requested, stopping at ${updatedRewards.length} items <<<`);
+      break;
+    }
+
     // Skip if no name
     if (!reward.name) {
       console.warn(`>>> [SyndicateService] Skipping reward with undefined name:`, reward);
       continue;
     }
-    
+
     console.log(`>>> [SyndicateService] Fetching price for: ${reward.name} <<<`);
     try {
       const priceData = await fetchSinglePriceData(reward);
-      
+
       if (priceData && priceData.price) {
         // Calculate plat per 1000 standing (more readable than per-standing)
         const effectiveStandingCost = reward.standingCost || getEstimatedStandingCost(reward.name);
         const platPer1000Standing = (priceData.price * 1000) / effectiveStandingCost;
-        
+
         updatedRewards.push({
           ...reward,
           price: priceData.price,
@@ -172,7 +181,7 @@ export const fetchSyndicateRewardPrices = async (rewards: SyndicateReward[]): Pr
       });
     }
   }
-  
+
   return updatedRewards;
 };
 
@@ -186,7 +195,7 @@ export const sortSyndicateRewards = (
 ): SyndicateReward[] => {
   return [...rewards].sort((a, b) => {
     let comparison = 0;
-    
+
     switch (sortBy) {
       case 'platPerStanding': {
         const aRatio = a.platPerStanding || 0;
@@ -207,7 +216,7 @@ export const sortSyndicateRewards = (
         comparison = a.syndicate.localeCompare(b.syndicate);
         break;
     }
-    
+
     return sortOrder === 'desc' ? -comparison : comparison;
   });
 };

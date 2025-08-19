@@ -262,7 +262,7 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
         category: 'syndicate_rewards',
         syndicate: detectedSyndicate,
         standingCost: isNaN(standingCost) ? 0 : standingCost,
-        itemType: 'other'
+        itemType: 'mod' // Most syndicate items are mods; will be refined by syndicateService
       };
       detectedItems.push(reward);
       return; // Continue to next line
