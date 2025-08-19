@@ -17,31 +17,53 @@ const DEFAULT_STANDING_COSTS: Record<string, number> = {
 const determineItemType = (itemName: string): 'weapon' | 'mod' | 'cosmetic' | 'resource' | 'other' => {
   const name = itemName.toLowerCase();
   
-  // Weapon patterns (syndicate weapons)
+  // Syndicate weapons (high-tier rewards)
   if (name.includes('telos') || name.includes('synoid') || name.includes('secura') || 
       name.includes('sancti') || name.includes('rakta') || name.includes('vaykor')) {
     if (name.includes('syandana')) return 'cosmetic';
     return 'weapon';
   }
   
-  // Syndicate mod patterns
+  // Syndicate augment mods (Warframe ability mods)
+  const augmentPatterns = [
+    'seeking', 'shuriken', 'decoy', 'trickster', 'burst', 'flight', 'javelin',
+    'truth', 'malevolence', 'invisibility', 'stand', 'disarm', 'judgment',
+    'covenant', 'crash', 'splinters', 'freak', 'armor', 'fortune', 'bolts',
+    'provocation', 'rage', 'finish', 'storm', 'dispensary', 'haven', 'torrent',
+    'switch', 'assimilate', 'avenging', 'blade', 'calm', 'frenzy', 'hushed',
+    'intrepid', 'irradiating', 'jade', 'lasting', 'mach', 'mending', 'mind',
+    'negation', 'omikui', 'pacifying', 'peaceful', 'primal', 'radiant',
+    'reactive', 'repair', 'rift', 'rising', 'safeguard'
+  ];
+  
+  if (augmentPatterns.some(pattern => name.includes(pattern))) {
+    return 'mod';
+  }
+  
+  // Syndicate mod patterns (weapon augments)
   if (name.includes('entropy') || name.includes('sequence') || name.includes('purity') ||
-      name.includes('truth') || name.includes('justice') || name.includes('blight')) {
+      name.includes('justice') || name.includes('blight')) {
     return 'mod';
   }
   
-  // Augment mods (common patterns)
-  if (name.includes('seeking') || name.includes('shuriken') || name.includes('decoy') ||
-      name.includes('trickster') || name.includes('burst') || name.includes('flight')) {
-    return 'mod';
-  }
-  
-  // Cosmetics
-  if (name.includes('sigil') || name.includes('syandana') || name.includes('armor')) {
+  // Scenes and decorations
+  if (name.includes('scene') || name.includes('sculpture') || name.includes('decoration')) {
     return 'cosmetic';
   }
   
-  return 'other';
+  // Cosmetics
+  if (name.includes('sigil') || name.includes('syandana') || name.includes('armor') ||
+      name.includes('skin') || name.includes('ephemera')) {
+    return 'cosmetic';
+  }
+  
+  // Resources and blueprints
+  if (name.includes('blueprint') || name.includes('part') || name.includes('relic')) {
+    return 'resource';
+  }
+  
+  // Default to mod for most syndicate items (most are augment mods)
+  return 'mod';
 };
 
 /**

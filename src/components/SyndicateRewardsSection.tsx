@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Crosshair, Target, Package, Star, Heart, Hexagon } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Package, Star, Heart } from 'lucide-react';
 import { SyndicateReward } from '../types';
 import {
   getAllSyndicateRewards,
@@ -13,16 +13,12 @@ interface SyndicateRewardsSectionProps {
   isRefreshing: boolean;
   onRefreshStart: () => void;
   onRefreshComplete: () => void;
-  recommendations?: SyndicateReward[];
-  onClearRecommendations?: () => void;
 }
 
 const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
   isRefreshing,
   onRefreshStart,
-  onRefreshComplete,
-  recommendations = [],
-  onClearRecommendations
+  onRefreshComplete
 }) => {
   const [rewards, setRewards] = useState<SyndicateReward[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -38,41 +34,22 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     maxStandingCost: ''
   });
 
-  // Load initial data
+  // Load syndicate rewards from inventory
   useEffect(() => {
-    const loadData = async () => {
-      // Wait a bit for the data to be loaded from JSON
-      await new Promise(resolve => setTimeout(resolve, 100));
-      const initialRewards = getAllSyndicateRewards();
-      setRewards(initialRewards);
+    const loadRewards = () => {
+      const syndicateRewards = getAllSyndicateRewards();
+      setRewards(syndicateRewards);
     };
-    loadData();
+
+    loadRewards();
+
+    // Reload when inventory changes (e.g., after scanning new items)
+    const interval = setInterval(loadRewards, 1000);
+    return () => clearInterval(interval);
   }, []);
 
-  // Combine static rewards with recommendations
-  const allRewards = useMemo(() => {
-    console.log(`>>> [SyndicateRewardsSection] allRewards recalculating - rewards: ${rewards.length}, recommendations: ${recommendations.length} <<<`);
-    const combined = [...rewards];
-
-    // Add recommendations if they exist
-    if (recommendations.length > 0) {
-      console.log(`>>> [SyndicateRewardsSection] Received ${recommendations.length} recommendations <<<`);
-      recommendations.forEach(rec => {
-        // Check if this recommendation already exists in rewards
-        const existingIndex = combined.findIndex(r => r.name === rec.name);
-        if (existingIndex >= 0) {
-          // Update existing reward with recommendation data
-          combined[existingIndex] = { ...combined[existingIndex], ...rec };
-        } else {
-          // Add new recommendation
-          combined.push(rec);
-        }
-      });
-      console.log(`>>> [SyndicateRewardsSection] Total rewards after combining: ${combined.length} <<<`);
-    }
-
-    return combined;
-  }, [rewards, recommendations]);
+  // Use rewards directly from inventory
+  const allRewards = rewards;
 
   // Apply filters and sorting
   const filteredAndSortedRewards = useMemo(() => {
@@ -124,10 +101,9 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
       avgPlatPerStanding,
       loadedCount: loadedRewards.length,
       totalCount: filteredAndSortedRewards.length,
-      recommendationsCount: recommendations.length,
       bestValueItem
     };
-  }, [filteredAndSortedRewards, recommendations]);
+  }, [filteredAndSortedRewards]);
 
   const handleRefresh = async () => {
     onRefreshStart();
@@ -204,7 +180,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
 
     if (averagePrice && averagePrice !== currentPrice) {
       const diff = currentPrice - averagePrice;
-      const percentage = averagePrice > 0 ? (diff / averagePrice) * 100 : 0;
 
       return (
         <div className="flex items-center gap-1 text-xs">
@@ -259,11 +234,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                     <span className="text-purple-400">{formatStanding(totals.totalStanding)}</span>
                   </div>
                 )}
-                {recommendations.length > 0 && (
-                  <span className="text-orokin-gold">
-                    {recommendations.length} from scan
-                  </span>
-                )}
                 {isRefreshing && (
                   <span className="text-tenno-blue">
                     Refreshing...
@@ -292,16 +262,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                 className={isRefreshing ? 'animate-spin' : ''}
               />
             </button>
-
-            {recommendations.length > 0 && onClearRecommendations && (
-              <button
-                onClick={onClearRecommendations}
-                className="flex items-center gap-1 px-2 py-1 rounded text-xs text-grineer-red hover:bg-grineer-red/10 transition-colors"
-                title="Clear all recommendations"
-              >
-                <Trash2 size={12} />
-              </button>
-            )}
 
             <button
               onClick={() => setShowFilters(!showFilters)}
@@ -483,8 +443,12 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                               <span className="text-green-400">{reward.price}p</span>
                               {getPriceComparisonDisplay(reward)}
                             </>
+                          ) : reward.status === 'error' && reward.error?.includes('not found') ? (
+                            <span className="text-gray-500 text-xs">Not traded</span>
+                          ) : reward.status === 'loading' ? (
+                            <span className="text-gray-400 text-xs">Loading...</span>
                           ) : (
-                            <span className="text-gray-500">No price</span>
+                            <span className="text-gray-500 text-xs">Not offered</span>
                           )}
                         </div>
                       </td>

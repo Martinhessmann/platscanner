@@ -21,7 +21,7 @@ import {
   InventoryItem
 } from '../services/inventoryService';
 import { getPrimeSetsCache } from '../services/primeSetService';
-import { ImageState, DetectedItem, ProcessingState, VoidRelic, SyndicateReward } from '../types';
+import { ImageState, DetectedItem, ProcessingState, VoidRelic } from '../types';
 import InfoCard from '../components/InfoCard';
 import PrimeSetsSection from '../components/PrimeSetsSection';
 import { FileWithPath } from 'react-dropzone';
@@ -60,8 +60,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     syndicate_rewards: [] as InventoryItem[]
   });
 
-  // Syndicate recommendations state (separate from inventory)
-  const [syndicateRecommendations, setSyndicateRecommendations] = useState<SyndicateReward[]>([]);
 
   // Only sellable Prime Parts (uncrafted Blueprints)
   const sellablePrimeParts = useMemo(() => {
@@ -96,8 +94,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       console.log(`>>> [HomePage] Found ${allSyndicateRewards.length} syndicate rewards to refresh <<<`);
       const updatedRewards = await fetchSyndicateRewardPrices(allSyndicateRewards);
 
-      // Update syndicate recommendations with fresh price data
-      setSyndicateRecommendations(updatedRewards);
+      // Update syndicate rewards in inventory
+      if (updatedRewards.length > 0) {
+        const { updateInventoryPrices } = await import('../services/inventoryService');
+        updateInventoryPrices(updatedRewards);
+        
+        // Refresh local inventory state
+        const inventory = getCategorizedInventory();
+        setCategorizedInventory(inventory);
+      }
       setLastSyndicateRewardsRefresh(new Date());
       console.log(`>>> [HomePage] Syndicate rewards refresh completed for ${updatedRewards.length} items <<<`);
     } catch (error) {
@@ -260,33 +265,14 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             return;
           }
 
-          // Handle syndicate rewards differently - they go to recommendations, not inventory
-          const syndicateRewards = detectedItems.filter(item => item.category === 'syndicate_rewards');
-          const nonSyndicateItems = detectedItems.filter(item => item.category !== 'syndicate_rewards');
+          // Filter out items already in inventory to avoid duplicates (for ALL items including syndicate)
+          const currentInventory = loadInventory();
+          const existingItemNames = new Set(currentInventory.items.map(item => item.name));
+          const newItems = detectedItems.filter(item => !existingItemNames.has(item.name));
 
-          // For syndicate rewards, add them to recommendations
-          if (syndicateRewards.length > 0) {
-            console.log(`>>> [Syndicate] Adding ${syndicateRewards.length} syndicate rewards to recommendations <<<`);
-            setSyndicateRecommendations(prev => {
-              const existingNames = new Set(prev.map(r => r.name));
-              const newRecommendations = syndicateRewards.filter(item => !existingNames.has(item.name));
-              console.log(`>>> [Syndicate] New recommendations: ${newRecommendations.length}, Total: ${prev.length + newRecommendations.length} <<<`);
-              return [...prev, ...newRecommendations];
-            });
-          }
+          console.log(`>>> [AI Analysis] Detected ${detectedItems.length} items, ${newItems.length} are new <<<`);
 
-          // For non-syndicate items, filter out items already in inventory to avoid duplicates
-          let newItems: DetectedItem[] = [];
-          if (nonSyndicateItems.length > 0) {
-            const currentInventory = loadInventory();
-            const existingItemNames = new Set(currentInventory.items.map(item => item.name));
-            newItems = nonSyndicateItems.filter(item => !existingItemNames.has(item.name));
-          }
-
-          console.log(`>>> [AI Analysis] Detected ${detectedItems.length} items (${syndicateRewards.length} syndicate, ${nonSyndicateItems.length} others), ${newItems.length} are new <<<`);
-
-          // Mark as complete if no items to process (both syndicate and non-syndicate)
-          if (newItems.length === 0 && syndicateRewards.length === 0) {
+          if (newItems.length === 0) {
             setProcessingState(current => ({
               ...current,
               images: new Map(current.images).set(nextImage.id, {
@@ -1220,8 +1206,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             isRefreshing={isRefreshingSyndicateRewards}
             onRefreshStart={handleRefreshSyndicateRewards}
             onRefreshComplete={() => setIsRefreshingSyndicateRewards(false)}
-            recommendations={syndicateRecommendations}
-            onClearRecommendations={() => setSyndicateRecommendations([])}
           />
 
           {/* Empty state - only show when no processing and no results */}

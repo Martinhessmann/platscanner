@@ -26,7 +26,8 @@ This is a React-based Warframe inventory scanner that uses AI to analyze screens
 
 The application is built around several key services located in `src/services/`:
 
-- **geminiService.ts**: Handles Google Gemini Vision API integration for image analysis using Gemini 2.5 Flash model. Uses multi-step analysis: first determines screen type (prime_parts/relics), then applies specialized prompts for each category.
+- **geminiService.ts**: Handles Google Gemini Vision API integration for image analysis using Gemini 2.5 Flash model. Uses multi-step analysis: first determines screen type (prime_parts/relics/syndicate), then applies specialized prompts for each category.
+- **syndicateService.ts**: Manages Syndicate reward data with user-specific storage, intelligent item type detection, and standing cost estimation for owned items
 - **warframeMarketService.ts**: Integrates with Warframe.market API for real-time pricing data
 - **unifiedImageService.ts**: Manages local image assets for Prime parts and relics to reduce CDN dependencies
 - **inventoryService.ts**: Handles inventory data persistence and local storage management with intentional deletion tracking
@@ -45,6 +46,7 @@ Key components in `src/components/`:
 - **RelicResultsTable.tsx**: Shows Void relics with refinement analysis and recommendations
 - **PrimeSetsSection.tsx**: Tracks Prime set completion and provides build recommendations
 - **RelicAnalysisCard.tsx**: Displays detailed relic value analysis and refinement suggestions
+- **SyndicateRewardsSection.tsx**: Displays syndicate rewards with market value analysis and plat/standing efficiency tracking
 - **InventorySection.tsx**: Main inventory management interface
 - **ApiKeySettings.tsx**: Handles Gemini API key configuration
 - **CloudSyncSection.tsx**: Manages cloud synchronization settings
@@ -52,7 +54,7 @@ Key components in `src/components/`:
 ### Data Flow
 
 1. Images are uploaded via ImageUploader
-2. Gemini Vision API analyzes screenshots to detect items
+2. Gemini Vision API analyzes screenshots to detect items (Prime Parts, Relics, or Syndicate Rewards)
 3. Detected items are sent to Warframe.market API for pricing
 4. Results are displayed in specialized tables with value analysis
 5. Data is persisted locally and optionally synced to cloud
@@ -62,6 +64,7 @@ Key components in `src/components/`:
 - **Multi-image processing**: Queued batch processing with progress tracking
 - **Relic value optimization**: Calculates expected values and refinement recommendations
 - **Prime set tracking**: Monitors completion status and suggests builds
+- **Syndicate reward analysis**: Market value analysis with plat/standing efficiency calculations
 - **Cloud synchronization**: Cross-device inventory sync using Supabase
 - **Local image assets**: Reduces external dependencies with bundled item images
 - **Responsive design**: Mobile-first approach with touch-friendly interface
@@ -189,3 +192,40 @@ From recent debugging, the system now shows clean logs:
 - Clean ownership checks without debug spam
 
 The application is now focused on core build planning functionality without the complexity of market analysis, providing a cleaner and more maintainable codebase.
+
+### Syndicate Rewards Feature (2025-08)
+
+A comprehensive syndicate market analysis feature was implemented to help players optimize their syndicate standing investments:
+
+#### Core Functionality
+- **Screenshot-based detection**: Upload syndicate offerings screenshots to automatically detect available rewards
+- **Market value analysis**: Fetch real-time prices from Warframe.market for all tradable syndicate items  
+- **Efficiency calculations**: Calculate plat per 1000 standing for easy comparison across items and syndicates
+- **Intelligent categorization**: Auto-detect item types (weapons, mods, cosmetics) with appropriate standing cost estimates
+
+#### User-Centric Design
+- **Personal inventory storage**: Syndicate rewards are stored in user inventory (not static data) 
+- **Progressive rank tracking**: Upload new screenshots as you progress through syndicate ranks
+- **Duplicate handling**: Smart deduplication across multiple screenshot uploads
+- **Cross-device sync**: Syndicate data syncs via cloud storage alongside other inventory items
+
+#### Technical Implementation
+- **Multi-step AI analysis**: Gemini Vision API first detects syndicate screen type, then extracts syndicate name and item details
+- **Smart standing estimation**: For owned items (showing checkmarks), auto-estimates standing costs:
+  - Weapons: 125,000 standing
+  - Augment mods: 25,000 standing  
+  - Cosmetics: 5,000 standing
+- **Integrated pricing pipeline**: Uses existing market data infrastructure for consistent price fetching
+- **Enhanced UI display**: Shows "plat/1k standing" ratios for better readability (vs tiny decimals)
+
+#### Key Files
+- `src/services/syndicateService.ts`: Core service with item type detection and standing cost logic
+- `src/components/SyndicateRewardsSection.tsx`: UI component with filtering, sorting, and market analysis
+- `src/types/index.ts`: SyndicateReward type definition with market and standing fields
+- Integration points in `geminiService.ts`, `inventoryService.ts`, and `HomePage.tsx`
+
+#### User Benefits
+- **Investment optimization**: Easily identify highest-value syndicate rewards
+- **Standing efficiency**: Compare plat/standing ratios across all syndicates
+- **Progress tracking**: Visual progression as new ranks unlock more rewards
+- **Market awareness**: Real-time pricing helps with trading decisions
