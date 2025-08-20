@@ -110,14 +110,21 @@ const fetchSingleItemData = async (itemName: string) => {
         )
       : null;
 
+    // Calculate true market average from all orders
+    const allValidOrders = ordersData.payload.orders.filter((order: any) =>
+      ['online', 'ingame'].includes(order.user.status) &&
+      !order.user.banned &&
+      order.visible
+    );
+
     const result = {
       name: itemDetails.en.item_name,
       thumb: itemDetails.thumb,
       ducats: itemDetails.ducats || 0,
       price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
       volume: ordersData.payload.orders.length,
-      average: buyOrders.length > 0
-        ? Math.round(buyOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / buyOrders.length)
+      average: allValidOrders.length > 0
+        ? Math.round(allValidOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / allValidOrders.length)
         : 0,
       buyerUsername: highestBidder?.user?.ingame_name || null,
       buyerQuantity: highestBidder?.quantity || 0
