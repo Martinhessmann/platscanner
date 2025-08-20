@@ -456,12 +456,24 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               const priceData = await fetchSinglePriceData(item);
 
               if (priceData) {
+                // Calculate platPerStanding for syndicate rewards
+                let platPerStanding;
+                if (item.category === 'syndicate_rewards') {
+                  const syndicateItem = item as any;
+                  const standingCost = syndicateItem.standingCost || 25000; // Default to 25k for mods
+                  if (priceData.price > 0 && standingCost > 0) {
+                    platPerStanding = (priceData.price * 1000) / standingCost;
+                    console.log(`>>> [Price Fetching] Calculated plat/1k standing for ${item.name}: ${platPerStanding.toFixed(2)} (${priceData.price}p / ${standingCost} standing) <<<`);
+                  }
+                }
+
                 // Add to processed items with price data
                 processedItems.push({
                   ...item,
                   price: priceData.price,
                   marketVolume: priceData.volume,
-                  lastUpdated: new Date()
+                  lastUpdated: new Date(),
+                  ...(platPerStanding !== undefined && { platPerStanding })
                 });
 
                 // Update progress
@@ -483,7 +495,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                   ...item,
                   price: 0,
                   marketVolume: 0,
-                  lastUpdated: new Date()
+                  lastUpdated: new Date(),
+                  ...(item.category === 'syndicate_rewards' && { platPerStanding: 0 })
                 });
                 setFetchingProgress({ current: index + 1, total: newItems.length });
               }

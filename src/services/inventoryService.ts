@@ -118,6 +118,22 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
         };
       }
 
+      // Include syndicate-specific properties for SyndicateReward items
+      if (item.category === 'syndicate_rewards') {
+        const syndicateItem = item as any; // Using any since SyndicateReward extends DetectedItem
+        console.log(`>>> [InventoryService] Saving syndicate item: ${item.name}, syndicate: ${syndicateItem.syndicate || 'NOT SET'} <<<`);
+        return {
+          ...baseItem,
+          syndicate: syndicateItem.syndicate || 'Unknown',
+          standingCost: syndicateItem.standingCost || 0,
+          itemType: syndicateItem.itemType || 'mod',
+          platPerStanding: syndicateItem.platPerStanding,
+          marketVolume: syndicateItem.marketVolume,
+          availability: syndicateItem.availability,
+          masteryRank: syndicateItem.masteryRank
+        };
+      }
+
       return baseItem;
     });
 
