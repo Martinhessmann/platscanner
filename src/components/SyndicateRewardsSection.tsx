@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Package, Star, Heart, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Package, Star, Heart, X, Coins } from 'lucide-react';
 import { SyndicateReward } from '../types';
 import {
   getAllSyndicateRewards,
@@ -8,16 +8,19 @@ import {
   filterSyndicateRewards,
   getAvailableSyndicates
 } from '../services/syndicateService';
+import LastRefreshInfo from './LastRefreshInfo';
 
 interface SyndicateRewardsSectionProps {
   isRefreshing: boolean;
   onRefreshStart: () => void;
   onRefreshComplete: () => void;
-  onCancel?: () => void; // Add cancellation function
+  onCancel?: () => void;
   onClearAll: () => void;
   onRemoveItem: (itemName: string) => void;
-  onRefreshItem?: (itemName: string) => void; // Add individual item refresh function
-  refreshTrigger?: number; // Add this prop to trigger refresh when inventory changes
+  onRefreshItem?: (itemName: string) => void;
+  refreshTrigger?: number;
+  progress?: { current: number; total: number };
+  lastRefreshTime?: Date | null;
 }
 
 const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
@@ -28,7 +31,9 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
   onClearAll,
   onRemoveItem,
   onRefreshItem,
-  refreshTrigger
+  refreshTrigger,
+  progress,
+  lastRefreshTime
 }) => {
   const [rewards, setRewards] = useState<SyndicateReward[]>([]);
   const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
@@ -42,10 +47,36 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     minPrice: '',
     maxPrice: '',
     minPlatPerStanding: '',
-    maxStandingCost: ''
+    maxStandingCost: '',
+    showNonTradable: false // Default to hiding non-tradable items
   });
 
-    // Load syndicate rewards from inventory
+  const sectionRef = useRef<HTMLDivElement>(null);
+
+  // Persistent accordion state
+  useEffect(() => {
+    const stored = localStorage.getItem('accordion_syndicate_rewards');
+    if (stored !== null) {
+      setIsExpanded(JSON.parse(stored));
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('accordion_syndicate_rewards', JSON.stringify(isExpanded));
+  }, [isExpanded]);
+
+  // Auto-scroll to section when collapsing
+  const handleToggle = () => {
+    if (isExpanded && sectionRef.current) {
+      sectionRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }
+    setIsExpanded(!isExpanded);
+  };
+
+  // Load syndicate rewards from inventory
   useEffect(() => {
     const loadRewards = () => {
       const syndicateRewards = getAllSyndicateRewards();
@@ -60,7 +91,7 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     };
 
     loadRewards();
-  }, [refreshTrigger, refreshingItems]); // Refresh when refreshTrigger or refreshingItems changes
+  }, [refreshTrigger, refreshingItems]);
 
   // Use rewards directly from inventory
   const allRewards = rewards;
@@ -69,7 +100,17 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
   const filteredAndSortedRewards = useMemo(() => {
     let filtered = allRewards;
 
-    // Apply filters
+    // Filter out non-tradable items by default (unless explicitly shown)
+    if (!filters.showNonTradable) {
+      filtered = filtered.filter(reward => {
+        // Show items that have a price > 0 or are still loading
+        return (reward.price && reward.price > 0) ||
+               reward.status === 'loading' ||
+               !reward.status; // Items that haven't been fetched yet
+      });
+    }
+
+    // Apply other filters
     if (filters.syndicate) {
       filtered = filterSyndicateRewards(filtered, { syndicate: filters.syndicate });
     }
@@ -107,7 +148,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
       return best;
     }) : undefined;
 
-
     return {
       totalValue,
       totalStanding,
@@ -119,7 +159,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
   }, [filteredAndSortedRewards]);
 
   const handleRefresh = async () => {
-    // This local refresh should not be used - use parent's refresh instead
     onRefreshStart();
   };
 
@@ -132,10 +171,8 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
 
     try {
       if (onRefreshItem) {
-        // Use the parent's refresh function if available
         await onRefreshItem(itemName);
       } else {
-        // Fallback to local refresh
         const { fetchSyndicateRewardPrices } = await import('../services/syndicateService');
         const updatedRewards = await fetchSyndicateRewardPrices([item]);
 
@@ -147,27 +184,12 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     } catch (error) {
       console.error(`Failed to refresh ${itemName}:`, error);
     } finally {
-      // Remove from refreshing items
       setRefreshingItems(prev => {
         const newSet = new Set(prev);
         newSet.delete(itemName);
         return newSet;
       });
     }
-  };
-
-  const handleSort = (newSortBy: typeof sortBy) => {
-    if (sortBy === newSortBy) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(newSortBy);
-      setSortOrder('desc');
-    }
-  };
-
-  const getSortIcon = (column: typeof sortBy) => {
-    if (sortBy !== column) return null;
-    return sortOrder === 'desc' ? '↓' : '↑';
   };
 
   const getItemTypeColor = (itemType: string) => {
@@ -204,42 +226,19 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     window.open(`https://warframe.market/items/${urlName}`, '_blank');
   };
 
-  const getPriceComparisonDisplay = (reward: SyndicateReward) => {
-    if (!reward.price || reward.price === 0) {
-      return null;
-    }
-
-    // For syndicate rewards, we don't have an "expected" value like relics
-    // So we'll show the current price vs average (if available)
-    const currentPrice = reward.price;
-    const averagePrice = reward.average || currentPrice;
-
-    if (averagePrice && averagePrice !== currentPrice) {
-      const diff = currentPrice - averagePrice;
-
-      return (
-        <div className="flex items-center gap-1 text-xs">
-          <span className="text-gray-300">vs</span>
-          <span className="text-gray-400">{averagePrice.toFixed(1)}p</span>
-          <span className={diff > 0 ? 'text-green-400' : 'text-red-400'}>
-            ({diff > 0 ? '+' : ''}{diff.toFixed(1)}p)
-          </span>
-        </div>
-      );
-    }
-
-    return null;
-  };
-
   const syndicates = getAvailableSyndicates();
 
+  if (rewards.length === 0) {
+    return null; // Don't render empty sections
+  }
+
   return (
-    <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-700/50 mb-4">
-      {/* Header - Simplified to match other sections */}
-      <div className="p-4 border-b border-gray-700/50">
-        <div className="flex items-center justify-between">
+    <div ref={sectionRef} className="mb-2">
+      {/* Mobile-first sticky header */}
+      <div className="bg-gray-900/50 backdrop-blur-sm p-3 rounded-t-xl border border-gray-700/50 border-b-0 sticky top-0 z-20">
+        <div className="flex items-center justify-between w-full">
           <button
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={handleToggle}
             className="flex items-center gap-3 text-left group flex-1"
           >
             <div className="flex items-center gap-2">
@@ -270,15 +269,12 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                     <span className="text-purple-400">{formatStanding(totals.totalStanding)}</span>
                   </div>
                 )}
-                {isRefreshing && (
+                {isRefreshing && progress && (
                   <span className="text-tenno-blue">
-                    Refreshing...
+                    Refreshing {progress.current}/{progress.total}
                   </span>
                 )}
               </div>
-              {!isExpanded && (
-                <div className="text-xs text-gray-500 mt-1">Tap to expand</div>
-              )}
             </div>
           </button>
 
@@ -296,81 +292,138 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
               {isRefreshing ? (
                 <X size={12} />
               ) : (
-                <RefreshCw size={12} />
+                <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
               )}
-            </button>
-
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-                showFilters
-                  ? 'text-orokin-gold bg-orokin-gold/10'
-                  : 'text-gray-400 hover:text-gray-300 hover:bg-gray-700/50'
-              }`}
-              title="Toggle filters"
-            >
-              <Filter size={12} />
+              {isRefreshing && progress ? `${progress.current}/${progress.total}` : ''}
             </button>
 
             <button
               onClick={onClearAll}
-              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-grineer-red hover:bg-grineer-red/10 transition-colors"
               title="Delete all syndicate rewards"
             >
               <Trash2 size={12} />
             </button>
+
+            {lastRefreshTime && (
+              <LastRefreshInfo
+                lastRefreshDate={lastRefreshTime}
+                className="text-xs text-gray-500"
+              />
+            )}
           </div>
         </div>
+
+        {/* Progress bar - show when refreshing */}
+        {isRefreshing && progress && (
+          <div className="mt-3 pt-3 border-t border-gray-700/50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-400">Refreshing prices...</span>
+              <span className="text-xs text-gray-400">
+                {progress.current} / {progress.total}
+              </span>
+            </div>
+            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-tenno-blue transition-all duration-300"
+                style={{
+                  width: `${(progress.current / progress.total) * 100}%`
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Content */}
       {isExpanded && (
-        <div className="p-4">
-          {/* Stats Cards - Only show when expanded */}
-          {totals.totalCount > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-                <div className="text-xs text-gray-400 mb-1">Best Value Item</div>
-                <div className="text-sm font-medium text-tenno-blue">
-                  {totals.bestValueItem ? (
-                    `${totals.bestValueItem.name} (${formatPlatPerStanding(totals.bestValueItem.platPerStanding)})`
-                  ) : (
-                    'N/A'
-                  )}
-                </div>
+        <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl overflow-hidden">
+          {/* Controls and Stats Row */}
+          <div className="p-4 border-b border-gray-700/50">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-400">
+                  {filteredAndSortedRewards.length} of {totals.totalCount} items
+                </span>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                    showFilters
+                      ? 'text-orokin-gold bg-orokin-gold/10'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-gray-700/50'
+                  }`}
+                  title="Toggle filters"
+                >
+                  <Filter size={12} />
+                  <span>Filters</span>
+                </button>
               </div>
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-                <div className="text-xs text-gray-400 mb-1">Avg Plat/1k Standing</div>
-                <div className="text-sm font-medium text-green-400">
-                  {formatPlatPerStanding(totals.avgPlatPerStanding)}
-                </div>
-              </div>
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-                <div className="text-xs text-gray-400 mb-1">Items with Prices</div>
-                <div className="text-sm font-medium text-tenno-blue">
-                  {totals.loadedCount}/{totals.totalCount}
-                </div>
-              </div>
-              <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-                <div className="text-xs text-gray-400 mb-1">Total Standing Cost</div>
-                <div className="text-sm font-medium text-purple-400">
-                  {formatStanding(totals.totalStanding)}
-                </div>
-              </div>
+              <select
+                value={`${sortBy}-${sortOrder}`}
+                onChange={(e) => {
+                  const [newSortBy, newSortOrder] = e.target.value.split('-') as [typeof sortBy, typeof sortOrder];
+                  setSortBy(newSortBy);
+                  setSortOrder(newSortOrder);
+                }}
+                className="bg-gray-700/50 border border-gray-600 rounded px-3 py-1 text-sm text-white"
+              >
+                <option value="platPerStanding-desc">Best Value ↓</option>
+                <option value="platPerStanding-asc">Best Value ↑</option>
+                <option value="price-desc">Price ↓</option>
+                <option value="price-asc">Price ↑</option>
+                <option value="standingCost-desc">Standing ↓</option>
+                <option value="standingCost-asc">Standing ↑</option>
+                <option value="name-asc">Name A-Z</option>
+                <option value="name-desc">Name Z-A</option>
+              </select>
             </div>
-          )}
 
-          {/* Filters */}
+            {/* Stats Cards - Mobile-friendly grid */}
+            {totals.totalCount > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+                  <div className="text-xs text-gray-400 mb-1">Best Value</div>
+                  <div className="text-sm font-medium text-tenno-blue truncate">
+                    {totals.bestValueItem ? (
+                      `${totals.bestValueItem.name} (${formatPlatPerStanding(totals.bestValueItem.platPerStanding)})`
+                    ) : (
+                      'N/A'
+                    )}
+                  </div>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+                  <div className="text-xs text-gray-400 mb-1">Avg Plat/1k</div>
+                  <div className="text-sm font-medium text-green-400">
+                    {formatPlatPerStanding(totals.avgPlatPerStanding)}
+                  </div>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+                  <div className="text-xs text-gray-400 mb-1">With Prices</div>
+                  <div className="text-sm font-medium text-tenno-blue">
+                    {totals.loadedCount}/{totals.totalCount}
+                  </div>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
+                  <div className="text-xs text-gray-400 mb-1">Total Standing</div>
+                  <div className="text-sm font-medium text-purple-400">
+                    {formatStanding(totals.totalStanding)}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Filters - Mobile-friendly */}
           {showFilters && (
-            <div className="bg-gray-800/30 rounded-lg p-4 mb-4 border border-gray-700/50">
+            <div className="p-4 border-b border-gray-700/50">
               <h4 className="text-sm font-medium text-white mb-3">Filters</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-3">
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Syndicate</label>
                   <select
                     value={filters.syndicate}
                     onChange={(e) => setFilters({ ...filters, syndicate: e.target.value })}
-                    className="w-full bg-gray-700/50 border border-gray-600 rounded px-2 py-1 text-sm text-white"
+                    className="w-full bg-gray-700/50 border border-gray-600 rounded px-3 py-2 text-sm text-white"
                   >
                     <option value="">All Syndicates</option>
                     {syndicates.map(syndicate => (
@@ -378,100 +431,65 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Item Type</label>
-                  <select
-                    value={filters.itemType}
-                    onChange={(e) => setFilters({ ...filters, itemType: e.target.value })}
-                    className="w-full bg-gray-700/50 border border-gray-600 rounded px-2 py-1 text-sm text-white"
-                  >
-                    <option value="">All Types</option>
-                    <option value="weapon">Weapon</option>
-                    <option value="mod">Mod</option>
-                    <option value="cosmetic">Cosmetic</option>
-                    <option value="resource">Resource</option>
-                    <option value="other">Other</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Item Type</label>
+                    <select
+                      value={filters.itemType}
+                      onChange={(e) => setFilters({ ...filters, itemType: e.target.value })}
+                      className="w-full bg-gray-700/50 border border-gray-600 rounded px-3 py-2 text-sm text-white"
+                    >
+                      <option value="">All Types</option>
+                      <option value="weapon">Weapon</option>
+                      <option value="mod">Mod</option>
+                      <option value="cosmetic">Cosmetic</option>
+                      <option value="resource">Resource</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Min Plat/1k</label>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={filters.minPlatPerStanding}
+                      onChange={(e) => setFilters({ ...filters, minPlatPerStanding: e.target.value })}
+                      className="w-full bg-gray-700/50 border border-gray-600 rounded px-3 py-2 text-sm text-white"
+                      placeholder="0.0001"
+                      />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Min Plat/1k Standing</label>
+                <div className="flex items-center gap-2">
                   <input
-                    type="number"
-                    step="0.0001"
-                    value={filters.minPlatPerStanding}
-                    onChange={(e) => setFilters({ ...filters, minPlatPerStanding: e.target.value })}
-                    className="w-full bg-gray-700/50 border border-gray-600 rounded px-2 py-1 text-sm text-white"
-                    placeholder="0.0001"
+                    type="checkbox"
+                    id="showNonTradable"
+                    checked={filters.showNonTradable}
+                    onChange={(e) => setFilters({ ...filters, showNonTradable: e.target.checked })}
+                    className="rounded border-gray-600 bg-gray-700/50 text-tenno-blue focus:ring-tenno-blue"
                   />
+                  <label htmlFor="showNonTradable" className="text-xs text-gray-400">
+                    Show non-tradable items
+                  </label>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Results Table */}
+          {/* Mobile-friendly card layout */}
           {filteredAndSortedRewards.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-700/50">
-                    <th className="text-left py-2 px-2 font-medium text-gray-300">
-                      <button
-                        onClick={() => handleSort('name')}
-                        className="flex items-center gap-1 hover:text-white transition-colors"
-                      >
-                        Item Name {getSortIcon('name')}
-                      </button>
-                    </th>
-                    <th className="text-left py-2 px-2 font-medium text-gray-300">
-                      <button
-                        onClick={() => handleSort('syndicate')}
-                        className="flex items-center gap-1 hover:text-white transition-colors"
-                      >
-                        Syndicate {getSortIcon('syndicate')}
-                      </button>
-                    </th>
-                    <th className="text-left py-2 px-2 font-medium text-gray-300">Type</th>
-                    <th className="text-left py-2 px-2 font-medium text-gray-300">
-                      <button
-                        onClick={() => handleSort('standingCost')}
-                        className="flex items-center gap-1 hover:text-white transition-colors"
-                      >
-                        Standing {getSortIcon('standingCost')}
-                      </button>
-                    </th>
-                    <th className="text-left py-2 px-2 font-medium text-gray-300">
-                      <button
-                        onClick={() => handleSort('price')}
-                        className="flex items-center gap-1 hover:text-white transition-colors"
-                      >
-                        Price {getSortIcon('price')}
-                      </button>
-                    </th>
-                    <th className="text-left py-2 px-2 font-medium text-gray-300">
-                      <button
-                        onClick={() => handleSort('platPerStanding')}
-                        className="flex items-center gap-1 hover:text-white transition-colors"
-                      >
-                        Plat/1k Standing {getSortIcon('platPerStanding')}
-                      </button>
-                    </th>
-                    <th className="text-left py-2 px-2 font-medium text-gray-300">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAndSortedRewards.map((reward, index) => (
-                    <tr
-                      key={`${reward.name}-${index}`}
-                      className="border-b border-gray-700/30 hover:bg-gray-700/20 transition-colors"
-                    >
-                      <td className="py-2 px-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-white">{reward.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-2 px-2 text-gray-300">{reward.syndicate || 'Unknown'}</td>
-                      <td className="py-2 px-2">
-                        <div className="flex items-center gap-2">
+            <div className="p-4 space-y-3">
+              {filteredAndSortedRewards.map((reward, index) => (
+                <div
+                  key={`${reward.name}-${index}`}
+                  className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50 hover:bg-gray-800/70 transition-colors"
+                >
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-white truncate">{reward.name}</h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-400">{reward.syndicate || 'Unknown'}</span>
+                        <div className="flex items-center gap-1">
                           <span className={getItemTypeColor(reward.itemType)}>
                             {getTypeIcon(reward.itemType)}
                           </span>
@@ -479,77 +497,97 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                             {reward.itemType}
                           </span>
                         </div>
-                      </td>
-                      <td className="py-2 px-2 text-gray-300">{formatStanding(reward.standingCost)}</td>
-                      <td className="py-2 px-2">
-                        <div className="flex flex-col gap-1">
-                          {refreshingItems.has(reward.name) ? (
-                            <div className="animate-pulse">
-                              <div className="h-4 bg-gray-700 rounded w-12 mb-1"></div>
-                              <div className="h-3 bg-gray-700 rounded w-8"></div>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-1 ml-2">
+                      <button
+                        onClick={() => handleRefreshItem(reward.name)}
+                        disabled={refreshingItems.has(reward.name)}
+                        className={`p-1 transition-colors ${
+                          refreshingItems.has(reward.name)
+                            ? 'text-gray-500 cursor-not-allowed'
+                            : 'text-tenno-blue hover:text-tenno-light'
+                        }`}
+                        title="Refresh price"
+                      >
+                        <RefreshCw size={14} className={refreshingItems.has(reward.name) ? 'animate-spin' : ''} />
+                      </button>
+                      <button
+                        onClick={() => handleOpenMarket(reward.name)}
+                        className="text-tenno-blue hover:text-tenno-light p-1 transition-colors"
+                        title="View on Warframe Market"
+                      >
+                        <ExternalLink size={14} />
+                      </button>
+                      <button
+                        onClick={() => onRemoveItem(reward.name)}
+                        className="text-red-400 hover:text-red-300 p-1 transition-colors"
+                        title="Remove from inventory"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                                    {/* Price and standing info */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Price</div>
+                      {refreshingItems.has(reward.name) ? (
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-700 rounded w-12"></div>
+                        </div>
+                      ) : reward.price && reward.price > 0 ? (
+                        <div>
+                          <div className="text-green-400 font-medium">{reward.price}p</div>
+                          {reward.average && reward.average !== reward.price && (
+                            <div className="text-xs text-gray-400">
+                              avg: {reward.average}p
                             </div>
-                          ) : reward.price && reward.price > 0 ? (
-                            <>
-                              <span className="text-green-400">{reward.price}p</span>
-                              {getPriceComparisonDisplay(reward)}
-                            </>
-                          ) : reward.status === 'error' && reward.error?.includes('not found') ? (
-                            <span className="text-gray-500 text-xs">Not traded</span>
-                          ) : reward.status === 'loading' ? (
-                            <div className="animate-pulse">
-                              <div className="h-4 bg-gray-700 rounded w-12 mb-1"></div>
-                              <div className="h-3 bg-gray-700 rounded w-8"></div>
-                            </div>
-                          ) : (
-                            <span className="text-gray-500 text-xs">Not offered</span>
                           )}
                         </div>
-                      </td>
-                      <td className="py-2 px-2">
-                        {refreshingItems.has(reward.name) ? (
-                          <div className="animate-pulse">
-                            <div className="h-4 bg-gray-700 rounded w-16"></div>
-                          </div>
-                        ) : (
-                          <span className={reward.platPerStanding && reward.platPerStanding > 0 ? 'text-blue-400' : 'text-gray-500'}>
-                            {formatPlatPerStanding(reward.platPerStanding)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-2 px-2">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleRefreshItem(reward.name)}
-                            disabled={refreshingItems.has(reward.name)}
-                            className={`p-1 transition-colors ${
-                              refreshingItems.has(reward.name)
-                                ? 'text-gray-500 cursor-not-allowed'
-                                : 'text-tenno-blue hover:text-tenno-light'
-                            }`}
-                            title="Refresh price"
-                          >
-                            <RefreshCw size={14} className={refreshingItems.has(reward.name) ? 'animate-spin' : ''} />
-                          </button>
-                          <button
-                            onClick={() => handleOpenMarket(reward.name)}
-                            className="text-tenno-blue hover:text-tenno-light p-1 transition-colors"
-                            title="View on Warframe Market"
-                          >
-                            <ExternalLink size={14} />
-                          </button>
-                          <button
-                            onClick={() => onRemoveItem(reward.name)}
-                            className="text-red-400 hover:text-red-300 p-1 transition-colors"
-                            title="Remove from inventory"
-                          >
-                            <Trash2 size={14} />
-                          </button>
+                      ) : reward.status === 'error' && reward.error?.includes('not found') ? (
+                        <div className="text-gray-500 text-xs">Not traded</div>
+                      ) : (
+                        <div className="text-gray-500 text-xs">Not offered</div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-gray-400 mb-1">Standing</div>
+                      <div className="text-purple-400 font-medium">{formatStanding(reward.standingCost)}</div>
+                    </div>
+                  </div>
+
+                  {/* Volume info */}
+                  {reward.volume && reward.volume > 0 && (
+                    <div className="mt-2 pt-2 border-t border-gray-700/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-gray-400">Trade Volume</span>
+                        <span className="text-xs text-gray-300">{reward.volume}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Plat per standing - key metric */}
+                  <div className="mt-3 pt-3 border-t border-gray-700/50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">Plat per 1k Standing</span>
+                      {refreshingItems.has(reward.name) ? (
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-700 rounded w-16"></div>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      ) : (
+                        <span className={reward.platPerStanding && reward.platPerStanding > 0 ? 'text-blue-400 font-medium' : 'text-gray-500'}>
+                          {formatPlatPerStanding(reward.platPerStanding)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="text-center py-8 text-gray-400">
@@ -563,7 +601,8 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                       minPrice: '',
                       maxPrice: '',
                       minPlatPerStanding: '',
-                      maxStandingCost: ''
+                      maxStandingCost: '',
+                      showNonTradable: false
                     })}
                     className="text-tenno-blue hover:underline mt-2"
                   >
@@ -576,6 +615,19 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {!isExpanded && (
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl p-4 hover:bg-gray-800/50 transition-colors group"
+        >
+          <div className="flex items-center justify-center text-sm">
+            <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
+              Tap to expand
+            </span>
+          </div>
+        </button>
       )}
     </div>
   );
