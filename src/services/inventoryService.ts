@@ -7,6 +7,7 @@ import { getRelicDropsByName } from './relicDataService';
 import { fetchSinglePriceData, fetchBatchPriceData } from './warframeMarketService';
 import { cloudSyncService } from './cloudSyncService';
 import { getImageUrl } from './unifiedImageService';
+import { determineItemType } from './syndicateService';
 
 const INVENTORY_STORAGE_KEY = 'platscanner_inventory';
 const LAST_SCAN_STORAGE_KEY = 'platscanner_last_scan';
@@ -121,12 +122,16 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
       // Include syndicate-specific properties for SyndicateReward items
       if (item.category === 'syndicate_rewards') {
         const syndicateItem = item as any; // Using any since SyndicateReward extends DetectedItem
-        console.log(`>>> [InventoryService] Saving syndicate item: ${item.name}, syndicate: ${syndicateItem.syndicate || 'NOT SET'} <<<`);
+        
+        // Determine proper item type
+        const properItemType = determineItemType(item.name);
+        
+        console.log(`>>> [InventoryService] Saving syndicate item: ${item.name}, syndicate: ${syndicateItem.syndicate || 'NOT SET'}, type: ${properItemType} <<<`);
         return {
           ...baseItem,
           syndicate: syndicateItem.syndicate || 'Unknown',
           standingCost: syndicateItem.standingCost || 0,
-          itemType: syndicateItem.itemType || 'mod',
+          itemType: properItemType,
           platPerStanding: syndicateItem.platPerStanding,
           marketVolume: syndicateItem.marketVolume,
           availability: syndicateItem.availability,

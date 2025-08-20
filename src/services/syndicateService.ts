@@ -14,7 +14,7 @@ const DEFAULT_STANDING_COSTS: Record<string, number> = {
 /**
  * Determine item type based on name patterns
  */
-const determineItemType = (itemName: string): 'weapon' | 'mod' | 'cosmetic' | 'resource' | 'other' => {
+export const determineItemType = (itemName: string): 'weapon' | 'mod' | 'cosmetic' | 'resource' | 'other' => {
   const name = itemName.toLowerCase();
 
   // Syndicate weapons (high-tier rewards)
