@@ -12,15 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Deploy to Supabase
+        uses: supabase/setup-cli@v1
         with:
-          node-version: '18'
-
-      - name: Install Supabase CLI
-        run: |
-          curl -fsSL https://supabase.com/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          version: latest
 
       - name: Deploy Edge Functions
         run: |
