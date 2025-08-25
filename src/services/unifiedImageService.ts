@@ -134,7 +134,6 @@ export const getImageUrl = async (itemName: string): Promise<string> => {
 export const getImageUrlSync = (itemName: string): string | null => {
   if (!primeSetsCache) {
     // Try to trigger async loading for next time, but return null for now
-    console.log(`[ImageService] Cache not loaded for: ${itemName}`);
     loadPrimeSets().catch(console.error);
     return null;
   }

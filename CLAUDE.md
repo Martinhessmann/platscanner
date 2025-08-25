@@ -128,6 +128,72 @@ The app requires a Gemini API key to function, stored in localStorage. Cloud syn
 - Error handling is comprehensive with user-friendly messages
 - The architecture supports easy extension for new item types or analysis features
 
+### Prime Part Image Service Bug Fix (2025-08-25)
+
+#### Problem Resolution
+- **Image display bug**: Fixed issue where prime parts with compound suffixes (like "Oberon Prime Neuroptics Blueprint") showed `/images/primeparts/unknown.png` instead of proper images
+- **Root cause**: The `getParentSetName` function in `unifiedImageService.ts` only removed single suffixes, causing incorrect parent set name extraction
+- **Example**: "Oberon Prime Neuroptics Blueprint" → extracted "Oberon Prime Neuroptics" instead of "Oberon Prime"
+
+#### Technical Fix
+- **Enhanced suffix removal algorithm**: Updated `getParentSetName` function to iteratively remove multiple suffixes until no more can be removed
+- **Compound suffix handling**: Now properly handles items like "Neuroptics Blueprint", "Systems Blueprint", etc.
+- **Algorithm improvement**: Uses a while loop to remove suffixes sequentially rather than just once
+- **Files affected**: `src/services/unifiedImageService.ts`
+
+#### User Impact
+- **Fixed image display**: All prime parts now show correct parent set images instead of unknown.png placeholders  
+- **Better visual experience**: Proper thumbnails help with item identification and inventory management
+- **Consistent UI**: No more broken image displays across the prime parts inventory
+
+### Built Sets Filter Enhancement (2025-08-24)
+
+#### Prime Parts "Built Sets" Filter
+- **New filter option**: Added "Built Sets" filter to Prime Parts section for identifying parts from completed sets
+- **Smart completion detection**: Integrates with Prime Sets service to identify which sets are already built/mastered
+- **Safe selling identification**: Shows parts that are safe to sell for ducats since the parent set is already completed
+- **UI integration**: Filter appears as "Built Sets - Safe to Sell" with proper item count display
+- **Files affected**: `src/components/InventorySection.tsx`, `src/services/primeSetService.ts`
+
+### Prime Sets Enhancement & Owned Items System (2025-01-28)
+
+#### Owned Items Management System
+- **Distinction between inventory and owned items**: New system allows users to mark items as "owned" (keep for personal use) vs "in inventory" (available for trading)
+- **Owned items service**: `src/services/ownedItemsService.ts` manages localStorage-based owned status tracking
+- **Completion percentage accuracy**: Only truly owned items count toward set completion percentage
+- **Flexible trading**: Users can sell complete sets even when parts are in inventory (if not marked as owned)
+- **Visual indicators**: Clear color coding (green = owned, blue = in inventory, yellow = from relics, gray = missing)
+
+#### Enhanced Progress Bar System
+- **Multi-segment progress bars**: Shows different colored segments based on refinement levels needed for missing parts
+- **Void trace cost sorting**: Progress bar segments sorted by total void trace cost (lowest to highest) for efficient farming prioritization
+- **Refinement level colors**:
+  - Yellow = Radiant (100 traces)
+  - Blue = Flawless (50 traces)
+  - Green = Exceptional (25 traces)
+  - Gray = Intact (0 traces)
+- **Smart tooltips**: Hover over segments to see exact part count and total trace cost
+- **Completion + traces display**: Progress labels show "50% + 50 traces" to explain sorting priority
+
+#### Trading Comparison Feature
+- **Complete set vs individual parts**: Shows market value comparison between selling as complete set vs individual parts
+- **Profit difference calculation**: Displays the difference in platinum between selling strategies
+- **Market data integration**: Uses existing Warframe.market API data for accurate pricing
+- **Strategy recommendations**: Provides trading strategy suggestions based on market analysis
+
+#### Technical Implementation
+- **Enhanced primeSetService.ts**: Updated `ownsItem()` and `hasItemInInventory()` functions with improved name matching for different inventory formats
+- **Multi-format inventory matching**: Handles both space-separated ("Acceltra Prime Barrel") and underscore-separated ("acceltra_prime_barrel") naming conventions
+- **UI component updates**: PrimeSetsSection.tsx enhanced with owned status toggles, trading comparison, and improved progress visualization
+- **Event system integration**: Relic focus functionality with proper section expansion and navigation
+
+#### User Benefits
+- **Accurate completion tracking**: Only counts items you want to keep toward completion percentage
+- **Flexible trading options**: Can sell complete sets while maintaining personal collection tracking
+- **Efficient farming prioritization**: Progress bar shows most efficient parts to farm first based on void trace cost
+- **Market intelligence**: Trading comparison helps optimize selling strategies
+- **Visual clarity**: Clear distinction between owned, inventory, and obtainable parts
+
 ## Recent Updates
 
 ### Unified Refresh System & Mobile UX Overhaul (2025-08)

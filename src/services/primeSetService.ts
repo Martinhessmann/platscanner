@@ -323,13 +323,6 @@ const hasItemInInventory = (itemName: string, requiredCount: number, inventory: 
 
   const lowerItemName = itemName.toLowerCase();
 
-  // DEBUG: Only log for Acceltra to reduce spam
-  const isAcceltraDebug = lowerItemName.includes('acceltra');
-  if (isAcceltraDebug) {
-    console.log(`[DEBUG] hasItemInInventory checking: "${itemName}" (${lowerItemName})`);
-    console.log(`[DEBUG] Raw inventory: ${inventory.length}, Valid inventory: ${validInventory.length}`);
-    console.log(`[DEBUG] Valid inventory items:`, validInventory.map(i => i.name));
-  }
 
   // Convert "Acceltra Prime Barrel" to "acceltra_prime_barrel" format
   const underscoreFormat = lowerItemName.replace(/\s+/g, '_');
@@ -337,29 +330,14 @@ const hasItemInInventory = (itemName: string, requiredCount: number, inventory: 
   const inventoryItem = validInventory.find(item => {
     const lowerInventoryItemName = item.name.toLowerCase();
 
-    if (isAcceltraDebug) {
-      console.log(`[DEBUG] Comparing against: "${item.name}" (${lowerInventoryItemName})`);
-    }
-
     // Try multiple matching strategies
     const exactMatch = lowerInventoryItemName === lowerItemName;
     const blueprintMatch = lowerInventoryItemName === `${lowerItemName} blueprint`;
     const underscoreMatch = lowerInventoryItemName === underscoreFormat;
     const underscoreBlueprintMatch = lowerInventoryItemName === `${underscoreFormat}_blueprint`;
 
-    const matches = exactMatch || blueprintMatch || underscoreMatch || underscoreBlueprintMatch;
-
-    if (isAcceltraDebug && matches) {
-      console.log(`[DEBUG] MATCH FOUND! ${item.name} matches ${itemName}`);
-      console.log(`[DEBUG] Match types: exact=${exactMatch}, blueprint=${blueprintMatch}, underscore=${underscoreMatch}, underscore_blueprint=${underscoreBlueprintMatch}`);
-    }
-
-    return matches;
+    return exactMatch || blueprintMatch || underscoreMatch || underscoreBlueprintMatch;
   });
-
-  if (isAcceltraDebug) {
-    console.log(`[DEBUG] Final result for "${itemName}": ${inventoryItem ? `FOUND ${inventoryItem.name}` : 'NOT FOUND'}`);
-  }
 
   return inventoryItem ? (inventoryItem.quantity || 1) >= requiredCount : false;
 };

@@ -64,8 +64,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   };
 
   const handleSort = (field: 'price' | 'name' | 'ducats' | 'totalValue') => {
-    console.log(`>>> [ResultsTable] Sort clicked: ${field}, current: ${sortField}, direction: ${sortDirection} <<<`);
-
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -73,8 +71,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
       setSortDirection(field === 'name' ? 'asc' : 'desc');
     }
     setShowSortOptions(false);
-
-    console.log(`>>> [ResultsTable] Sort applied: field=${field}, direction=${sortDirection === 'asc' ? 'desc' : 'asc'} <<<`);
   };
 
   const handleClipboardCopy = async (message: string, itemId: string) => {
@@ -125,14 +121,6 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
     }
   });
 
-  // Debug logging
-  console.log(`>>> [ResultsTable] Sorting by ${sortField} ${sortDirection}, first 3 items:`,
-    sortedResults.slice(0, 3).map(item => ({
-      name: item.name,
-      price: item.price,
-      ducats: item.ducats
-    }))
-  );
 
   if (isLoading && results.length === 0) {
     return (
