@@ -16,6 +16,13 @@ npm run preview
 
 # Run linter
 npm run lint
+
+# GitHub CLI commands for deployment management
+gh workflow list                                    # List all workflows
+gh run list --workflow="Deploy Supabase Edge Functions"  # List recent runs
+gh run rerun <RUN_ID>                              # Retry a failed workflow
+gh run watch <RUN_ID>                              # Watch a run in real-time
+gh run view <RUN_ID> --log-failed                  # View failed run logs
 ```
 
 ## Project Architecture
@@ -115,12 +122,59 @@ The app requires a Gemini API key to function, stored in localStorage. Cloud syn
 
 ## Recent Updates
 
-### Gemini 2.5 Flash Upgrade (2025-01)
+### Unified Refresh System & Mobile UX Overhaul (2025-08)
 
-- **Model upgrade**: From `gemini-1.5-flash` to `gemini-2.5-flash` for better performance and reasoning
-- **SDK migration**: From deprecated `@google/generative-ai` to new `@google/genai` unified SDK
-- **API structure**: Updated to use new SDK's `genAI.models.generateContent()` format
-- **Benefits**: Enhanced AI capabilities, future-proof integration, same speed/cost with higher quality
+#### Comprehensive Refresh System
+- **Unified refresh controls**: All three inventory modules (Prime Parts, Void Relics, Prime Sets) now have consistent refresh interfaces
+- **Progress tracking**: Real-time progress bars showing current/total items during refresh operations
+- **Persistent state**: Accordion states saved to localStorage for better user experience
+- **Last refresh timestamps**: Shows "last refreshed X minutes ago" with auto-updating display
+- **Smart caching**: Avoids unnecessary API calls unless manually refreshed
+
+#### Mobile-First Syndicate Rewards Redesign
+- **Card-based layout**: Replaced table layout with mobile-friendly cards
+- **Touch-friendly controls**: Properly sized buttons and touch targets
+- **Progressive disclosure**: Essential info first, details on demand
+- **Consistent styling**: Matches other inventory sections' design patterns
+- **Smart filtering**: Non-tradable items hidden by default for cleaner interface
+
+#### Technical Improvements
+- **LastRefreshInfo component**: Reusable component for consistent timestamp display
+- **Persistent accordion states**: `accordion_prime_parts`, `accordion_relics`, `accordion_prime_sets`
+- **Auto-scroll behavior**: Smooth scrolling when collapsing sections
+- **Loading states**: Skeleton animations during price fetching
+- **Error handling**: Graceful error states with helpful messaging
+
+### Market Data Bug Fixes (2025-08)
+
+#### Fixed Average Calculation Bug
+- **Problem**: Average prices were calculated from buy orders only, causing current == average in many cases
+- **Solution**: Now calculates average from all valid orders (buy + sell) for true market average
+- **Impact**: More accurate price comparisons and market trend analysis
+- **Files affected**: `warframeMarketService.ts`, `supabase/functions/warframe-market/index.ts`
+
+#### Enhanced Data Display
+- **Historic data restoration**: Added back average price and trade volume display in syndicate rewards
+- **Smart display logic**: Only shows average when different from current price
+- **Volume information**: Trade volume displayed in separate section for clarity
+- **Loading states**: Proper skeleton animations during data fetching
+
+### GitHub Actions Deployment (2025-08)
+
+#### Automated Supabase Deployment
+- **GitHub Actions workflow**: `.github/workflows/deploy-supabase.yml` for automated Edge Function deployment
+- **Trigger conditions**: Automatically deploys when `supabase/functions/**` files change
+- **Official Supabase action**: Uses `supabase/setup-cli@v1` for reliable CLI installation
+- **Secret management**: Requires `SUPABASE_PROJECT_REF` and `SUPABASE_ACCESS_TOKEN` (CLI token)
+- **No Docker required**: GitHub Actions handles all deployment infrastructure
+
+#### Deployment Process
+- **Token types**: CLI access token (`sbp_...`) for deployment vs service role token (`eyJ...`) for API access
+- **Error handling**: Proper error messages for token format issues
+- **Retry capability**: GitHub CLI commands for easy workflow retries
+- **Monitoring**: Real-time deployment status tracking
+
+### Gemini 2.5 Flash Upgrade (2025-01)
 
 ### Mobile UX Improvements (2025-01)
 
@@ -199,28 +253,31 @@ A comprehensive syndicate market analysis feature was implemented to help player
 
 #### Core Functionality
 - **Screenshot-based detection**: Upload syndicate offerings screenshots to automatically detect available rewards
-- **Market value analysis**: Fetch real-time prices from Warframe.market for all tradable syndicate items  
+- **Market value analysis**: Fetch real-time prices from Warframe.market for all tradable syndicate items
 - **Efficiency calculations**: Calculate plat per 1000 standing for easy comparison across items and syndicates
 - **Intelligent categorization**: Auto-detect item types (weapons, mods, cosmetics) with appropriate standing cost estimates
+- **Smart filtering**: Non-tradable items hidden by default for cleaner interface
 
 #### User-Centric Design
-- **Personal inventory storage**: Syndicate rewards are stored in user inventory (not static data) 
+- **Personal inventory storage**: Syndicate rewards are stored in user inventory (not static data)
 - **Progressive rank tracking**: Upload new screenshots as you progress through syndicate ranks
 - **Duplicate handling**: Smart deduplication across multiple screenshot uploads
 - **Cross-device sync**: Syndicate data syncs via cloud storage alongside other inventory items
+- **Mobile-first interface**: Card-based layout with touch-friendly controls and progressive disclosure
 
 #### Technical Implementation
 - **Multi-step AI analysis**: Gemini Vision API first detects syndicate screen type, then extracts syndicate name and item details
 - **Smart standing estimation**: For owned items (showing checkmarks), auto-estimates standing costs:
   - Weapons: 125,000 standing
-  - Augment mods: 25,000 standing  
+  - Augment mods: 25,000 standing
   - Cosmetics: 5,000 standing
 - **Integrated pricing pipeline**: Uses existing market data infrastructure for consistent price fetching
 - **Enhanced UI display**: Shows "plat/1k standing" ratios for better readability (vs tiny decimals)
+- **Fixed average calculation**: True market average from all orders (buy + sell) for accurate comparisons
 
 #### Key Files
 - `src/services/syndicateService.ts`: Core service with item type detection and standing cost logic
-- `src/components/SyndicateRewardsSection.tsx`: UI component with filtering, sorting, and market analysis
+- `src/components/SyndicateRewardsSection.tsx`: Mobile-friendly UI component with filtering, sorting, and market analysis
 - `src/types/index.ts`: SyndicateReward type definition with market and standing fields
 - Integration points in `geminiService.ts`, `inventoryService.ts`, and `HomePage.tsx`
 
@@ -229,3 +286,5 @@ A comprehensive syndicate market analysis feature was implemented to help player
 - **Standing efficiency**: Compare plat/standing ratios across all syndicates
 - **Progress tracking**: Visual progression as new ranks unlock more rewards
 - **Market awareness**: Real-time pricing helps with trading decisions
+- **Clean interface**: Non-tradable items filtered out by default
+- **Mobile experience**: Touch-friendly design works great on all devices

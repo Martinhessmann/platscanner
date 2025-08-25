@@ -14,6 +14,8 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 - 📦 **Persistent Inventory**: Your scanned items save automatically across sessions
 - 🎮 **Extended Item Support**: Scan Prime Parts, Void Relics, and Syndicate Rewards
 - 🛡️ **Syndicate Market Analysis**: Compare plat/standing ratios to optimize standing spending
+- 🔄 **Unified Refresh System**: Consistent refresh controls across all inventory modules with progress tracking
+- 📊 **Enhanced Market Data**: Fixed average calculation for more accurate price comparisons
 - 📱 **Mobile-First Design**: Optimized interface with touch-friendly controls
 - 🎨 **Warframe-Themed UI**: Beautiful interface matching the game's aesthetic
 - ⚡ **Reliable Processing**: Robust queue system with automatic error handling
@@ -42,6 +44,8 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 - Sort by plat/standing ratio to find the best value items
 - Filter by syndicate, item type, price range, and standing cost
 - Compare different syndicates to optimize your standing spending
+- **Smart filtering**: Hide non-tradable items by default for cleaner interface
+- **Mobile-friendly design**: Card-based layout with touch-friendly controls
 
 ### 5. Cloud Sync (Optional)
 - Enable cross-platform synchronization in Settings > Cloud Sync
@@ -132,20 +136,27 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 The app uses Supabase Edge Functions in production for improved performance and API rate limiting. To deploy:
 
-```bash
-# 1. Ensure Docker Desktop is running
-open -a Docker
+#### Option 1: GitHub Actions (Recommended)
+The repository includes automated deployment via GitHub Actions. Simply push changes to `supabase/functions/**` and the workflow will automatically deploy:
 
-# 2. Install Supabase CLI (if not already installed)
+1. **Set up GitHub secrets**:
+   - `SUPABASE_PROJECT_REF`: Your project reference ID
+   - `SUPABASE_ACCESS_TOKEN`: Your CLI access token (starts with `sbp_`)
+
+2. **Automatic deployment**: Push changes to trigger deployment
+
+#### Option 2: Manual CLI Deployment
+```bash
+# 1. Install Supabase CLI
 brew install supabase/tap/supabase
 
-# 3. Deploy the Edge Function
-supabase functions deploy warframe-market
+# 2. Deploy the Edge Function
+supabase functions deploy warframe-market --project-ref YOUR_PROJECT_REF
 ```
 
-**✅ Verified Working**: The CLI deployment process successfully deploys the warframe-market function
-- **Current Status**: Active (Version 10)
-- **Function Features**: Batch API support, smart caching, CORS handling, rate limiting
+**✅ Verified Working**: Both GitHub Actions and CLI deployment successfully deploy the warframe-market function
+- **Current Status**: Active (Version 11)
+- **Function Features**: Batch API support, smart caching, CORS handling, rate limiting, fixed average calculation
 - **Development**: App works with direct API calls when Supabase is unavailable
 
 ## 📖 Documentation
