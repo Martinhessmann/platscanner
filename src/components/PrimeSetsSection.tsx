@@ -84,7 +84,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
     const sectionRef = useRef<HTMLDivElement>(null);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
- 
+
    // Persistent accordion state for Prime Sets
   const [isExpanded, setIsExpanded] = useState(() => {
     const stored = localStorage.getItem('accordion_prime_sets');
@@ -240,7 +240,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const getSetState = (progress: SetProgress): 'default' | 'planned' | 'owned' => {
     const masteredSets = getMasteredSets();
     const isOwned = masteredSets.includes(progress.set.id);
-    
+
     if (isOwned) return 'owned';
     if (plannedSets.has(progress.set.id)) return 'planned';
     return 'default';
@@ -632,7 +632,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   const filteredSets = () => {
     const masteredSets = getMasteredSets();
-    
+
     let filtered = setProgress;
 
     // Apply all active filters
@@ -669,48 +669,48 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       // Priority sets always come first
       const aPriority = plannedSets.get(a.set.id)?.isPriority || false;
       const bPriority = plannedSets.get(b.set.id)?.isPriority || false;
-      
+
       if (aPriority && !bPriority) return -1;
       if (!aPriority && bPriority) return 1;
-      
+
       // Within same priority level, sort by smart completion logic
       const aOwned = a.ownedParts.length;
       const aObtainable = a.obtainableFromRelics.length;
       const aTotal = a.set.requiredParts.length;
-      
+
       const bOwned = b.ownedParts.length;
       const bObtainable = b.obtainableFromRelics.length;
       const bTotal = b.set.requiredParts.length;
-      
+
       // Calculate completion potential
       const aCompletable = aOwned + aObtainable;
       const bCompletable = bOwned + bObtainable;
-      
+
       // Priority order:
       // 1. Fully completable sets (owned + obtainable = total) - sort by owned parts
       // 2. Partially completable sets - sort by completion potential, then owned parts
       // 3. Non-completable sets - sort by owned parts only
-      
+
       const aFullyCompletable = aCompletable >= aTotal;
       const bFullyCompletable = bCompletable >= bTotal;
-      
+
       if (aFullyCompletable && !bFullyCompletable) return -1;
       if (!aFullyCompletable && bFullyCompletable) return 1;
-      
+
       if (aFullyCompletable && bFullyCompletable) {
         // Both fully completable - prioritize by owned parts, then total completion
         if (aOwned !== bOwned) return bOwned - aOwned;
         return bCompletable - aCompletable;
       }
-      
+
       // Neither fully completable - sort by completion potential, then owned
       const aCompletionPercent = aCompletable / aTotal;
       const bCompletionPercent = bCompletable / bTotal;
-      
+
       if (Math.abs(aCompletionPercent - bCompletionPercent) > 0.01) {
         return bCompletionPercent - aCompletionPercent;
       }
-      
+
       return bOwned - aOwned;
     });
   };
@@ -721,27 +721,27 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const toggleFilter = (filter: string) => {
     setActiveFilters(prev => {
       const updated = new Set(prev);
-      
+
       if (filter === 'all') {
         // If clicking "All", clear other filters
         return new Set(['all']);
       } else {
         // Remove "all" if selecting specific filters
         updated.delete('all');
-        
+
         // Toggle the specific filter
         if (updated.has(filter)) {
           updated.delete(filter);
         } else {
           updated.add(filter);
         }
-        
+
         // If no filters remain, default to "all"
         if (updated.size === 0) {
           updated.add('all');
         }
       }
-      
+
       return updated;
     });
   };
@@ -766,13 +766,13 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   return (
     <div ref={sectionRef} className="w-full mb-2">
-      {/* Mobile-first sticky header */}
+      {/* Unified sticky header with consistent layout */}
       <div className="bg-gray-900/50 backdrop-blur-sm p-3 rounded-t-xl border border-gray-700/50 border-b-0 sticky top-0 z-20">
-        <button
-          onClick={handleToggle}
-          className="flex items-center justify-between w-full text-left group"
-        >
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between w-full">
+          <button
+            onClick={handleToggle}
+            className="flex items-center gap-3 text-left group flex-1"
+          >
             <div className="flex items-center gap-2">
               {isExpanded ? (
                 <ChevronDown size={16} className="text-gray-400 group-hover:text-orokin-gold transition-colors" />
@@ -785,23 +785,46 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
                 Prime Sets
               </h3>
-              <p className="text-xs text-gray-400">
-                {totalSets} set{totalSets !== 1 ? 's' : ''} • {vaultedSets} vaulted • {inProgressSets} planned
-              </p>
+              {/* Essential info line - item count and key values */}
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <span>{totalSets} sets</span>
+                {isRefreshing && refreshProgress && (
+                  <span className="text-tenno-blue">
+                    Refreshing {refreshProgress.current}/{refreshProgress.total}
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
+          </button>
 
-          <div className="text-right">
-            <div className="flex items-center justify-end gap-1 mb-1">
-              <Star size={14} className="text-yellow-400" />
-              <span className="text-lg font-bold text-yellow-400">{inProgressSets}</span>
-            </div>
-            <div className="flex items-center justify-end gap-1">
-              <CheckCircle size={10} className="text-green-400" />
-              <span className="text-xs text-green-400">{builtSets}</span>
-            </div>
+          {/* Unified action buttons with consistent spacing */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefreshPrimeSets}
+              disabled={isRefreshing}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                isRefreshing
+                  ? 'text-gray-500 cursor-not-allowed'
+                  : 'text-tenno-blue hover:bg-tenno-blue/10'
+              }`}
+              title="Refresh all prime sets"
+            >
+              <RefreshCw
+                size={12}
+                className={isRefreshing ? 'animate-spin' : ''}
+              />
+              {isRefreshing && refreshProgress ? `${refreshProgress.current}/${refreshProgress.total}` : ''}
+            </button>
+
+            {/* Single timestamp location - removed duplicates */}
+            {lastRefreshTime && (
+              <LastRefreshInfo
+                lastRefreshDate={lastRefreshTime}
+                className="text-xs text-gray-500"
+              />
+            )}
           </div>
-        </button>
+        </div>
 
 
         {/* Progress bar - show when refreshing */}
@@ -1018,7 +1041,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                     <button
                       onClick={() => {
                         const currentPriority = plannedSets.get(progress.set.id)?.isPriority || false;
-                        
+
                         if (currentPriority) {
                           // Remove from priority (but keep as "planned" since all non-built are planned)
                           removeFromBuildPlan(progress.set.name);
@@ -1090,7 +1113,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       return (
                         <div
                           className={`h-2 ${overlayColorClass} rounded-full transition-all absolute top-0`}
-                          style={{ 
+                          style={{
                             left: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%`,
                             width: `${(progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100}%`
                           }}

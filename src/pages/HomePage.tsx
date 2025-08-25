@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import ImageUploader from '../components/ImageUploader';
-import ProcessingAnimation from '../components/ProcessingAnimation';
+import ProcessingPanel from '../components/ProcessingPanel';
 import InventorySection from '../components/InventorySection';
 import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
@@ -33,6 +33,11 @@ interface HomePageProps {
   refreshTrigger?: number;
 }
 
+interface ProcessingMetadata {
+  duplicatesPerImage: Map<string, number>;
+  currentFetchItem?: { name: string; index: number; total: number };
+}
+
 const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refreshTrigger }) => {
   const [processingState, setProcessingState] = useState<ProcessingState>({
     activeImageId: null,
@@ -40,6 +45,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     combinedResults: new Map(), // Keep for compatibility, but won't be used
     processedCount: 0,
     totalCount: 0
+  });
+
+  const [processingMetadata, setProcessingMetadata] = useState<ProcessingMetadata>({
+    duplicatesPerImage: new Map(),
+    currentFetchItem: undefined
   });
 
   const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
@@ -302,8 +312,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         try {
           console.log(`>>> [AI Analysis] Starting analysis for image: ${nextImage.id} <<<`);
 
+          // Track analysis start time to detect cache usage
+          const startTime = Date.now();
+
           // Extract items using Gemini AI
           const detectedItems = await analyzeImage(nextImage.file);
+          
+          // If analysis was very fast (< 500ms), it was likely cached
+          const analysisTime = Date.now() - startTime;
+          const wasCached = analysisTime < 500;
 
           // Check if processing was stopped
           if (shouldStopProcessing) {
@@ -313,7 +330,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 ...nextImage,
                 status: 'complete',
                 error: 'Processing stopped by user',
-                results: []
+                results: [],
+                wasCached
               }),
               processedCount: current.processedCount + 1
             }));
@@ -324,8 +342,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           const currentInventory = loadInventory();
           const existingItemNames = new Set(currentInventory.items.map(item => item.name));
           const newItems = detectedItems.filter(item => !existingItemNames.has(item.name));
+          const duplicatesCount = detectedItems.length - newItems.length;
 
-          console.log(`>>> [AI Analysis] Detected ${detectedItems.length} items, ${newItems.length} are new <<<`);
+          console.log(`>>> [AI Analysis] Detected ${detectedItems.length} items, ${newItems.length} are new, ${duplicatesCount} duplicates <<<`);
+
+          // Track duplicates for this image
+          setProcessingMetadata(current => ({
+            ...current,
+            duplicatesPerImage: new Map(current.duplicatesPerImage).set(nextImage.id, duplicatesCount)
+          }));
 
           if (newItems.length === 0) {
             setProcessingState(current => ({
@@ -333,7 +358,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               images: new Map(current.images).set(nextImage.id, {
                 ...nextImage,
                 status: 'complete',
-                results: []
+                results: [],
+                wasCached
               }),
               processedCount: current.processedCount + 1
             }));
@@ -347,7 +373,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               ...nextImage,
               status: 'analyzed', // New status indicating ready for price fetching
               results: newItems,
-              syndicateRewards: newItems.filter(item => item.category === 'syndicate_rewards') // Store syndicate rewards for price fetching
+              syndicateRewards: newItems.filter(item => item.category === 'syndicate_rewards'), // Store syndicate rewards for price fetching
+              wasCached
             })
           }));
 
@@ -451,6 +478,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             const item = newItems[index];
             console.log(`>>> [Price Fetching] Processing item ${index + 1}/${newItems.length}: ${item.name} <<<`);
 
+            // Update current fetch item in metadata
+            setProcessingMetadata(current => ({
+              ...current,
+              currentFetchItem: { name: item.name, index: index + 1, total: newItems.length }
+            }));
+
             try {
               let processedItem: DetectedItem;
 
@@ -481,7 +514,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                       directSalePrice: relicAnalysis.directSalePrice,
                       relicDrops: relicAnalysis.relicDrops,
                       refinementAnalysis: relicAnalysis.refinementAnalysis,
-                      status: 'success' as const
+                      status: 'loaded' as const
                     };
                   } else {
                     processedItem = {
@@ -489,7 +522,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                       price: priceData.price,
                       marketVolume: priceData.volume,
                       lastUpdated: new Date(),
-                      status: 'success' as const
+                      status: 'loaded' as const
                     };
                   }
                 } else {
@@ -591,6 +624,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               results: processedItems
             }),
             processedCount: current.processedCount + 1
+          }));
+
+          // Clear current fetch item
+          setProcessingMetadata(current => ({
+            ...current,
+            currentFetchItem: undefined
           }));
 
           console.log(`>>> [Price Fetching] Completed for image: ${nextImage.id} <<<`);
@@ -711,6 +750,16 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         activeImageId: newActiveId,
         processedCount: Math.max(0, prev.processedCount - 1),
         totalCount: Math.max(0, prev.totalCount - 1)
+      };
+    });
+
+    // Also clean up metadata for this image
+    setProcessingMetadata(prev => {
+      const newDuplicatesMap = new Map(prev.duplicatesPerImage);
+      newDuplicatesMap.delete(id);
+      return {
+        ...prev,
+        duplicatesPerImage: newDuplicatesMap
       };
     });
   }, []);
@@ -1192,52 +1241,30 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       <div className="max-w-full mx-auto">
         {/* Full width layout */}
         <div className="space-y-3 p-3 lg:p-4">
-          {/* Upload section - only show when not processing and no results, or when API key missing */}
-          {(!isConfigured || (!activeImage && processingState.images.size === 0 && categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0)) && (
+          {/* Initial upload section - show when no inventory exists yet AND not processing */}
+          {isConfigured && categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && categorizedInventory.syndicate_rewards.length === 0 && !isProcessing && (
             <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
-              {isConfigured ? (
-                <>
-                  <h2 className="text-lg font-semibold mb-4">Ready to Scan</h2>
-                  <p className="text-gray-400 text-sm mb-4">
-                    Upload screenshots of your Warframe inventory to begin scanning for Prime parts and Void relics.
-                  </p>
-                  <ImageUploader
-                    onImageUpload={handleImageUpload}
-                    isProcessing={isProcessing}
-                    images={processingState.images}
-                    activeImageId={processingState.activeImageId}
-                    onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
-                    onImageRemove={handleImageRemove}
-                  />
-                </>
-              ) : (
-                <>
-                  <Key size={40} className="mx-auto text-orokin-gold mb-3" />
-                  <h2 className="text-lg font-semibold mb-2">API Key Required</h2>
-                  <p className="text-gray-400 mb-4 text-sm">
-                    Please add your Gemini API key to start scanning your inventory.
-                  </p>
-                  <button
-                    onClick={onOpenSettings}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-tenno-blue hover:bg-tenno-light text-white rounded-lg transition-colors"
-                  >
-                    <Key size={16} />
-                    Add API Key
-                  </button>
-                  <p className="text-xs text-gray-500 mt-3">
-                    Your API key is stored securely in your browser and never transmitted to our servers.
-                  </p>
-                </>
-              )}
+              <h2 className="text-lg font-semibold mb-4">Ready to Scan</h2>
+              <p className="text-gray-400 text-sm mb-4">
+                Upload screenshots of your Warframe inventory to begin scanning for Prime parts and Void relics.
+              </p>
+              <ImageUploader
+                onImageUpload={handleImageUpload}
+                isProcessing={isProcessing}
+                images={processingState.images}
+                activeImageId={processingState.activeImageId}
+                onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
+                onImageRemove={handleImageRemove}
+              />
             </div>
           )}
 
-          {/* Upload section - show at top when we have results but not processing */}
-          {isConfigured && !isProcessing && (categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0 || categorizedInventory.syndicate_rewards.length > 0) && (
+          {/* Upload section during initial processing - show when no inventory but processing */}
+          {isConfigured && categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && categorizedInventory.syndicate_rewards.length === 0 && isProcessing && (
             <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold">Add More Screenshots</h3>
-                <span className="text-xs text-gray-500">Drag and drop to add more items</span>
+                <h3 className="text-lg font-semibold">Processing Images</h3>
+                <span className="text-xs text-gray-500">You can add more images while processing</span>
               </div>
               <ImageUploader
                 onImageUpload={handleImageUpload}
@@ -1250,18 +1277,68 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             </div>
           )}
 
-          {isProcessing && (
+          {/* API Key Missing */}
+          {!isConfigured && (
+            <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
+              <Key size={40} className="mx-auto text-orokin-gold mb-3" />
+              <h2 className="text-lg font-semibold mb-2">API Key Required</h2>
+              <p className="text-gray-400 mb-4 text-sm">
+                Please add your Gemini API key to start scanning your inventory.
+              </p>
+              <button
+                onClick={onOpenSettings}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-tenno-blue hover:bg-tenno-light text-white rounded-lg transition-colors"
+              >
+                <Key size={16} />
+                Add API Key
+              </button>
+              <p className="text-xs text-gray-500 mt-3">
+                Your API key is stored securely in your browser and never transmitted to our servers.
+              </p>
+            </div>
+          )}
+
+          {/* Upload section - always show when configured and we have results */}
+          {isConfigured && (categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0 || categorizedInventory.syndicate_rewards.length > 0) && (
             <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
-              <ProcessingAnimation
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold">Add More Screenshots</h3>
+                <span className="text-xs text-gray-500">
+                  {isProcessing ? 'Processing in progress - you can still add more images' : 'Drag and drop to add more items'}
+                </span>
+              </div>
+              <ImageUploader
+                onImageUpload={handleImageUpload}
+                isProcessing={isProcessing}
+                images={processingState.images}
+                activeImageId={processingState.activeImageId}
+                onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
+                onImageRemove={handleImageRemove}
+              />
+            </div>
+          )}
+
+          {/* Processing Panel - always show when we have images */}
+          {processingState.images.size > 0 && (
+            <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4">
+              <ProcessingPanel
                 stage={
-                  activeImage?.status === 'analyzing' ? 'analyzing' :
-                  activeImage?.status === 'analyzed' ? 'analyzed' :
-                  activeImage?.status === 'fetching' ? 'fetching' :
-                  'analyzing'
+                  isProcessing ? (
+                    activeImage?.status === 'analyzing' ? 'analyzing' :
+                    activeImage?.status === 'analyzed' ? 'analyzed' :
+                    activeImage?.status === 'fetching' ? 'fetching' :
+                    'analyzing'
+                  ) : 'complete'
                 }
                 progress={activeImage?.status === 'fetching' ? fetchingProgress : undefined}
                 onStop={stopProcessing}
                 canStop={activeImage?.status === 'fetching'}
+                images={processingState.images}
+                activeImageId={processingState.activeImageId}
+                duplicatesPerImage={processingMetadata.duplicatesPerImage}
+                currentFetchItem={processingMetadata.currentFetchItem}
+                onImageRemove={handleImageRemove}
+                onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
               />
             </div>
           )}

@@ -234,7 +234,7 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
 
   return (
     <div ref={sectionRef} className="mb-2">
-      {/* Mobile-first sticky header */}
+      {/* Unified sticky header with consistent layout */}
       <div className="bg-gray-900/50 backdrop-blur-sm p-3 rounded-t-xl border border-gray-700/50 border-b-0 sticky top-0 z-20">
         <div className="flex items-center justify-between w-full">
           <button
@@ -253,10 +253,9 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
               <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
                 Syndicate Rewards
               </h3>
-              <div className="flex items-center gap-4 text-xs text-gray-400">
-                <span>
-                  {totals.totalCount} item{totals.totalCount !== 1 ? 's' : ''}
-                </span>
+              {/* Essential info line - item count and key values */}
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <span>{totals.totalCount} item{totals.totalCount !== 1 ? 's' : ''}</span>
                 {totals.totalValue > 0 && (
                   <div className="flex items-center gap-1">
                     <Zap size={10} className="text-gray-300" />
@@ -343,7 +342,7 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-400">
-                  {filteredAndSortedRewards.length} of {totals.totalCount} items
+                  {filteredAndSortedRewards.length} items
                 </span>
                 <button
                   onClick={() => setShowFilters(!showFilters)}

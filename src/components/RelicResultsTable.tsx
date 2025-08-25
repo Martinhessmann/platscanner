@@ -58,27 +58,27 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   const toggleEraFilter = (era: string) => {
     setActiveEraFilters(prev => {
       const newFilters = new Set(prev);
-      
+
       if (era === 'all') {
         // If clicking "all", clear all other filters and set only "all"
         return new Set(['all']);
       } else {
         // Remove "all" if it exists
         newFilters.delete('all');
-        
+
         // Toggle the specific era
         if (newFilters.has(era)) {
           newFilters.delete(era);
         } else {
           newFilters.add(era);
         }
-        
+
         // If no filters selected, default back to "all"
         if (newFilters.size === 0) {
           newFilters.add('all');
         }
       }
-      
+
       return newFilters;
     });
   };
@@ -201,7 +201,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
 
   // Apply filters
   let filteredResults = results;
-  
+
   // Apply unreserved filter
   if (showUnreservedOnly) {
     filteredResults = filteredResults.filter(relic => !isItemReserved(relic.name, 'relics').reserved);
@@ -350,7 +350,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
       <div className="flex items-center justify-between mb-4 px-2">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="text-sm text-gray-400">
-            {finalFilteredRelics.length} of {results.length} relic{results.length !== 1 ? 's' : ''}
+            {finalFilteredRelics.length} relic{finalFilteredRelics.length !== 1 ? 's' : ''}
             {(showUnreservedOnly || !activeEraFilters.has('all')) && ' filtered'}
           </div>
 
@@ -415,13 +415,13 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
           <div className="flex items-center gap-1 flex-wrap">
             {['all', 'lith', 'meso', 'neo', 'axi', 'requiem'].map((era) => {
               const isActive = activeEraFilters.has(era);
-              const eraCount = era === 'all' 
-                ? results.length 
+              const eraCount = era === 'all'
+                ? results.length
                 : results.filter(relic => getRelicEra(relic.name) === era).length;
-              
+
               // Don't show era pills with 0 count unless it's "all"
               if (eraCount === 0 && era !== 'all') return null;
-              
+
               return (
                 <button
                   key={era}
@@ -442,12 +442,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
             })}
           </div>
 
-          {lastRefreshTime && (
-            <LastRefreshInfo 
-              lastRefreshDate={lastRefreshTime} 
-              className="text-xs text-gray-500"
-            />
-          )}
+
         </div>
       </div>
 
@@ -505,8 +500,8 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                     })()}
                     {relic.lastUpdated && (
                       <div className="text-xs text-gray-500 mt-0.5">
-                        <LastRefreshInfo 
-                          lastRefreshDate={relic.lastUpdated} 
+                        <LastRefreshInfo
+                          lastRefreshDate={relic.lastUpdated}
                           className="text-xs text-gray-500"
                         />
                       </div>
@@ -844,8 +839,8 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                       )}
                       {relic.lastUpdated && (
                         <div className="text-xs text-gray-500 mt-0.5">
-                          <LastRefreshInfo 
-                            lastRefreshDate={relic.lastUpdated} 
+                          <LastRefreshInfo
+                            lastRefreshDate={relic.lastUpdated}
                             className="text-xs text-gray-500"
                           />
                         </div>

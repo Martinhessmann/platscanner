@@ -84,10 +84,9 @@ const InventorySection: React.FC<InventorySectionProps> = ({
     return null; // Don't render empty sections
   }
 
-
   return (
     <div ref={sectionRef} className="mb-2">
-      {/* Mobile-first sticky header */}
+      {/* Unified sticky header with consistent layout */}
       <div className="bg-gray-900/50 backdrop-blur-sm p-3 rounded-t-xl border border-gray-700/50 border-b-0 sticky top-0 z-20">
         <div className="flex items-center justify-between w-full">
           <button
@@ -106,10 +105,9 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
                 {title}
               </h3>
-              <div className="flex items-center gap-4 text-xs text-gray-400">
-                <span>
-                  {items.length} item{items.length !== 1 ? 's' : ''}
-                </span>
+              {/* Essential info line - item count and key values */}
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <span>{items.length} item{items.length !== 1 ? 's' : ''}</span>
                 {totalValue > 0 && (
                   <div className="flex items-center gap-1">
                     <Zap size={10} className="text-gray-300" />
@@ -131,6 +129,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
             </div>
           </button>
 
+          {/* Unified action buttons with consistent spacing */}
           <div className="flex items-center gap-2">
             <button
               onClick={onRefreshAll}
@@ -157,6 +156,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               <Trash2 size={12} />
             </button>
 
+            {/* Single timestamp location - removed duplicates */}
             {lastRefreshTime && (
               <LastRefreshInfo
                 lastRefreshDate={lastRefreshTime}
@@ -165,7 +165,6 @@ const InventorySection: React.FC<InventorySectionProps> = ({
             )}
           </div>
         </div>
-
 
         {/* Progress bar - show when refreshing */}
         {isRefreshing && progress && (

@@ -68,59 +68,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   });
 
   return (
-    <div className="space-y-4">
-      {/* Image Queue */}
-      {images.size > 0 && (
-        <div className="overflow-x-auto pb-2">
-          <div className="flex gap-2">
-            {Array.from(images.values()).map(image => (
-              <div 
-                key={image.id}
-                onClick={() => onImageSelect(image.id)}
-                className={`
-                  relative rounded-lg overflow-hidden cursor-pointer border-2
-                  ${activeImageId === image.id ? 'border-orokin-gold' : 'border-gray-700'}
-                  ${image.status === 'error' ? 'border-grineer-red' : ''}
-                  hover:border-orokin-gold/70 transition-colors
-                `}
-              >
-                <img 
-                  src={image.preview} 
-                  alt="Screenshot preview"
-                  className="h-20 w-20 object-cover"
-                />
-                <div className="absolute top-0 left-0 right-0 px-2 py-1 text-xs bg-black/50 truncate">
-                  {image.file.name}
-                </div>
-                <div className={`
-                  absolute bottom-0 left-0 right-0 px-2 py-1 text-xs
-                  ${image.status === 'complete' ? 'bg-corpus-green/80' : 
-                    image.status === 'error' ? 'bg-grineer-red/80' :
-                    'bg-black/50'}
-                `}>
-                  {image.status === 'queued' && 'Queued'}
-                  {image.status === 'analyzing' && 'Analyzing...'}
-                  {image.status === 'fetching' && 'Fetching...'}
-                  {image.status === 'complete' && 'Complete'}
-                  {image.status === 'error' && 'Error'}
-                </div>
-                {!isProcessing && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onImageRemove(image.id);
-                    }}
-                    className="absolute top-1 right-1 bg-grineer-red text-white p-1 rounded-full hover:bg-grineer-dark transition-colors"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
+    <div>
       {/* Upload Area */}
       <div 
         {...getRootProps()} 
