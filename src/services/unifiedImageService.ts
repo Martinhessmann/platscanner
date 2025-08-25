@@ -123,7 +123,16 @@ export const getImageUrl = async (itemName: string): Promise<string> => {
  */
 export const getImageUrlSync = (itemName: string): string | null => {
   if (!primeSetsCache) {
+    // Try to trigger async loading for next time, but return null for now
+    console.log(`[ImageService] Cache not loaded for: ${itemName}`);
+    loadPrimeSets().catch(console.error);
     return null;
+  }
+
+  // Special debug for the problematic item
+  if (itemName === 'Oberon Prime Neuroptics Blueprint') {
+    console.log(`[ImageService DEBUG] Processing: ${itemName}`);
+    console.log(`[ImageService DEBUG] Cache size: ${primeSetsCache.length}`);
   }
 
   // Direct match
@@ -134,6 +143,12 @@ export const getImageUrlSync = (itemName: string): string | null => {
 
   // Parent set match
   const parentSetName = getParentSetName(itemName);
+  if (itemName === 'Oberon Prime Neuroptics Blueprint') {
+    console.log(`[ImageService DEBUG] Parent set name: ${parentSetName}`);
+    const parentMatch = primeSetsCache.find(set => set.name === parentSetName);
+    console.log(`[ImageService DEBUG] Parent match found: ${parentMatch ? parentMatch.name : 'NONE'}`);
+  }
+  
   if (parentSetName !== itemName) {
     const parentMatch = primeSetsCache.find(set => set.name === parentSetName);
     if (parentMatch) {

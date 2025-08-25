@@ -57,6 +57,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
     if (item.category === 'prime_parts') {
       // For prime parts, use the unified image service to get parent set image
       const imageUrl = getImageUrlSync(item.name);
+      console.log(`[ResultsTable] Image lookup for "${item.name}": ${imageUrl || 'NULL'}`);
       return imageUrl || '/images/primeparts/unknown.png';
     }
     // For other categories, use the original imgUrl
