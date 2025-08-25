@@ -20,7 +20,7 @@ import {
   getLastRefreshTime,
   InventoryItem
 } from '../services/inventoryService';
-import { getPrimeSetsCache } from '../services/primeSetService';
+import { getPrimeSetsCache, getMasteredSets, loadPrimeSets } from '../services/primeSetService';
 import { ImageState, DetectedItem, ProcessingState, VoidRelic } from '../types';
 import InfoCard from '../components/InfoCard';
 import PrimeSetsSection from '../components/PrimeSetsSection';
@@ -73,23 +73,93 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     syndicate_rewards: [] as InventoryItem[]
   });
   
-  // Toggle state for showing all prime parts vs blueprints only
-  const [showAllPrimeParts, setShowAllPrimeParts] = useState(() => {
-    const stored = localStorage.getItem('show_all_prime_parts');
-    return stored !== null ? JSON.parse(stored) : false;
+  // Filter state for prime parts
+  const [primePartsFilter, setPrimePartsFilter] = useState<'all' | 'blueprints' | 'built_sets'>(() => {
+    const stored = localStorage.getItem('prime_parts_filter');
+    return stored ? JSON.parse(stored) : 'blueprints';
   });
 
+  // Save filter state to localStorage
+  useEffect(() => {
+    localStorage.setItem('prime_parts_filter', JSON.stringify(primePartsFilter));
+  }, [primePartsFilter]);
 
-  // Prime parts to display based on filter toggle
-  const displayedPrimeParts = useMemo(() => {
-    if (showAllPrimeParts) {
-      return categorizedInventory.prime_parts;
+  // State for built set parts
+  const [builtSetParts, setBuiltSetParts] = useState<Set<string>>(new Set());
+
+  // Load built set parts when component mounts or mastered sets change
+  useEffect(() => {
+    const loadBuiltSetParts = async () => {
+      const masteredSets = getMasteredSets();
+      console.log('[Built Sets Filter] Mastered sets:', masteredSets);
+      
+      if (masteredSets.length === 0) {
+        setBuiltSetParts(new Set());
+        return;
+      }
+
+      try {
+        const primeSets = await loadPrimeSets();
+        console.log('[Built Sets Filter] Loaded prime sets count:', primeSets.length);
+        
+        const parts = new Set<string>();
+        primeSets.forEach(set => {
+          if (masteredSets.includes(set.id)) {
+            console.log('[Built Sets Filter] Found mastered set:', set.name);
+            set.requiredParts.forEach(part => {
+              // The part.name is already the full part name like "Acceltra Prime Receiver"
+              console.log('[Built Sets Filter] Adding part from built set:', part.name);
+              parts.add(part.name.toLowerCase());
+            });
+          }
+        });
+        
+        console.log('[Built Sets Filter] Total parts from built sets:', parts.size);
+        console.log('[Built Sets Filter] Built set parts:', Array.from(parts));
+        
+        setBuiltSetParts(parts);
+      } catch (error) {
+        console.error('[Built Sets Filter] Error loading prime sets:', error);
+        setBuiltSetParts(new Set());
+      }
+    };
+
+    loadBuiltSetParts();
+  }, [inventoryRefreshTrigger]); // Reload when inventory changes
+
+  // Helper function to check if a part belongs to a built/mastered set
+  const isPartFromBuiltSet = useCallback((partName: string) => {
+    const hasMatch = builtSetParts.has(partName.toLowerCase());
+    if (hasMatch) {
+      console.log('[Built Sets Filter] Part matches built set:', partName);
     }
-    // Only sellable (uncrafted Blueprints)
-    return categorizedInventory.prime_parts.filter(item =>
-      item.name.toLowerCase().endsWith(' blueprint')
-    );
-  }, [categorizedInventory.prime_parts, showAllPrimeParts]);
+    return hasMatch;
+  }, [builtSetParts]);
+
+  // Prime parts to display based on filter
+  const displayedPrimeParts = useMemo(() => {
+    const validParts = categorizedInventory.prime_parts.filter(item => {
+      // Filter out corrupted Gemini data
+      if (item.category !== 'prime_parts') return false;
+      const lowerName = item.name.toLowerCase();
+      if (lowerName.includes('here are the') || 
+          lowerName.includes('visible in the screenshot') ||
+          lowerName.includes('items detected') ||
+          lowerName.length < 5) return false;
+      return true;
+    });
+
+    switch (primePartsFilter) {
+      case 'all':
+        return validParts;
+      case 'blueprints':
+        return validParts.filter(item => item.name.toLowerCase().endsWith(' blueprint'));
+      case 'built_sets':
+        return validParts.filter(item => isPartFromBuiltSet(item.name));
+      default:
+        return validParts.filter(item => item.name.toLowerCase().endsWith(' blueprint'));
+    }
+  }, [categorizedInventory.prime_parts, primePartsFilter, isPartFromBuiltSet]);
 
   // Totals for displayed parts
   const displayedPrimePartsTotals = useMemo(() => {
@@ -810,34 +880,25 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
   // Clear prime parts (all or blueprints only based on current view)
   const handleClearPrimeParts = useCallback(() => {
-    const itemsToRemove = showAllPrimeParts 
-      ? categorizedInventory.prime_parts 
-      : displayedPrimeParts;
-    
+    const itemsToRemove = displayedPrimeParts;
     const namesToRemove = new Set(itemsToRemove.map(i => i.name));
     namesToRemove.forEach(name => removeFromInventory(name));
     
-    if (showAllPrimeParts) {
+    if (primePartsFilter === 'all') {
       // Clear ALL prime parts
       setCategorizedInventory(prev => ({
         ...prev,
         prime_parts: []
       }));
     } else {
-      // Clear only blueprints
+      // Clear only the filtered items (blueprints or built set parts)
       setCategorizedInventory(prev => ({
         ...prev,
         prime_parts: prev.prime_parts.filter(item => !namesToRemove.has(item.name))
       }));
     }
-  }, [categorizedInventory.prime_parts, displayedPrimeParts, showAllPrimeParts]);
+  }, [categorizedInventory.prime_parts, displayedPrimeParts, primePartsFilter]);
   
-  // Handle toggle for showing all prime parts
-  const handleToggleShowAllPrimeParts = useCallback(() => {
-    const newValue = !showAllPrimeParts;
-    setShowAllPrimeParts(newValue);
-    localStorage.setItem('show_all_prime_parts', JSON.stringify(newValue));
-  }, [showAllPrimeParts]);
 
   // Individual item price refresh
   const handleRefreshSingleItem = useCallback(async (itemName: string) => {
@@ -1391,9 +1452,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 lastRefreshTime={lastPrimePartsRefresh}
                 onRefreshAll={handleRefreshPrimeParts}
                 onClearAll={handleClearPrimeParts}
-                showAllToggle={true}
-                showAll={showAllPrimeParts}
-                onToggleShowAll={handleToggleShowAllPrimeParts}
+                primePartsFilter={primePartsFilter}
+                onPrimePartsFilterChange={setPrimePartsFilter}
                 onRefreshItem={handleRefreshSingleItem}
                 onRemoveItem={handleRemoveFromInventory}
               />

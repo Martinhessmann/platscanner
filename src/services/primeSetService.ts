@@ -210,7 +210,7 @@ const transformJsonToPrimeSet = (jsonSet: PrimeSetJson): PrimeSet => {
 import { loadPrimeSetsData } from './staticDataService';
 import { fetchBatchPrimeSetMarketData, fetchPrimeSetMarketData } from './warframeMarketService';
 
-const loadPrimeSets = async (): Promise<PrimeSet[]> => {
+export const loadPrimeSets = async (): Promise<PrimeSet[]> => {
   try {
     const jsonData: PrimeSetJson[] = await loadPrimeSetsData() as any;
     return jsonData.map(transformJsonToPrimeSet);

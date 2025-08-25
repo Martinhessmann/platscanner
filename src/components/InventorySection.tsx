@@ -23,10 +23,9 @@ interface InventorySectionProps {
   onClearAll: () => void;
   onRefreshItem: (itemName: string) => void;
   onRemoveItem: (itemName: string) => void;
-  // Toggle for showing all vs blueprints only (prime parts)
-  showAllToggle?: boolean;
-  showAll?: boolean;
-  onToggleShowAll?: () => void;
+  // Filter controls for prime parts
+  primePartsFilter?: 'all' | 'blueprints' | 'built_sets';
+  onPrimePartsFilterChange?: (filter: 'all' | 'blueprints' | 'built_sets') => void;
 }
 
 const getCategoryDisplayName = (category: ItemCategory): string => {
@@ -56,9 +55,8 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   onClearAll,
   onRefreshItem,
   onRemoveItem,
-  showAllToggle,
-  showAll,
-  onToggleShowAll
+  primePartsFilter,
+  onPrimePartsFilterChange
 }) => {
   const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -107,8 +105,9 @@ const InventorySection: React.FC<InventorySectionProps> = ({
     setIsExpanded(!isExpanded);
   };
 
-  if (items.length === 0) {
-    return null; // Don't render empty sections
+  // Always show Prime Parts section, even when empty (for filter switching)
+  if (items.length === 0 && category !== 'prime_parts') {
+    return null; // Don't render empty sections (except Prime Parts)
   }
 
   return (
@@ -131,9 +130,11 @@ const InventorySection: React.FC<InventorySectionProps> = ({
             <div>
               <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
                 {title}
-                {category === 'prime_parts' && (
+                {category === 'prime_parts' && primePartsFilter && (
                   <span className="text-xs font-normal text-gray-400 ml-2">
-                    {showAll ? '(All Items)' : '(Tradeable Blueprints Only)'}
+                    {primePartsFilter === 'all' && '(All Items)'}
+                    {primePartsFilter === 'blueprints' && '(Blueprints Only)'}
+                    {primePartsFilter === 'built_sets' && '(Built Sets - Safe to Sell)'}
                   </span>
                 )}
               </h3>
@@ -180,26 +181,37 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               {isRefreshing && progress ? `${progress.current}/${progress.total}` : ''}
             </button>
 
-            {/* Toggle button for prime parts */}
-            {showAllToggle && category === 'prime_parts' && (
-              <button
-                onClick={onToggleShowAll}
-                className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-                  showAll 
-                    ? 'text-yellow-400 bg-yellow-400/10 border border-yellow-400/30' 
-                    : 'text-gray-400 hover:bg-gray-700/50'
-                }`}
-                title={showAll ? 'Showing all items (including built parts)' : 'Showing blueprints only'}
-              >
-                {showAll ? 'All Items' : 'Blueprints Only'}
-              </button>
+            {/* Filter buttons for prime parts */}
+            {category === 'prime_parts' && onPrimePartsFilterChange && (
+              <div className="flex items-center gap-1">
+                {[
+                  { value: 'blueprints' as const, label: 'Blueprints', title: 'Show only tradeable blueprints' },
+                  { value: 'built_sets' as const, label: 'Built Sets', title: 'Show parts from completed sets (safe to sell for ducats)' },
+                  { value: 'all' as const, label: 'All', title: 'Show all prime parts' }
+                ].map(({ value, label, title }) => (
+                  <button
+                    key={value}
+                    onClick={() => onPrimePartsFilterChange(value)}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                      primePartsFilter === value
+                        ? 'text-yellow-400 bg-yellow-400/10 border border-yellow-400/30' 
+                        : 'text-gray-400 hover:bg-gray-700/50'
+                    }`}
+                    title={title}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             )}
 
             <button
               onClick={onClearAll}
               className="flex items-center gap-1 px-2 py-1 rounded text-xs text-grineer-red hover:bg-grineer-red/10 transition-colors"
               title={category === 'prime_parts' ? 
-                (showAll ? 'Clear ALL prime parts' : 'Clear tradeable blueprints only') : 
+                (primePartsFilter === 'all' ? 'Clear ALL prime parts' : 
+                 primePartsFilter === 'built_sets' ? 'Clear built set parts' :
+                 'Clear tradeable blueprints only') : 
                 `Clear all ${getCategoryDisplayName(category).toLowerCase()}`
               }
             >
@@ -240,7 +252,24 @@ const InventorySection: React.FC<InventorySectionProps> = ({
       {/* Content */}
       {isExpanded && (
         <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl overflow-hidden">
-          {category === 'relics' ? (
+          {items.length === 0 ? (
+            <div className="p-6 text-center">
+              <p className="text-gray-400 mb-2">
+                {category === 'prime_parts' && primePartsFilter === 'built_sets' 
+                  ? 'No parts from built sets found'
+                  : category === 'prime_parts' && primePartsFilter === 'blueprints'
+                  ? 'No blueprint parts found'
+                  : 'No items found'
+                }
+              </p>
+              <p className="text-sm text-gray-500">
+                {category === 'prime_parts' && primePartsFilter === 'built_sets' 
+                  ? 'Mark some Prime Sets as "built" in the Prime Sets section below to see parts safe to sell for ducats.'
+                  : 'Try switching to a different filter or upload more screenshots.'
+                }
+              </p>
+            </div>
+          ) : category === 'relics' ? (
             <RelicResultsTable
               results={items as VoidRelic[]}
               onRemoveItem={onRemoveItem}
