@@ -298,6 +298,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     }
   };
 
+
+
+
   const getProgressColor = (percentage: number) => {
     if (percentage >= 100) return 'bg-green-500';
     if (percentage >= 75) return 'bg-yellow-500';
@@ -1123,6 +1126,34 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   </div>
                 </div>
 
+                {/* Trading Comparison */}
+                {progress.completeSetPrice && progress.individualPartsValue && (
+                  <div className="mt-3 p-2 bg-gray-800/30 rounded border border-gray-700/50">
+                    <div className="text-xs text-gray-400 mb-2">Trading Comparison</div>
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span>Sell as Complete Set:</span>
+                        <span className="text-green-400">{progress.completeSetPrice}p</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Sell Individual Parts:</span>
+                        <span className="text-blue-400">{progress.individualPartsValue}p</span>
+                      </div>
+                      <div className="flex justify-between border-t border-gray-700/50 pt-1">
+                        <span>Difference:</span>
+                        <span className={progress.profitDifference && progress.profitDifference > 0 ? 'text-green-400' : 'text-red-400'}>
+                          {progress.profitDifference ? (progress.profitDifference > 0 ? '+' : '') + progress.profitDifference + 'p' : 'N/A'}
+                        </span>
+                      </div>
+                      {progress.recommendedStrategy && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          Recommendation: {progress.recommendedStrategy.replace(/_/g, ' ')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
 
                 {/* Toggle Button */}
                 <button
@@ -1147,6 +1178,22 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               {isExpanded && (
                 <div className="px-3 pb-3 border-t border-gray-700/50">
                   <div className="space-y-3 pt-3">
+
+                      {/* Legend */}
+                      <div className="flex items-center gap-4 text-xs text-gray-400 mb-2">
+                        <div className="flex items-center gap-1">
+                          <Package size={12} className="text-green-400" />
+                          <span>In Inventory</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Hexagon size={12} className="text-yellow-400" />
+                          <span>From Relics</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Circle size={12} className="text-gray-500" />
+                          <span>Market Only</span>
+                        </div>
+                      </div>
 
                       {/* Parts List */}
                       <div className="space-y-1">
@@ -1174,7 +1221,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           .map((part, index) => {
                           const isOwned = progress.ownedParts.includes(part.name);
                           const isObtainableFromRelics = progress.obtainableFromRelics.includes(part.name);
-
                           let iconColor = 'text-gray-500';
                           let textColor = 'text-gray-500';
                           let icon = <Circle size={12} />;
@@ -1182,7 +1228,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           if (isOwned) {
                             iconColor = 'text-green-400';
                             textColor = 'text-green-400';
-                            icon = <CheckCircle size={12} />;
+                            icon = <Package size={12} />;
                           } else if (isObtainableFromRelics) {
                             iconColor = 'text-yellow-400';
                             textColor = 'text-yellow-400';
@@ -1206,7 +1252,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                               </div>
                               <div className="flex flex-col items-end gap-1 text-right">
                                 <span className={`${textColor} text-xs`}>
-                                  {isOwned ? 'Owned' : (
+                                  {isOwned ? 'In Inventory' : (
                                     isObtainableFromRelics ? (
                                       <span className="text-gray-400"></span>
                                     ) : (

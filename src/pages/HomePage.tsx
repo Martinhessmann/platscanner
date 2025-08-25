@@ -798,15 +798,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     setInventoryRefreshTrigger(prev => prev + 1);
   }, [isRefreshingSyndicateRewards]);
 
-  // Clear only sellable (Blueprint) prime parts
+  // Clear ALL prime parts (not just blueprints)
   const handleClearSellablePrimeParts = useCallback(() => {
-    const namesToRemove = new Set(sellablePrimeParts.map(i => i.name));
+    const namesToRemove = new Set(categorizedInventory.prime_parts.map(i => i.name));
     namesToRemove.forEach(name => removeFromInventory(name));
     setCategorizedInventory(prev => ({
       ...prev,
-      prime_parts: prev.prime_parts.filter(item => !namesToRemove.has(item.name))
+      prime_parts: []
     }));
-  }, [sellablePrimeParts]);
+  }, [categorizedInventory.prime_parts]);
 
   // Individual item price refresh
   const handleRefreshSingleItem = useCallback(async (itemName: string) => {
@@ -1384,7 +1384,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               {/* Prime Sets Section - Show when we have prime parts OR existing prime sets cache */}
               {(categorizedInventory.prime_parts.length > 0 || getPrimeSetsCache().length > 0) && (
                 <PrimeSetsSection
-                  primePartsInventory={categorizedInventory.prime_parts}
+                  primePartsInventory={categorizedInventory.prime_parts.filter(item => 
+                    // Only include valid prime parts - filter out corrupted/fake data
+                    item.category === 'prime_parts' && 
+                    item.name && 
+                    item.name.length > 5 &&
+                    !item.name.toLowerCase().includes('here are the') &&
+                    !item.name.toLowerCase().includes('visible in the screenshot') &&
+                    !item.name.toLowerCase().includes('items detected')
+                  )}
                   relicsInventory={categorizedInventory.relics as VoidRelic[]}
                 />
               )}

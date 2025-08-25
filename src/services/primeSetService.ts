@@ -4,6 +4,7 @@
 
 import { DetectedItem, VoidRelic } from '../types';
 import { cloudSyncService } from './cloudSyncService';
+import { isItemOwned } from './ownedItemsService';
 
 export interface PrimePart {
   name: string;
@@ -301,18 +302,66 @@ export const toggleSetMastery = (setId: string): void => {
   setMasteredSets(updated);
 };
 
-// Check if user owns a specific part
-const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedItem[]): boolean => {
-  const lowerItemName = itemName.toLowerCase();
-  const inventoryItem = inventory.find(item => {
-    const lowerInventoryItemName = item.name.toLowerCase();
-    return (lowerInventoryItemName === lowerItemName || lowerInventoryItemName === `${lowerItemName} blueprint`);
+// REMOVED: ownsItem function - using hasItemInInventory directly for completion
+
+// Check if item exists in inventory (regardless of owned status)
+const hasItemInInventory = (itemName: string, requiredCount: number, inventory: DetectedItem[]): boolean => {
+  // Filter out invalid items (Gemini response text, etc.)
+  const validInventory = inventory.filter(item => {
+    // Must be prime_parts category
+    if (item.category !== 'prime_parts') return false;
+    
+    // Must not contain Gemini response artifacts
+    const lowerName = item.name.toLowerCase();
+    if (lowerName.includes('here are the') || 
+        lowerName.includes('visible in the screenshot') ||
+        lowerName.includes('items detected') ||
+        lowerName.length < 5) return false;
+        
+    return true;
   });
 
-  const result = inventoryItem ? (inventoryItem.quantity || 1) >= requiredCount : false;
+  const lowerItemName = itemName.toLowerCase();
 
+  // DEBUG: Only log for Acceltra to reduce spam
+  const isAcceltraDebug = lowerItemName.includes('acceltra');
+  if (isAcceltraDebug) {
+    console.log(`[DEBUG] hasItemInInventory checking: "${itemName}" (${lowerItemName})`);
+    console.log(`[DEBUG] Raw inventory: ${inventory.length}, Valid inventory: ${validInventory.length}`);
+    console.log(`[DEBUG] Valid inventory items:`, validInventory.map(i => i.name));
+  }
 
-  return result;
+  // Convert "Acceltra Prime Barrel" to "acceltra_prime_barrel" format
+  const underscoreFormat = lowerItemName.replace(/\s+/g, '_');
+
+  const inventoryItem = validInventory.find(item => {
+    const lowerInventoryItemName = item.name.toLowerCase();
+
+    if (isAcceltraDebug) {
+      console.log(`[DEBUG] Comparing against: "${item.name}" (${lowerInventoryItemName})`);
+    }
+
+    // Try multiple matching strategies
+    const exactMatch = lowerInventoryItemName === lowerItemName;
+    const blueprintMatch = lowerInventoryItemName === `${lowerItemName} blueprint`;
+    const underscoreMatch = lowerInventoryItemName === underscoreFormat;
+    const underscoreBlueprintMatch = lowerInventoryItemName === `${underscoreFormat}_blueprint`;
+
+    const matches = exactMatch || blueprintMatch || underscoreMatch || underscoreBlueprintMatch;
+
+    if (isAcceltraDebug && matches) {
+      console.log(`[DEBUG] MATCH FOUND! ${item.name} matches ${itemName}`);
+      console.log(`[DEBUG] Match types: exact=${exactMatch}, blueprint=${blueprintMatch}, underscore=${underscoreMatch}, underscore_blueprint=${underscoreBlueprintMatch}`);
+    }
+
+    return matches;
+  });
+
+  if (isAcceltraDebug) {
+    console.log(`[DEBUG] Final result for "${itemName}": ${inventoryItem ? `FOUND ${inventoryItem.name}` : 'NOT FOUND'}`);
+  }
+
+  return inventoryItem ? (inventoryItem.quantity || 1) >= requiredCount : false;
 };
 
 // Check if user can obtain a part from owned relics
@@ -581,6 +630,7 @@ export const analyzeSetProgressWithMarketData = async (
   includeMarketData: boolean = true,
   forceRefresh: boolean = false
 ): Promise<SetProgress[]> => {
+
   // Check for cached data first (unless force refresh requested)
   if (!forceRefresh && includeMarketData) {
     const cachedProgress = getPrimeSetsCache();
@@ -603,7 +653,7 @@ export const analyzeSetProgressWithMarketData = async (
     // Check each required part
     set.requiredParts.forEach(part => {
       const requiredCount = part.itemCount || 1;
-      if (ownsItem(part.name, requiredCount, primePartsInventory)) {
+      if (hasItemInInventory(part.name, requiredCount, primePartsInventory)) {
         ownedParts.push(part.name);
       } else {
         missingParts.push(part.name);
@@ -616,6 +666,7 @@ export const analyzeSetProgressWithMarketData = async (
     });
 
     const canBuild = missingParts.length === 0;
+    // Calculate completion percentage based on inventory items
     const completionPercentage = (ownedParts.length / set.requiredParts.length) * 100;
     const missingCost = calculateMissingCost(missingParts);
     const ismastered = masteredSets.includes(set.id);
@@ -811,7 +862,7 @@ export const refreshIndividualSetMarketData = async (
 
     targetSet.requiredParts.forEach(part => {
       const requiredCount = part.itemCount || 1;
-      if (ownsItem(part.name, requiredCount, primePartsInventory)) {
+      if (hasItemInInventory(part.name, requiredCount, primePartsInventory)) {
         ownedParts.push(part.name);
       } else {
         missingParts.push(part.name);
@@ -823,6 +874,7 @@ export const refreshIndividualSetMarketData = async (
     });
 
     const canBuild = missingParts.length === 0;
+    // Calculate completion percentage based on inventory items
     const completionPercentage = (ownedParts.length / targetSet.requiredParts.length) * 100;
     const missingCost = calculateMissingCost(missingParts);
     const ismastered = masteredSets.includes(targetSet.id);

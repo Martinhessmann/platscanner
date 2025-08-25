@@ -17,6 +17,8 @@ export interface BaseItem {
   // Buyer information for whisper message generation
   buyerUsername?: string | null;
   buyerQuantity?: number;
+  // NEW: Distinguish between inventory items and truly owned items
+  isOwned?: boolean; // true = user wants to keep this item, false/undefined = can be sold
 }
 
 export interface PrimePart extends BaseItem {
