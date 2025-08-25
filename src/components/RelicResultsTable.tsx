@@ -542,15 +542,12 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                     {(() => {
                       const reservation = isItemReserved(relic.name, 'relics');
                       if (reservation.reserved) {
-                        const formattedReservations = reservation.reservedFor.length > 3
-                          ? `${reservation.reservedFor.slice(0, 3).join(', ')} & ${reservation.reservedFor.length - 3} more`
-                          : reservation.reservedFor.join(', ');
+                        const reservationLabel = reservation.isPriority ? 'Priority' : 'Reserved';
                         return (
                           <div className="flex items-center gap-1 mt-0.5">
                             <Shield size={10} className={reservation.isPriority ? 'text-red-400' : 'text-yellow-400'} />
                             <span className={`text-xs ${reservation.isPriority ? 'text-red-400' : 'text-yellow-400'}`}>
-                              Reserved for: {formattedReservations}
-                              {reservation.isPriority && ' (PRIORITY)'}
+                              {reservationLabel}
                             </span>
                           </div>
                         );
@@ -874,16 +871,13 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                       {(() => {
                         const reservation = isItemReserved(relic.name, 'relics');
                         if (reservation.reserved) {
-                          const formattedReservations = reservation.reservedFor.length > 3
-                            ? `${reservation.reservedFor.slice(0, 3).join(', ')} & ${reservation.reservedFor.length - 3} more`
-                            : reservation.reservedFor.join(', ');
+                          const reservationLabel = reservation.isPriority ? 'Priority' : 'Reserved';
 
                           return (
                             <div className="flex items-center gap-1 mt-1">
                               <Shield size={10} className={reservation.isPriority ? 'text-red-400' : 'text-yellow-400'} />
                               <span className={`text-xs ${reservation.isPriority ? 'text-red-400' : 'text-yellow-400'}`}>
-                                Reserved for: {formattedReservations}
-                                {reservation.isPriority && ' (PRIORITY)'}
+                                {reservationLabel}
                               </span>
                             </div>
                           );

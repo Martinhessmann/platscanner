@@ -22,6 +22,11 @@ import { isItemReserved } from '../services/buildPlanService';
 import { getImageUrlSync } from '../services/unifiedImageService';
 import LastRefreshInfo from './LastRefreshInfo';
 
+// Helper function to check if a prime part is tradeable (only blueprints are tradeable)
+const isPrimePartTradeable = (item: DetectedItem): boolean => {
+  return item.category !== 'prime_parts' || item.name.toLowerCase().endsWith(' blueprint');
+};
+
 interface ResultsTableProps {
   results: DetectedItem[];
   isLoading?: boolean;
@@ -312,8 +317,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                         <div className="flex items-center gap-1 mt-0.5">
                           <Shield size={8} className={reservation.isPriority ? 'text-red-400' : 'text-yellow-400'} />
                           <span className={`text-xs truncate ${reservation.isPriority ? 'text-red-400' : 'text-yellow-400'}`}>
-                            {reservation.reservedFor.join(', ')}
-                            {reservation.isPriority && ' (PRIORITY)'}
+                            {reservation.isPriority ? 'Priority' : 'Reserved'}
                           </span>
                         </div>
                       );
@@ -331,7 +335,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               {/* Actions */}
               {showActionButtons && (
                 <div className="flex items-center gap-1">
-                  {onRefreshItem && (
+                  {onRefreshItem && isPrimePartTradeable(item) && (
                     <button
                       onClick={() => onRefreshItem(item.name)}
                       disabled={item.status === 'loading'}
@@ -340,7 +344,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                           ? 'text-gray-500 cursor-not-allowed'
                           : 'text-tenno-blue hover:bg-gray-700/50'
                       }`}
-                      title="Refresh"
+                      title="Refresh price"
                     >
                       <RefreshCw size={12} className={item.status === 'loading' ? 'animate-spin' : ''} />
                     </button>
@@ -358,65 +362,91 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               )}
             </div>
 
-            {/* Compact Price Display */}
-            <div className="grid grid-cols-3 gap-2 text-sm mb-2">
-              <div className="text-center">
-                <div className="text-xs text-gray-400 mb-1">
-                  {item.average ? `Current / Avg` : 'Current'}
+            {/* Price and Info Display */}
+            {isPrimePartTradeable(item) ? (
+              // Tradeable items: Show full price info
+              <div className="grid grid-cols-3 gap-2 text-sm mb-2">
+                <div className="text-center">
+                  <div className="text-xs text-gray-400 mb-1">
+                    {item.average ? `Current / Avg` : 'Current'}
+                  </div>
+                  {item.status === 'loading' ? (
+                    <div className="h-5 w-12 bg-gray-700 rounded animate-pulse mx-auto"></div>
+                  ) : (
+                    <div className="flex items-center justify-center gap-1">
+                      <Zap size={12} className="text-gray-300" />
+                      <span className="font-semibold text-gray-300">
+                        {item.price || 0}p
+                        {item.average && (
+                          <span className="text-gray-500 ml-1">/ {item.average}p</span>
+                        )}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                {item.status === 'loading' ? (
-                  <div className="h-5 w-12 bg-gray-700 rounded animate-pulse mx-auto"></div>
-                ) : (
+
+                <div className="text-center">
+                  <div className="text-xs text-gray-400 mb-1">Ducats</div>
+                  {item.ducats ? (
+                    <div className="flex items-center justify-center gap-1">
+                      <Coins size={12} className="text-yellow-500" />
+                      <span className="font-semibold text-yellow-500">
+                        {item.ducats}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-gray-600 text-xs">-</span>
+                  )}
+                </div>
+
+                <div className="text-center">
+                  <div className="text-xs text-gray-400 mb-1">Total</div>
                   <div className="flex items-center justify-center gap-1">
-                    <Zap size={12} className="text-gray-300" />
-                    <span className="font-semibold text-gray-300">
-                      {item.price || 0}p
-                      {item.average && (
-                        <span className="text-gray-500 ml-1">/ {item.average}p</span>
-                      )}
+                    <Zap size={12} className="text-yellow-400" />
+                    <span className="font-semibold text-yellow-400">
+                      {((item.price || 0) * (item.quantity || 1))}p
                     </span>
                   </div>
-                )}
-              </div>
-
-              <div className="text-center">
-                <div className="text-xs text-gray-400 mb-1">Ducats</div>
-                {item.ducats ? (
-                  <div className="flex items-center justify-center gap-1">
-                    <Coins size={12} className="text-yellow-500" />
-                    <span className="font-semibold text-yellow-500">
-                      {item.ducats}
-                    </span>
-                  </div>
-                ) : (
-                  <span className="text-gray-600 text-xs">-</span>
-                )}
-              </div>
-
-              <div className="text-center">
-                <div className="text-xs text-gray-400 mb-1">Total</div>
-                <div className="flex items-center justify-center gap-1">
-                  <Zap size={12} className="text-yellow-400" />
-                  <span className="font-semibold text-yellow-400">
-                    {((item.price || 0) * (item.quantity || 1))}p
-                  </span>
                 </div>
               </div>
-            </div>
-
-            {/* Market Actions */}
-            <div className="flex items-center justify-between pt-2 border-t border-gray-700/50">
-              <div className="flex items-center gap-3">
-                {item.volume && (
-                  <div className="text-xs text-gray-500">
-                    Vol: {item.volume}
-                  </div>
-                )}
+            ) : (
+              // Non-tradeable items: Show only ducats and "Not Tradeable" message
+              <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                <div className="text-center">
+                  <div className="text-xs text-gray-400 mb-1">Ducats</div>
+                  {item.ducats ? (
+                    <div className="flex items-center justify-center gap-1">
+                      <Coins size={12} className="text-yellow-500" />
+                      <span className="font-semibold text-yellow-500">
+                        {item.ducats}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-gray-600 text-xs">-</span>
+                  )}
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-xs text-gray-400 mb-1">Status</div>
+                  <span className="text-xs text-orange-400">Not Tradeable</span>
+                </div>
               </div>
+            )}
 
-              <div className="flex items-center gap-2">
-                {item.buyerUsername && item.price && item.price > 0 && !isItemReserved(item.name, 'prime_parts').reserved ? (
-                  <button
+            {/* Market Actions - Only show for tradeable items */}
+            {isPrimePartTradeable(item) && (
+              <div className="flex items-center justify-between pt-2 border-t border-gray-700/50">
+                <div className="flex items-center gap-3">
+                  {item.volume && (
+                    <div className="text-xs text-gray-500">
+                      Vol: {item.volume}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {item.buyerUsername && item.price && item.price > 0 && !isItemReserved(item.name, 'prime_parts').reserved ? (
+                    <button
                     onClick={() => {
                       const message = `/w ${item.buyerUsername} Hi! I want to sell: "${item.name}" for ${item.price} platinum. (warframe.market)`;
                       handleClipboardCopy(message, item.id);
@@ -445,8 +475,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   <ExternalLink size={10} />
                   <span className="hidden sm:inline">Market</span>
                 </a>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         ))}
         </div>

@@ -1,6 +1,11 @@
 import { DetectedItem, VoidRelic } from '../types';
 import { getImageUrl } from './unifiedImageService';
 
+// Helper function to check if a prime part is tradeable (only blueprints are tradeable)
+const isPrimePartTradeable = (item: DetectedItem): boolean => {
+  return item.category !== 'prime_parts' || item.name.toLowerCase().endsWith(' blueprint');
+};
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -267,6 +272,19 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
   console.log(`Using ${useSupabase ? 'Supabase Edge Function' : 'Direct API calls'} for market data`);
 
   for (const part of primeParts) {
+    // Skip non-tradeable items (non-blueprint prime parts)
+    if (!isPrimePartTradeable(part)) {
+      console.log(`Skipping non-tradeable item: ${part.name}`);
+      updatedParts.push({
+        ...part,
+        price: 0,
+        volume: 0,
+        average: 0,
+        status: 'loaded' as const
+      });
+      continue;
+    }
+
     try {
       const normalizedName = normalizeItemName(part.name);
       console.log(`Fetching data for: ${part.name} (${normalizedName})`);
@@ -460,6 +478,18 @@ const determineItemType = (itemName: string): 'weapon' | 'mod' | 'cosmetic' | 'r
  * @returns Updated DetectedItem with market data
  */
 export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<DetectedItem> => {
+  // Skip non-tradeable items (non-blueprint prime parts)
+  if (!isPrimePartTradeable(primePart)) {
+    console.log(`Skipping non-tradeable item: ${primePart.name}`);
+    return {
+      ...primePart,
+      price: 0,
+      volume: 0,
+      average: 0,
+      status: 'loaded' as const
+    };
+  }
+
   const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
 
   try {
