@@ -306,13 +306,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     setRefreshKey(prev => prev + 1);
   };
 
-  // Calculate real completion percentage based on owned status
-  const getRealCompletionPercentage = (progress: SetProgress): number => {
-    const ownedCount = progress.set.requiredParts.filter(part => 
-      progress.ownedParts.includes(part.name) && isItemOwned(part.name)
-    ).length;
-    return (ownedCount / progress.set.requiredParts.length) * 100;
-  };
+
 
   const getProgressColor = (percentage: number) => {
     if (percentage >= 100) return 'bg-green-500';
@@ -1115,28 +1109,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 <div className="mb-2">
                   <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
                     <span>Progress</span>
-                    <span>{Math.round(getRealCompletionPercentage(progress))}%</span>
+                    <span>{Math.round(progress.completionPercentage)}%</span>
                   </div>
                   <div className="w-full bg-gray-800 rounded-full h-2 relative overflow-hidden">
                     {/* Owned parts (green) */}
                     <div
                       className="h-2 bg-green-500 rounded-full transition-all absolute left-0 top-0"
-                      style={{ width: `${getRealCompletionPercentage(progress)}%` }}
+                      style={{ width: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%` }}
                     />
                     {/* Parts obtainable from relics (recommended color) */}
                     {(() => {
                       const overlayColorClass = getOverlayColorForSet(progress);
-                      const realOwnedCount = progress.set.requiredParts.filter(part => 
-                        progress.ownedParts.includes(part.name) && isItemOwned(part.name)
-                      ).length;
-                      const obtainableWidth = (progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100;
-                      const inventoryWidth = (progress.ownedParts.filter(partName => !isItemOwned(partName)).length / progress.set.requiredParts.length) * 100;
                       return (
                         <div
                           className={`h-2 ${overlayColorClass} rounded-full transition-all absolute top-0`}
                           style={{
-                            left: `${getRealCompletionPercentage(progress)}%`,
-                            width: `${obtainableWidth + inventoryWidth}%`
+                            left: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%`,
+                            width: `${(progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100}%`
                           }}
                         />
                       );

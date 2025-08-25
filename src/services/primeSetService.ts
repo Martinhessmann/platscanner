@@ -305,9 +305,20 @@ export const toggleSetMastery = (setId: string): void => {
 // Check if user owns a specific part (only counts items marked as owned)
 const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedItem[]): boolean => {
   const lowerItemName = itemName.toLowerCase();
+  
+  // Convert "Acceltra Prime Barrel" to "acceltra_prime_barrel" format
+  const underscoreFormat = lowerItemName.replace(/\s+/g, '_');
+  
   const inventoryItem = inventory.find(item => {
     const lowerInventoryItemName = item.name.toLowerCase();
-    return (lowerInventoryItemName === lowerItemName || lowerInventoryItemName === `${lowerItemName} blueprint`);
+    
+    // Try multiple matching strategies
+    return (
+      lowerInventoryItemName === lowerItemName || // Exact match
+      lowerInventoryItemName === `${lowerItemName} blueprint` || // With blueprint suffix
+      lowerInventoryItemName === underscoreFormat || // Underscore format
+      lowerInventoryItemName === `${underscoreFormat}_blueprint` // Underscore format with blueprint
+    );
   });
 
   // Check if item exists in inventory AND is marked as owned
@@ -322,9 +333,20 @@ const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedIt
 // Check if item exists in inventory (regardless of owned status)
 const hasItemInInventory = (itemName: string, requiredCount: number, inventory: DetectedItem[]): boolean => {
   const lowerItemName = itemName.toLowerCase();
+  
+  // Convert "Acceltra Prime Barrel" to "acceltra_prime_barrel" format
+  const underscoreFormat = lowerItemName.replace(/\s+/g, '_');
+  
   const inventoryItem = inventory.find(item => {
     const lowerInventoryItemName = item.name.toLowerCase();
-    return (lowerInventoryItemName === lowerItemName || lowerInventoryItemName === `${lowerItemName} blueprint`);
+    
+    // Try multiple matching strategies
+    return (
+      lowerInventoryItemName === lowerItemName || // Exact match
+      lowerInventoryItemName === `${lowerItemName} blueprint` || // With blueprint suffix
+      lowerInventoryItemName === underscoreFormat || // Underscore format
+      lowerInventoryItemName === `${underscoreFormat}_blueprint` // Underscore format with blueprint
+    );
   });
 
   return inventoryItem ? (inventoryItem.quantity || 1) >= requiredCount : false;
@@ -596,6 +618,7 @@ export const analyzeSetProgressWithMarketData = async (
   includeMarketData: boolean = true,
   forceRefresh: boolean = false
 ): Promise<SetProgress[]> => {
+
   // Check for cached data first (unless force refresh requested)
   if (!forceRefresh && includeMarketData) {
     const cachedProgress = getPrimeSetsCache();
