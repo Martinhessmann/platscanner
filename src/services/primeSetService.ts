@@ -4,6 +4,7 @@
 
 import { DetectedItem, VoidRelic } from '../types';
 import { cloudSyncService } from './cloudSyncService';
+import { isItemOwned } from './ownedItemsService';
 
 export interface PrimePart {
   name: string;
@@ -301,7 +302,7 @@ export const toggleSetMastery = (setId: string): void => {
   setMasteredSets(updated);
 };
 
-// Check if user owns a specific part
+// Check if user owns a specific part (only counts items marked as owned)
 const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedItem[]): boolean => {
   const lowerItemName = itemName.toLowerCase();
   const inventoryItem = inventory.find(item => {
@@ -309,10 +310,13 @@ const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedIt
     return (lowerInventoryItemName === lowerItemName || lowerInventoryItemName === `${lowerItemName} blueprint`);
   });
 
-  const result = inventoryItem ? (inventoryItem.quantity || 1) >= requiredCount : false;
+  // Check if item exists in inventory AND is marked as owned
+  if (!inventoryItem || (inventoryItem.quantity || 1) < requiredCount) {
+    return false;
+  }
 
-
-  return result;
+  // Only count toward completion if the item is marked as owned
+  return isItemOwned(inventoryItem.name);
 };
 
 // Check if user can obtain a part from owned relics

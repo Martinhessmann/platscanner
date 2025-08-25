@@ -55,6 +55,7 @@ import {
   updateAllReservations,
   isItemReserved
 } from '../services/buildPlanService';
+import { toggleItemOwned, isItemOwned } from '../services/ownedItemsService';
 
 interface PrimeSetsProps {
   primePartsInventory: DetectedItem[];
@@ -296,6 +297,21 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       case 'Sentinel': return <Hexagon size={16} />;
       default: return <Package size={16} />;
     }
+  };
+
+  // Handle toggling owned status for individual parts
+  const handlePartOwnedToggle = (partName: string) => {
+    toggleItemOwned(partName);
+    // Refresh the data to update completion percentages
+    setRefreshKey(prev => prev + 1);
+  };
+
+  // Calculate real completion percentage based on owned status
+  const getRealCompletionPercentage = (progress: SetProgress): number => {
+    const ownedCount = progress.set.requiredParts.filter(part => 
+      progress.ownedParts.includes(part.name) && isItemOwned(part.name)
+    ).length;
+    return (ownedCount / progress.set.requiredParts.length) * 100;
   };
 
   const getProgressColor = (percentage: number) => {
@@ -1099,23 +1115,28 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 <div className="mb-2">
                   <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
                     <span>Progress</span>
-                    <span>{Math.round(progress.completionPercentage)}%</span>
+                    <span>{Math.round(getRealCompletionPercentage(progress))}%</span>
                   </div>
                   <div className="w-full bg-gray-800 rounded-full h-2 relative overflow-hidden">
                     {/* Owned parts (green) */}
                     <div
                       className="h-2 bg-green-500 rounded-full transition-all absolute left-0 top-0"
-                      style={{ width: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%` }}
+                      style={{ width: `${getRealCompletionPercentage(progress)}%` }}
                     />
                     {/* Parts obtainable from relics (recommended color) */}
                     {(() => {
                       const overlayColorClass = getOverlayColorForSet(progress);
+                      const realOwnedCount = progress.set.requiredParts.filter(part => 
+                        progress.ownedParts.includes(part.name) && isItemOwned(part.name)
+                      ).length;
+                      const obtainableWidth = (progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100;
+                      const inventoryWidth = (progress.ownedParts.filter(part => !isItemOwned(part)).length / progress.set.requiredParts.length) * 100;
                       return (
                         <div
                           className={`h-2 ${overlayColorClass} rounded-full transition-all absolute top-0`}
                           style={{
-                            left: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%`,
-                            width: `${(progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100}%`
+                            left: `${getRealCompletionPercentage(progress)}%`,
+                            width: `${obtainableWidth + inventoryWidth}%`
                           }}
                         />
                       );
@@ -1148,6 +1169,26 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 <div className="px-3 pb-3 border-t border-gray-700/50">
                   <div className="space-y-3 pt-3">
 
+                      {/* Legend */}
+                      <div className="flex items-center gap-4 text-xs text-gray-400 mb-2">
+                        <div className="flex items-center gap-1">
+                          <CheckCircle size={12} className="text-green-400" />
+                          <span>Owned (keep)</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Package size={12} className="text-blue-400" />
+                          <span>In Inventory (can sell)</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Hexagon size={12} className="text-yellow-400" />
+                          <span>From Relics</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Circle size={12} className="text-gray-500" />
+                          <span>Missing</span>
+                        </div>
+                      </div>
+
                       {/* Parts List */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-xs mb-1">
@@ -1174,15 +1215,22 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           .map((part, index) => {
                           const isOwned = progress.ownedParts.includes(part.name);
                           const isObtainableFromRelics = progress.obtainableFromRelics.includes(part.name);
+                          const isMarkedAsOwned = isItemOwned(part.name);
 
                           let iconColor = 'text-gray-500';
                           let textColor = 'text-gray-500';
                           let icon = <Circle size={12} />;
 
                           if (isOwned) {
-                            iconColor = 'text-green-400';
-                            textColor = 'text-green-400';
-                            icon = <CheckCircle size={12} />;
+                            if (isMarkedAsOwned) {
+                              iconColor = 'text-green-400';
+                              textColor = 'text-green-400';
+                              icon = <CheckCircle size={12} />;
+                            } else {
+                              iconColor = 'text-blue-400';
+                              textColor = 'text-blue-400';
+                              icon = <Package size={12} />;
+                            }
                           } else if (isObtainableFromRelics) {
                             iconColor = 'text-yellow-400';
                             textColor = 'text-yellow-400';
@@ -1203,10 +1251,22 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                 {part.itemCount && part.itemCount > 1 && (
                                   <span className="text-xs text-blue-400">x{part.itemCount}</span>
                                 )}
+                                {/* Owned status toggle button */}
+                                <button
+                                  onClick={() => handlePartOwnedToggle(part.name)}
+                                  className={`ml-2 p-1 rounded transition-colors ${
+                                    isMarkedAsOwned 
+                                      ? 'text-green-400 hover:text-green-300' 
+                                      : 'text-gray-500 hover:text-gray-300'
+                                  }`}
+                                  title={isMarkedAsOwned ? "Mark as not owned (can sell)" : "Mark as owned (keep for yourself)"}
+                                >
+                                  {isMarkedAsOwned ? <CheckCircle size={12} /> : <Circle size={12} />}
+                                </button>
                               </div>
                               <div className="flex flex-col items-end gap-1 text-right">
                                 <span className={`${textColor} text-xs`}>
-                                  {isOwned ? 'Owned' : (
+                                  {isOwned ? (isMarkedAsOwned ? 'Owned' : 'In Inventory') : (
                                     isObtainableFromRelics ? (
                                       <span className="text-gray-400"></span>
                                     ) : (

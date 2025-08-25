@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Owned Items Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #1a4a1a;
+            border: 1px solid #4a8a4a;
+        }
+        .error {
+            background-color: #4a1a1a;
+            border: 1px solid #8a4a4a;
+        }
+        button {
+            background-color: #4a4a4a;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #6a6a6a;
+        }
+        .item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px;
+            border: 1px solid #3a3a3a;
+            margin: 5px 0;
+            border-radius: 4px;
+        }
+        .owned {
+            background-color: #1a4a1a;
+        }
+        .inventory {
+            background-color: #1a1a4a;
+        }
+    </style>
+</head>
+<body>
+    <h1>Owned Items Service Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Owned Items Functionality</h2>
+        <p>This test verifies that the owned items service correctly distinguishes between inventory items and truly owned items.</p>
+        
+        <div class="test-result success">
+            <h3>Test Case: Acceltra Prime Set</h3>
+            <p><strong>Scenario:</strong> User has all 4 parts of Acceltra Prime in inventory but only wants to keep 1 part for themselves.</p>
+            
+            <div class="item inventory">
+                <span>🔵 Acceltra Prime Barrel (In Inventory - can sell)</span>
+                <button onclick="toggleOwned('Acceltra Prime Barrel')">Mark as Owned</button>
+            </div>
+            <div class="item inventory">
+                <span>🔵 Acceltra Prime Blueprint (In Inventory - can sell)</span>
+                <button onclick="toggleOwned('Acceltra Prime Blueprint')">Mark as Owned</button>
+            </div>
+            <div class="item inventory">
+                <span>🔵 Acceltra Prime Receiver (In Inventory - can sell)</span>
+                <button onclick="toggleOwned('Acceltra Prime Receiver')">Mark as Owned</button>
+            </div>
+            <div class="item inventory">
+                <span>🔵 Acceltra Prime Stock (In Inventory - can sell)</span>
+                <button onclick="toggleOwned('Acceltra Prime Stock')">Mark as Owned</button>
+            </div>
+            
+            <div id="completion-status">
+                <p><strong>Completion Status:</strong> <span id="completion-percentage">0%</span> (0/4 parts truly owned)</p>
+                <p><strong>Can sell complete set:</strong> <span id="can-sell">Yes</span></p>
+            </div>
+        </div>
+        
+        <div class="test-result">
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Click "Mark as Owned" on parts you want to keep for yourself</li>
+                <li>Watch the completion percentage update</li>
+                <li>Notice that you can still sell the complete set if you don't mark all parts as owned</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        // Simple implementation of the owned items service for testing
+        const OWNED_ITEMS_KEY = 'test_owned_items';
+        
+        function getOwnedItems() {
+            try {
+                const stored = localStorage.getItem(OWNED_ITEMS_KEY);
+                if (stored) {
+                    return new Set(JSON.parse(stored));
+                }
+            } catch (error) {
+                console.error('Failed to load owned items:', error);
+            }
+            return new Set();
+        }
+        
+        function saveOwnedItems(ownedItems) {
+            try {
+                localStorage.setItem(OWNED_ITEMS_KEY, JSON.stringify(Array.from(ownedItems)));
+            } catch (error) {
+                console.error('Failed to save owned items:', error);
+            }
+        }
+        
+        function isItemOwned(itemName) {
+            const ownedItems = getOwnedItems();
+            return ownedItems.has(itemName.toLowerCase());
+        }
+        
+        function toggleItemOwned(itemName) {
+            const ownedItems = getOwnedItems();
+            const isOwned = isItemOwned(itemName);
+            
+            if (isOwned) {
+                ownedItems.delete(itemName.toLowerCase());
+            } else {
+                ownedItems.add(itemName.toLowerCase());
+            }
+            
+            saveOwnedItems(ownedItems);
+            updateDisplay();
+        }
+        
+        function updateDisplay() {
+            const parts = [
+                'Acceltra Prime Barrel',
+                'Acceltra Prime Blueprint', 
+                'Acceltra Prime Receiver',
+                'Acceltra Prime Stock'
+            ];
+            
+            const ownedCount = parts.filter(part => isItemOwned(part)).length;
+            const completionPercentage = (ownedCount / parts.length) * 100;
+            const canSell = ownedCount < parts.length;
+            
+            document.getElementById('completion-percentage').textContent = `${completionPercentage}%`;
+            document.getElementById('can-sell').textContent = canSell ? 'Yes' : 'No';
+            
+            // Update item displays
+            parts.forEach(part => {
+                const itemElement = document.querySelector(`[onclick="toggleOwned('${part}')"]`).parentElement;
+                const isOwned = isItemOwned(part);
+                
+                if (isOwned) {
+                    itemElement.className = 'item owned';
+                    itemElement.querySelector('span').textContent = `🟢 ${part} (Owned - keeping)`;
+                    itemElement.querySelector('button').textContent = 'Mark as Not Owned';
+                } else {
+                    itemElement.className = 'item inventory';
+                    itemElement.querySelector('span').textContent = `🔵 ${part} (In Inventory - can sell)`;
+                    itemElement.querySelector('button').textContent = 'Mark as Owned';
+                }
+            });
+        }
+        
+        function toggleOwned(itemName) {
+            toggleItemOwned(itemName);
+        }
+        
+        // Initialize display
+        updateDisplay();
+    </script>
+</body>
+</html>
