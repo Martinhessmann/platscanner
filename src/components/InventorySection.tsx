@@ -74,6 +74,26 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   useEffect(() => {
     localStorage.setItem(getStorageKey(), JSON.stringify(isExpanded));
   }, [isExpanded, category]);
+  
+  // Listen for expand-section events
+  useEffect(() => {
+    const handleExpandSection = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      console.log('[InventorySection] Received expand-section event for:', customEvent.detail.section, '- This section is:', category);
+      
+      if (customEvent.detail.section === category) {
+        console.log('[InventorySection] Expanding section:', category);
+        setIsExpanded(true);
+        // Scroll to section
+        if (sectionRef.current) {
+          sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    };
+    
+    window.addEventListener('expand-section', handleExpandSection);
+    return () => window.removeEventListener('expand-section', handleExpandSection);
+  }, [category]);
 
   // Auto-scroll to section when collapsing
   const handleToggle = () => {

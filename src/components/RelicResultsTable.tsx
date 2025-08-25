@@ -47,6 +47,65 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   const [activeEraFilters, setActiveEraFilters] = useState<Set<string>>(new Set(['all']));
 
   const sortDropdownRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  
+  // Listen for focus-relic events from Prime Sets
+  useEffect(() => {
+    const handleFocusRelic = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { name, expandDetails, scrollToSection } = customEvent.detail;
+      
+      console.log('[RelicResultsTable] Received focus-relic event for:', name);
+      console.log('[RelicResultsTable] Current results:', results.length, 'relics');
+      
+      // Find the relic in our results
+      const relicToFocus = results.find(relic => {
+        // Remove refinement level AND "Relic" suffix
+        const relicBaseName = relic.name
+          .replace(/\s+(Intact|Exceptional|Flawless|Radiant)$/i, '')
+          .replace(/\s+Relic$/i, '')
+          .trim();
+        console.log('[RelicResultsTable] Comparing:', relicBaseName.toLowerCase(), 'with', name.toLowerCase());
+        return relicBaseName.toLowerCase() === name.toLowerCase();
+      });
+      
+      console.log('[RelicResultsTable] Found relic:', relicToFocus?.name, relicToFocus?.id);
+      
+      if (relicToFocus) {
+        // Expand the relic details
+        if (expandDetails) {
+          setExpandedRelics(prev => new Set([...prev, relicToFocus.id]));
+        }
+        
+        // Scroll to the relics section
+        if (scrollToSection && sectionRef.current) {
+          console.log('[RelicResultsTable] Scrolling to section');
+          sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          
+          // After scrolling to section, scroll to the specific relic
+          setTimeout(() => {
+            const relicElement = document.getElementById(`relic-${relicToFocus.id}`);
+            console.log('[RelicResultsTable] Looking for element with ID:', `relic-${relicToFocus.id}`);
+            console.log('[RelicResultsTable] Found element:', relicElement);
+            
+            if (relicElement) {
+              relicElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              // Add highlight effect
+              relicElement.classList.add('ring-2', 'ring-yellow-400', 'ring-opacity-50');
+              setTimeout(() => {
+                relicElement.classList.remove('ring-2', 'ring-yellow-400', 'ring-opacity-50');
+              }, 2000);
+            } else {
+              console.error('[RelicResultsTable] Could not find relic element!');
+            }
+          }, 500);
+        }
+      }
+    };
+    
+    window.addEventListener('focus-relic', handleFocusRelic);
+    return () => window.removeEventListener('focus-relic', handleFocusRelic);
+  }, [results]);
 
   // Extract era from relic name (Lith, Meso, Neo, Axi, Requiem)
   const getRelicEra = (relicName: string): string => {
@@ -345,7 +404,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   }
 
   return (
-    <div className="w-full">
+    <div ref={sectionRef} className="w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-4 px-2">
         <div className="flex items-center gap-3 flex-wrap">
@@ -454,7 +513,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
           const isExpanded = expandedRelics.has(relic.id);
 
           return (
-            <div key={relic.id} className="bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
+            <div key={relic.id} id={`relic-${relic.id}`} className="bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
               {/* Main row */}
               <div className="grid grid-cols-12 gap-4 items-center p-3 hover:bg-gray-800/30 transition-colors">
                 {/* Relic Info + Contents */}
@@ -785,7 +844,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
           const isExpanded = expandedRelics.has(relic.id);
 
           return (
-            <div key={relic.id} className="bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
+            <div key={relic.id} id={`relic-${relic.id}`} className="bg-gray-900/50 rounded-lg border border-gray-700 overflow-hidden">
               {/* Simplified Header - Always Visible */}
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">

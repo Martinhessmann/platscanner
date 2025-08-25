@@ -1102,7 +1102,28 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 <div className="mb-2">
                   <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
                     <span>Progress</span>
-                    <span>{Math.round(progress.completionPercentage)}%</span>
+                    <span>
+                      {Math.round(progress.completionPercentage)}%
+                      {(() => {
+                        const missingParts = progress.set.requiredParts.filter(part => !progress.ownedParts.includes(part.name));
+                        const obtainableParts = missingParts.filter(part => progress.obtainableFromRelics.includes(part.name));
+
+                        if (obtainableParts.length === 0) return '';
+
+                        // Calculate total void trace cost for obtainable parts
+                        const voidTraceCosts = { radiant: 100, flawless: 50, exceptional: 25, intact: 0 };
+                        let totalTraces = 0;
+
+                        obtainableParts.forEach(part => {
+                          const rec = getRefinementRecommendationForPart(part.name);
+                          if (rec) {
+                            totalTraces += voidTraceCosts[rec.target as keyof typeof voidTraceCosts];
+                          }
+                        });
+
+                        return totalTraces > 0 ? ` + ${totalTraces} traces` : '';
+                      })()}
+                    </span>
                   </div>
                   <div className="w-full bg-gray-800 rounded-full h-2 relative overflow-hidden">
                     {/* Owned parts (green) */}
@@ -1343,14 +1364,25 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                         <button
                                           key={base}
                                           onClick={() => {
-                                            // Navigate to relics section and expand the specific relic
-                                            window.dispatchEvent(new CustomEvent('focus-relic', {
-                                              detail: {
-                                                name: base,
-                                                expandDetails: true,
-                                                scrollToSection: true
-                                              }
+                                            console.log('[PrimeSets] Button clicked for relic:', base);
+                                            
+                                            // First expand the relics section
+                                            console.log('[PrimeSets] Dispatching expand-section event');
+                                            window.dispatchEvent(new CustomEvent('expand-section', {
+                                              detail: { section: 'relics' }
                                             }));
+
+                                            // Then navigate to the specific relic
+                                            setTimeout(() => {
+                                              console.log('[PrimeSets] Dispatching focus-relic event for:', base);
+                                              window.dispatchEvent(new CustomEvent('focus-relic', {
+                                                detail: {
+                                                  name: base,
+                                                  expandDetails: true,
+                                                  scrollToSection: true
+                                                }
+                                              }));
+                                            }, 300); // Increased timeout to ensure section is expanded
                                           }}
                                           className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2 transition-colors"
                                           title={`Focus ${base} in Relics section`}
