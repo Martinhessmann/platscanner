@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Important Warframe Trading Rules
+
+### Prime Parts Trading Restrictions
+- **Only BLUEPRINTS are tradeable** - Built/crafted parts cannot be traded
+- Example: `Acceltra Prime Blueprint` ✅ tradeable vs `Acceltra Prime Receiver` ❌ not tradeable (built part)
+- The Prime Parts inventory section only tracks tradeable blueprints for market value
+- Built parts still count toward Prime Set completion but have no market value
+
 ## Development Commands
 
 ```bash

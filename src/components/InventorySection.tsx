@@ -23,6 +23,10 @@ interface InventorySectionProps {
   onClearAll: () => void;
   onRefreshItem: (itemName: string) => void;
   onRemoveItem: (itemName: string) => void;
+  // Toggle for showing all vs blueprints only (prime parts)
+  showAllToggle?: boolean;
+  showAll?: boolean;
+  onToggleShowAll?: () => void;
 }
 
 const getCategoryDisplayName = (category: ItemCategory): string => {
@@ -51,7 +55,10 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   onRefreshAll,
   onClearAll,
   onRefreshItem,
-  onRemoveItem
+  onRemoveItem,
+  showAllToggle,
+  showAll,
+  onToggleShowAll
 }) => {
   const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -104,6 +111,11 @@ const InventorySection: React.FC<InventorySectionProps> = ({
             <div>
               <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
                 {title}
+                {category === 'prime_parts' && (
+                  <span className="text-xs font-normal text-gray-400 ml-2">
+                    {showAll ? '(All Items)' : '(Tradeable Blueprints Only)'}
+                  </span>
+                )}
               </h3>
               {/* Essential info line - item count and key values */}
               <div className="flex items-center gap-3 text-xs text-gray-400">
@@ -148,10 +160,28 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               {isRefreshing && progress ? `${progress.current}/${progress.total}` : ''}
             </button>
 
+            {/* Toggle button for prime parts */}
+            {showAllToggle && category === 'prime_parts' && (
+              <button
+                onClick={onToggleShowAll}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                  showAll 
+                    ? 'text-yellow-400 bg-yellow-400/10 border border-yellow-400/30' 
+                    : 'text-gray-400 hover:bg-gray-700/50'
+                }`}
+                title={showAll ? 'Showing all items (including built parts)' : 'Showing blueprints only'}
+              >
+                {showAll ? 'All Items' : 'Blueprints Only'}
+              </button>
+            )}
+
             <button
               onClick={onClearAll}
               className="flex items-center gap-1 px-2 py-1 rounded text-xs text-grineer-red hover:bg-grineer-red/10 transition-colors"
-              title={`Clear all ${getCategoryDisplayName(category).toLowerCase()}`}
+              title={category === 'prime_parts' ? 
+                (showAll ? 'Clear ALL prime parts' : 'Clear tradeable blueprints only') : 
+                `Clear all ${getCategoryDisplayName(category).toLowerCase()}`
+              }
             >
               <Trash2 size={12} />
             </button>

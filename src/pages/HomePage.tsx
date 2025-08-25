@@ -72,21 +72,31 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     relics: [] as InventoryItem[],
     syndicate_rewards: [] as InventoryItem[]
   });
+  
+  // Toggle state for showing all prime parts vs blueprints only
+  const [showAllPrimeParts, setShowAllPrimeParts] = useState(() => {
+    const stored = localStorage.getItem('show_all_prime_parts');
+    return stored !== null ? JSON.parse(stored) : false;
+  });
 
 
-  // Only sellable Prime Parts (uncrafted Blueprints)
-  const sellablePrimeParts = useMemo(() => {
+  // Prime parts to display based on filter toggle
+  const displayedPrimeParts = useMemo(() => {
+    if (showAllPrimeParts) {
+      return categorizedInventory.prime_parts;
+    }
+    // Only sellable (uncrafted Blueprints)
     return categorizedInventory.prime_parts.filter(item =>
       item.name.toLowerCase().endsWith(' blueprint')
     );
-  }, [categorizedInventory.prime_parts]);
+  }, [categorizedInventory.prime_parts, showAllPrimeParts]);
 
-  // Totals for the sellable subset
-  const sellablePrimePartsTotals = useMemo(() => {
-    const value = sellablePrimeParts.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
-    const ducats = sellablePrimeParts.reduce((sum, item) => sum + ((item.ducats || 0) * (item.quantity || 1)), 0);
+  // Totals for displayed parts
+  const displayedPrimePartsTotals = useMemo(() => {
+    const value = displayedPrimeParts.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
+    const ducats = displayedPrimeParts.reduce((sum, item) => sum + ((item.ducats || 0) * (item.quantity || 1)), 0);
     return { value, ducats };
-  }, [sellablePrimeParts]);
+  }, [displayedPrimeParts]);
 
   // Handle syndicate rewards refresh - define early for use in useEffect
   const handleRefreshSyndicateRewards = useCallback(async () => {
@@ -798,15 +808,36 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     setInventoryRefreshTrigger(prev => prev + 1);
   }, [isRefreshingSyndicateRewards]);
 
-  // Clear ALL prime parts (not just blueprints)
-  const handleClearSellablePrimeParts = useCallback(() => {
-    const namesToRemove = new Set(categorizedInventory.prime_parts.map(i => i.name));
+  // Clear prime parts (all or blueprints only based on current view)
+  const handleClearPrimeParts = useCallback(() => {
+    const itemsToRemove = showAllPrimeParts 
+      ? categorizedInventory.prime_parts 
+      : displayedPrimeParts;
+    
+    const namesToRemove = new Set(itemsToRemove.map(i => i.name));
     namesToRemove.forEach(name => removeFromInventory(name));
-    setCategorizedInventory(prev => ({
-      ...prev,
-      prime_parts: []
-    }));
-  }, [categorizedInventory.prime_parts]);
+    
+    if (showAllPrimeParts) {
+      // Clear ALL prime parts
+      setCategorizedInventory(prev => ({
+        ...prev,
+        prime_parts: []
+      }));
+    } else {
+      // Clear only blueprints
+      setCategorizedInventory(prev => ({
+        ...prev,
+        prime_parts: prev.prime_parts.filter(item => !namesToRemove.has(item.name))
+      }));
+    }
+  }, [categorizedInventory.prime_parts, displayedPrimeParts, showAllPrimeParts]);
+  
+  // Handle toggle for showing all prime parts
+  const handleToggleShowAllPrimeParts = useCallback(() => {
+    const newValue = !showAllPrimeParts;
+    setShowAllPrimeParts(newValue);
+    localStorage.setItem('show_all_prime_parts', JSON.stringify(newValue));
+  }, [showAllPrimeParts]);
 
   // Individual item price refresh
   const handleRefreshSingleItem = useCallback(async (itemName: string) => {
@@ -1038,9 +1069,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     }
   }, [categorizedInventory, refreshingCategories, shouldStopProcessing]);
 
-  // Refresh only sellable (Blueprint) prime parts in the Prime Parts section
-  const handleRefreshSellablePrimeParts = useCallback(async () => {
-    const items = sellablePrimeParts;
+  // Refresh displayed prime parts (all or blueprints based on toggle)
+  const handleRefreshPrimeParts = useCallback(async () => {
+    const items = displayedPrimeParts;
     if (items.length === 0 || refreshingCategories.has('prime_parts')) {
       return;
     }
@@ -1110,7 +1141,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       });
       setCategoryProgress(undefined);
     }
-  }, [sellablePrimeParts, refreshingCategories, shouldStopProcessing]);
+  }, [displayedPrimeParts, refreshingCategories, shouldStopProcessing]);
 
   // Refresh all market prices (including syndicate rewards)
   const handleRefreshPrices = useCallback(async () => {
@@ -1352,14 +1383,17 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 category="prime_parts"
                 title="Prime Parts"
                 icon={<Package size={20} className="text-orokin-gold" />}
-                items={sellablePrimeParts}
-                totalValue={sellablePrimePartsTotals.value}
-                totalDucats={sellablePrimePartsTotals.ducats}
+                items={displayedPrimeParts}
+                totalValue={displayedPrimePartsTotals.value}
+                totalDucats={displayedPrimePartsTotals.ducats}
                 isRefreshing={refreshingCategories.has('prime_parts')}
                 progress={categoryProgress?.category === 'prime_parts' ? categoryProgress : undefined}
                 lastRefreshTime={lastPrimePartsRefresh}
-                onRefreshAll={handleRefreshSellablePrimeParts}
-                onClearAll={handleClearSellablePrimeParts}
+                onRefreshAll={handleRefreshPrimeParts}
+                onClearAll={handleClearPrimeParts}
+                showAllToggle={true}
+                showAll={showAllPrimeParts}
+                onToggleShowAll={handleToggleShowAllPrimeParts}
                 onRefreshItem={handleRefreshSingleItem}
                 onRemoveItem={handleRemoveFromInventory}
               />
@@ -1381,9 +1415,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 onRemoveItem={handleRemoveFromInventory}
               />
 
-              {/* Prime Sets Section - Show when we have prime parts OR existing prime sets cache */}
-              {(categorizedInventory.prime_parts.length > 0 || getPrimeSetsCache().length > 0) && (
-                <PrimeSetsSection
+              {/* Prime Sets Section - Always visible as a collection tracker */}
+              <PrimeSetsSection
                   primePartsInventory={categorizedInventory.prime_parts.filter(item => 
                     // Only include valid prime parts - filter out corrupted/fake data
                     item.category === 'prime_parts' && 
@@ -1395,7 +1428,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                   )}
                   relicsInventory={categorizedInventory.relics as VoidRelic[]}
                 />
-              )}
             </div>
           )}
 

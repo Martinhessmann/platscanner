@@ -1110,18 +1110,86 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       className="h-2 bg-green-500 rounded-full transition-all absolute left-0 top-0"
                       style={{ width: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%` }}
                     />
-                    {/* Parts obtainable from relics (recommended color) */}
+                    {/* Parts obtainable from relics (refinement level colors) */}
                     {(() => {
-                      const overlayColorClass = getOverlayColorForSet(progress);
-                      return (
-                        <div
-                          className={`h-2 ${overlayColorClass} rounded-full transition-all absolute top-0`}
-                          style={{
-                            left: `${(progress.ownedParts.length / progress.set.requiredParts.length) * 100}%`,
-                            width: `${(progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100}%`
-                          }}
-                        />
-                      );
+                      const missingParts = progress.set.requiredParts.filter(part => !progress.ownedParts.includes(part.name));
+                      const obtainableParts = missingParts.filter(part => progress.obtainableFromRelics.includes(part.name));
+
+                      if (obtainableParts.length === 0) return null;
+
+                      // Group parts by refinement level
+                      const partsByRefinement: Record<string, string[]> = {
+                        radiant: [],
+                        flawless: [],
+                        exceptional: [],
+                        intact: []
+                      };
+
+                      // Track void trace costs for each refinement level
+                      const voidTraceCosts = {
+                        radiant: 100,
+                        flawless: 50,
+                        exceptional: 25,
+                        intact: 0
+                      };
+
+                      obtainableParts.forEach(part => {
+                        const rec = getRefinementRecommendationForPart(part.name);
+                        if (rec) {
+                          partsByRefinement[rec.target].push(part.name);
+                        } else {
+                          partsByRefinement.intact.push(part.name); // Default to intact
+                        }
+                      });
+
+                      // Map refinement level to color
+                      const refinementColors = {
+                        radiant: 'bg-yellow-500',
+                        flawless: 'bg-blue-500',
+                        exceptional: 'bg-green-500',
+                        intact: 'bg-gray-500'
+                      };
+
+                        // Calculate total void trace cost for each refinement level
+                        const totalTraceCosts: Record<string, number> = {};
+                        Object.keys(partsByRefinement).forEach(refinement => {
+                          const partCount = partsByRefinement[refinement].length;
+                          totalTraceCosts[refinement] = partCount * voidTraceCosts[refinement as keyof typeof voidTraceCosts];
+                        });
+
+                        // Create segments for each refinement level, sorted by total void trace cost (lowest first)
+                        const segments: JSX.Element[] = [];
+                        let currentLeft = (progress.ownedParts.length / progress.set.requiredParts.length) * 100;
+
+                        // Order by total void trace cost (lowest to highest)
+                        const refinementOrder = Object.keys(totalTraceCosts)
+                          .filter(refinement => partsByRefinement[refinement].length > 0)
+                          .sort((a, b) => totalTraceCosts[a] - totalTraceCosts[b]);
+
+                        refinementOrder.forEach(refinement => {
+                          const partsForThisLevel = partsByRefinement[refinement];
+                          if (partsForThisLevel.length > 0) {
+                            const segmentWidth = (partsForThisLevel.length / progress.set.requiredParts.length) * 100;
+                            const colorClass = refinementColors[refinement as keyof typeof refinementColors];
+                            const totalCost = totalTraceCosts[refinement];
+
+                            segments.push(
+                              <div
+                                key={refinement}
+                                className={`h-2 ${colorClass} rounded-full transition-all absolute top-0`}
+                                style={{
+                                  left: `${currentLeft}%`,
+                                  width: `${segmentWidth}%`
+                                }}
+                                title={`${refinement.charAt(0).toUpperCase() + refinement.slice(1)} (${partsForThisLevel.length} parts, ${totalCost} total void traces)`}
+                              />
+                            );
+
+                            currentLeft += segmentWidth;
+                          }
+                        });
+
+                      return segments;
                     })()}
                   </div>
                 </div>
@@ -1275,10 +1343,17 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                         <button
                                           key={base}
                                           onClick={() => {
-                                            window.dispatchEvent(new CustomEvent('focus-relic', { detail: { name: base } }));
+                                            // Navigate to relics section and expand the specific relic
+                                            window.dispatchEvent(new CustomEvent('focus-relic', {
+                                              detail: {
+                                                name: base,
+                                                expandDetails: true,
+                                                scrollToSection: true
+                                              }
+                                            }));
                                           }}
-                                          className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2"
-                                          title={`Focus ${base}`}
+                                          className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2 transition-colors"
+                                          title={`Focus ${base} in Relics section`}
                                         >
                                           {base}{total > 1 ? ` x${total}` : ''}
                                         </button>
