@@ -545,16 +545,16 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
 
                 {/* Opening Values */}
                 <div className={`col-span-1 text-center ${analysis.bestOption === 'intact' ? 'bg-green-900/20 text-green-300 font-semibold rounded px-2 py-1' : ''} ${isRefinementDisabled(relic, 'intact') ? 'text-gray-500' : 'text-gray-300'}`}>
-                  {analysis.intactValue.toFixed(1)}p
+                  {!relic.relicDrops ? '-' : analysis.intactValue.toFixed(1)}p
                 </div>
                 <div className={`col-span-1 text-center ${analysis.bestOption === 'exceptional' ? 'bg-green-900/20 text-green-300 font-semibold rounded px-2 py-1' : ''} ${isRefinementDisabled(relic, 'exceptional') ? 'text-gray-500' : 'text-gray-300'}`}>
-                  {analysis.exceptionalValue.toFixed(1)}p
+                  {!relic.relicDrops ? '-' : analysis.exceptionalValue.toFixed(1)}p
                 </div>
                 <div className={`col-span-1 text-center ${analysis.bestOption === 'flawless' ? 'bg-green-900/20 text-green-300 font-semibold rounded px-2 py-1' : ''} ${isRefinementDisabled(relic, 'flawless') ? 'text-gray-500' : 'text-gray-300'}`}>
-                  {analysis.flawlessValue.toFixed(1)}p
+                  {!relic.relicDrops ? '-' : analysis.flawlessValue.toFixed(1)}p
                 </div>
                 <div className={`col-span-1 text-center ${analysis.bestOption === 'radiant' ? 'bg-green-900/20 text-green-300 font-semibold rounded px-2 py-1' : ''} ${isRefinementDisabled(relic, 'radiant') ? 'text-gray-500' : 'text-gray-300'}`}>
-                  {analysis.radiantValue.toFixed(1)}p
+                  {!relic.relicDrops ? '-' : analysis.radiantValue.toFixed(1)}p
                 </div>
 
                 {/* Market Sale */}
@@ -586,12 +586,18 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                 {/* Best Option */}
                 <div className="col-span-1 text-center">
                   <div className="flex flex-col items-center gap-1">
-                    <span className="text-green-400 font-semibold">
-                      {analysis.bestValue.toFixed(1)}p
-                    </span>
-                    <span className="text-xs text-gray-400 uppercase tracking-wider">
-                      {analysis.recommendation.replace('OPEN_', '').replace('_', ' ')}
-                    </span>
+                    {!relic.relicDrops ? (
+                      <span className="text-gray-500 text-xs">Loading...</span>
+                    ) : (
+                      <>
+                        <span className="text-green-400 font-semibold">
+                          {analysis.bestValue.toFixed(1)}p
+                        </span>
+                        <span className="text-xs text-gray-400 uppercase tracking-wider">
+                          {analysis.recommendation.replace('OPEN_', '').replace('_', ' ')}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -630,7 +636,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                           }`}
                           title="Refresh"
                         >
-                          <RefreshCw size={12} className={relic.status === 'loading' ? 'animate-spin' : ''} />
+                          <RefreshCw size={12} className={relic.status === 'loading' || !relic.relicDrops ? 'animate-spin' : ''} />
                         </button>
                       )}
                       {onRemoveItem && (
@@ -865,7 +871,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                             }`}
                             title="Refresh"
                           >
-                            <RefreshCw size={14} className={relic.status === 'loading' ? 'animate-spin' : ''} />
+                            <RefreshCw size={14} className={relic.status === 'loading' || !relic.relicDrops ? 'animate-spin' : ''} />
                           </button>
                         )}
                         {onRemoveItem && (
