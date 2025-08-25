@@ -18,6 +18,7 @@ import {
   calculateRelicValueAnalysis,
   setLastRefreshTime,
   getLastRefreshTime,
+  updateInventoryWithStaticDucats,
   InventoryItem
 } from '../services/inventoryService';
 import { getPrimeSetsCache, getMasteredSets, loadPrimeSets } from '../services/primeSetService';
@@ -257,6 +258,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
   // Load persistent inventory on component mount
   useEffect(() => {
+    // Update existing inventory items with static ducat values
+    updateInventoryWithStaticDucats();
+    
     const inventory = getCategorizedInventory();
     setCategorizedInventory(inventory);
     setInventoryRefreshTrigger(prev => prev + 1);

@@ -9,6 +9,65 @@ import { cloudSyncService } from './cloudSyncService';
 import { getImageUrl } from './unifiedImageService';
 import { determineItemType } from './syndicateService';
 
+// Static ducat values for Prime parts (based on rarity)
+const DUCATS_MAP: Record<string, number> = {
+  'Blueprint': 25,
+  'Systems': 45,
+  'Chassis': 45,
+  'Neuroptics': 45,
+  'Barrel': 45,
+  'Receiver': 45,
+  'Stock': 45,
+  'String': 15,
+  'Grip': 15,
+  'Handle': 15,
+  'Blade': 45,
+  'Gauntlet': 45,
+  'Upper Limb': 45,
+  'Lower Limb': 45,
+  'Carapace': 45,
+  'Cerebrum': 45,
+  'Pouch': 15,
+  'Stars': 15,
+  'Boot': 15,
+  'Chain': 15,
+  'Disc': 45,
+  'Guard': 45,
+  'Hilt': 45,
+  'Head': 45,
+  'Ornament': 15,
+  'Harness': 45,
+  'Wings': 45,
+  'Band': 15,
+  'Buckle': 15,
+  'Blades': 45,
+  'Link': 45
+};
+
+// Extract part type from full item name (e.g., "Acceltra Prime Receiver" -> "Receiver")
+const getPartType = (itemName: string): string | null => {
+  const parts = itemName.split(' ');
+  const lastPart = parts[parts.length - 1];
+  
+  // Handle special cases like "Upper Limb", "Lower Limb"
+  if (parts.length >= 2) {
+    const lastTwoParts = parts.slice(-2).join(' ');
+    if (DUCATS_MAP[lastTwoParts]) {
+      return lastTwoParts;
+    }
+  }
+  
+  return DUCATS_MAP[lastPart] ? lastPart : null;
+};
+
+// Get static ducat value for a Prime part
+const getStaticDucatValue = (itemName: string, category: ItemCategory): number => {
+  if (category !== 'prime_parts') return 0;
+  
+  const partType = getPartType(itemName);
+  return partType ? DUCATS_MAP[partType] : 0;
+};
+
 const INVENTORY_STORAGE_KEY = 'platscanner_inventory';
 const LAST_SCAN_STORAGE_KEY = 'platscanner_last_scan';
 
@@ -92,7 +151,7 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
         quantity: item.quantity,
         imgUrl: item.imgUrl,
         price: item.price,
-        ducats: item.ducats,
+        ducats: item.ducats || getStaticDucatValue(item.name, item.category), // Use static ducats if not provided
         volume: item.volume,
         average: item.average,
         status: item.status,
@@ -360,6 +419,33 @@ export const updateInventoryPrices = (updatedItems: DetectedItem[]): void => {
     });
   } catch (error) {
     console.error('Failed to update inventory prices:', error);
+  }
+};
+
+// Update existing inventory items with static ducat values (for items that don't have them)
+export const updateInventoryWithStaticDucats = (): void => {
+  try {
+    const inventory = loadInventory();
+    let updated = false;
+
+    inventory.items = inventory.items.map(item => {
+      if (item.category === 'prime_parts' && (!item.ducats || item.ducats === 0)) {
+        const staticDucats = getStaticDucatValue(item.name, item.category);
+        if (staticDucats > 0) {
+          console.log(`[Ducats] Updating ${item.name} with ${staticDucats} ducats`);
+          updated = true;
+          return { ...item, ducats: staticDucats };
+        }
+      }
+      return item;
+    });
+
+    if (updated) {
+      localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(inventory));
+      console.log('[Ducats] Updated inventory with static ducat values');
+    }
+  } catch (error) {
+    console.error('Failed to update inventory with static ducats:', error);
   }
 };
 
