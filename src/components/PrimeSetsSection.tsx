@@ -1130,7 +1130,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         progress.ownedParts.includes(part.name) && isItemOwned(part.name)
                       ).length;
                       const obtainableWidth = (progress.obtainableFromRelics.filter(part => !progress.ownedParts.includes(part)).length / progress.set.requiredParts.length) * 100;
-                      const inventoryWidth = (progress.ownedParts.filter(part => !isItemOwned(part)).length / progress.set.requiredParts.length) * 100;
+                      const inventoryWidth = (progress.ownedParts.filter(partName => !isItemOwned(partName)).length / progress.set.requiredParts.length) * 100;
                       return (
                         <div
                           className={`h-2 ${overlayColorClass} rounded-full transition-all absolute top-0`}

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Detection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #1a1a1a;
+            color: #ffffff;
+        }
+        .test-section {
+            background-color: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #1a4a1a;
+            border: 1px solid #4a8a4a;
+        }
+        .error {
+            background-color: #4a1a1a;
+            border: 1px solid #8a4a4a;
+        }
+        .info {
+            background-color: #1a1a4a;
+            border: 1px solid #4a4a8a;
+        }
+        .part-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            margin: 5px 0;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+        }
+        .in-inventory {
+            background-color: #1a1a4a;
+        }
+        .marked-owned {
+            background-color: #1a4a1a;
+        }
+        .missing {
+            background-color: #4a1a1a;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-inventory { background-color: #4a8a4a; }
+        .status-owned { background-color: #8a4a4a; }
+        .status-missing { background-color: #8a4a4a; }
+    </style>
+</head>
+<body>
+    <h1>Inventory Detection Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Scenario: Acceltra Prime Set</h2>
+        <p>This test verifies that items in inventory are correctly detected and displayed, regardless of owned status.</p>
+        
+        <div class="test-result info">
+            <h3>Mock Inventory Data</h3>
+            <p>Simulating that you have these items in your inventory:</p>
+            <ul>
+                <li>Acceltra Prime Barrel</li>
+                <li>Acceltra Prime Blueprint</li>
+                <li>Acceltra Prime Receiver</li>
+                <li>Acceltra Prime Stock</li>
+            </ul>
+        </div>
+
+        <div class="test-result success">
+            <h3>Expected Behavior</h3>
+            <p>All parts should show as "In Inventory" (blue) initially, and you should be able to mark them as "Owned" (green) individually.</p>
+            
+            <div id="parts-display">
+                <!-- Parts will be populated here -->
+            </div>
+            
+            <div id="completion-status">
+                <p><strong>Completion Status:</strong> <span id="completion-percentage">0%</span></p>
+                <p><strong>Parts in Inventory:</strong> <span id="inventory-count">4</span>/4</p>
+                <p><strong>Parts Marked as Owned:</strong> <span id="owned-count">0</span>/4</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mock inventory data
+        const mockInventory = [
+            { name: 'Acceltra Prime Barrel', quantity: 1 },
+            { name: 'Acceltra Prime Blueprint', quantity: 1 },
+            { name: 'Acceltra Prime Receiver', quantity: 1 },
+            { name: 'Acceltra Prime Stock', quantity: 1 }
+        ];
+
+        // Mock owned items (empty initially)
+        let ownedItems = new Set();
+
+        // Check if item exists in inventory
+        function hasItemInInventory(itemName) {
+            return mockInventory.some(item => 
+                item.name.toLowerCase() === itemName.toLowerCase() ||
+                item.name.toLowerCase() === `${itemName.toLowerCase()} blueprint`
+            );
+        }
+
+        // Check if item is marked as owned
+        function isItemOwned(itemName) {
+            return ownedItems.has(itemName.toLowerCase());
+        }
+
+        // Toggle owned status
+        function toggleOwned(itemName) {
+            if (isItemOwned(itemName)) {
+                ownedItems.delete(itemName.toLowerCase());
+            } else {
+                ownedItems.add(itemName.toLowerCase());
+            }
+            updateDisplay();
+        }
+
+        // Update the display
+        function updateDisplay() {
+            const partsContainer = document.getElementById('parts-display');
+            const parts = [
+                'Acceltra Prime Barrel',
+                'Acceltra Prime Blueprint',
+                'Acceltra Prime Receiver',
+                'Acceltra Prime Stock'
+            ];
+
+            partsContainer.innerHTML = '';
+
+            let inventoryCount = 0;
+            let ownedCount = 0;
+
+            parts.forEach(part => {
+                const inInventory = hasItemInInventory(part);
+                const isOwned = isItemOwned(part);
+                
+                if (inInventory) inventoryCount++;
+                if (isOwned) ownedCount++;
+
+                const partElement = document.createElement('div');
+                partElement.className = 'part-item';
+                
+                if (inInventory) {
+                    if (isOwned) {
+                        partElement.classList.add('marked-owned');
+                        partElement.innerHTML = `
+                            <span class="status-indicator status-owned"></span>
+                            <span>${part}</span>
+                            <span style="color: #4a8a4a;">(Owned - keeping)</span>
+                            <button onclick="toggleOwned('${part}')" style="margin-left: auto;">Mark as Not Owned</button>
+                        `;
+                    } else {
+                        partElement.classList.add('in-inventory');
+                        partElement.innerHTML = `
+                            <span class="status-indicator status-inventory"></span>
+                            <span>${part}</span>
+                            <span style="color: #4a4a8a;">(In Inventory - can sell)</span>
+                            <button onclick="toggleOwned('${part}')" style="margin-left: auto;">Mark as Owned</button>
+                        `;
+                    }
+                } else {
+                    partElement.classList.add('missing');
+                    partElement.innerHTML = `
+                        <span class="status-indicator status-missing"></span>
+                        <span>${part}</span>
+                        <span style="color: #8a4a4a;">(Missing)</span>
+                    `;
+                }
+
+                partsContainer.appendChild(partElement);
+            });
+
+            // Update status
+            document.getElementById('inventory-count').textContent = inventoryCount;
+            document.getElementById('owned-count').textContent = ownedCount;
+            document.getElementById('completion-percentage').textContent = `${(ownedCount / parts.length) * 100}%`;
+        }
+
+        // Initialize display
+        updateDisplay();
+    </script>
+</body>
+</html>

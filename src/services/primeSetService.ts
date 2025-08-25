@@ -319,6 +319,17 @@ const ownsItem = (itemName: string, requiredCount: number, inventory: DetectedIt
   return isItemOwned(inventoryItem.name);
 };
 
+// Check if item exists in inventory (regardless of owned status)
+const hasItemInInventory = (itemName: string, requiredCount: number, inventory: DetectedItem[]): boolean => {
+  const lowerItemName = itemName.toLowerCase();
+  const inventoryItem = inventory.find(item => {
+    const lowerInventoryItemName = item.name.toLowerCase();
+    return (lowerInventoryItemName === lowerItemName || lowerInventoryItemName === `${lowerItemName} blueprint`);
+  });
+
+  return inventoryItem ? (inventoryItem.quantity || 1) >= requiredCount : false;
+};
+
 // Check if user can obtain a part from owned relics
 const canObtainFromRelics = (partName: string, relicsInventory: VoidRelic[]): boolean => {
   const matchingRelics = relicsInventory.filter(relic => {
@@ -607,7 +618,7 @@ export const analyzeSetProgressWithMarketData = async (
     // Check each required part
     set.requiredParts.forEach(part => {
       const requiredCount = part.itemCount || 1;
-      if (ownsItem(part.name, requiredCount, primePartsInventory)) {
+      if (hasItemInInventory(part.name, requiredCount, primePartsInventory)) {
         ownedParts.push(part.name);
       } else {
         missingParts.push(part.name);
@@ -620,7 +631,11 @@ export const analyzeSetProgressWithMarketData = async (
     });
 
     const canBuild = missingParts.length === 0;
-    const completionPercentage = (ownedParts.length / set.requiredParts.length) * 100;
+    // Calculate completion percentage based on truly owned items
+    const trulyOwnedCount = set.requiredParts.filter(part => 
+      ownsItem(part.name, part.itemCount || 1, primePartsInventory)
+    ).length;
+    const completionPercentage = (trulyOwnedCount / set.requiredParts.length) * 100;
     const missingCost = calculateMissingCost(missingParts);
     const ismastered = masteredSets.includes(set.id);
 
@@ -815,7 +830,7 @@ export const refreshIndividualSetMarketData = async (
 
     targetSet.requiredParts.forEach(part => {
       const requiredCount = part.itemCount || 1;
-      if (ownsItem(part.name, requiredCount, primePartsInventory)) {
+      if (hasItemInInventory(part.name, requiredCount, primePartsInventory)) {
         ownedParts.push(part.name);
       } else {
         missingParts.push(part.name);
@@ -827,7 +842,11 @@ export const refreshIndividualSetMarketData = async (
     });
 
     const canBuild = missingParts.length === 0;
-    const completionPercentage = (ownedParts.length / targetSet.requiredParts.length) * 100;
+    // Calculate completion percentage based on truly owned items
+    const trulyOwnedCount = targetSet.requiredParts.filter(part => 
+      ownsItem(part.name, part.itemCount || 1, primePartsInventory)
+    ).length;
+    const completionPercentage = (trulyOwnedCount / targetSet.requiredParts.length) * 100;
     const missingCost = calculateMissingCost(missingParts);
     const ismastered = masteredSets.includes(targetSet.id);
 
