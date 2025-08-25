@@ -452,64 +452,124 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             console.log(`>>> [Price Fetching] Processing item ${index + 1}/${newItems.length}: ${item.name} <<<`);
 
             try {
-              // Fetch price data for this item
-              const priceData = await fetchSinglePriceData(item);
+              let processedItem: DetectedItem;
 
-              if (priceData) {
-                // Calculate platPerStanding for syndicate rewards
-                let platPerStanding;
-                if (item.category === 'syndicate_rewards') {
-                  const syndicateItem = item as any;
-                  const standingCost = syndicateItem.standingCost || 25000; // Default to 25k for mods
-                  if (priceData.price > 0 && standingCost > 0) {
-                    platPerStanding = (priceData.price * 1000) / standingCost;
-                    console.log(`>>> [Price Fetching] Calculated plat/1k standing for ${item.name}: ${platPerStanding.toFixed(2)} (${priceData.price}p / ${standingCost} standing) <<<`);
+              if (item.category === 'relics') {
+                // For relics, fetch basic price data AND calculate relic value analysis
+                const priceData = await fetchSinglePriceData(item);
+                
+                if (priceData) {
+                  // Calculate relic value analysis using the actual detected rarity and market price
+                  const relicItem = item as VoidRelic;
+                  const relicAnalysis = await calculateRelicValueAnalysis(
+                    item.name,
+                    relicItem.rarity || 'intact',
+                    priceData.price || 0
+                  );
+
+                  if (relicAnalysis) {
+                    processedItem = {
+                      ...item,
+                      price: priceData.price,
+                      marketVolume: priceData.volume,
+                      lastUpdated: new Date(),
+                      minDropValue: relicAnalysis.minDropValue,
+                      maxDropValue: relicAnalysis.maxDropValue,
+                      expectedDropValue: relicAnalysis.expectedDropValue,
+                      recommendation: relicAnalysis.recommendation,
+                      expectedProfit: relicAnalysis.expectedProfit,
+                      directSalePrice: relicAnalysis.directSalePrice,
+                      relicDrops: relicAnalysis.relicDrops,
+                      refinementAnalysis: relicAnalysis.refinementAnalysis,
+                      status: 'success' as const
+                    };
+                  } else {
+                    processedItem = {
+                      ...item,
+                      price: priceData.price,
+                      marketVolume: priceData.volume,
+                      lastUpdated: new Date(),
+                      status: 'success' as const
+                    };
                   }
+                } else {
+                  processedItem = {
+                    ...item,
+                    price: 0,
+                    marketVolume: 0,
+                    lastUpdated: new Date(),
+                    status: 'error' as const
+                  };
                 }
-
-                // Add to processed items with price data
-                processedItems.push({
-                  ...item,
-                  price: priceData.price,
-                  marketVolume: priceData.volume,
-                  lastUpdated: new Date(),
-                  ...(platPerStanding !== undefined && { platPerStanding })
-                });
-
-                // Update progress
-                setFetchingProgress({ current: index + 1, total: newItems.length });
-
-                // Save to inventory immediately
-                saveToInventory([processedItems[processedItems.length - 1]], sessionId);
-
-                // Update categorized inventory display
-                const updatedInventory = getCategorizedInventory();
-                setCategorizedInventory(updatedInventory);
-                setInventoryRefreshTrigger(prev => prev + 1);
-
-                console.log(`>>> [Price Fetching] Added ${item.name} to inventory with price ${priceData.price} (${index + 1}/${newItems.length}) <<<`);
               } else {
-                console.log(`>>> [Price Fetching] No price data for ${item.name} <<<`);
-                // Still add to processed items but without price
-                processedItems.push({
-                  ...item,
-                  price: 0,
-                  marketVolume: 0,
-                  lastUpdated: new Date(),
-                  ...(item.category === 'syndicate_rewards' && { platPerStanding: 0 })
-                });
-                setFetchingProgress({ current: index + 1, total: newItems.length });
+                // For non-relic items (prime parts, syndicate rewards)
+                const priceData = await fetchSinglePriceData(item);
+
+                if (priceData) {
+                  // Calculate platPerStanding for syndicate rewards
+                  let platPerStanding;
+                  if (item.category === 'syndicate_rewards') {
+                    const syndicateItem = item as any;
+                    const standingCost = syndicateItem.standingCost || 25000; // Default to 25k for mods
+                    if (priceData.price > 0 && standingCost > 0) {
+                      platPerStanding = (priceData.price * 1000) / standingCost;
+                      console.log(`>>> [Price Fetching] Calculated plat/1k standing for ${item.name}: ${platPerStanding.toFixed(2)} (${priceData.price}p / ${standingCost} standing) <<<`);
+                    }
+                  }
+
+                  processedItem = {
+                    ...item,
+                    price: priceData.price,
+                    marketVolume: priceData.volume,
+                    lastUpdated: new Date(),
+                    ...(platPerStanding !== undefined && { platPerStanding }),
+                    status: 'success' as const
+                  };
+                } else {
+                  processedItem = {
+                    ...item,
+                    price: 0,
+                    marketVolume: 0,
+                    lastUpdated: new Date(),
+                    status: 'error' as const
+                  };
+                }
               }
+
+              // Add to processed items
+              processedItems.push(processedItem);
+
+              // Update progress
+              setFetchingProgress({ current: index + 1, total: newItems.length });
+
+              // Save to inventory immediately
+              saveToInventory([processedItem], sessionId);
+
+              // Update categorized inventory display
+              const updatedInventory = getCategorizedInventory();
+              setCategorizedInventory(updatedInventory);
+              setInventoryRefreshTrigger(prev => prev + 1);
+
+              console.log(`>>> [Price Fetching] Added ${item.name} to inventory with price ${processedItem.price} (${index + 1}/${newItems.length}) <<<`);
             } catch (error) {
               console.error(`>>> [Price Fetching] Error fetching price for ${item.name}:`, error);
               // Add item without price data
-              processedItems.push({
+              const errorItem = {
                 ...item,
                 price: 0,
                 marketVolume: 0,
-                lastUpdated: new Date()
-              });
+                lastUpdated: new Date(),
+                status: 'error' as const,
+                error: 'Failed to fetch price'
+              };
+              processedItems.push(errorItem);
               setFetchingProgress({ current: index + 1, total: newItems.length });
+              
+              // Save error item to inventory
+              saveToInventory([errorItem], sessionId);
+              const updatedInventory = getCategorizedInventory();
+              setCategorizedInventory(updatedInventory);
+              setInventoryRefreshTrigger(prev => prev + 1);
             }
 
             // Small delay to avoid overwhelming the API

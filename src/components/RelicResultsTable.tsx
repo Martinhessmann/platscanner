@@ -38,7 +38,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   showActionButtons = false,
   lastRefreshTime
 }) => {
-  const [sortField, setSortField] = useState<'totalValue' | 'bestValue' | 'name' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market'>('totalValue');
+  const [sortField, setSortField] = useState<'totalValue' | 'bestValue' | 'name' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market' | 'refinement'>('totalValue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSortOptions, setShowSortOptions] = useState(false);
   const [showUnreservedOnly, setShowUnreservedOnly] = useState(false);
@@ -233,6 +233,12 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         return sortDirection === 'asc'
           ? a.relic.name.localeCompare(b.relic.name)
           : b.relic.name.localeCompare(a.relic.name);
+      case 'refinement':
+        // Sort by refinement level: intact < exceptional < flawless < radiant
+        const refinementOrder = ['intact', 'exceptional', 'flawless', 'radiant'];
+        const indexA = refinementOrder.indexOf(a.relic.rarity || 'intact');
+        const indexB = refinementOrder.indexOf(b.relic.rarity || 'intact');
+        return sortDirection === 'asc' ? indexA - indexB : indexB - indexA;
       case 'intact':
         valueA = a.intactValue;
         valueB = b.intactValue;
@@ -276,6 +282,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
       totalValue: 'Total Value',
       bestValue: 'Best Value',
       name: 'Name',
+      refinement: 'Refinement',
       intact: 'Intact',
       exceptional: 'Exceptional',
       flawless: 'Flawless',
@@ -365,6 +372,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                     { field: 'totalValue' as const, label: 'Total Value' },
                     { field: 'bestValue' as const, label: 'Best Value' },
                     { field: 'name' as const, label: 'Name' },
+                    { field: 'refinement' as const, label: 'Refinement Level' },
                     { field: 'intact' as const, label: 'Intact Value' },
                     { field: 'exceptional' as const, label: 'Exceptional Value' },
                     { field: 'flawless' as const, label: 'Flawless Value' },
