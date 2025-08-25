@@ -44,6 +44,7 @@ const loadPrimeSets = async (): Promise<PrimeSet[]> => {
 /**
  * Extracts parent set name from a prime part name
  * e.g., "Valkyr Prime Systems" → "Valkyr Prime"
+ * e.g., "Oberon Prime Neuroptics Blueprint" → "Oberon Prime"
  */
 const getParentSetName = (partName: string): string => {
   // Common prime part suffixes to remove
@@ -60,13 +61,22 @@ const getParentSetName = (partName: string): string => {
   // Sort by length (descending) to match longer suffixes first
   const sortedSuffixes = partSuffixes.sort((a, b) => b.length - a.length);
 
-  for (const suffix of sortedSuffixes) {
-    if (partName.endsWith(` ${suffix}`)) {
-      return partName.replace(` ${suffix}`, '');
+  let result = partName;
+  let changed = true;
+  
+  // Keep removing suffixes until no more can be removed (handles compound suffixes)
+  while (changed) {
+    changed = false;
+    for (const suffix of sortedSuffixes) {
+      if (result.endsWith(` ${suffix}`)) {
+        result = result.replace(` ${suffix}`, '');
+        changed = true;
+        break; // Start over from the beginning after each change
+      }
     }
   }
 
-  return partName; // Return original if no suffix found
+  return result;
 };
 
 /**
@@ -129,11 +139,6 @@ export const getImageUrlSync = (itemName: string): string | null => {
     return null;
   }
 
-  // Special debug for the problematic item
-  if (itemName === 'Oberon Prime Neuroptics Blueprint') {
-    console.log(`[ImageService DEBUG] Processing: ${itemName}`);
-    console.log(`[ImageService DEBUG] Cache size: ${primeSetsCache.length}`);
-  }
 
   // Direct match
   const directMatch = primeSetsCache.find(set => set.name === itemName);
@@ -143,12 +148,6 @@ export const getImageUrlSync = (itemName: string): string | null => {
 
   // Parent set match
   const parentSetName = getParentSetName(itemName);
-  if (itemName === 'Oberon Prime Neuroptics Blueprint') {
-    console.log(`[ImageService DEBUG] Parent set name: ${parentSetName}`);
-    const parentMatch = primeSetsCache.find(set => set.name === parentSetName);
-    console.log(`[ImageService DEBUG] Parent match found: ${parentMatch ? parentMatch.name : 'NONE'}`);
-  }
-  
   if (parentSetName !== itemName) {
     const parentMatch = primeSetsCache.find(set => set.name === parentSetName);
     if (parentMatch) {
