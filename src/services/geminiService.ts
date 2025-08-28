@@ -559,35 +559,39 @@ If you cannot clearly see any items or syndicate name, respond with "NONE_DETECT
 };
 
 const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
-  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods WITH THEIR QUANTITIES.
+  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods WITH THEIR CORRECT QUANTITIES.
 
-CRITICAL INSTRUCTIONS FOR MODS:
-- Extract the EXACT mod names as they appear in the image
-- Look for quantity indicators (x2, x3, etc.) on mod cards
-- Include mod rank information if visible (R0, R5, R10, etc.)
-- Detect mod rarity from visual cues (common=bronze, uncommon=silver, rare=gold, legendary=dark, primed=special)
-- Focus on mod cards that are fully visible and readable
+CRITICAL DUPLICATE DETECTION RULES:
+- DUPLICATE INDICATOR: Look for a small number in the TOP-LEFT corner of mod cards (usually white text)
+- DUPLICATE ICON: Look for an icon that looks like two overlapping pieces of paper in the top-left area
+- DO NOT confuse the mod drain number (top-right corner) with quantity - drain is NOT quantity!
+- IGNORE LEVELED MODS: Mods with blue dots at the bottom are leveled up - do NOT count these as duplicates
+- ONLY COUNT UNRANKED DUPLICATES: Focus on mods that appear to be rank 0 (no blue dots) with duplicate indicators
 
-QUANTITY DETECTION:
-- Look for quantity overlays like "x2", "x5", "x10" on mod cards
-- Small numbers in corners of mod icons indicate duplicates
-- Stack indicators show multiple copies of the same mod
+WHAT TO IGNORE:
+- The number in the TOP-RIGHT corner (this is mod drain/capacity, NOT quantity)
+- Mods with blue dots at the bottom (these are leveled up, not duplicates)
+- Mods that appear to be ranked up (they have blue progression dots)
 
-MOD INFORMATION TO EXTRACT:
-- Exact mod name (e.g., "Serration", "Primed Flow", "Condition Overload")
-- Quantity if more than 1
-- Rank if visible (R0-R10)
-- Rarity level if determinable from visual appearance
+WHAT TO LOOK FOR:
+- Small number in TOP-LEFT corner indicating duplicates (2, 3, 4, etc.)
+- Two-paper-stack icon in top-left area indicating duplicates
+- Only unranked mods (no blue dots) should be considered for duplicates
+- Exact mod names as they appear
 
 RESPONSE FORMAT:
-List each mod with quantity and rank. Use format "QUANTITY x MOD_NAME (RANK)" for multiples.
-For single items (quantity 1), you can omit the "1 x" prefix.
+List each mod with its correct duplicate quantity from the top-left indicator.
+Use format "QUANTITY x MOD_NAME" for duplicates, single name for singles.
+Do NOT include rank information unless specifically requested.
 
 Example format:
-Serration (R8)
-3 x Vitality (R5)
-Primed Flow (R10)
-2 x Condition Overload (R0)
+Serration
+3 x Vitality
+Primed Flow
+2 x Condition Overload
+
+IMPORTANT: If you see a number in the top-right, that is MOD DRAIN, not quantity!
+Only count the small number in the TOP-LEFT or the paper-stack icon as duplicate indicators.
 
 If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
 

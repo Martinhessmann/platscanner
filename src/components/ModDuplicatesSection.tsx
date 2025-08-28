@@ -289,51 +289,100 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
   return (
     <div ref={sectionRef} className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-700/50">
-        <div className="flex items-center gap-3">
+      {/* Header - Mobile-friendly */}
+      <div className="p-4 border-b border-gray-700/50">
+        <div className="flex items-center justify-between">
           <button
             onClick={handleToggle}
-            className="flex items-center gap-2 text-white hover:text-tenno-blue transition-colors"
+            className="flex items-center gap-3 text-left group hover:text-tenno-blue transition-colors flex-1 min-w-0"
           >
             {isExpanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-            <Star size={20} className="text-purple-400" />
-            <span className="font-semibold">Mod Duplicates</span>
-          </button>
-          
-          {totals.duplicateCount > 0 && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded-full">
-                {totals.duplicateCount} duplicates
-              </span>
-              {totals.totalMarketValue > 0 && (
-                <span className="text-green-400">
-                  ~{totals.totalMarketValue}p
-                </span>
-              )}
+            <div className="flex items-center gap-2">
+              <Star size={20} className="text-purple-400" />
             </div>
-          )}
+            <div>
+              <h3 className="font-semibold text-white group-hover:text-tenno-blue transition-colors">
+                Mod Duplicates
+              </h3>
+              {/* Essential info line - item count and key values */}
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <span>{totals.totalMods} mod{totals.totalMods !== 1 ? 's' : ''}</span>
+                {totals.duplicateCount > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Package size={10} className="text-yellow-400" />
+                    <span className="text-yellow-400">{totals.duplicateCount} duplicates</span>
+                  </div>
+                )}
+                {totals.totalMarketValue > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Coins size={10} className="text-green-400" />
+                    <span className="text-green-400">{totals.totalMarketValue}p</span>
+                  </div>
+                )}
+                {isRefreshing && progress && (
+                  <span className="text-tenno-blue">
+                    Refreshing {progress.current}/{progress.total}
+                  </span>
+                )}
+              </div>
+            </div>
+          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={isRefreshing ? onCancel : handleRefresh}
+              disabled={!isRefreshing && !onCancel}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                isRefreshing
+                  ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
+                  : 'text-tenno-blue hover:bg-tenno-blue/10'
+              }`}
+              title={isRefreshing ? "Cancel refresh" : "Refresh all mod prices"}
+            >
+              {isRefreshing ? (
+                <X size={12} />
+              ) : (
+                <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
+              )}
+              {isRefreshing && progress ? `${progress.current}/${progress.total}` : ''}
+            </button>
+
+            <button
+              onClick={onClearAll}
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-grineer-red hover:bg-grineer-red/10 transition-colors"
+              title="Delete all mods"
+            >
+              <Trash2 size={12} />
+            </button>
+
+            {(lastRefreshTime || getModLastRefreshTime()) && (
+              <LastRefreshInfo
+                lastRefreshTime={lastRefreshTime || getModLastRefreshTime()}
+                className="text-xs text-gray-500"
+              />
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <LastRefreshInfo 
-            lastRefreshTime={lastRefreshTime || getModLastRefreshTime()}
-            isRefreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            progress={progress}
-            onCancel={onCancel}
-          />
-          
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`p-2 rounded-lg transition-colors ${
-              showFilters ? 'bg-tenno-blue/20 text-tenno-blue' : 'text-gray-400 hover:text-tenno-blue'
-            }`}
-            title="Toggle filters"
-          >
-            <Filter size={16} />
-          </button>
-        </div>
+        {/* Progress bar - show when refreshing */}
+        {isRefreshing && progress && (
+          <div className="mt-3 pt-3 border-t border-gray-700/50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-400">Refreshing prices...</span>
+              <span className="text-xs text-gray-400">
+                {progress.current} / {progress.total}
+              </span>
+            </div>
+            <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-tenno-blue transition-all duration-300"
+                style={{
+                  width: `${(progress.current / progress.total) * 100}%`
+                }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {isExpanded && (
@@ -367,6 +416,26 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Controls Row */}
+            <div className="flex items-center justify-between mt-3">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-400">
+                  {filteredAndSortedMods.length} items
+                </span>
+              </div>
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                  showFilters
+                    ? 'bg-tenno-blue/20 text-tenno-blue'
+                    : 'text-gray-400 hover:text-tenno-blue hover:bg-tenno-blue/10'
+                }`}
+              >
+                <Filter size={12} />
+                Filters & Sort
+              </button>
+            </div>
           </div>
 
           {/* Filters */}
