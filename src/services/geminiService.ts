@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
-import { DetectedItem, PrimePart, VoidRelic, SyndicateReward } from '../types';
+import { DetectedItem, PrimePart, VoidRelic, SyndicateReward, Mod } from '../types';
 import { getCategorizedInventory } from './inventoryService';
+import { determineModRarity, determineModType } from './modService';
 
 const API_KEY_STORAGE_KEY = 'platscanner_gemini_api_key';
 const IMAGE_CACHE_KEY = 'platscanner_image_cache';
@@ -10,7 +11,7 @@ const CACHE_EXPIRY_HOURS = 24; // Cache results for 24 hours
 interface ImageCacheEntry {
   hash: string;
   timestamp: number;
-  screenType: 'prime_parts' | 'relics' | 'syndicate' | 'unknown';
+  screenType: 'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown';
   detectedItems: DetectedItem[];
 }
 
@@ -95,6 +96,7 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
   inventory.prime_parts.forEach(item => existingItems.add(`${item.category}:${item.name}`));
   inventory.relics.forEach(item => existingItems.add(`${item.category}:${item.name}`));
   inventory.syndicate_rewards.forEach(item => existingItems.add(`${item.category}:${item.name}`));
+  inventory.mods.forEach(item => existingItems.add(`${item.category}:${item.name}`));
 
   const newItems = detectedItems.filter(item => {
     const itemKey = `${item.category}:${item.name}`;
@@ -346,18 +348,49 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
       };
       detectedItems.push(relicItem);
     }
+    // Check if it's a mod - look for common mod patterns and characteristics
+    else if (cleanLine && !cleanLine.includes('Prime') && !cleanLine.includes('Relic')) {
+      // Parse mod with optional rank information
+      let modName = cleanLine;
+      let rank: number | undefined = undefined;
+      
+      // Extract rank if present in format like "Serration (R8)" or "Primed Flow (R10)"
+      const rankMatch = cleanLine.match(/^(.*?)\s*\(R(\d+)\)$/i);
+      if (rankMatch) {
+        modName = rankMatch[1].trim();
+        rank = parseInt(rankMatch[2]);
+        console.log(`>>> [AI Parsing] Found mod with rank: "${modName}" R${rank} <<<`);
+      }
+      
+      const rarity = determineModRarity(modName);
+      const type = determineModType(modName);
+      
+      const modItem: Mod = {
+        id: `mod-${Date.now()}-${index}`,
+        name: modName,
+        category: 'mods',
+        rank,
+        quantity,
+        rarity,
+        type,
+        status: 'loading'
+      };
+      detectedItems.push(modItem);
+      console.log(`>>> [AI Parsing] Added mod: "${modName}" (${rarity} ${type}) qty:${quantity} <<<`);
+    }
   });
 
   return detectedItems;
 };
 
-const determineScreenType = async (imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'syndicate' | 'unknown'> => {
+const determineScreenType = async (imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown'> => {
   const screenTypePrompt = `Look at this Warframe screenshot and determine what type of inventory screen this is.
 
 Respond with EXACTLY ONE of these options:
 - PRIME_PARTS (if you see items with "Prime" in their names like "Sevagoth Prime Blueprint", "Mirage Prime Chassis", etc.)
 - RELICS (if you see Void Relics like "Lith A1 Relic", "Meso B2 Relic", "Neo C3 Relic", "Axi D4 Relic")
 - SYNDICATE (if you see a Syndicate Offerings shop with items that cost Standing values like 5,000 / 25,000 / 100,000, words like "Offerings", "Syndicate", "Sigil", or faction names like Telos, Secura, Synoid, Rakta, Sancti)
+- MODS (if you see mod cards/inventory with mod names like "Serration", "Primed Flow", "Vitality", "Steel Fiber", "Condition Overload", etc. Often shows mod ranks, polarity symbols, and capacity costs)
 - UNKNOWN (if you cannot clearly determine the screen type)`;
 
   const result = await genAI!.models.generateContent({
@@ -385,6 +418,7 @@ Respond with EXACTLY ONE of these options:
   if (text.includes('PRIME_PARTS')) return 'prime_parts';
   if (text.includes('RELICS')) return 'relics';
   if (text.includes('SYNDICATE')) return 'syndicate';
+  if (text.includes('MODS')) return 'mods';
   return 'unknown';
 };
 
@@ -524,6 +558,60 @@ If you cannot clearly see any items or syndicate name, respond with "NONE_DETECT
   return result.text;
 };
 
+const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
+  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods WITH THEIR QUANTITIES.
+
+CRITICAL INSTRUCTIONS FOR MODS:
+- Extract the EXACT mod names as they appear in the image
+- Look for quantity indicators (x2, x3, etc.) on mod cards
+- Include mod rank information if visible (R0, R5, R10, etc.)
+- Detect mod rarity from visual cues (common=bronze, uncommon=silver, rare=gold, legendary=dark, primed=special)
+- Focus on mod cards that are fully visible and readable
+
+QUANTITY DETECTION:
+- Look for quantity overlays like "x2", "x5", "x10" on mod cards
+- Small numbers in corners of mod icons indicate duplicates
+- Stack indicators show multiple copies of the same mod
+
+MOD INFORMATION TO EXTRACT:
+- Exact mod name (e.g., "Serration", "Primed Flow", "Condition Overload")
+- Quantity if more than 1
+- Rank if visible (R0-R10)
+- Rarity level if determinable from visual appearance
+
+RESPONSE FORMAT:
+List each mod with quantity and rank. Use format "QUANTITY x MOD_NAME (RANK)" for multiples.
+For single items (quantity 1), you can omit the "1 x" prefix.
+
+Example format:
+Serration (R8)
+3 x Vitality (R5)
+Primed Flow (R10)
+2 x Condition Overload (R0)
+
+If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
+
+  const result = await genAI!.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: modsPrompt },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: imageBase64
+            }
+          }
+        ]
+      }
+    ]
+  });
+
+  return result.text;
+};
+
 export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => {
   if (!isGeminiConfigured()) {
     throw new Error('Gemini API key not configured');
@@ -560,6 +648,9 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     } else if (screenType === 'syndicate') {
       console.log(`>>> [Gemini] Step 2: Analyzing Syndicate Offerings <<<`);
       analysisText = await analyzeSyndicate(imageBase64, imageFile.type);
+    } else if (screenType === 'mods') {
+      console.log(`>>> [Gemini] Step 2: Analyzing Mods <<<`);
+      analysisText = await analyzeMods(imageBase64, imageFile.type);
     } else {
       console.log(`>>> [Gemini] Unknown screen type, using generic analysis <<<`);
       analysisText = await analyzePrimeParts(imageBase64, imageFile.type); // Default to prime parts

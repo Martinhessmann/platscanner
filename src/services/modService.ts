@@ -6,6 +6,7 @@ import { fetchBatchPriceData } from './warframeMarketService';
 export interface ModItem {
   id: string;
   name: string;
+  category: 'mods';
   rank?: number;
   quantity: number;
   rarity: 'common' | 'uncommon' | 'rare' | 'legendary' | 'primed';

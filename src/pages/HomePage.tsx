@@ -239,16 +239,54 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     console.log('>>> [HomePage] Starting mod refresh <<<');
     setIsRefreshingMods(true);
+    setCategoryProgress({ category: 'mods', current: 0, total: 0 });
 
     try {
-      // Mod refresh is handled internally by the ModDuplicatesSection component
-      // This handler is just for state management
+      const inventory = getCategorizedInventory();
+      const modItems = inventory.mods;
+
+      if (modItems.length === 0) {
+        console.log('>>> [HomePage] No mods to refresh <<<');
+        return;
+      }
+
+      console.log(`>>> [HomePage] Found ${modItems.length} mods to refresh <<<`);
+      
+      // Import and use mod service to refresh prices
+      const { refreshModPrices } = await import('../services/modService');
+      const modData = modItems.map(item => ({
+        ...item,
+        rarity: item.rarity || 'uncommon',
+        type: item.type || 'other',
+        addedAt: new Date(item.addedAt),
+        lastUpdated: new Date(item.lastUpdated)
+      }));
+
+      const updatedMods = await refreshModPrices(
+        modData,
+        (current, total) => {
+          setCategoryProgress({ category: 'mods', current, total });
+        }
+      );
+
+      // Update inventory with refreshed mod prices
+      if (updatedMods.length > 0) {
+        const { updateInventoryPrices } = await import('../services/inventoryService');
+        updateInventoryPrices(updatedMods);
+
+        // Refresh local inventory state
+        const newInventory = getCategorizedInventory();
+        setCategorizedInventory(newInventory);
+        setInventoryRefreshTrigger(prev => prev + 1);
+      }
+
       setLastModRefresh(new Date());
-      console.log('>>> [HomePage] Mod refresh completed <<<');
+      console.log(`>>> [HomePage] Mod refresh completed for ${updatedMods.length} items <<<`);
     } catch (error) {
       console.error('Failed to refresh mods:', error);
     } finally {
       setIsRefreshingMods(false);
+      setCategoryProgress(undefined);
     }
   }, [isRefreshingMods]);
 
@@ -1538,6 +1576,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             isRefreshing={isRefreshingMods}
             onRefreshStart={handleRefreshMods}
             onRefreshComplete={() => setIsRefreshingMods(false)}
+            onCancel={() => {/* TODO: Add cancel logic if needed */}}
+            onClearAll={() => handleClearInventory('mods')}
+            onRemoveItem={handleRemoveFromInventory}
+            refreshTrigger={inventoryRefreshTrigger}
+            progress={categoryProgress?.category === 'mods' ? categoryProgress : undefined}
             lastRefreshTime={lastModRefresh}
           />
 
