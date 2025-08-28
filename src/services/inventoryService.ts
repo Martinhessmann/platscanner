@@ -126,6 +126,7 @@ export interface CategorizedInventory {
   prime_parts: InventoryItem[];
   relics: InventoryItem[];
   syndicate_rewards: InventoryItem[];
+  mods: InventoryItem[];
 }
 
 export interface InventoryStorage {
@@ -284,7 +285,8 @@ export const getCategorizedInventory = (): CategorizedInventory => {
   return {
     prime_parts: inventory.items.filter(item => item.category === 'prime_parts'),
     relics: inventory.items.filter(item => item.category === 'relics'),
-    syndicate_rewards: inventory.items.filter(item => item.category === 'syndicate_rewards')
+    syndicate_rewards: inventory.items.filter(item => item.category === 'syndicate_rewards'),
+    mods: inventory.items.filter(item => item.category === 'mods')
   };
 };
 

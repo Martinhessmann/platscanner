@@ -3,6 +3,7 @@ import ImageUploader from '../components/ImageUploader';
 import ProcessingPanel from '../components/ProcessingPanel';
 import InventorySection from '../components/InventorySection';
 import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
+import ModDuplicatesSection from '../components/ModDuplicatesSection';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
 import { fetchPriceData, fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
 import { cloudSyncService } from '../services/cloudSyncService';
@@ -57,8 +58,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const [lastPrimePartsRefresh, setLastPrimePartsRefresh] = useState<Date | null>(null);
   const [lastRelicsRefresh, setLastRelicsRefresh] = useState<Date | null>(null);
   const [lastSyndicateRewardsRefresh, setLastSyndicateRewardsRefresh] = useState<Date | null>(null);
+  const [lastModRefresh, setLastModRefresh] = useState<Date | null>(null);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [isRefreshingSyndicateRewards, setIsRefreshingSyndicateRewards] = useState(false);
+  const [isRefreshingMods, setIsRefreshingMods] = useState(false);
   const [shouldCancelSyndicateRefresh, setShouldCancelSyndicateRefresh] = useState(false);
   const cancelSyndicateRefreshRef = useRef(false);
   const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
@@ -71,7 +74,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const [categorizedInventory, setCategorizedInventory] = useState({
     prime_parts: [] as InventoryItem[],
     relics: [] as InventoryItem[],
-    syndicate_rewards: [] as InventoryItem[]
+    syndicate_rewards: [] as InventoryItem[],
+    mods: [] as InventoryItem[]
   });
   
   // Filter state for prime parts
@@ -225,6 +229,28 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     setShouldCancelSyndicateRefresh(true);
     cancelSyndicateRefreshRef.current = true;
   }, []);
+
+  // Handle mod duplicates refresh
+  const handleRefreshMods = useCallback(async () => {
+    if (isRefreshingMods) {
+      console.log('>>> [HomePage] Mod refresh already in progress, skipping <<<');
+      return;
+    }
+
+    console.log('>>> [HomePage] Starting mod refresh <<<');
+    setIsRefreshingMods(true);
+
+    try {
+      // Mod refresh is handled internally by the ModDuplicatesSection component
+      // This handler is just for state management
+      setLastModRefresh(new Date());
+      console.log('>>> [HomePage] Mod refresh completed <<<');
+    } catch (error) {
+      console.error('Failed to refresh mods:', error);
+    } finally {
+      setIsRefreshingMods(false);
+    }
+  }, [isRefreshingMods]);
 
   // Handle individual syndicate reward refresh
   const handleRefreshSingleSyndicateReward = useCallback(async (itemName: string) => {
@@ -1507,8 +1533,16 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             refreshTrigger={inventoryRefreshTrigger}
           />
 
+          {/* Mod Duplicates Section - Help with duplicate mod management */}
+          <ModDuplicatesSection
+            isRefreshing={isRefreshingMods}
+            onRefreshStart={handleRefreshMods}
+            onRefreshComplete={() => setIsRefreshingMods(false)}
+            lastRefreshTime={lastModRefresh}
+          />
+
           {/* Empty state - only show when no processing and no results */}
-          {!isProcessing && categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && processingState.images.size === 0 && (
+          {!isProcessing && categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && categorizedInventory.mods.length === 0 && processingState.images.size === 0 && (
             <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
               <Package size={40} className="mx-auto text-gray-500 mb-3" />
               <p className="text-gray-400 mb-2">Your inventory is empty</p>

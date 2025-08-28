@@ -1,6 +1,6 @@
 import { FileWithPath } from 'react-dropzone';
 
-export type ItemCategory = 'prime_parts' | 'relics' | 'syndicate_rewards';
+export type ItemCategory = 'prime_parts' | 'relics' | 'syndicate_rewards' | 'mods';
 
 export interface BaseItem {
   id: string;
@@ -60,7 +60,19 @@ export interface SyndicateReward extends BaseItem {
   availability?: 'always' | 'rotation' | 'limited';
 }
 
-export type DetectedItem = PrimePart | VoidRelic | SyndicateReward;
+export interface Mod extends BaseItem {
+  category: 'mods';
+  rank?: number;
+  rarity: 'common' | 'uncommon' | 'rare' | 'legendary' | 'primed';
+  type: 'warframe' | 'weapon' | 'companion' | 'archwing' | 'stance' | 'augment' | 'other';
+  // Analysis fields for duplicate management
+  endoValue?: number;
+  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP_ONE_SELL_REST' | 'KEEP_ALL';
+  reasoning?: string;
+  platPerEndo?: number;
+}
+
+export type DetectedItem = PrimePart | VoidRelic | SyndicateReward | Mod;
 
 export interface ImageState {
   id: string;
