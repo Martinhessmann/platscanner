@@ -421,10 +421,11 @@ export const refreshModPrices = async (
           ...mod,
           price: priceItem.price,
           volume: priceItem.volume,
-          average: priceItem.average,
+          average: priceItem.average || mod.average, // Preserve existing average if new one is not available
           rarity: updatedRarity,
           type: updatedType,
-          imgUrl: priceItem.thumb, // Set the image URL from market data
+          imgUrl: priceItem.thumb || mod.imgUrl, // Preserve existing image URL if new one is not available
+          hasHistoricalSales: mod.hasHistoricalSales || (priceItem.volume > 0 || priceItem.average > 0), // Preserve or update historical sales flag
           status: 'loaded' as const,
           lastUpdated: new Date(),
           error: undefined // Clear any existing error

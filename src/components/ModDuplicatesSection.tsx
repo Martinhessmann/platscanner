@@ -253,7 +253,13 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
         if (updatedMods.length > 0) {
           const updatedMod = updatedMods[0];
-          setMods(prev => prev.map(m => m.name === itemName ? updatedMod : m));
+          
+          // Recalculate recommendation for the updated mod
+          const { analyzeModForDuplicates } = await import('../services/modService');
+          const endoValue = updatedMod.endoValue || 0;
+          const analyzedMod = analyzeModForDuplicates({ ...updatedMod, endoValue });
+          
+          setMods(prev => prev.map(m => m.name === itemName ? analyzedMod : m));
         }
       }
     } catch (error) {
@@ -702,29 +708,17 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                     />
                   </div>
 
-                  {/* Value display - show either market price OR endo value based on recommendation */}
+                  {/* Value display - show appropriate value based on recommendation */}
                   <div className="grid grid-cols-1 gap-4">
-                    {mod.recommendation === 'SELL_FOR_ENDO' || !mod.price || mod.price === 0 ? (
-                      <div>
-                        <div className="text-xs text-gray-400 mb-1">Endo Value</div>
-                        <div className="text-red-400 font-medium">{mod.endoValue || 0}</div>
-                        {mod.average && mod.average > 0 && (
-                          <div className="text-xs text-gray-400">
-                            90d avg: {mod.average}p
-                          </div>
-                        )}
-                        <div className="text-xs text-gray-400">
-                          total: {((mod.endoValue || 0) * mod.quantity)}
-                        </div>
-                      </div>
-                    ) : (
+                    {mod.recommendation === 'TRADE_ON_MARKET' && mod.price && mod.price > 0 ? (
+                      // Current market buyers - show current price
                       <div>
                         <div className="text-xs text-gray-400 mb-1">Market Price</div>
                         {refreshingItems.has(mod.name) ? (
                           <div className="animate-pulse">
                             <div className="h-4 bg-gray-700 rounded w-12"></div>
                           </div>
-                        ) : mod.price && mod.price > 0 ? (
+                        ) : (
                           <div>
                             <div className="text-green-400 font-medium">{mod.price}p</div>
                             {mod.average && mod.average > 0 && (
@@ -736,12 +730,43 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                               total: {(mod.price * mod.quantity)}p
                             </div>
                           </div>
-                        ) : mod.status === 'loaded' && mod.price === 0 ? (
-                          <div className="text-gray-500 text-xs">Not tradeable</div>
-                        ) : mod.status === 'error' ? (
-                          <div className="text-gray-500 text-xs">Not found</div>
+                        )}
+                      </div>
+                    ) : mod.recommendation === 'HOLD_FOR_LATER' && mod.average && mod.average > 0 ? (
+                      // Historical sales but no current buyers - show historical average
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Historical Average</div>
+                        {refreshingItems.has(mod.name) ? (
+                          <div className="animate-pulse">
+                            <div className="h-4 bg-gray-700 rounded w-12"></div>
+                          </div>
                         ) : (
-                          <div className="text-gray-500 text-xs">Loading...</div>
+                          <div>
+                            <div className="text-yellow-400 font-medium">{mod.average}p</div>
+                            <div className="text-xs text-gray-400">
+                              total: {(mod.average * mod.quantity)}p
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              (No current buyers)
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      // No market activity - show endo value
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Endo Value</div>
+                        {refreshingItems.has(mod.name) ? (
+                          <div className="animate-pulse">
+                            <div className="h-4 bg-gray-700 rounded w-12"></div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="text-red-400 font-medium">{mod.endoValue || 0}</div>
+                            <div className="text-xs text-gray-400">
+                              total: {((mod.endoValue || 0) * mod.quantity)}
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
