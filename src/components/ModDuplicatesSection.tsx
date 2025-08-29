@@ -333,7 +333,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       imgUrlLength: mod.imgUrl?.length
     });
 
-    // If we have a thumb path, convert it to proxy URL
+    // If we have a thumb path, try direct Warframe Market URL first
     if (mod.imgUrl && mod.imgUrl.includes('items/images')) {
       // Handle migration from old full URL format to new path format
       let imagePath = mod.imgUrl;
@@ -344,16 +344,10 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         console.log(`>>> [Mod Image Debug] Migrated full URL to path: ${mod.imgUrl} -> ${imagePath}`);
       }
 
-      const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/warframe-market?image=${encodeURIComponent(imagePath)}`;
-      console.log(`>>> [Mod Image Debug] Converting thumb path to proxy: ${proxyUrl}`);
-      return proxyUrl;
-    }
-
-    // If we have a thumb path, convert it to full URL via proxy
-    if (mod.imgUrl && mod.imgUrl.includes('items/images')) {
-      const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/warframe-market?image=${encodeURIComponent(mod.imgUrl)}`;
-      console.log(`>>> [Mod Image Debug] Converting thumb path to proxy: ${proxyUrl}`);
-      return proxyUrl;
+      // Try direct Warframe Market URL first (faster)
+      const directUrl = `https://warframe.market/static/assets/${imagePath}`;
+      console.log(`>>> [Mod Image Debug] Using direct Warframe Market URL: ${directUrl}`);
+      return directUrl;
     }
 
     // Fallback to placeholder with rarity-based styling
@@ -367,17 +361,25 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       return getModImageUrl(mod);
     }
 
+    // Handle migration from old full URL format to new path format
+    let imagePath = mod.imgUrl;
+    if (mod.imgUrl.includes('warframe.market')) {
+      // Extract path from full URL
+      const url = new URL(mod.imgUrl);
+      imagePath = url.pathname.replace('/static/assets/', '');
+    }
+
     // Convert thumb path to full resolution path
     // From: items/images/en/thumbs/critical_delay.5e621ae9ee9a6d2d4576565a26af45cb.128x128.png
     // To: items/images/en/critical_delay.5e621ae9ee9a6d2d4576565a26af45cb.png
-    const fullResPath = mod.imgUrl
+    const fullResPath = imagePath
       .replace('/thumbs/', '/')
       .replace(/\.\d+x\d+\.png$/, '.png');
 
-    // Use Supabase proxy to avoid CORS issues
-    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/warframe-market?image=${encodeURIComponent(fullResPath)}`;
-    console.log(`>>> [Mod Image Debug] Full res proxy URL for ${mod.name}: ${proxyUrl}`);
-    return proxyUrl;
+    // Try direct Warframe Market URL for full resolution
+    const directUrl = `https://warframe.market/static/assets/${fullResPath}`;
+    console.log(`>>> [Mod Image Debug] Full res direct URL for ${mod.name}: ${directUrl}`);
+    return directUrl;
   };
 
   return (
@@ -672,8 +674,12 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                         });
                       }}
                       onError={(e) => {
+                        console.error(`>>> [Mod Image Error] Failed to load image for ${mod.name}:`, e);
                         // Fallback to placeholder if image fails to load
                         (e.target as HTMLImageElement).src = '/images/mod.webp';
+                      }}
+                      onLoad={() => {
+                        console.log(`>>> [Mod Image Success] Successfully loaded image for ${mod.name}`);
                       }}
                       title={expandedImages.has(mod.name) ? "Click to shrink" : "Click to enlarge"}
                     />

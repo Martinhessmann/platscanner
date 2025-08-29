@@ -239,11 +239,13 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // For image requests, allow anonymous access
+  // Parse URL first to check for image requests
   const url = new URL(req.url);
   const imagePath = url.searchParams.get('image');
 
+  // Handle image proxy requests (no auth required for images)
   if (imagePath) {
+    console.log(`>>> [Supabase] Image request detected: ${imagePath}`);
     return await proxyImage(imagePath);
   }
 
