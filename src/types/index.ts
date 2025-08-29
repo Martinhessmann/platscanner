@@ -70,6 +70,7 @@ export interface Mod extends DetectedItem {
   platPerEndo?: number;
   imgUrl?: string;
   hasHistoricalSales?: boolean;
+  average?: number; // Historical average price from market data
 }
 
 export type DetectedItem = PrimePart | VoidRelic | SyndicateReward | Mod;

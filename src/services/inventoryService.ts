@@ -220,7 +220,9 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
           recommendation: modItem.recommendation,
           reasoning: modItem.reasoning,
           platPerEndo: modItem.platPerEndo,
-          imgUrl: modItem.imgUrl
+          imgUrl: modItem.imgUrl,
+          average: modItem.average,
+          hasHistoricalSales: modItem.hasHistoricalSales
         };
       }
 

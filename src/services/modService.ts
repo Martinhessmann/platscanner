@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 export interface ModItem extends Mod {
   price?: number;
   marketVolume?: number;
+  average?: number; // Historical average price from market data
   status?: 'loading' | 'loaded' | 'error';
   error?: string;
   recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'HOLD_FOR_LATER';
@@ -286,10 +287,12 @@ export const analyzeModForDuplicates = (mod: ModItem): ModItem => {
     // There are buyers on the market - always show plat value
     recommendation = 'TRADE_ON_MARKET';
     reasoning = `Market price available (${mod.price}p) - trade for platinum`;
-  } else if (mod.hasHistoricalSales) {
+  } else if (mod.hasHistoricalSales || (mod.average && mod.average > 0)) {
     // No current buyers but has sold in the past - hold for later
+    // Check both hasHistoricalSales flag and average price from market data
+    const historicalPrice = mod.average || 0;
     recommendation = 'HOLD_FOR_LATER';
-    reasoning = `No current buyers but has sold in the past - hold for better market`;
+    reasoning = `No current buyers but has sold in the past (avg: ${historicalPrice}p) - hold for better market`;
   } else {
     // No buyers on the market and no historical sales - show endo value
     recommendation = 'SELL_FOR_ENDO';

@@ -45,6 +45,23 @@ const normalizeItemName = (name: string): string => {
 };
 
 /**
+ * CRITICAL: Normalizes mod names to ensure we only fetch unranked (level 0) prices
+ * This is essential because leveled mods have different market entries and we never want to sell leveled mods
+ */
+const normalizeModName = (name: string, rank?: number): string => {
+  // Always normalize to unranked mod name, regardless of the mod's actual rank
+  // This ensures we only get prices for level 0 mods
+  let modName = name;
+  
+  // Remove any rank information from the name (e.g., "Serration (R8)" -> "Serration")
+  modName = modName.replace(/\s*\(R\d+\)$/i, '');
+  modName = modName.replace(/\s*Rank\s+\d+$/i, '');
+  
+  // Normalize the base name
+  return normalizeItemName(modName);
+};
+
+/**
  * Smart relic market lookup: Try refined relic first, fallback to base relic
  * Some relics have separate market entries for refinement levels (e.g., Axi Y1 Radiant vs Intact)
  */
@@ -394,16 +411,31 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
     console.log(`Fetching price data for: ${primePart.name}`);
 
     let data;
+    let normalizedName: string;
+    
     if (useSupabase) {
-      // Use smart relic lookup for relics, normal lookup for others
+      // Use smart relic lookup for relics, mod-specific normalization for mods
       if (primePart.name.includes('Relic')) {
         data = await fetchRelicViaSupabase(primePart.name);
+      } else if (primePart.category === 'mods') {
+        // For mods, always fetch unranked (level 0) prices
+        const modItem = primePart as any;
+        normalizedName = normalizeModName(primePart.name, modItem.rank);
+        console.log(`>>> [Mod Price Fetch] Normalized mod name: "${primePart.name}" -> "${normalizedName}" (ensuring unranked prices) <<<`);
+        data = await fetchViaSupabase(normalizedName);
       } else {
-        const normalizedName = normalizeItemName(primePart.name);
+        normalizedName = normalizeItemName(primePart.name);
         data = await fetchViaSupabase(normalizedName);
       }
     } else {
-      const normalizedName = normalizeItemName(primePart.name);
+      if (primePart.category === 'mods') {
+        // For mods, always fetch unranked (level 0) prices
+        const modItem = primePart as any;
+        normalizedName = normalizeModName(primePart.name, modItem.rank);
+        console.log(`>>> [Mod Price Fetch] Normalized mod name: "${primePart.name}" -> "${normalizedName}" (ensuring unranked prices) <<<`);
+      } else {
+        normalizedName = normalizeItemName(primePart.name);
+      }
       data = await fetchViaDirect(normalizedName);
     }
 
@@ -496,16 +528,31 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
     console.log(`Fetching data for: ${primePart.name}`);
 
     let data;
+    let normalizedName: string;
+    
     if (useSupabase) {
-      // Use smart relic lookup for relics, normal lookup for others
+      // Use smart relic lookup for relics, mod-specific normalization for mods
       if (primePart.name.includes('Relic')) {
         data = await fetchRelicViaSupabase(primePart.name);
+      } else if (primePart.category === 'mods') {
+        // For mods, always fetch unranked (level 0) prices
+        const modItem = primePart as any;
+        normalizedName = normalizeModName(primePart.name, modItem.rank);
+        console.log(`>>> [Mod Price Fetch] Normalized mod name: "${primePart.name}" -> "${normalizedName}" (ensuring unranked prices) <<<`);
+        data = await fetchViaSupabase(normalizedName);
       } else {
-        const normalizedName = normalizeItemName(primePart.name);
+        normalizedName = normalizeItemName(primePart.name);
         data = await fetchViaSupabase(normalizedName);
       }
     } else {
-      const normalizedName = normalizeItemName(primePart.name);
+      if (primePart.category === 'mods') {
+        // For mods, always fetch unranked (level 0) prices
+        const modItem = primePart as any;
+        normalizedName = normalizeModName(primePart.name, modItem.rank);
+        console.log(`>>> [Mod Price Fetch] Normalized mod name: "${primePart.name}" -> "${normalizedName}" (ensuring unranked prices) <<<`);
+      } else {
+        normalizedName = normalizeItemName(primePart.name);
+      }
       data = await fetchViaDirect(normalizedName);
     }
 
