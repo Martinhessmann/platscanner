@@ -744,7 +744,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                     lastUpdated: new Date(),
                     status: 'loaded' as const,
                     rarity: actualRarity,
-                    type: actualType
+                    type: actualType,
+                    imgUrl: priceData ? `https://warframe.market/static/assets/${priceData.thumb}` : undefined
                   } as any;
 
                   // Calculate endo value and analyze for recommendations

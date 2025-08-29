@@ -79,7 +79,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       const inventory = getCategorizedInventory();
       const modItems = inventory.mods.map(item => ({
         ...item,
-        rarity: item.rarity || 'uncommon',
+        rarity: item.rarity || 'unknown',
         type: item.type || 'other',
         addedAt: new Date(item.addedAt),
         lastUpdated: new Date(item.lastUpdated)
@@ -586,14 +586,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                     <img
                       src={getModImageUrl(mod)}
                       alt={`${mod.name} mod`}
-                      className={`w-16 h-16 object-cover rounded-lg border-2 ${
-                        mod.rarity === 'common' ? 'border-gray-400 opacity-40' :
-                        mod.rarity === 'uncommon' ? 'border-green-400 opacity-50' :
-                        mod.rarity === 'rare' ? 'border-blue-400 opacity-60' :
-                        mod.rarity === 'legendary' ? 'border-purple-400 opacity-70' :
-                        mod.rarity === 'primed' ? 'border-yellow-400 opacity-80' :
-                        'border-gray-400 opacity-60'
-                      }`}
+                      className="w-16 h-20 object-cover rounded-lg"
                       onError={(e) => {
                         // Fallback to placeholder if image fails to load
                         (e.target as HTMLImageElement).src = '/images/mod.webp';

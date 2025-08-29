@@ -92,13 +92,13 @@ export interface InventoryItem {
   scanSession?: string; // Which scan session this item came from
 
   // Relic analysis properties (for VoidRelic items)
-  rarity?: 'intact' | 'exceptional' | 'flawless' | 'radiant';
+  rarity?: 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'common' | 'uncommon' | 'rare' | 'legendary' | 'primed' | 'unknown';
   relicDrops?: RelicRewardItem[];
   minDropValue?: number;
   maxDropValue?: number;
   expectedDropValue?: number;
   directSalePrice?: number;
-  recommendation?: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT';
+  recommendation?: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT' | 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP_ONE_SELL_REST' | 'KEEP_ALL';
   expectedProfit?: number;
   refinementAnalysis?: {
     platPerVoidTrace?: number;
@@ -120,6 +120,13 @@ export interface InventoryItem {
   platPerStanding?: number;
   marketVolume?: number;
   availability?: 'always' | 'rotation' | 'limited';
+
+  // Mod-specific properties (for Mod items)
+  rank?: number;
+  type?: 'warframe' | 'weapon' | 'companion' | 'archwing' | 'stance' | 'augment' | 'other';
+  endoValue?: number;
+  reasoning?: string;
+  platPerEndo?: number;
 }
 
 export interface CategorizedInventory {
@@ -196,6 +203,24 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
           marketVolume: syndicateItem.marketVolume,
           availability: syndicateItem.availability,
           masteryRank: syndicateItem.masteryRank
+        };
+      }
+
+      // Include mod-specific properties for Mod items
+      if (item.category === 'mods') {
+        const modItem = item as any; // Using any since Mod extends DetectedItem
+        
+        console.log(`>>> [InventoryService] Saving mod item: ${item.name}, rarity: ${modItem.rarity}, type: ${modItem.type} <<<`);
+        return {
+          ...baseItem,
+          rank: modItem.rank,
+          rarity: modItem.rarity,
+          type: modItem.type,
+          endoValue: modItem.endoValue,
+          recommendation: modItem.recommendation,
+          reasoning: modItem.reasoning,
+          platPerEndo: modItem.platPerEndo,
+          imgUrl: modItem.imgUrl
         };
       }
 
