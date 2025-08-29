@@ -362,3 +362,84 @@ A comprehensive syndicate market analysis feature was implemented to help player
 - **Market awareness**: Real-time pricing helps with trading decisions
 - **Clean interface**: Non-tradable items filtered out by default
 - **Mobile experience**: Touch-friendly design works great on all devices
+
+### Mod Duplicates Feature & Rarity Detection System (2025-08-29)
+
+A comprehensive mod inventory management system was implemented to help players optimize their mod collections and identify profitable trading opportunities:
+
+#### Core Mod Detection & Processing
+- **AI-powered mod recognition**: Enhanced Gemini Vision API prompts specifically for mod screenshots with sophisticated duplicate detection
+- **Visual rarity distinction**: AI instructions to differentiate between:
+  - **Active blue dots** (leveled mods) = Ignore from duplicate counting
+  - **Semi-transparent grey dots** (unranked mods) = Count as sellable duplicates
+- **Quantity detection**: Accurate parsing of duplicate indicators (small numbers in top-left corner of mod cards)
+- **Explanatory text filtering**: Advanced parsing filters to prevent AI explanation text from being treated as mod names
+
+#### Market-Driven Rarity System
+- **Warframe Market API authority**: Uses official market data as the definitive source for mod rarity instead of name-based guessing
+- **Real-time rarity updates**: During price fetching, mod rarity is updated from Market API data (`rarity: "rare"` → UI displays golden color)
+- **Type extraction from tags**: Automatically determines mod type (stance, weapon, warframe) from Market API tags
+- **Fallback handling**: Graceful degradation when Market API unavailable, using 'unknown' rarity with appropriate UI styling
+
+#### Smart Tradeability Logic  
+- **Non-tradeable mod detection**: Intelligent filtering prevents API calls for mods that don't exist on Warframe Market:
+  - **Stance mods** (Burning Wasp, Brutal Tide) → Marked as "Not tradeable"
+  - **Common mods** → Not worth trading, skip price fetch
+  - **Flawed mods** → Not tradeable by design
+  - **Pattern-based detection** → Known non-tradeable mod patterns
+- **Efficient API usage**: Only makes Market API calls for genuinely tradeable mods
+- **Clear UI messaging**: Shows "Not tradeable" instead of confusing error states
+
+#### Advanced Filtering & Analysis System
+- **Smart filter tabs**: Dynamic filter system with real-time counts:
+  - **With Buyers** (tradeable mods with active market)
+  - **All Duplicates** (quantity > 1) 
+  - **Rarity-based filters** (dynamically generated from available mods)
+- **Multi-dimensional sorting**: Sort by Plat/Endo ratio, Market Value, Endo Value, Recommendation, Rarity, Name
+- **Duplicate analysis**: Calculates total duplicates, market value, endo value, and best Plat/Endo ratios
+- **Recommendation engine**: AI-powered suggestions for each mod (Keep All, Keep One Sell Rest, Trade on Market, Sell for Endo)
+
+#### Mobile-First UI Design
+- **Card-based layout**: Touch-friendly mod cards with all essential information
+- **Progressive disclosure**: Essential details first, advanced info on demand  
+- **Visual hierarchy**: Clear mod images, rarity colors, quantity indicators, and action buttons
+- **Real-time refresh**: Individual mod price refresh with loading states and error handling
+- **Responsive filtering**: Collapsible filter panels that work well on mobile screens
+
+#### Technical Architecture Improvements
+- **Duplicate processing elimination**: Fixed multiple useEffect hooks that were causing duplicate API calls and processing
+- **Status type consistency**: Aligned mod status values ('loaded', 'error') across all processing paths
+- **Enhanced error handling**: Proper error states for failed API calls with user-friendly messages
+- **Image URL integration**: Automatic mod thumbnail URLs from Warframe Market API
+- **Debug logging**: Comprehensive logging system for troubleshooting rarity detection and API issues
+
+#### Market Data Integration  
+- **fetchSinglePriceData enhancement**: Updated to return rarity, tags, and thumbnail fields from Market API
+- **Batch processing support**: Efficient handling of multiple mod price requests with progress tracking
+- **Edge Function deployment**: Updated Supabase Edge Function with latest mod processing logic
+- **Caching optimization**: Intelligent caching to prevent unnecessary API calls while maintaining fresh data
+
+#### Key Files & Components
+- **`src/components/ModDuplicatesSection.tsx`**: Main UI component with filtering, sorting, and mod management
+- **`src/services/modService.ts`**: Core service with tradeability logic, rarity detection, and market integration  
+- **`src/services/geminiService.ts`**: Enhanced AI prompts and parsing logic for accurate mod detection
+- **`src/services/warframeMarketService.ts`**: Updated to support mod-specific data fields (rarity, tags, thumbnails)
+- **`src/pages/HomePage.tsx`**: Integrated mod processing pipeline with Market API rarity updates
+
+#### User Experience Benefits
+- **Accurate visual feedback**: Mod rarity colors match actual in-game frame colors (yellow = rare, blue = uncommon)
+- **Efficient inventory management**: Quick identification of valuable mods vs. endo-only duplicates  
+- **Smart trading decisions**: Real-time market data helps optimize selling strategies
+- **Time-saving automation**: No manual mod categorization - AI handles detection and Market API provides accurate data
+- **Mobile accessibility**: Full-featured mod management that works seamlessly on phones and tablets
+- **Clear actionability**: Each mod shows specific recommendations (trade, keep, sell for endo) with reasoning
+
+#### Bug Fixes & Technical Improvements
+- **Rarity assignment bug**: Fixed type casting issues where Market API rarity data wasn't properly mapped to internal types
+- **Duplicate processing**: Eliminated race conditions causing mods to be processed multiple times
+- **Status consistency**: Standardized status values across mod processing pipeline  
+- **API efficiency**: Prevented unnecessary API calls for non-tradeable mods
+- **Parsing improvements**: Enhanced text filtering to prevent AI explanations from creating duplicate mod entries
+- **Edge Function updates**: Deployed latest processing logic to production Supabase Edge Function
+
+This comprehensive mod management system transforms how players interact with their mod collections, providing intelligent automation, accurate market data, and actionable insights for optimizing both endo farming and platinum trading strategies.

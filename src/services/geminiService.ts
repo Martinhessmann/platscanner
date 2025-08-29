@@ -1,6 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
-import { DetectedItem, PrimePart, VoidRelic, SyndicateReward } from '../types';
+import { DetectedItem, PrimePart, VoidRelic, SyndicateReward, Mod } from '../types';
 import { getCategorizedInventory } from './inventoryService';
+import { determineModRarity, determineModType } from './modService';
 
 const API_KEY_STORAGE_KEY = 'platscanner_gemini_api_key';
 const IMAGE_CACHE_KEY = 'platscanner_image_cache';
@@ -10,7 +11,7 @@ const CACHE_EXPIRY_HOURS = 24; // Cache results for 24 hours
 interface ImageCacheEntry {
   hash: string;
   timestamp: number;
-  screenType: 'prime_parts' | 'relics' | 'syndicate' | 'unknown';
+  screenType: 'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown';
   detectedItems: DetectedItem[];
 }
 
@@ -95,6 +96,7 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
   inventory.prime_parts.forEach(item => existingItems.add(`${item.category}:${item.name}`));
   inventory.relics.forEach(item => existingItems.add(`${item.category}:${item.name}`));
   inventory.syndicate_rewards.forEach(item => existingItems.add(`${item.category}:${item.name}`));
+  inventory.mods.forEach(item => existingItems.add(`${item.category}:${item.name}`));
 
   const newItems = detectedItems.filter(item => {
     const itemKey = `${item.category}:${item.name}`;
@@ -346,18 +348,65 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
       };
       detectedItems.push(relicItem);
     }
+        // Check if it's a mod - look for common mod patterns and characteristics
+    // Filter out explanatory text, markdown formatting, and other non-mod lines
+    else if (cleanLine &&
+             !cleanLine.includes('Prime') &&
+             !cleanLine.includes('Relic') &&
+             !cleanLine.startsWith('*') && // Markdown bullets
+             !cleanLine.startsWith('-') && // List items
+             !cleanLine.includes('This mod has') && // Explanatory text
+             !cleanLine.includes('blue dots') && // Explanatory text
+             !cleanLine.includes('According to') && // Explanatory text
+             !cleanLine.includes('Therefore') && // Explanatory text
+             !cleanLine.includes('Following the same') && // Explanatory text
+             !cleanLine.includes('indicating it is') && // Explanatory text
+             cleanLine.length < 50 && // Reasonable mod name length
+             !/^[*\-\s]*\*\*/.test(cleanLine) && // Markdown bold formatting
+             !/^\s*\*/.test(cleanLine) && // Lines starting with asterisks
+             !cleanLine.includes(':') && // Explanatory text often has colons
+             !/^\d+\./.test(cleanLine)) { // Numbered lists
+      // Parse mod with optional rank information
+      let modName = cleanLine;
+      let rank: number | undefined = undefined;
+
+      // Extract rank if present in format like "Serration (R8)" or "Primed Flow (R10)"
+      const rankMatch = cleanLine.match(/^(.*?)\s*\(R(\d+)\)$/i);
+      if (rankMatch) {
+        modName = rankMatch[1].trim();
+        rank = parseInt(rankMatch[2]);
+        console.log(`>>> [AI Parsing] Found mod with rank: "${modName}" R${rank} <<<`);
+      }
+
+      const rarity = determineModRarity(modName);
+      const type = determineModType(modName);
+
+      const modItem: Mod = {
+        id: `mod-${Date.now()}-${index}`,
+        name: modName,
+        category: 'mods',
+        rank,
+        quantity,
+        rarity,
+        type,
+        status: 'loading'
+      };
+      detectedItems.push(modItem);
+      console.log(`>>> [AI Parsing] Added mod: "${modName}" (${rarity} ${type}) qty:${quantity} rank:${rank || 'unranked'} <<<`);
+    }
   });
 
   return detectedItems;
 };
 
-const determineScreenType = async (imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'syndicate' | 'unknown'> => {
+const determineScreenType = async (imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown'> => {
   const screenTypePrompt = `Look at this Warframe screenshot and determine what type of inventory screen this is.
 
 Respond with EXACTLY ONE of these options:
 - PRIME_PARTS (if you see items with "Prime" in their names like "Sevagoth Prime Blueprint", "Mirage Prime Chassis", etc.)
 - RELICS (if you see Void Relics like "Lith A1 Relic", "Meso B2 Relic", "Neo C3 Relic", "Axi D4 Relic")
 - SYNDICATE (if you see a Syndicate Offerings shop with items that cost Standing values like 5,000 / 25,000 / 100,000, words like "Offerings", "Syndicate", "Sigil", or faction names like Telos, Secura, Synoid, Rakta, Sancti)
+- MODS (if you see mod cards/inventory with mod names like "Serration", "Primed Flow", "Vitality", "Steel Fiber", "Condition Overload", etc. Often shows mod ranks, polarity symbols, and capacity costs)
 - UNKNOWN (if you cannot clearly determine the screen type)`;
 
   const result = await genAI!.models.generateContent({
@@ -385,6 +434,7 @@ Respond with EXACTLY ONE of these options:
   if (text.includes('PRIME_PARTS')) return 'prime_parts';
   if (text.includes('RELICS')) return 'relics';
   if (text.includes('SYNDICATE')) return 'syndicate';
+  if (text.includes('MODS')) return 'mods';
   return 'unknown';
 };
 
@@ -524,6 +574,77 @@ If you cannot clearly see any items or syndicate name, respond with "NONE_DETECT
   return result.text;
 };
 
+const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
+  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods WITH THEIR CORRECT QUANTITIES.
+
+CRITICAL DUPLICATE DETECTION RULES:
+- DUPLICATE INDICATOR: Look for a small number in the TOP-LEFT corner of mod cards (usually white text)
+- DUPLICATE ICON: Look for an icon that looks like two overlapping pieces of paper in the top-left area
+- DO NOT confuse the mod drain number (top-right corner) with quantity - drain is NOT quantity!
+
+CRITICAL LEVEL DETECTION - VISUAL DIFFERENCES:
+- **ACTIVE BLUE DOTS** = Leveled up mods (NOT for sale)
+  * Bright, glowing, solid blue dots
+  * Often 5-10 dots in a row
+  * Clear, vibrant blue color
+  * These mods are RANKED UP and should be IGNORED
+
+- **SEMI-TRANSPARENT GREY/SILVER DOTS** = Unranked mods (SAFE to sell)
+  * Faint, transparent, grey or silver dots
+  * Usually 3 dots in a row
+  * Dull, non-glowing appearance
+  * These mods are RANK 0 and can be sold as duplicates
+
+WHAT TO IGNORE:
+- The number in the TOP-RIGHT corner (this is mod drain/capacity, NOT quantity)
+- Mods with ACTIVE BLUE DOTS at the bottom (these are leveled up, not duplicates)
+- Any mod with bright, glowing blue progression indicators
+
+WHAT TO LOOK FOR:
+- Small number in TOP-LEFT corner indicating duplicates (2, 3, 4, 12, etc.)
+- Two-paper-stack icon in top-left area indicating duplicates
+- Only unranked mods (semi-transparent grey dots) should be considered for duplicates
+- Exact mod names as they appear
+
+RESPONSE FORMAT:
+List each mod with its correct duplicate quantity from the top-left indicator.
+Use format "QUANTITY x MOD_NAME" for duplicates, single name for singles.
+Do NOT include rank information unless specifically requested.
+
+Example format:
+Serration
+3 x Vitality
+12 x Finishing Touch
+Primed Flow
+2 x Condition Overload
+
+IMPORTANT: If you see a number in the top-right, that is MOD DRAIN, not quantity!
+Only count the small number in the TOP-LEFT or the paper-stack icon as duplicate indicators.
+ONLY count mods with semi-transparent grey dots (unranked), IGNORE mods with bright blue dots (leveled).
+
+If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
+
+  const result = await genAI!.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: modsPrompt },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: imageBase64
+            }
+          }
+        ]
+      }
+    ]
+  });
+
+  return result.text;
+};
+
 export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => {
   if (!isGeminiConfigured()) {
     throw new Error('Gemini API key not configured');
@@ -560,6 +681,9 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     } else if (screenType === 'syndicate') {
       console.log(`>>> [Gemini] Step 2: Analyzing Syndicate Offerings <<<`);
       analysisText = await analyzeSyndicate(imageBase64, imageFile.type);
+    } else if (screenType === 'mods') {
+      console.log(`>>> [Gemini] Step 2: Analyzing Mods <<<`);
+      analysisText = await analyzeMods(imageBase64, imageFile.type);
     } else {
       console.log(`>>> [Gemini] Unknown screen type, using generic analysis <<<`);
       analysisText = await analyzePrimeParts(imageBase64, imageFile.type); // Default to prime parts

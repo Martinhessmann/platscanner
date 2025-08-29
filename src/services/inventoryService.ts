@@ -48,7 +48,7 @@ const DUCATS_MAP: Record<string, number> = {
 const getPartType = (itemName: string): string | null => {
   const parts = itemName.split(' ');
   const lastPart = parts[parts.length - 1];
-  
+
   // Handle special cases like "Upper Limb", "Lower Limb"
   if (parts.length >= 2) {
     const lastTwoParts = parts.slice(-2).join(' ');
@@ -56,14 +56,14 @@ const getPartType = (itemName: string): string | null => {
       return lastTwoParts;
     }
   }
-  
+
   return DUCATS_MAP[lastPart] ? lastPart : null;
 };
 
 // Get static ducat value for a Prime part
 const getStaticDucatValue = (itemName: string, category: ItemCategory): number => {
   if (category !== 'prime_parts') return 0;
-  
+
   const partType = getPartType(itemName);
   return partType ? DUCATS_MAP[partType] : 0;
 };
@@ -126,6 +126,7 @@ export interface CategorizedInventory {
   prime_parts: InventoryItem[];
   relics: InventoryItem[];
   syndicate_rewards: InventoryItem[];
+  mods: InventoryItem[];
 }
 
 export interface InventoryStorage {
@@ -181,10 +182,10 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
       // Include syndicate-specific properties for SyndicateReward items
       if (item.category === 'syndicate_rewards') {
         const syndicateItem = item as any; // Using any since SyndicateReward extends DetectedItem
-        
+
         // Determine proper item type
         const properItemType = determineItemType(item.name);
-        
+
         console.log(`>>> [InventoryService] Saving syndicate item: ${item.name}, syndicate: ${syndicateItem.syndicate || 'NOT SET'}, type: ${properItemType} <<<`);
         return {
           ...baseItem,
@@ -284,7 +285,8 @@ export const getCategorizedInventory = (): CategorizedInventory => {
   return {
     prime_parts: inventory.items.filter(item => item.category === 'prime_parts'),
     relics: inventory.items.filter(item => item.category === 'relics'),
-    syndicate_rewards: inventory.items.filter(item => item.category === 'syndicate_rewards')
+    syndicate_rewards: inventory.items.filter(item => item.category === 'syndicate_rewards'),
+    mods: inventory.items.filter(item => item.category === 'mods')
   };
 };
 

@@ -3,8 +3,10 @@ import ImageUploader from '../components/ImageUploader';
 import ProcessingPanel from '../components/ProcessingPanel';
 import InventorySection from '../components/InventorySection';
 import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
+import ModDuplicatesSection from '../components/ModDuplicatesSection';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
 import { fetchPriceData, fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
+import { logger } from '../utils/logger';
 import { cloudSyncService } from '../services/cloudSyncService';
 import { initializeStaticData } from '../services/staticDataService';
 import {
@@ -57,8 +59,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const [lastPrimePartsRefresh, setLastPrimePartsRefresh] = useState<Date | null>(null);
   const [lastRelicsRefresh, setLastRelicsRefresh] = useState<Date | null>(null);
   const [lastSyndicateRewardsRefresh, setLastSyndicateRewardsRefresh] = useState<Date | null>(null);
+  const [lastModRefresh, setLastModRefresh] = useState<Date | null>(null);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [isRefreshingSyndicateRewards, setIsRefreshingSyndicateRewards] = useState(false);
+  const [isRefreshingMods, setIsRefreshingMods] = useState(false);
   const [shouldCancelSyndicateRefresh, setShouldCancelSyndicateRefresh] = useState(false);
   const cancelSyndicateRefreshRef = useRef(false);
   const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
@@ -71,9 +75,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const [categorizedInventory, setCategorizedInventory] = useState({
     prime_parts: [] as InventoryItem[],
     relics: [] as InventoryItem[],
-    syndicate_rewards: [] as InventoryItem[]
+    syndicate_rewards: [] as InventoryItem[],
+    mods: [] as InventoryItem[]
   });
-  
+
   // Filter state for prime parts
   const [primePartsFilter, setPrimePartsFilter] = useState<'all' | 'blueprints' | 'built_sets'>(() => {
     const stored = localStorage.getItem('prime_parts_filter');
@@ -91,9 +96,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   // Load built set parts when component mounts or mastered sets change
   useEffect(() => {
     const loadBuiltSetParts = async () => {
+      const builtSetsLogger = logger.withContext('built-sets-filter');
       const masteredSets = getMasteredSets();
-      console.log('[Built Sets Filter] Mastered sets:', masteredSets);
-      
+
+      builtSetsLogger.debug(`Loading built set parts for ${masteredSets.length} mastered sets`);
+
       if (masteredSets.length === 0) {
         setBuiltSetParts(new Set());
         return;
@@ -101,26 +108,28 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
       try {
         const primeSets = await loadPrimeSets();
-        console.log('[Built Sets Filter] Loaded prime sets count:', primeSets.length);
-        
+        builtSetsLogger.debug(`Loaded ${primeSets.length} prime sets from static data`);
+
         const parts = new Set<string>();
+        let processedSets = 0;
+
         primeSets.forEach(set => {
           if (masteredSets.includes(set.id)) {
-            console.log('[Built Sets Filter] Found mastered set:', set.name);
+            processedSets++;
+            if (builtSetsLogger.isEnabled()) {
+              builtSetsLogger.debug(`Processing mastered set: ${set.name} (${set.requiredParts.length} parts)`);
+            }
             set.requiredParts.forEach(part => {
-              // The part.name is already the full part name like "Acceltra Prime Receiver"
-              console.log('[Built Sets Filter] Adding part from built set:', part.name);
               parts.add(part.name.toLowerCase());
             });
           }
         });
-        
-        console.log('[Built Sets Filter] Total parts from built sets:', parts.size);
-        console.log('[Built Sets Filter] Built set parts:', Array.from(parts));
-        
+
+        builtSetsLogger.summary(`Processed ${processedSets} mastered sets, generated ${parts.size} tradeable parts for filter`);
+
         setBuiltSetParts(parts);
       } catch (error) {
-        console.error('[Built Sets Filter] Error loading prime sets:', error);
+        builtSetsLogger.error('Error loading prime sets:', error);
         setBuiltSetParts(new Set());
       }
     };
@@ -132,7 +141,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const isPartFromBuiltSet = useCallback((partName: string) => {
     const hasMatch = builtSetParts.has(partName.toLowerCase());
     if (hasMatch) {
-      console.log('[Built Sets Filter] Part matches built set:', partName);
+      logger.debug('built-sets-filter', `Part matches built set: ${partName}`);
     }
     return hasMatch;
   }, [builtSetParts]);
@@ -143,7 +152,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       // Filter out corrupted Gemini data
       if (item.category !== 'prime_parts') return false;
       const lowerName = item.name.toLowerCase();
-      if (lowerName.includes('here are the') || 
+      if (lowerName.includes('here are the') ||
           lowerName.includes('visible in the screenshot') ||
           lowerName.includes('items detected') ||
           lowerName.length < 5) return false;
@@ -226,6 +235,66 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     cancelSyndicateRefreshRef.current = true;
   }, []);
 
+  // Handle mod duplicates refresh
+  const handleRefreshMods = useCallback(async () => {
+    if (isRefreshingMods) {
+      console.log('>>> [HomePage] Mod refresh already in progress, skipping <<<');
+      return;
+    }
+
+    console.log('>>> [HomePage] Starting mod refresh <<<');
+    setIsRefreshingMods(true);
+    setCategoryProgress({ category: 'mods', current: 0, total: 0 });
+
+    try {
+      const inventory = getCategorizedInventory();
+      const modItems = inventory.mods;
+
+      if (modItems.length === 0) {
+        console.log('>>> [HomePage] No mods to refresh <<<');
+        return;
+      }
+
+      console.log(`>>> [HomePage] Found ${modItems.length} mods to refresh <<<`);
+
+      // Import and use mod service to refresh prices
+      const { refreshModPrices } = await import('../services/modService');
+      const modData = modItems.map(item => ({
+        ...item,
+        rarity: item.rarity || 'uncommon',
+        type: item.type || 'other',
+        addedAt: new Date(item.addedAt),
+        lastUpdated: new Date(item.lastUpdated)
+      }));
+
+      const updatedMods = await refreshModPrices(
+        modData,
+        (current, total) => {
+          setCategoryProgress({ category: 'mods', current, total });
+        }
+      );
+
+      // Update inventory with refreshed mod prices
+      if (updatedMods.length > 0) {
+        const { updateInventoryPrices } = await import('../services/inventoryService');
+        updateInventoryPrices(updatedMods);
+
+        // Refresh local inventory state
+        const newInventory = getCategorizedInventory();
+        setCategorizedInventory(newInventory);
+        setInventoryRefreshTrigger(prev => prev + 1);
+      }
+
+      setLastModRefresh(new Date());
+      console.log(`>>> [HomePage] Mod refresh completed for ${updatedMods.length} items <<<`);
+    } catch (error) {
+      console.error('Failed to refresh mods:', error);
+    } finally {
+      setIsRefreshingMods(false);
+      setCategoryProgress(undefined);
+    }
+  }, [isRefreshingMods]);
+
   // Handle individual syndicate reward refresh
   const handleRefreshSingleSyndicateReward = useCallback(async (itemName: string) => {
     console.log(`>>> [HomePage] Refreshing single syndicate reward: ${itemName} <<<`);
@@ -260,7 +329,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   useEffect(() => {
     // Update existing inventory items with static ducat values
     updateInventoryWithStaticDucats();
-    
+
     const inventory = getCategorizedInventory();
     setCategorizedInventory(inventory);
     setInventoryRefreshTrigger(prev => prev + 1);
@@ -401,7 +470,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
           // Extract items using Gemini AI
           const detectedItems = await analyzeImage(nextImage.file);
-          
+
           // If analysis was very fast (< 500ms), it was likely cached
           const analysisTime = Date.now() - startTime;
           const wasCached = analysisTime < 500;
@@ -574,7 +643,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               if (item.category === 'relics') {
                 // For relics, fetch basic price data AND calculate relic value analysis
                 const priceData = await fetchSinglePriceData(item);
-                
+
                 if (priceData) {
                   // Calculate relic value analysis using the actual detected rarity and market price
                   const relicItem = item as VoidRelic;
@@ -619,37 +688,103 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                   };
                 }
               } else {
-                // For non-relic items (prime parts, syndicate rewards)
-                const priceData = await fetchSinglePriceData(item);
-
-                if (priceData) {
-                  // Calculate platPerStanding for syndicate rewards
-                  let platPerStanding;
-                  if (item.category === 'syndicate_rewards') {
-                    const syndicateItem = item as any;
-                    const standingCost = syndicateItem.standingCost || 25000; // Default to 25k for mods
-                    if (priceData.price > 0 && standingCost > 0) {
-                      platPerStanding = (priceData.price * 1000) / standingCost;
-                      console.log(`>>> [Price Fetching] Calculated plat/1k standing for ${item.name}: ${platPerStanding.toFixed(2)} (${priceData.price}p / ${standingCost} standing) <<<`);
+                // For mods, fetch market data first to get accurate rarity
+                if (item.category === 'mods') {
+                  const { calculateEndoValue, analyzeModForDuplicates, isModTradeable } = await import('../services/modService');
+                  
+                  // Try to fetch price data first to get accurate rarity from Market API
+                  let priceData = null;
+                  let actualRarity = item.rarity || 'unknown';
+                  let actualType = item.type || 'other';
+                  
+                  try {
+                    priceData = await fetchSinglePriceData(item);
+                    console.log(`>>> [DEBUG RARITY] ${item.name} - priceData:`, priceData);
+                    console.log(`>>> [DEBUG RARITY] ${item.name} - priceData.rarity:`, priceData?.rarity);
+                    if (priceData && priceData.rarity) {
+                      // Use Market API rarity as authoritative source
+                      const marketRarity = priceData.rarity.toLowerCase();
+                      console.log(`>>> [DEBUG RARITY] ${item.name} - marketRarity (lowercased):`, marketRarity);
+                      // Map market API rarity to our ModItem rarity types
+                      actualRarity = marketRarity === 'common' ? 'common' :
+                                   marketRarity === 'uncommon' ? 'uncommon' :
+                                   marketRarity === 'rare' ? 'rare' :
+                                   marketRarity === 'legendary' ? 'legendary' :
+                                   marketRarity === 'primed' ? 'primed' : 'unknown';
+                      console.log(`>>> [Price Fetching] Updated ${item.name} rarity from "${item.rarity}" to "${actualRarity}" (Market API: "${priceData.rarity}") <<<`);
+                    }
+                    // Extract type from tags if available
+                    if (priceData && priceData.tags && Array.isArray(priceData.tags)) {
+                      const typeFromTags = priceData.tags.find(tag => 
+                        ['warframe', 'weapon', 'stance', 'archwing', 'companion', 'augment'].includes(tag.toLowerCase())
+                      );
+                      if (typeFromTags) {
+                        actualType = typeFromTags.toLowerCase() === 'weapon' ? 'weapon' : 
+                                   typeFromTags.toLowerCase() === 'warframe' ? 'warframe' :
+                                   typeFromTags.toLowerCase() === 'stance' ? 'stance' :
+                                   typeFromTags.toLowerCase() === 'archwing' ? 'archwing' :
+                                   typeFromTags.toLowerCase() === 'companion' ? 'companion' :
+                                   typeFromTags.toLowerCase() === 'augment' ? 'augment' : 'other';
+                      }
+                    }
+                  } catch (error) {
+                    console.log(`>>> [Price Fetching] Could not fetch market data for ${item.name}, using fallback rarity <<<`);
+                    // If market fetch fails, check if it should be tradeable based on initial rarity
+                    const fallbackTradeable = isModTradeable(item.name, actualType, actualRarity);
+                    if (!fallbackTradeable) {
+                      // Non-tradeable mod, don't try to fetch price
+                      priceData = null;
                     }
                   }
+                  
+                  const modItem = {
+                    ...item,
+                    price: priceData ? priceData.price : 0,
+                    marketVolume: priceData ? priceData.volume : 0,
+                    lastUpdated: new Date(),
+                    status: 'loaded' as const,
+                    rarity: actualRarity,
+                    type: actualType
+                  } as any;
 
-                  processedItem = {
-                    ...item,
-                    price: priceData.price,
-                    marketVolume: priceData.volume,
-                    lastUpdated: new Date(),
-                    ...(platPerStanding !== undefined && { platPerStanding }),
-                    status: 'success' as const
-                  };
+                  // Calculate endo value and analyze for recommendations
+                  const endoValue = calculateEndoValue(modItem);
+                  const analyzedMod = analyzeModForDuplicates({ ...modItem, endoValue });
+
+                  processedItem = analyzedMod;
                 } else {
-                  processedItem = {
-                    ...item,
-                    price: 0,
-                    marketVolume: 0,
-                    lastUpdated: new Date(),
-                    status: 'error' as const
-                  };
+                  // For non-mods (prime parts, syndicate rewards)
+                  const priceData = await fetchSinglePriceData(item);
+
+                  if (priceData) {
+                    // Calculate platPerStanding for syndicate rewards
+                    let platPerStanding;
+                    if (item.category === 'syndicate_rewards') {
+                      const syndicateItem = item as any;
+                      const standingCost = syndicateItem.standingCost || 25000; // Default to 25k for mods
+                      if (priceData.price > 0 && standingCost > 0) {
+                        platPerStanding = (priceData.price * 1000) / standingCost;
+                        console.log(`>>> [Price Fetching] Calculated plat/1k standing for ${item.name}: ${platPerStanding.toFixed(2)} (${priceData.price}p / ${standingCost} standing) <<<`);
+                      }
+                    }
+
+                    processedItem = {
+                      ...item,
+                      price: priceData.price,
+                      marketVolume: priceData.volume,
+                      lastUpdated: new Date(),
+                      ...(platPerStanding !== undefined && { platPerStanding }),
+                      status: 'success' as const
+                    };
+                  } else {
+                    processedItem = {
+                      ...item,
+                      price: 0,
+                      marketVolume: 0,
+                      lastUpdated: new Date(),
+                      status: 'error' as const
+                    };
+                  }
                 }
               }
 
@@ -681,7 +816,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               };
               processedItems.push(errorItem);
               setFetchingProgress({ current: index + 1, total: newItems.length });
-              
+
               // Save error item to inventory
               saveToInventory([errorItem], sessionId);
               const updatedInventory = getCategorizedInventory();
@@ -774,20 +909,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     }
   }, [processingState.images, processPriceFetching]);
 
-  // Legacy effect for backward compatibility (remove after testing)
-  useEffect(() => {
-    if (isGeminiConfigured()) {
-      const queuedImages = Array.from(processingState.images.values())
-        .filter(img => img.status === 'queued');
-
-      const processingImages = Array.from(processingState.images.values())
-        .filter(img => ['analyzing', 'fetching'].includes(img.status));
-
-      if (queuedImages.length > 0 && processingImages.length === 0) {
-        processImageAnalysis();
-      }
-    }
-  }, []); // Empty dependency array for one-time trigger
 
   const handleImageUpload = useCallback((files: FileWithPath[]) => {
     setProcessingState(prev => {
@@ -860,7 +981,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     setCategorizedInventory(prev => ({
       ...prev,
       prime_parts: prev.prime_parts.filter(item => item.name !== itemName),
-      relics: prev.relics.filter(item => item.name !== itemName)
+      relics: prev.relics.filter(item => item.name !== itemName),
+      syndicate_rewards: prev.syndicate_rewards.filter(item => item.name !== itemName),
+      mods: prev.mods.filter(item => item.name !== itemName)
     }));
   }, []);
 
@@ -871,13 +994,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       cancelSyndicateRefreshRef.current = true;
       setShouldCancelSyndicateRefresh(true);
     }
-    
+
     clearInventoryByCategory(category);
     setCategorizedInventory(prev => ({
       ...prev,
       [category]: []
     }));
-    
+
     // Trigger inventory refresh
     setInventoryRefreshTrigger(prev => prev + 1);
   }, [isRefreshingSyndicateRewards]);
@@ -887,7 +1010,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     const itemsToRemove = displayedPrimeParts;
     const namesToRemove = new Set(itemsToRemove.map(i => i.name));
     namesToRemove.forEach(name => removeFromInventory(name));
-    
+
     if (primePartsFilter === 'all') {
       // Clear ALL prime parts
       setCategorizedInventory(prev => ({
@@ -902,7 +1025,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       }));
     }
   }, [categorizedInventory.prime_parts, displayedPrimeParts, primePartsFilter]);
-  
+
 
   // Individual item price refresh
   const handleRefreshSingleItem = useCallback(async (itemName: string) => {
@@ -1481,10 +1604,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
               {/* Prime Sets Section - Always visible as a collection tracker */}
               <PrimeSetsSection
-                  primePartsInventory={categorizedInventory.prime_parts.filter(item => 
+                  primePartsInventory={categorizedInventory.prime_parts.filter(item =>
                     // Only include valid prime parts - filter out corrupted/fake data
-                    item.category === 'prime_parts' && 
-                    item.name && 
+                    item.category === 'prime_parts' &&
+                    item.name &&
                     item.name.length > 5 &&
                     !item.name.toLowerCase().includes('here are the') &&
                     !item.name.toLowerCase().includes('visible in the screenshot') &&
@@ -1507,8 +1630,21 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             refreshTrigger={inventoryRefreshTrigger}
           />
 
+          {/* Mod Duplicates Section - Help with duplicate mod management */}
+          <ModDuplicatesSection
+            isRefreshing={isRefreshingMods}
+            onRefreshStart={handleRefreshMods}
+            onRefreshComplete={() => setIsRefreshingMods(false)}
+            onCancel={() => {/* TODO: Add cancel logic if needed */}}
+            onClearAll={() => handleClearInventory('mods')}
+            onRemoveItem={handleRemoveFromInventory}
+            refreshTrigger={inventoryRefreshTrigger}
+            progress={categoryProgress?.category === 'mods' ? categoryProgress : undefined}
+            lastRefreshTime={lastModRefresh}
+          />
+
           {/* Empty state - only show when no processing and no results */}
-          {!isProcessing && categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && processingState.images.size === 0 && (
+          {!isProcessing && categorizedInventory.prime_parts.length === 0 && categorizedInventory.relics.length === 0 && categorizedInventory.mods.length === 0 && processingState.images.size === 0 && (
             <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
               <Package size={40} className="mx-auto text-gray-500 mb-3" />
               <p className="text-gray-400 mb-2">Your inventory is empty</p>

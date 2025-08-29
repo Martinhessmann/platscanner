@@ -5,7 +5,8 @@
       "Bash(rm:*)",
       "Bash(grep:*)",
       "Bash(npm run lint)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(supabase functions deploy:*)"
     ],
     "deny": []
   }

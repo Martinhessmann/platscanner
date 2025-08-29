@@ -531,7 +531,11 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
       status: 'loaded' as const,
       error: data.price === 0 ? 'No active buy orders' : undefined,
       buyerUsername: data.buyerUsername,
-      buyerQuantity: data.buyerQuantity
+      buyerQuantity: data.buyerQuantity,
+      // Add missing fields for mods
+      rarity: data.rarity,
+      tags: data.tags,
+      thumb: data.thumb
     };
 
   } catch (error) {

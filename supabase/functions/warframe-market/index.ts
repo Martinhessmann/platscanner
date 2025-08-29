@@ -14,13 +14,17 @@ const WARFRAME_MARKET_API = 'https://api.warframe.market/v1';
 
 /**
  * Normalizes item names to match Warframe Market URL format
+ * Handles special cases for mods and other items
  */
 const normalizeItemName = (name: string): string => {
   return name
     .toLowerCase()
-    .replace(/\s*&\s*/g, '_and_') // Replace & with 'and'
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_]/g, '');
+    .replace(/\s*&\s*/g, '_and_') // Replace & with '_and_'
+    .replace(/'/g, '') // Remove apostrophes (e.g., "Hunter's Munitions" -> "hunters_munitions")
+    .replace(/\s+/g, '_') // Replace spaces with underscores
+    .replace(/[^a-z0-9_]/g, '') // Remove any remaining special characters
+    .replace(/_+/g, '_') // Replace multiple underscores with single
+    .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
 };
 
 /**
@@ -81,7 +85,12 @@ const fetchSingleItemData = async (itemName: string) => {
         volume: 0,
         average: 0,
         error: errorType,
-        status: itemResponse.status || ordersResponse.status
+        status: itemResponse.status || ordersResponse.status,
+        // Add mod-specific fields for consistency
+        tags: [],
+        rarity: 'common',
+        mod_max_rank: 0,
+        trading_tax: 0
       };
     }
 
@@ -127,7 +136,12 @@ const fetchSingleItemData = async (itemName: string) => {
         ? Math.round(allValidOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / allValidOrders.length)
         : 0,
       buyerUsername: highestBidder?.user?.ingame_name || null,
-      buyerQuantity: highestBidder?.quantity || 0
+      buyerQuantity: highestBidder?.quantity || 0,
+      // Add mod-specific fields
+      tags: itemDetails.tags || [],
+      rarity: itemDetails.rarity || 'common',
+      mod_max_rank: itemDetails.mod_max_rank || 0,
+      trading_tax: itemDetails.trading_tax || 0
     };
 
     // Cache the result
@@ -144,7 +158,12 @@ const fetchSingleItemData = async (itemName: string) => {
       volume: 0,
       average: 0,
       error: 'fetch_failed',
-      message: error.message
+      message: error.message,
+      // Add mod-specific fields for consistency
+      tags: [],
+      rarity: 'common',
+      mod_max_rank: 0,
+      trading_tax: 0
     };
   }
 };
