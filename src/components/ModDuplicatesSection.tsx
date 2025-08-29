@@ -249,17 +249,50 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       if (onRefreshItem) {
         await onRefreshItem(itemName);
       } else {
-        const updatedMods = await refreshModPrices([item]);
-
-        if (updatedMods.length > 0) {
-          const updatedMod = updatedMods[0];
+        // Use the same logic as bulk refresh to preserve mod metadata
+        const { fetchSinglePriceData, calculateEndoValue, analyzeModForDuplicates } = await import('../services/warframeMarketService');
+        const { calculateEndoValue: calculateEndoValueMod } = await import('../services/modService');
+        
+        const priceData = await fetchSinglePriceData(item);
+        
+        if (priceData) {
+          // Use the same logic as HomePage for mods
+          const actualRarity = priceData.rarity || item.rarity;
+          const actualType = priceData.type || item.type;
           
-          // Recalculate recommendation for the updated mod
-          const { analyzeModForDuplicates } = await import('../services/modService');
-          const endoValue = updatedMod.endoValue || 0;
-          const analyzedMod = analyzeModForDuplicates({ ...updatedMod, endoValue });
+          const modItem = {
+            ...item,
+            price: priceData.price,
+            marketVolume: priceData.volume,
+            average: priceData.average || item.average, // Preserve existing average if new one is not available
+            lastUpdated: new Date(),
+            status: 'loaded' as const,
+            rarity: actualRarity,
+            type: actualType,
+            imgUrl: priceData.thumb ? `https://warframe.market/static/assets/${priceData.thumb}` : item.imgUrl, // Preserve existing image if new one is not available
+            hasHistoricalSales: item.hasHistoricalSales || (priceData.volume > 0 || priceData.average > 0) // Preserve or update historical sales flag
+          } as any;
+
+          // Log mod price data for debugging
+          console.log(`>>> [Single Mod Refresh] ${item.name}: current=${priceData.price}p, avg=${priceData.average}p, volume=${priceData.volume}, historical=${modItem.hasHistoricalSales} <<<`);
+
+          // Calculate endo value and analyze for recommendations
+          const endoValue = calculateEndoValueMod(modItem);
+          const analyzedMod = analyzeModForDuplicates({ ...modItem, endoValue });
           
           setMods(prev => prev.map(m => m.name === itemName ? analyzedMod : m));
+        } else {
+          // Handle error case
+          const errorMod = {
+            ...item,
+            price: 0,
+            marketVolume: 0,
+            lastUpdated: new Date(),
+            status: 'error' as const,
+            error: 'Failed to fetch price'
+          };
+          
+          setMods(prev => prev.map(m => m.name === itemName ? errorMod : m));
         }
       }
     } catch (error) {
