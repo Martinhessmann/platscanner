@@ -361,38 +361,65 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
              !cleanLine.includes('Therefore') && // Explanatory text
              !cleanLine.includes('Following the same') && // Explanatory text
              !cleanLine.includes('indicating it is') && // Explanatory text
-             cleanLine.length < 50 && // Reasonable mod name length
+             cleanLine.length < 100 && // Reasonable mod name length (increased for new format)
              !/^[*\-\s]*\*\*/.test(cleanLine) && // Markdown bold formatting
              !/^\s*\*/.test(cleanLine) && // Lines starting with asterisks
-             !cleanLine.includes(':') && // Explanatory text often has colons
              !/^\d+\./.test(cleanLine)) { // Numbered lists
-      // Parse mod with optional rank information
-      let modName = cleanLine;
-      let rank: number | undefined = undefined;
 
-      // Extract rank if present in format like "Serration (R8)" or "Primed Flow (R10)"
-      const rankMatch = cleanLine.match(/^(.*?)\s*\(R(\d+)\)$/i);
-      if (rankMatch) {
-        modName = rankMatch[1].trim();
-        rank = parseInt(rankMatch[2]);
-        console.log(`>>> [AI Parsing] Found mod with rank: "${modName}" R${rank} <<<`);
+      // Try to parse the new format: "MOD_NAME | QUANTITY | LEVEL | DRAIN"
+      const newFormatMatch = cleanLine.match(/^(.*?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)$/);
+      if (newFormatMatch) {
+        const modName = newFormatMatch[1].trim();
+        const detectedQuantity = parseInt(newFormatMatch[2]);
+        const detectedLevel = parseInt(newFormatMatch[3]);
+        const detectedDrain = parseInt(newFormatMatch[4]);
+        
+        console.log(`>>> [AI Parsing] New format detected: "${modName}" qty:${detectedQuantity} level:${detectedLevel} drain:${detectedDrain} <<<`);
+        
+        const rarity = determineModRarity(modName);
+        const type = determineModType(modName);
+
+        const modItem: Mod = {
+          id: `mod-${Date.now()}-${index}`,
+          name: modName,
+          category: 'mods',
+          rank: detectedLevel > 0 ? detectedLevel : undefined,
+          quantity: detectedQuantity,
+          rarity,
+          type,
+          status: 'loading'
+        };
+        detectedItems.push(modItem);
+        console.log(`>>> [AI Parsing] Added mod (new format): "${modName}" (${rarity} ${type}) qty:${detectedQuantity} level:${detectedLevel} <<<`);
+      } else {
+        // Fallback to old format parsing for backward compatibility
+        let modName = cleanLine;
+        let rank: number | undefined = undefined;
+
+        // Extract rank if present in format like "Serration (R8)" or "Primed Flow (R10)"
+        const rankMatch = cleanLine.match(/^(.*?)\s*\(R(\d+)\)$/i);
+        if (rankMatch) {
+          modName = rankMatch[1].trim();
+          rank = parseInt(rankMatch[2]);
+          console.log(`>>> [AI Parsing] Found mod with rank: "${modName}" R${rank} <<<`);
+        }
+
+        const rarity = determineModRarity(modName);
+        const type = determineModType(modName);
+
+        const modItem: Mod = {
+          id: `mod-${Date.now()}-${index}`,
+          name: modName,
+          category: 'mods',
+          rank,
+          quantity,
+          rarity,
+          type,
+          status: 'loading'
+        };
+        detectedItems.push(modItem);
+        console.log(`>>> [AI Parsing] Added mod (fallback): "${modName}" (${rarity} ${type}) qty:${quantity} rank:${rank || 'unranked'} <<<`);
       }
-
-      const rarity = determineModRarity(modName);
-      const type = determineModType(modName);
-
-      const modItem: Mod = {
-        id: `mod-${Date.now()}-${index}`,
-        name: modName,
-        category: 'mods',
-        rank,
-        quantity,
-        rarity,
-        type,
-        status: 'loading'
-      };
-      detectedItems.push(modItem);
-      console.log(`>>> [AI Parsing] Added mod: "${modName}" (${rarity} ${type}) qty:${quantity} rank:${rank || 'unranked'} <<<`);
     }
   });
 
@@ -575,52 +602,47 @@ If you cannot clearly see any items or syndicate name, respond with "NONE_DETECT
 };
 
 const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
-  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods WITH THEIR CORRECT QUANTITIES.
+  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods with COMPLETE information.
 
-CRITICAL DUPLICATE DETECTION RULES:
-- DUPLICATE INDICATOR: Look for a small number in the TOP-LEFT corner of mod cards (usually white text)
-- DUPLICATE ICON: Look for an icon that looks like two overlapping pieces of paper in the top-left area
-- DO NOT confuse the mod drain number (top-right corner) with quantity - drain is NOT quantity!
+CRITICAL DETECTION REQUIREMENTS - YOU MUST DETECT ALL FOUR ELEMENTS:
 
-CRITICAL LEVEL DETECTION - VISUAL DIFFERENCES:
-- **ACTIVE BLUE DOTS** = Leveled up mods (NOT for sale)
-  * Bright, glowing, solid blue dots
-  * Often 5-10 dots in a row
-  * Clear, vibrant blue color
-  * These mods are RANKED UP and should be IGNORED
+1. **MOD NAME**: The exact name as displayed on the mod card
+2. **QUANTITY**: Look for a small number in the TOP-LEFT corner of mod cards (usually white text)
+   - If NO number is visible in top-left corner = quantity is 1 (single copy)
+   - If number is present (2, 3, 4, 12, etc.) = that is the quantity
+   - NEVER use the number in the top-right corner for quantity!
 
-- **SEMI-TRANSPARENT GREY/SILVER DOTS** = Unranked mods (SAFE to sell)
-  * Faint, transparent, grey or silver dots
-  * Usually 3 dots in a row
-  * Dull, non-glowing appearance
-  * These mods are RANK 0 and can be sold as duplicates
+3. **LEVEL**: Count the filled/active dots at the bottom of the mod card
+   - Bright, glowing, solid blue dots = leveled up mods
+   - Count how many blue dots are filled in (1-10)
+   - If no blue dots are filled = level 0
+   - Semi-transparent grey/silver dots = unranked mods (level 0)
 
-WHAT TO IGNORE:
-- The number in the TOP-RIGHT corner (this is mod drain/capacity, NOT quantity)
-- Mods with ACTIVE BLUE DOTS at the bottom (these are leveled up, not duplicates)
-- Any mod with bright, glowing blue progression indicators
+4. **DRAIN**: The number in the TOP-RIGHT corner (this is mod capacity/drain cost)
+   - Usually appears as a number with a small arrow pointing down
+   - This is NOT quantity - it's the mod's capacity cost
 
-WHAT TO LOOK FOR:
-- Small number in TOP-LEFT corner indicating duplicates (2, 3, 4, 12, etc.)
-- Two-paper-stack icon in top-left area indicating duplicates
-- Only unranked mods (semi-transparent grey dots) should be considered for duplicates
-- Exact mod names as they appear
+VISUAL DETECTION GUIDELINES:
+- **TOP-LEFT CORNER**: Look for small white numbers (2, 3, 4, 12, etc.) - this is QUANTITY
+- **TOP-RIGHT CORNER**: Look for numbers with arrow symbols (like "14 ↓") - this is DRAIN
+- **BOTTOM DOTS**: Count filled blue dots for level (0-10)
+- **ABSENCE OF TOP-LEFT NUMBER**: If no number in top-left = quantity is 1
 
 RESPONSE FORMAT:
-List each mod with its correct duplicate quantity from the top-left indicator.
-Use format "QUANTITY x MOD_NAME" for duplicates, single name for singles.
-Do NOT include rank information unless specifically requested.
+Use this exact format for each mod:
+"MOD_NAME | QUANTITY | LEVEL | DRAIN"
 
-Example format:
-Serration
-3 x Vitality
-12 x Finishing Touch
-Primed Flow
-2 x Condition Overload
+Examples:
+Narrow Minded | 1 | 1 | 14
+Vitality | 3 | 0 | 4
+Primed Flow | 1 | 5 | 16
+Serration | 12 | 0 | 4
 
-IMPORTANT: If you see a number in the top-right, that is MOD DRAIN, not quantity!
-Only count the small number in the TOP-LEFT or the paper-stack icon as duplicate indicators.
-ONLY count mods with semi-transparent grey dots (unranked), IGNORE mods with bright blue dots (leveled).
+IMPORTANT RULES:
+- If no number in top-left corner = quantity is 1 (single copy)
+- If you see "14 ↓" in top-right = drain is 14, NOT quantity
+- Count filled blue dots at bottom for level (0 if no blue dots filled)
+- Be extremely careful not to confuse drain (top-right) with quantity (top-left)
 
 If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
 

@@ -31,6 +31,8 @@ export interface ModItem {
 export interface ModDuplicateAnalysis {
   totalMods: number;
   duplicates: number;
+  leveledMods: number;
+  unrankedMods: number;
   recommendedForEndo: ModItem[];
   recommendedForMarket: ModItem[];
   keepOneSellRest: ModItem[];
@@ -298,8 +300,18 @@ export const analyzeModForDuplicates = (mod: ModItem): ModItem => {
   let recommendation: ModItem['recommendation'] = 'SELL_FOR_ENDO';
   let reasoning = '';
 
+  // CRITICAL: Leveled mods should generally be kept (they have investment)
+  if (mod.rank && mod.rank > 0) {
+    if (mod.quantity > 1) {
+      recommendation = 'KEEP_ONE_SELL_REST';
+      reasoning = `Leveled mod (R${mod.rank}) - keep the leveled one, sell unranked duplicates`;
+    } else {
+      recommendation = 'KEEP_ALL';
+      reasoning = `Leveled mod (R${mod.rank}) - valuable investment, keep for builds`;
+    }
+  }
   // High-value mods should generally be kept/traded
-  if (HIGH_VALUE_MODS.has(lowerName)) {
+  else if (HIGH_VALUE_MODS.has(lowerName)) {
     if (mod.quantity > 1) {
       recommendation = 'KEEP_ONE_SELL_REST';
       reasoning = 'High-value mod - keep one, consider trading extras if market price is good';
@@ -366,6 +378,9 @@ export const analyzeModDuplicates = (mods: ModItem[]): ModDuplicateAnalysis => {
   const analyzedMods = mods.map(analyzeModForDuplicates);
 
   const duplicates = analyzedMods.filter(mod => mod.quantity > 1);
+  const leveledMods = analyzedMods.filter(mod => mod.rank && mod.rank > 0);
+  const unrankedMods = analyzedMods.filter(mod => !mod.rank || mod.rank === 0);
+  
   const recommendedForEndo = analyzedMods.filter(mod =>
     mod.recommendation === 'SELL_FOR_ENDO'
   );
@@ -391,6 +406,8 @@ export const analyzeModDuplicates = (mods: ModItem[]): ModDuplicateAnalysis => {
   return {
     totalMods: analyzedMods.length,
     duplicates: duplicates.length,
+    leveledMods: leveledMods.length,
+    unrankedMods: unrankedMods.length,
     recommendedForEndo,
     recommendedForMarket,
     keepOneSellRest,

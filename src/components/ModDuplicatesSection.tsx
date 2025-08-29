@@ -99,6 +99,12 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   // Use mods directly from inventory
   const allMods = mods;
 
+  // Analyze mods for duplicate recommendations
+  const analyzedMods = useMemo(() => {
+    if (allMods.length === 0) return null;
+    return analyzeModDuplicates(allMods);
+  }, [allMods]);
+
   // Smart filter toggle function with mutual exclusivity for main filters
   const toggleFilter = (filterType: string) => {
     setActiveFilters(prev => {
@@ -543,6 +549,57 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               </button>
             ))}
           </div>
+
+          {/* Analysis Summary */}
+          {analyzedMods && (
+            <div className="px-6 pb-4">
+              <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/50">
+                <h4 className="text-sm font-medium text-white mb-3">Analysis Summary</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                  <div className="text-center">
+                    <div className="text-white font-medium">{analyzedMods.totalMods}</div>
+                    <div className="text-gray-400">Total Mods</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-yellow-400 font-medium">{analyzedMods.duplicates}</div>
+                    <div className="text-gray-400">Duplicates</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-blue-400 font-medium">{analyzedMods.leveledMods}</div>
+                    <div className="text-gray-400">Leveled</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-gray-400 font-medium">{analyzedMods.unrankedMods}</div>
+                    <div className="text-gray-400">Unranked</div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-700/50 grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                  <div className="text-center">
+                    <div className="text-green-400 font-medium">{analyzedMods.recommendedForMarket.length}</div>
+                    <div className="text-gray-400">Market Trade</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-red-400 font-medium">{analyzedMods.recommendedForEndo.length}</div>
+                    <div className="text-gray-400">Sell for Endo</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-yellow-400 font-medium">{analyzedMods.keepOneSellRest.length}</div>
+                    <div className="text-gray-400">Keep One</div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-700/50 grid grid-cols-2 gap-4 text-xs">
+                  <div className="text-center">
+                    <div className="text-green-400 font-medium">{analyzedMods.totalMarketValue}p</div>
+                    <div className="text-gray-400">Market Value</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-red-400 font-medium">{analyzedMods.totalEndoValue}</div>
+                    <div className="text-gray-400">Endo Value</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Sort Controls */}
           <div className="px-6 pb-4">
