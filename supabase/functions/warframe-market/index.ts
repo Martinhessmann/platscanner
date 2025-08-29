@@ -128,7 +128,7 @@ const fetchSingleItemData = async (itemName: string) => {
 
     const result = {
       name: itemDetails.en.item_name,
-      thumb: itemDetails.thumb,
+      thumb: itemDetails.thumb ? itemDetails.thumb.replace('https://warframe.market/static/assets/', '') : '',
       ducats: itemDetails.ducats || 0,
       price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
       volume: ordersData.payload.orders.length,
@@ -239,16 +239,18 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // For image requests, allow anonymous access
+  const url = new URL(req.url);
+  const imagePath = url.searchParams.get('image');
+
+  if (imagePath) {
+    return await proxyImage(imagePath);
+  }
+
   try {
     const url = new URL(req.url);
     const itemName = url.searchParams.get('item');
     const batchItems = url.searchParams.get('batch');
-    const imagePath = url.searchParams.get('image');
-
-    // Handle image proxy requests
-    if (imagePath) {
-      return await proxyImage(imagePath);
-    }
 
     // Handle batch requests for relic value analysis
     if (batchItems) {

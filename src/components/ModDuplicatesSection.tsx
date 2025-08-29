@@ -44,8 +44,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   const [mods, setMods] = useState<ModItem[]>([]);
   const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
   const [isExpanded, setIsExpanded] = useState(false);
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['with_buyers']));
-  const [rarityFilterMode, setRarityFilterMode] = useState<'OR' | 'AND'>('OR');
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['sell_on_market']));
   const [sortBy, setSortBy] = useState<'totalMarketValue' | 'maxSingleValue' | 'platPerEndo' | 'name' | 'rarity' | 'recommendation'>('totalMarketValue');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [expandedImages, setExpandedImages] = useState<Set<string>>(new Set());
@@ -106,10 +105,10 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       const newFilters = new Set(prev);
 
       // Handle mutual exclusivity for main view filters
-      if (filterType === 'with_buyers' || filterType === 'all_duplicates') {
+      if (filterType === 'sell_on_market' || filterType === 'sell_for_endo') {
         // Remove both main filters first
-        newFilters.delete('with_buyers');
-        newFilters.delete('all_duplicates');
+        newFilters.delete('sell_on_market');
+        newFilters.delete('sell_for_endo');
 
         // Add the selected one if it wasn't already active
         if (!prev.has(filterType)) {
@@ -142,12 +141,12 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
     let filtered = allMods;
 
     // Apply smart filters based on activeFilters
-    if (activeFilters.has('with_buyers')) {
+    if (activeFilters.has('sell_on_market')) {
       filtered = filtered.filter(mod => mod.price && mod.price > 0);
     }
 
-    if (activeFilters.has('all_duplicates')) {
-      filtered = filtered.filter(mod => mod.quantity > 1);
+    if (activeFilters.has('sell_for_endo')) {
+      filtered = filtered.filter(mod => !mod.price || mod.price === 0);
     }
 
     // Apply rarity filters with OR/AND logic
@@ -156,18 +155,10 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
     );
 
     if (activeRarityFilters.length > 0) {
-      if (rarityFilterMode === 'OR') {
-        // OR logic: show mods that match ANY selected rarity
-        filtered = filtered.filter(mod =>
-          activeRarityFilters.includes(mod.rarity)
-        );
-      } else {
-        // AND logic: this doesn't make sense for single mod rarities, so treat as OR
-        // (a single mod can't have multiple rarities simultaneously)
-        filtered = filtered.filter(mod =>
-          activeRarityFilters.includes(mod.rarity)
-        );
-      }
+      // OR logic: show mods that match ANY selected rarity
+      filtered = filtered.filter(mod =>
+        activeRarityFilters.includes(mod.rarity)
+      );
     }
 
     // Apply sorting
@@ -214,7 +205,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
     });
 
     return filtered;
-  }, [allMods, activeFilters, availableRarities, rarityFilterMode, sortBy, sortOrder]);
+  }, [allMods, activeFilters, availableRarities, sortBy, sortOrder]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -338,13 +329,24 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       hasImgUrl: !!mod.imgUrl,
       includesWarframeMarket: mod.imgUrl?.includes('warframe.market'),
       includesItemsImages: mod.imgUrl?.includes('items/images'),
-      useFullRes
+      useFullRes,
+      imgUrlLength: mod.imgUrl?.length
     });
 
-    // If we have a thumb URL from Warframe Market, use it
-    if (mod.imgUrl && mod.imgUrl.includes('warframe.market')) {
-      console.log(`>>> [Mod Image Debug] Using full Warframe Market URL: ${mod.imgUrl}`);
-      return mod.imgUrl;
+    // If we have a thumb path, convert it to proxy URL
+    if (mod.imgUrl && mod.imgUrl.includes('items/images')) {
+      // Handle migration from old full URL format to new path format
+      let imagePath = mod.imgUrl;
+      if (mod.imgUrl.includes('warframe.market')) {
+        // Extract path from full URL
+        const url = new URL(mod.imgUrl);
+        imagePath = url.pathname.replace('/static/assets/', '');
+        console.log(`>>> [Mod Image Debug] Migrated full URL to path: ${mod.imgUrl} -> ${imagePath}`);
+      }
+
+      const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/warframe-market?image=${encodeURIComponent(imagePath)}`;
+      console.log(`>>> [Mod Image Debug] Converting thumb path to proxy: ${proxyUrl}`);
+      return proxyUrl;
     }
 
     // If we have a thumb path, convert it to full URL via proxy
@@ -481,57 +483,42 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
           {/* Smart Filter Tabs */}
           <div className="flex flex-wrap gap-2 p-6 pb-4">
-            {/* With Buyers (Default) */}
+            {/* Sell on Market (Default) */}
             <button
-              onClick={() => toggleFilter('with_buyers')}
+              onClick={() => toggleFilter('sell_on_market')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-                activeFilters.has('with_buyers')
+                activeFilters.has('sell_on_market')
                   ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
                   : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
               }`}
             >
               <Coins size={16} />
-              <span>With Buyers</span>
+              <span>Sell on Market</span>
               <span className={`px-1.5 py-0.5 rounded text-xs ${
-                activeFilters.has('with_buyers') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
+                activeFilters.has('sell_on_market') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
                 {allMods.filter(mod => mod.price && mod.price > 0).length}
               </span>
             </button>
 
-            {/* All Duplicates */}
+            {/* Sell for Endo */}
             <button
-              onClick={() => toggleFilter('all_duplicates')}
+              onClick={() => toggleFilter('sell_for_endo')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-                activeFilters.has('all_duplicates')
-                  ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
+                activeFilters.has('sell_for_endo')
+                  ? 'bg-red-900/50 border-red-500/50 text-red-400 ring-1 ring-red-500/30'
                   : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
               }`}
             >
               <Package size={16} />
-              <span>All Duplicates</span>
+              <span>Sell for Endo</span>
               <span className={`px-1.5 py-0.5 rounded text-xs ${
-                activeFilters.has('all_duplicates') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
+                activeFilters.has('sell_for_endo') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {allMods.filter(mod => mod.quantity > 1).length}
+                {allMods.filter(mod => !mod.price || mod.price === 0).length}
               </span>
             </button>
 
-            {/* Rarity Filter Mode Toggle - Show only when rarity filters are active */}
-            {availableRarities.some(rarity => activeFilters.has(`rarity_${rarity}`)) && (
-              <button
-                onClick={() => setRarityFilterMode(rarityFilterMode === 'OR' ? 'AND' : 'OR')}
-                className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
-                  rarityFilterMode === 'OR'
-                    ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
-                    : 'bg-purple-900/50 border-purple-500/50 text-purple-400 ring-1 ring-purple-500/30'
-                }`}
-                title={`Currently: ${rarityFilterMode} - Click to switch to ${rarityFilterMode === 'OR' ? 'AND' : 'OR'} mode`}
-              >
-                <Filter size={16} />
-                <span>{rarityFilterMode}</span>
-              </button>
-            )}
 
             {/* Rarity Tabs - Dynamically Generated */}
             {availableRarities.map(rarity => (
@@ -772,7 +759,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                 <div>
                   <p>No mods match the current filters.</p>
                   <button
-                    onClick={() => setActiveFilters(new Set(['with_buyers']))}
+                    onClick={() => setActiveFilters(new Set(['sell_on_market']))}
                     className="mt-2 text-tenno-blue hover:text-tenno-light text-sm underline"
                   >
                     Reset filters
