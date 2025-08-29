@@ -27,6 +27,12 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
  * the Supabase Edge Function to be deployed. Without it, only current
  * prices will be available, not historical averages.
  *
+ * MOD RANK FILTERING:
+ * - Mod names are normalized to remove rank information (e.g., "Serration (R8)" -> "serration")
+ * - This ensures we only fetch unranked (rank 0) prices from the market
+ * - The Supabase Edge Function also filters orders to exclude ranked mods
+ * - This prevents accidentally showing prices for leveled mods that shouldn't be sold
+ *
  * Rate Limiting:
  * - Enforces 334ms delay between requests (~3 requests/second)
  * - Uses sequential processing to prevent API overload
