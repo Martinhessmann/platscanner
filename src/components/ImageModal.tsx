@@ -1,6 +1,7 @@
-import React from 'react';
-import { X, Eye, Package, Star, Shield, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Eye, Package, Star, Shield, Zap, Bug } from 'lucide-react';
 import { DetectedItem } from '../types';
+import DebugInfo from './DebugInfo';
 
 interface ImageModalProps {
   isOpen: boolean;
@@ -51,6 +52,8 @@ const ImageModal: React.FC<ImageModalProps> = ({
     }
   };
 
+  const [showDebug, setShowDebug] = useState(false);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
@@ -70,12 +73,21 @@ const ImageModal: React.FC<ImageModalProps> = ({
               <p className="text-sm text-gray-400">{fileName}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
-          >
-            <X size={20} className="text-gray-400" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowDebug(!showDebug)}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+              title="Toggle debug information"
+            >
+              <Bug size={16} className="text-yellow-400" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              <X size={20} className="text-gray-400" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -165,6 +177,23 @@ const ImageModal: React.FC<ImageModalProps> = ({
             )}
           </div>
         </div>
+
+        {/* Debug Information */}
+        {showDebug && (
+          <div className="border-t border-gray-700">
+            <DebugInfo 
+              image={{
+                id: 'debug',
+                file: { name: fileName } as any,
+                preview: imageSrc,
+                status: 'complete',
+                results: detectedItems,
+                screenType
+              }}
+              isVisible={true}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

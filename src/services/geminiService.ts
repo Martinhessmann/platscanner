@@ -258,6 +258,8 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
       const standingStr = syndicateRewardMatch[2].replace(/,/g, '');
       const standingCost = parseInt(standingStr, 10);
 
+      console.log(`>>> [AI Parsing] Syndicate reward detected: "${name}" with ${standingCost} standing <<<`);
+
       const reward: SyndicateReward = {
         id: `syndicate-${Date.now()}-${index}`,
         name,
@@ -267,6 +269,7 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
         itemType: 'mod' // Most syndicate items are mods; will be refined by syndicateService
       };
       detectedItems.push(reward);
+      console.log(`>>> [AI Parsing] Added syndicate reward: "${name}" (${detectedSyndicate}) <<<`);
       return; // Continue to next line
     }
     // Parse quantity from formats like "5 x Item Name", "x5 Item Name", "2x Item Name"
@@ -279,6 +282,13 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
       quantity = parseInt(quantityMatch[1]);
       cleanLine = quantityMatch[2].trim();
       console.log(`>>> [AI Parsing] Found quantity: ${quantity}x for "${cleanLine}" <<<`);
+    }
+
+    // CRITICAL: If we're in a syndicate screen and this line doesn't match syndicate format, skip it
+    // This prevents fallback parsing from creating mod items in syndicate screens
+    if (screenType === 'syndicate' && !line.includes('|')) {
+      console.log(`>>> [AI Parsing] Skipping line in syndicate screen (no standing cost format): "${line}" <<<`);
+      return; // Skip this line entirely
     }
 
     // Check if it's a Prime part
@@ -349,7 +359,8 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
       detectedItems.push(relicItem);
     }
         // Check if it's a mod - look for common mod patterns and characteristics
-    // Only parse mods if screen type is 'mods' or undefined (for backward compatibility)
+    // CRITICAL: Only parse mods if screen type is 'mods' or undefined (for backward compatibility)
+    // NEVER parse mods in syndicate screens - syndicate rewards can be mods but they're not inventory mods!
     else if (screenType !== 'syndicate' && // Never parse mods in syndicate screens
              cleanLine &&
              !cleanLine.includes('Prime') &&
@@ -617,7 +628,11 @@ SYNDICATE: Arbiters of Hexis
 Telos Akbolto | 100,000
 Stinging Truth | 25,000
 
-If you cannot clearly see syndicate header, standing costs, or any items, respond with "NONE_DETECTED".`;
+IMPORTANT: 
+- ONLY include items that have standing costs visible
+- ONLY include items from the syndicate offerings screen
+- If you see mod names but NO standing costs, this is NOT a syndicate screen
+- If you cannot clearly see syndicate header, standing costs, or any items, respond with "NONE_DETECTED"`;
 
   const result = await genAI!.models.generateContent({
     model: 'gemini-2.5-flash',
@@ -750,6 +765,10 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
       analysisText = await analyzePrimeParts(imageBase64, imageFile.type); // Default to prime parts
     }
 
+    // Debug: Log the analysis type and first few lines of response
+    console.log(`>>> [Gemini] Analysis type: ${screenType} <<<`);
+    console.log(`>>> [Gemini] Analysis response preview:`, analysisText.substring(0, 200) + (analysisText.length > 200 ? '...' : ''), ` <<<`);
+
     // Debug: Log the raw AI response
     console.log(`>>> [Gemini Raw Response] <<<`);
     console.log(analysisText);
@@ -766,7 +785,15 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
     }
 
     const detectedItems = parseDetectedItems(analysisText, screenType);
+    console.log(`>>> [Gemini] Screen type: ${screenType} <<<`);
     console.log(`>>> [Gemini] Parsed ${detectedItems.length} items:`, detectedItems.map(item => `${item.name} (${item.category})`), ` <<<`);
+    
+    // Debug: Check for category distribution
+    const categoryCounts = detectedItems.reduce((acc, item) => {
+      acc[item.category] = (acc[item.category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    console.log(`>>> [Gemini] Category distribution:`, categoryCounts, ` <<<`);
 
     // Cache the results for future use
     setCachedAnalysis(imageHash, screenType, detectedItems);
