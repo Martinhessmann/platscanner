@@ -1,6 +1,7 @@
-import React from 'react';
-import { ImageState } from '../types';
+import React, { useState } from 'react';
+import { ImageState, DetectedItem } from '../types';
 import { Camera, Package, AlertCircle, CheckCircle, Clock, Zap, Archive, ShieldAlert, Database } from 'lucide-react';
+import ImageModal from './ImageModal';
 
 interface ProcessingDetailsProps {
   images: Map<string, ImageState>;
@@ -16,6 +17,14 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
   currentFetchItem
 }) => {
   const imageArray = Array.from(images.entries());
+  
+  // Modal state
+  const [modalImage, setModalImage] = useState<{
+    src: string;
+    fileName: string;
+    items: DetectedItem[];
+    screenType?: string;
+  } | null>(null);
 
   const getStatusIcon = (status: ImageState['status']) => {
     switch (status) {
@@ -130,7 +139,20 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
             </div>
 
             {/* Image Preview */}
-            <div className="w-10 h-10 rounded overflow-hidden bg-gray-800 flex-shrink-0">
+            <div 
+              className="w-10 h-10 rounded overflow-hidden bg-gray-800 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => {
+                if (image.status !== 'queued' && image.status !== 'analyzing') {
+                  setModalImage({
+                    src: image.preview,
+                    fileName: image.file.name,
+                    items: image.results,
+                    screenType: image.screenType
+                  });
+                }
+              }}
+              title={image.status !== 'queued' && image.status !== 'analyzing' ? 'Click to view details' : ''}
+            >
               <img
                 src={image.preview}
                 alt={image.file.name}
@@ -174,6 +196,19 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
         );
       })}
     </div>
+
+    {/* Image Modal */}
+    {modalImage && (
+      <ImageModal
+        isOpen={!!modalImage}
+        onClose={() => setModalImage(null)}
+        imageSrc={modalImage.src}
+        fileName={modalImage.fileName}
+        detectedItems={modalImage.items}
+        screenType={modalImage.screenType}
+      />
+    )}
+  </div>
   );
 };
 

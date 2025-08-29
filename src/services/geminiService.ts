@@ -428,21 +428,46 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
 };
 
 const determineScreenType = async (imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown'> => {
-  const screenTypePrompt = `Look at this Warframe screenshot and determine what type of inventory screen this is.
+  const screenTypePrompt = `Analyze this Warframe screenshot and determine the EXACT screen type by looking at the UI elements and layout.
 
-CRITICAL: Check the TOP-LEFT area of the screen for section names/headers first!
+CRITICAL DETECTION RULES - LOOK FOR THESE SPECIFIC ELEMENTS:
 
-Respond with EXACTLY ONE of these options:
-- PRIME_PARTS (if you see "Prime Parts" or "Foundry" in the top-left header, OR items with "Prime" in their names like "Sevagoth Prime Blueprint", "Mirage Prime Chassis", etc.)
-- RELICS (if you see "Void Relics" or "Relics" in the top-left header, OR Void Relics like "Lith A1 Relic", "Meso B2 Relic", "Neo C3 Relic", "Axi D4 Relic")
-- SYNDICATE (ONLY if you see "Syndicate Offerings" or syndicate names like "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda" in the top-left header, AND items with Standing costs like 5,000 / 25,000 / 100,000)
-- MODS (if you see "Mods" or "Mod Collection" in the top-left header, OR mod cards with names like "Serration", "Primed Flow", "Vitality", "Steel Fiber", "Condition Overload", etc. with mod ranks, polarity symbols, and capacity costs)
-- UNKNOWN (if you cannot clearly determine the screen type)
+1. **MODS SCREEN** - Look for these indicators:
+   - Header says "Mods", "Mod Collection", "Mod Inventory", or similar
+   - Mod cards with POLARITY SYMBOLS (V, D, -, etc.) in corners
+   - Mod cards with CAPACITY COSTS (numbers like 4, 6, 8, 10, 12, 14, 16) in top-right
+   - Mod cards with RANK DOTS at the bottom (blue dots showing level 0-10)
+   - Mod names like "Serration", "Vitality", "Primed Flow", "Condition Overload"
+   - NO standing costs (no numbers like 5,000, 25,000, 100,000)
 
-IMPORTANT: 
-- If you see mod names but NO syndicate header, classify as MODS, not SYNDICATE
-- Only classify as SYNDICATE if you see both syndicate header AND standing costs
-- Check the top-left area for section names first before looking at items`;
+2. **SYNDICATE SCREEN** - Look for these indicators:
+   - Header says "Syndicate Offerings", "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda", "Perrin Sequence", "Red Veil", "New Loka"
+   - Items have STANDING COSTS (numbers like 5,000, 25,000, 100,000)
+   - Items are weapons, augments, or syndicate-specific items
+   - NO mod polarity symbols or capacity costs
+   - NO rank dots at bottom of items
+
+3. **PRIME PARTS SCREEN** - Look for these indicators:
+   - Header says "Prime Parts", "Foundry", "Inventory"
+   - Items have "Prime" in their names
+   - Items are blueprints, chassis, neuroptics, systems
+   - NO mod polarity symbols or capacity costs
+
+4. **RELICS SCREEN** - Look for these indicators:
+   - Header says "Void Relics", "Relics", "Relic Collection"
+   - Items are "Lith A1", "Meso B2", "Neo C3", "Axi D4" etc.
+   - Items have refinement levels (Intact, Exceptional, Flawless, Radiant)
+   - NO mod polarity symbols or capacity costs
+
+RESPONSE FORMAT:
+Respond with EXACTLY ONE word:
+- MODS
+- SYNDICATE  
+- PRIME_PARTS
+- RELICS
+- UNKNOWN
+
+CRITICAL: If you see mod cards with polarity symbols and capacity costs, it's MODS, even if you see mod names that might appear in syndicates. Only SYNDICATE if you see the syndicate header AND standing costs.`;
 
   const result = await genAI!.models.generateContent({
     model: 'gemini-2.5-flash',
@@ -466,10 +491,13 @@ IMPORTANT:
 
   console.log(`>>> [Gemini Screen Type] Raw response: "${text}" <<<`);
 
-  if (text.includes('PRIME_PARTS')) return 'prime_parts';
-  if (text.includes('RELICS')) return 'relics';
-  if (text.includes('SYNDICATE')) return 'syndicate';
-  if (text.includes('MODS')) return 'mods';
+  // More specific matching to avoid false positives
+  if (text === 'PRIME_PARTS' || text.includes('PRIME_PARTS')) return 'prime_parts';
+  if (text === 'RELICS' || text.includes('RELICS')) return 'relics';
+  if (text === 'SYNDICATE' || text.includes('SYNDICATE')) return 'syndicate';
+  if (text === 'MODS' || text.includes('MODS')) return 'mods';
+  
+  console.log(`>>> [Gemini Screen Type] No match found, defaulting to unknown. Raw text: "${text}" <<<`);
   return 'unknown';
 };
 
@@ -678,7 +706,7 @@ If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
   return result.text;
 };
 
-export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => {
+export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedItem[]; screenType: string }> => {
   if (!isGeminiConfigured()) {
     throw new Error('Gemini API key not configured');
   }
@@ -747,7 +775,7 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     const newItems = filterNewItems(detectedItems);
     console.log(`>>> [Gemini] ${newItems.length} new items after deduplication <<<`);
 
-    return newItems;
+    return { items: newItems, screenType };
   } catch (error) {
     console.error('Error analyzing image with Gemini:', error);
     throw new Error('Failed to analyze image. Please try again.');

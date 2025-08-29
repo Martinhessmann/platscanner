@@ -83,6 +83,7 @@ export interface ImageState {
   syndicateRewards?: SyndicateReward[]; // Track syndicate rewards for price fetching
   error?: string;
   wasCached?: boolean; // Track if this image used cached Gemini results
+  screenType?: 'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown'; // Track detected screen type
 }
 
 export interface ProcessingState {

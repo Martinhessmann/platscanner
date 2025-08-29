@@ -469,7 +469,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           const startTime = Date.now();
 
           // Extract items using Gemini AI
-          const detectedItems = await analyzeImage(nextImage.file);
+          const analysisResult = await analyzeImage(nextImage.file);
+          const detectedItems = analysisResult.items;
+          const screenType = analysisResult.screenType;
 
           // If analysis was very fast (< 500ms), it was likely cached
           const analysisTime = Date.now() - startTime;
@@ -484,6 +486,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 status: 'complete',
                 error: 'Processing stopped by user',
                 results: [],
+                screenType,
                 wasCached
               }),
               processedCount: current.processedCount + 1
@@ -512,6 +515,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 ...nextImage,
                 status: 'complete',
                 results: [],
+                screenType,
                 wasCached
               }),
               processedCount: current.processedCount + 1
@@ -527,6 +531,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               status: 'analyzed', // New status indicating ready for price fetching
               results: newItems,
               syndicateRewards: newItems.filter(item => item.category === 'syndicate_rewards'), // Store syndicate rewards for price fetching
+              screenType, // Store the detected screen type
               wasCached
             })
           }));
