@@ -13,6 +13,19 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const WARFRAME_MARKET_API = 'https://api.warframe.market/v1';
 
 /**
+ * Warframe Market API Proxy
+ * 
+ * This Edge Function provides:
+ * - Current market prices (highest buy orders)
+ * - 90-day median/average prices (from all orders)
+ * - Market volume data
+ * - Rate limiting and caching
+ * 
+ * IMPORTANT: This function must be deployed to Supabase for the
+ * 90-day median price functionality to work in the frontend.
+ */
+
+/**
  * Normalizes item names to match Warframe Market URL format
  * Handles special cases for mods and other items
  */

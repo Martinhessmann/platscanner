@@ -23,6 +23,10 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
  * - Netlify proxy as fallback for direct API calls
  * - Environment variables for API configuration
  *
+ * IMPORTANT: The 90-day median (average) price functionality requires
+ * the Supabase Edge Function to be deployed. Without it, only current
+ * prices will be available, not historical averages.
+ *
  * Rate Limiting:
  * - Enforces 334ms delay between requests (~3 requests/second)
  * - Uses sequential processing to prevent API overload

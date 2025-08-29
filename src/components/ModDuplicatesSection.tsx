@@ -708,6 +708,11 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                       <div>
                         <div className="text-xs text-gray-400 mb-1">Endo Value</div>
                         <div className="text-red-400 font-medium">{mod.endoValue || 0}</div>
+                        {mod.average && mod.average > 0 && (
+                          <div className="text-xs text-gray-400">
+                            90d avg: {mod.average}p
+                          </div>
+                        )}
                         <div className="text-xs text-gray-400">
                           total: {((mod.endoValue || 0) * mod.quantity)}
                         </div>
@@ -722,6 +727,11 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                         ) : mod.price && mod.price > 0 ? (
                           <div>
                             <div className="text-green-400 font-medium">{mod.price}p</div>
+                            {mod.average && mod.average > 0 && (
+                              <div className="text-xs text-gray-400">
+                                90d avg: {mod.average}p
+                              </div>
+                            )}
                             <div className="text-xs text-gray-400">
                               total: {(mod.price * mod.quantity)}p
                             </div>
