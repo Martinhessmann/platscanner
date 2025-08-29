@@ -176,7 +176,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           bVal = rarityOrder[b.rarity] || 0;
           break;
         case 'recommendation':
-          const recOrder = { 'KEEP_ALL': 4, 'KEEP_ONE_SELL_REST': 3, 'TRADE_ON_MARKET': 2, 'SELL_FOR_ENDO': 1 };
+          const recOrder = { 'TRADE_ON_MARKET': 2, 'SELL_FOR_ENDO': 1 };
           aVal = recOrder[a.recommendation || 'SELL_FOR_ENDO'];
           bVal = recOrder[b.recommendation || 'SELL_FOR_ENDO'];
           break;
@@ -309,8 +309,6 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
   const getRecommendationColor = (recommendation?: string) => {
     switch (recommendation) {
-      case 'KEEP_ALL': return 'text-green-400';
-      case 'KEEP_ONE_SELL_REST': return 'text-yellow-400';
       case 'TRADE_ON_MARKET': return 'text-blue-400';
       case 'SELL_FOR_ENDO': return 'text-red-400';
       default: return 'text-gray-400';

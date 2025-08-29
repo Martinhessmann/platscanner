@@ -4,28 +4,12 @@
 import { fetchBatchPriceData } from './warframeMarketService';
 import { logger } from '../utils/logger';
 
-export interface ModItem {
-  id: string;
-  name: string;
-  category: 'mods';
-  rank?: number;
-  quantity: number;
-  rarity: 'common' | 'uncommon' | 'rare' | 'legendary' | 'primed' | 'unknown';
-  type: 'warframe' | 'weapon' | 'companion' | 'archwing' | 'stance' | 'augment' | 'other';
+export interface ModItem extends Mod {
   price?: number;
-  volume?: number;
-  average?: number;
-  status: 'loading' | 'loaded' | 'error';
+  marketVolume?: number;
+  status?: 'loading' | 'loaded' | 'error';
   error?: string;
-  addedAt: Date;
-  lastUpdated: Date;
-  imgUrl?: string; // Image URL from Warframe Market
-  // Analysis fields
-  marketValue?: number;
-  endoValue?: number;
-  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP_ONE_SELL_REST' | 'KEEP_ALL';
-  reasoning?: string;
-  platPerEndo?: number;
+  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET';
 }
 
 export interface ModDuplicateAnalysis {
@@ -33,7 +17,6 @@ export interface ModDuplicateAnalysis {
   duplicates: number;
   recommendedForEndo: ModItem[];
   recommendedForMarket: ModItem[];
-  keepOneSellRest: ModItem[];
   totalEndoValue: number;
   totalMarketValue: number;
   potentialPlatinum: number;
@@ -292,62 +275,19 @@ export const calculateEndoValue = (mod: ModItem): number => {
  */
 export const analyzeModForDuplicates = (mod: ModItem): ModItem => {
   const endoValue = calculateEndoValue(mod);
-  const marketThreshold = MARKET_THRESHOLDS[mod.rarity] || MARKET_THRESHOLDS['uncommon'];
-  const lowerName = mod.name.toLowerCase();
 
   let recommendation: ModItem['recommendation'] = 'SELL_FOR_ENDO';
   let reasoning = '';
 
-  // High-value mods should generally be kept/traded
-  if (HIGH_VALUE_MODS.has(lowerName)) {
-    if (mod.quantity > 1) {
-      recommendation = 'KEEP_ONE_SELL_REST';
-      reasoning = 'High-value mod - keep one, consider trading extras if market price is good';
-    } else {
-      recommendation = 'KEEP_ALL';
-      reasoning = 'High-value mod - keep for builds';
-    }
-  }
-  // Primed mods are always valuable
-  else if (mod.rarity === 'primed') {
-    if (mod.quantity > 1) {
-      recommendation = 'KEEP_ONE_SELL_REST';
-      reasoning = 'Primed mod - keep one, trade extras for good platinum';
-    } else {
-      recommendation = 'KEEP_ALL';
-      reasoning = 'Primed mod - valuable for builds';
-    }
-  }
-  // Check market price vs endo value
-  else if (mod.price && mod.price >= marketThreshold) {
-    const platPerEndo = mod.price / endoValue;
-    if (platPerEndo > 0.1) { // If you get more than 0.1 plat per endo equivalent
-      if (mod.quantity > 1) {
-        recommendation = 'KEEP_ONE_SELL_REST';
-        reasoning = `Market price (${mod.price}p) is better than endo value - keep one, trade rest`;
-      } else {
-        recommendation = 'TRADE_ON_MARKET';
-        reasoning = `Market price (${mod.price}p) is better than endo value`;
-      }
-    } else {
-      recommendation = 'SELL_FOR_ENDO';
-      reasoning = `Market price too low compared to endo value (${endoValue} endo)`;
-    }
-  }
-  // Augment mods might be worth checking market
-  else if (mod.type === 'augment') {
-    if (mod.quantity > 1) {
-      recommendation = 'KEEP_ONE_SELL_REST';
-      reasoning = 'Augment mod - keep one for builds, check market for extras';
-    } else {
-      recommendation = 'KEEP_ALL';
-      reasoning = 'Augment mod - useful for specialized builds';
-    }
-  }
-  // Default: sell for endo if low value
-  else {
+  // Simple rule: if there are buyers on the market, show plat value; if no buyers, show endo
+  if (mod.price && mod.price > 0) {
+    // There are buyers on the market - always show plat value
+    recommendation = 'TRADE_ON_MARKET';
+    reasoning = `Market price available (${mod.price}p) - trade for platinum`;
+  } else {
+    // No buyers on the market - show endo value
     recommendation = 'SELL_FOR_ENDO';
-    reasoning = `Low market value - better to dissolve for ${endoValue} endo`;
+    reasoning = `No market buyers - dissolve for ${endoValue} endo`;
   }
 
   return {
@@ -372,9 +312,6 @@ export const analyzeModDuplicates = (mods: ModItem[]): ModDuplicateAnalysis => {
   const recommendedForMarket = analyzedMods.filter(mod =>
     mod.recommendation === 'TRADE_ON_MARKET'
   );
-  const keepOneSellRest = analyzedMods.filter(mod =>
-    mod.recommendation === 'KEEP_ONE_SELL_REST'
-  );
 
   const totalEndoValue = recommendedForEndo.reduce((sum, mod) =>
     sum + (mod.endoValue || 0), 0
@@ -384,19 +321,14 @@ export const analyzeModDuplicates = (mods: ModItem[]): ModDuplicateAnalysis => {
     sum + ((mod.price || 0) * mod.quantity), 0
   );
 
-  const keepOneMarketValue = keepOneSellRest.reduce((sum, mod) =>
-    sum + ((mod.price || 0) * (mod.quantity - 1)), 0
-  );
-
   return {
     totalMods: analyzedMods.length,
     duplicates: duplicates.length,
     recommendedForEndo,
     recommendedForMarket,
-    keepOneSellRest,
     totalEndoValue,
     totalMarketValue,
-    potentialPlatinum: totalMarketValue + keepOneMarketValue
+    potentialPlatinum: totalMarketValue
   };
 };
 
