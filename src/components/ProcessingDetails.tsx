@@ -39,6 +39,24 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
     const newItems = image.results.length;
     const totalDetected = newItems + duplicates;
 
+    // Helper function to get category breakdown
+    const getCategoryBreakdown = (items: DetectedItem[]) => {
+      const categories = items.reduce((acc, item) => {
+        acc[item.category] = (acc[item.category] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      return Object.entries(categories)
+        .map(([category, count]) => {
+          const categoryName = category === 'prime_parts' ? 'Prime Parts' :
+                              category === 'relics' ? 'Relics' :
+                              category === 'syndicate_rewards' ? 'Syndicate' :
+                              category === 'mods' ? 'Mods' : category;
+          return `${count} ${categoryName}`;
+        })
+        .join(', ');
+    };
+
     switch (image.status) {
       case 'queued':
         return 'Waiting in queue...';
@@ -65,9 +83,11 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
         if (totalDetected === 0) {
           return 'No items found';
         } else if (duplicates > 0) {
-          return `Added ${newItems} items (${duplicates} duplicates skipped)`;
+          const categoryBreakdown = getCategoryBreakdown(image.results);
+          return `Added ${newItems} items (${duplicates} duplicates skipped) - ${categoryBreakdown}`;
         } else {
-          return `Added ${newItems} items to inventory`;
+          const categoryBreakdown = getCategoryBreakdown(image.results);
+          return `Added ${newItems} items to inventory - ${categoryBreakdown}`;
         }
       case 'error':
         return image.error || 'Processing failed';

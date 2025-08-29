@@ -212,7 +212,7 @@ const isErrorResponse = (text: string): boolean => {
 /**
  * Parse the AI response to categorize detected items with quantity support
  */
-const parseDetectedItems = (responseText: string): DetectedItem[] => {
+const parseDetectedItems = (responseText: string, screenType?: string): DetectedItem[] => {
   // Filter helper to remove generic preamble/heading lines Gemini sometimes adds
   const isPreambleOrNoteLine = (line: string): boolean => {
     const lower = line.trim().toLowerCase();
@@ -349,8 +349,9 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
       detectedItems.push(relicItem);
     }
         // Check if it's a mod - look for common mod patterns and characteristics
-    // Filter out explanatory text, markdown formatting, and other non-mod lines
-    else if (cleanLine &&
+    // Only parse mods if screen type is 'mods' or undefined (for backward compatibility)
+    else if (screenType !== 'syndicate' && // Never parse mods in syndicate screens
+             cleanLine &&
              !cleanLine.includes('Prime') &&
              !cleanLine.includes('Relic') &&
              !cleanLine.startsWith('*') && // Markdown bullets
@@ -429,12 +430,19 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
 const determineScreenType = async (imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown'> => {
   const screenTypePrompt = `Look at this Warframe screenshot and determine what type of inventory screen this is.
 
+CRITICAL: Check the TOP-LEFT area of the screen for section names/headers first!
+
 Respond with EXACTLY ONE of these options:
-- PRIME_PARTS (if you see items with "Prime" in their names like "Sevagoth Prime Blueprint", "Mirage Prime Chassis", etc.)
-- RELICS (if you see Void Relics like "Lith A1 Relic", "Meso B2 Relic", "Neo C3 Relic", "Axi D4 Relic")
-- SYNDICATE (if you see a Syndicate Offerings shop with items that cost Standing values like 5,000 / 25,000 / 100,000, words like "Offerings", "Syndicate", "Sigil", or faction names like Telos, Secura, Synoid, Rakta, Sancti)
-- MODS (if you see mod cards/inventory with mod names like "Serration", "Primed Flow", "Vitality", "Steel Fiber", "Condition Overload", etc. Often shows mod ranks, polarity symbols, and capacity costs)
-- UNKNOWN (if you cannot clearly determine the screen type)`;
+- PRIME_PARTS (if you see "Prime Parts" or "Foundry" in the top-left header, OR items with "Prime" in their names like "Sevagoth Prime Blueprint", "Mirage Prime Chassis", etc.)
+- RELICS (if you see "Void Relics" or "Relics" in the top-left header, OR Void Relics like "Lith A1 Relic", "Meso B2 Relic", "Neo C3 Relic", "Axi D4 Relic")
+- SYNDICATE (ONLY if you see "Syndicate Offerings" or syndicate names like "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda" in the top-left header, AND items with Standing costs like 5,000 / 25,000 / 100,000)
+- MODS (if you see "Mods" or "Mod Collection" in the top-left header, OR mod cards with names like "Serration", "Primed Flow", "Vitality", "Steel Fiber", "Condition Overload", etc. with mod ranks, polarity symbols, and capacity costs)
+- UNKNOWN (if you cannot clearly determine the screen type)
+
+IMPORTANT: 
+- If you see mod names but NO syndicate header, classify as MODS, not SYNDICATE
+- Only classify as SYNDICATE if you see both syndicate header AND standing costs
+- Check the top-left area for section names first before looking at items`;
 
   const result = await genAI!.models.generateContent({
     model: 'gemini-2.5-flash',
@@ -561,12 +569,15 @@ If you cannot clearly see any owned relics, respond with "NONE_DETECTED".`;
 const analyzeSyndicate = async (imageBase64: string, mimeType: string): Promise<string> => {
   const syndicatePrompt = `Analyze this Warframe Syndicate Offerings screen. First identify the syndicate name from the title/header, then extract tradable rewards and their Standing costs.
 
+CRITICAL: This MUST be a Syndicate Offerings screen with syndicate header visible!
+
 STRICT RULES:
 - Read the ACTUAL image. Do not invent items.
-- Identify the syndicate name from the screen title (e.g., "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda")
+- MUST see syndicate name in header (e.g., "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda")
+- MUST see standing costs (numbers like 5,000, 25,000, 100,000) on items
 - Prefer items likely tradable on Warframe Market (e.g., Telos/Secura/Synoid/Rakta/Sancti weapons, augment mods)
 - Ignore pure sigils, simulacrum access, caches, or consumable blueprints unless clearly visible and tradable
-- Use the standing price numbers shown on each card (e.g., 25,000 or 100,000)
+- If this looks like a regular mod inventory (no syndicate header, no standing costs), respond with "NONE_DETECTED"
 
 RESPONSE FORMAT:
 First line: SYNDICATE: [Syndicate Name]
@@ -578,7 +589,7 @@ SYNDICATE: Arbiters of Hexis
 Telos Akbolto | 100,000
 Stinging Truth | 25,000
 
-If you cannot clearly see any items or syndicate name, respond with "NONE_DETECTED".`;
+If you cannot clearly see syndicate header, standing costs, or any items, respond with "NONE_DETECTED".`;
 
   const result = await genAI!.models.generateContent({
     model: 'gemini-2.5-flash',
@@ -726,7 +737,7 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
       return [];
     }
 
-    const detectedItems = parseDetectedItems(analysisText);
+    const detectedItems = parseDetectedItems(analysisText, screenType);
     console.log(`>>> [Gemini] Parsed ${detectedItems.length} items:`, detectedItems.map(item => `${item.name} (${item.category})`), ` <<<`);
 
     // Cache the results for future use
