@@ -65,10 +65,11 @@ export interface Mod extends DetectedItem {
   rarity: string;
   type: string;
   endoValue?: number;
-  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET';
+  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'HOLD_FOR_LATER';
   reasoning?: string;
   platPerEndo?: number;
   imgUrl?: string;
+  hasHistoricalSales?: boolean;
 }
 
 export type DetectedItem = PrimePart | VoidRelic | SyndicateReward | Mod;

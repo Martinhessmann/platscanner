@@ -9,7 +9,8 @@ export interface ModItem extends Mod {
   marketVolume?: number;
   status?: 'loading' | 'loaded' | 'error';
   error?: string;
-  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET';
+  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'HOLD_FOR_LATER';
+  hasHistoricalSales?: boolean; // Track if mod has sold in the past
 }
 
 export interface ModDuplicateAnalysis {
@@ -17,6 +18,7 @@ export interface ModDuplicateAnalysis {
   duplicates: number;
   recommendedForEndo: ModItem[];
   recommendedForMarket: ModItem[];
+  recommendedForHold: ModItem[];
   totalEndoValue: number;
   totalMarketValue: number;
   potentialPlatinum: number;
@@ -279,13 +281,17 @@ export const analyzeModForDuplicates = (mod: ModItem): ModItem => {
   let recommendation: ModItem['recommendation'] = 'SELL_FOR_ENDO';
   let reasoning = '';
 
-  // Simple rule: if there are buyers on the market, show plat value; if no buyers, show endo
+  // Simple rule: if there are buyers on the market, show plat value; if no buyers, show endo value
   if (mod.price && mod.price > 0) {
     // There are buyers on the market - always show plat value
     recommendation = 'TRADE_ON_MARKET';
     reasoning = `Market price available (${mod.price}p) - trade for platinum`;
+  } else if (mod.hasHistoricalSales) {
+    // No current buyers but has sold in the past - hold for later
+    recommendation = 'HOLD_FOR_LATER';
+    reasoning = `No current buyers but has sold in the past - hold for better market`;
   } else {
-    // No buyers on the market - show endo value
+    // No buyers on the market and no historical sales - show endo value
     recommendation = 'SELL_FOR_ENDO';
     reasoning = `No market buyers - dissolve for ${endoValue} endo`;
   }
@@ -312,6 +318,9 @@ export const analyzeModDuplicates = (mods: ModItem[]): ModDuplicateAnalysis => {
   const recommendedForMarket = analyzedMods.filter(mod =>
     mod.recommendation === 'TRADE_ON_MARKET'
   );
+  const recommendedForHold = analyzedMods.filter(mod =>
+    mod.recommendation === 'HOLD_FOR_LATER'
+  );
 
   const totalEndoValue = recommendedForEndo.reduce((sum, mod) =>
     sum + (mod.endoValue || 0), 0
@@ -326,6 +335,7 @@ export const analyzeModDuplicates = (mods: ModItem[]): ModDuplicateAnalysis => {
     duplicates: duplicates.length,
     recommendedForEndo,
     recommendedForMarket,
+    recommendedForHold,
     totalEndoValue,
     totalMarketValue,
     potentialPlatinum: totalMarketValue

@@ -98,7 +98,7 @@ export interface InventoryItem {
   maxDropValue?: number;
   expectedDropValue?: number;
   directSalePrice?: number;
-  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET';
+  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'HOLD_FOR_LATER';
   expectedProfit?: number;
   refinementAnalysis?: {
     platPerVoidTrace?: number;

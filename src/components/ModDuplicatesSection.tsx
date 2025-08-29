@@ -2,7 +2,7 @@
 // Follows the exact pattern of SyndicateRewardsSection for consistency
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Star, Package, Coins, X, Heart, Sword } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Star, Package, Coins, X, Heart, Sword, Clock } from 'lucide-react';
 import { Mod } from '../types';
 import {
   ModItem,
@@ -45,7 +45,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['sell_on_market']));
-  const [sortBy, setSortBy] = useState<'totalMarketValue' | 'maxSingleValue' | 'platPerEndo' | 'name' | 'rarity' | 'recommendation'>('totalMarketValue');
+  const [sortBy, setSortBy] = useState<'totalMarketValue' | 'maxSingleValue' | 'recommendation' | 'rarity' | 'name'>('totalMarketValue');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [expandedImages, setExpandedImages] = useState<Set<string>>(new Set());
   const [fullResImages, setFullResImages] = useState<Set<string>>(new Set());
@@ -105,10 +105,11 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       const newFilters = new Set(prev);
 
       // Handle mutual exclusivity for main view filters
-      if (filterType === 'sell_on_market' || filterType === 'sell_for_endo') {
-        // Remove both main filters first
+      if (filterType === 'sell_on_market' || filterType === 'sell_for_endo' || filterType === 'hold_for_later') {
+        // Remove all main filters first
         newFilters.delete('sell_on_market');
         newFilters.delete('sell_for_endo');
+        newFilters.delete('hold_for_later');
 
         // Add the selected one if it wasn't already active
         if (!prev.has(filterType)) {
@@ -149,6 +150,10 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       filtered = filtered.filter(mod => !mod.price || mod.price === 0);
     }
 
+    if (activeFilters.has('hold_for_later')) {
+      filtered = filtered.filter(mod => mod.hasHistoricalSales && (!mod.price || mod.price === 0));
+    }
+
     // Apply rarity filters with OR/AND logic
     const activeRarityFilters = availableRarities.filter(rarity =>
       activeFilters.has(`rarity_${rarity}`)
@@ -176,13 +181,9 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           bVal = rarityOrder[b.rarity] || 0;
           break;
         case 'recommendation':
-          const recOrder = { 'TRADE_ON_MARKET': 2, 'SELL_FOR_ENDO': 1 };
+          const recOrder = { 'TRADE_ON_MARKET': 3, 'HOLD_FOR_LATER': 2, 'SELL_FOR_ENDO': 1 };
           aVal = recOrder[a.recommendation || 'SELL_FOR_ENDO'];
           bVal = recOrder[b.recommendation || 'SELL_FOR_ENDO'];
-          break;
-        case 'platPerEndo':
-          aVal = a.platPerEndo || 0;
-          bVal = b.platPerEndo || 0;
           break;
         case 'totalMarketValue':
           aVal = (a.price || 0) * a.quantity;
@@ -193,8 +194,8 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           bVal = b.price || 0;
           break;
         default:
-          aVal = a.platPerEndo || 0;
-          bVal = b.platPerEndo || 0;
+          aVal = a.price || 0;
+          bVal = b.price || 0;
       }
 
       if (sortOrder === 'asc') {
@@ -310,6 +311,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   const getRecommendationColor = (recommendation?: string) => {
     switch (recommendation) {
       case 'TRADE_ON_MARKET': return 'text-blue-400';
+      case 'HOLD_FOR_LATER': return 'text-yellow-400';
       case 'SELL_FOR_ENDO': return 'text-red-400';
       default: return 'text-gray-400';
     }
@@ -519,6 +521,24 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               </span>
             </button>
 
+            {/* Hold for Later */}
+            <button
+              onClick={() => toggleFilter('hold_for_later')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('hold_for_later')
+                  ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Clock size={16} />
+              <span>Hold for Later</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('hold_for_later') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {allMods.filter(mod => mod.hasHistoricalSales && (!mod.price || mod.price === 0)).length}
+              </span>
+            </button>
+
 
             {/* Rarity Tabs - Dynamically Generated */}
             {availableRarities.map(rarity => (
@@ -553,7 +573,6 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               >
                 <option value="totalMarketValue">Total Market Value</option>
                 <option value="maxSingleValue">Max Single Mod Value</option>
-                <option value="platPerEndo">Plat per Endo</option>
                 <option value="recommendation">Recommendation</option>
                 <option value="rarity">Rarity</option>
                 <option value="name">Name</option>
@@ -716,37 +735,6 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                         )}
                       </div>
                     )}
-                  </div>
-
-                  {/* Recommendation */}
-                  {mod.recommendation && (
-                    <div className="mt-3 pt-3 border-t border-gray-700/50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400">Recommendation</span>
-                        <span className={`text-xs font-medium ${getRecommendationColor(mod.recommendation)}`}>
-                          {mod.recommendation.replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                      {mod.reasoning && (
-                        <p className="text-xs text-gray-400 mt-1">{mod.reasoning}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Plat per endo - key metric */}
-                  <div className="mt-3 pt-3 border-t border-gray-700/50">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Plat per Endo</span>
-                      {refreshingItems.has(mod.name) ? (
-                        <div className="animate-pulse">
-                          <div className="h-4 bg-gray-700 rounded w-16"></div>
-                        </div>
-                      ) : (
-                        <span className={mod.platPerEndo && mod.platPerEndo > 0 ? 'text-blue-400 font-medium' : 'text-gray-500'}>
-                          {formatPlatPerEndo(mod.platPerEndo)}
-                        </span>
-                      )}
-                    </div>
                   </div>
                 </div>
               ))}
