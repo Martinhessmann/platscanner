@@ -203,6 +203,36 @@ const handleBatchRequest = async (batchItems: string) => {
   }
 };
 
+/**
+ * Proxies Warframe Market images to avoid CORS issues
+ */
+const proxyImage = async (imagePath: string) => {
+  try {
+    const imageUrl = `https://warframe.market/static/assets/${imagePath}`;
+    console.log(`>>> [Supabase] Proxying image: ${imageUrl}`);
+
+    const response = await fetch(imageUrl);
+
+    if (!response.ok) {
+      throw new Error(`Image fetch failed: ${response.status}`);
+    }
+
+    const imageBuffer = await response.arrayBuffer();
+    const contentType = response.headers.get('content-type') || 'image/png';
+
+    return new Response(imageBuffer, {
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+        ...corsHeaders
+      }
+    });
+  } catch (error) {
+    console.error(`>>> [Supabase] Image proxy error:`, error);
+    return handleError(error, 404);
+  }
+};
+
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -213,6 +243,12 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const itemName = url.searchParams.get('item');
     const batchItems = url.searchParams.get('batch');
+    const imagePath = url.searchParams.get('image');
+
+    // Handle image proxy requests
+    if (imagePath) {
+      return await proxyImage(imagePath);
+    }
 
     // Handle batch requests for relic value analysis
     if (batchItems) {

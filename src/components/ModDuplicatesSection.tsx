@@ -45,8 +45,11 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['with_buyers']));
-  const [sortBy, setSortBy] = useState<'platPerEndo' | 'price' | 'endoValue' | 'name' | 'rarity' | 'recommendation'>('platPerEndo');
+  const [rarityFilterMode, setRarityFilterMode] = useState<'OR' | 'AND'>('OR');
+  const [sortBy, setSortBy] = useState<'totalMarketValue' | 'maxSingleValue' | 'platPerEndo' | 'name' | 'rarity' | 'recommendation'>('totalMarketValue');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [expandedImages, setExpandedImages] = useState<Set<string>>(new Set());
+  const [fullResImages, setFullResImages] = useState<Set<string>>(new Set());
 
   const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -97,15 +100,30 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   // Use mods directly from inventory
   const allMods = mods;
 
-    // Smart filter toggle function
+  // Smart filter toggle function with mutual exclusivity for main filters
   const toggleFilter = (filterType: string) => {
     setActiveFilters(prev => {
       const newFilters = new Set(prev);
-      if (newFilters.has(filterType)) {
-        newFilters.delete(filterType);
+
+      // Handle mutual exclusivity for main view filters
+      if (filterType === 'with_buyers' || filterType === 'all_duplicates') {
+        // Remove both main filters first
+        newFilters.delete('with_buyers');
+        newFilters.delete('all_duplicates');
+
+        // Add the selected one if it wasn't already active
+        if (!prev.has(filterType)) {
+          newFilters.add(filterType);
+        }
       } else {
-        newFilters.add(filterType);
+        // Handle normal toggle for rarity filters
+        if (newFilters.has(filterType)) {
+          newFilters.delete(filterType);
+        } else {
+          newFilters.add(filterType);
+        }
       }
+
       return newFilters;
     });
   };
@@ -132,12 +150,25 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       filtered = filtered.filter(mod => mod.quantity > 1);
     }
 
-    // Apply rarity filters
-    availableRarities.forEach(rarity => {
-      if (activeFilters.has(`rarity_${rarity}`)) {
-        filtered = filtered.filter(mod => mod.rarity === rarity);
+    // Apply rarity filters with OR/AND logic
+    const activeRarityFilters = availableRarities.filter(rarity =>
+      activeFilters.has(`rarity_${rarity}`)
+    );
+
+    if (activeRarityFilters.length > 0) {
+      if (rarityFilterMode === 'OR') {
+        // OR logic: show mods that match ANY selected rarity
+        filtered = filtered.filter(mod =>
+          activeRarityFilters.includes(mod.rarity)
+        );
+      } else {
+        // AND logic: this doesn't make sense for single mod rarities, so treat as OR
+        // (a single mod can't have multiple rarities simultaneously)
+        filtered = filtered.filter(mod =>
+          activeRarityFilters.includes(mod.rarity)
+        );
       }
-    });
+    }
 
     // Apply sorting
     filtered.sort((a, b) => {
@@ -149,7 +180,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           bVal = b.name.toLowerCase();
           break;
         case 'rarity':
-          const rarityOrder = { 'common': 1, 'uncommon': 2, 'rare': 3, 'legendary': 4, 'primed': 5 };
+          const rarityOrder: Record<string, number> = { 'common': 1, 'uncommon': 2, 'rare': 3, 'legendary': 4, 'primed': 5, 'unknown': 0 };
           aVal = rarityOrder[a.rarity] || 0;
           bVal = rarityOrder[b.rarity] || 0;
           break;
@@ -162,13 +193,13 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           aVal = a.platPerEndo || 0;
           bVal = b.platPerEndo || 0;
           break;
-        case 'endoValue':
-          aVal = a.endoValue || 0;
-          bVal = b.endoValue || 0;
-          break;
-        case 'price':
+        case 'totalMarketValue':
           aVal = (a.price || 0) * a.quantity;
           bVal = (b.price || 0) * b.quantity;
+          break;
+        case 'maxSingleValue':
+          aVal = a.price || 0;
+          bVal = b.price || 0;
           break;
         default:
           aVal = a.platPerEndo || 0;
@@ -183,7 +214,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
     });
 
     return filtered;
-  }, [allMods, activeFilters, availableRarities, sortBy, sortOrder]);
+  }, [allMods, activeFilters, availableRarities, rarityFilterMode, sortBy, sortOrder]);
 
   // Calculate totals
   const totals = useMemo(() => {
@@ -301,12 +332,13 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   };
 
     // Helper function to get mod image URL
-  const getModImageUrl = (mod: ModItem) => {
+  const getModImageUrl = (mod: ModItem, useFullRes = false) => {
     console.log(`>>> [Mod Image Debug] ${mod.name}:`, {
       imgUrl: mod.imgUrl,
       hasImgUrl: !!mod.imgUrl,
       includesWarframeMarket: mod.imgUrl?.includes('warframe.market'),
-      includesItemsImages: mod.imgUrl?.includes('items/images')
+      includesItemsImages: mod.imgUrl?.includes('items/images'),
+      useFullRes
     });
 
     // If we have a thumb URL from Warframe Market, use it
@@ -315,16 +347,35 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       return mod.imgUrl;
     }
 
-    // If we have a thumb path, convert it to full URL
+    // If we have a thumb path, convert it to full URL via proxy
     if (mod.imgUrl && mod.imgUrl.includes('items/images')) {
-      const fullUrl = `https://warframe.market/static/assets/${mod.imgUrl}`;
-      console.log(`>>> [Mod Image Debug] Converting thumb path to: ${fullUrl}`);
-      return fullUrl;
+      const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/warframe-market?image=${encodeURIComponent(mod.imgUrl)}`;
+      console.log(`>>> [Mod Image Debug] Converting thumb path to proxy: ${proxyUrl}`);
+      return proxyUrl;
     }
 
     // Fallback to placeholder with rarity-based styling
     console.log(`>>> [Mod Image Debug] Using placeholder for ${mod.name}`);
     return '/images/mod.webp';
+  };
+
+  // Helper function to get full resolution image URL
+  const getFullResImageUrl = (mod: ModItem) => {
+    if (!mod.imgUrl || !mod.imgUrl.includes('items/images')) {
+      return getModImageUrl(mod);
+    }
+
+    // Convert thumb path to full resolution path
+    // From: items/images/en/thumbs/critical_delay.5e621ae9ee9a6d2d4576565a26af45cb.128x128.png
+    // To: items/images/en/critical_delay.5e621ae9ee9a6d2d4576565a26af45cb.png
+    const fullResPath = mod.imgUrl
+      .replace('/thumbs/', '/')
+      .replace(/\.\d+x\d+\.png$/, '.png');
+
+    // Use Supabase proxy to avoid CORS issues
+    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/warframe-market?image=${encodeURIComponent(fullResPath)}`;
+    console.log(`>>> [Mod Image Debug] Full res proxy URL for ${mod.name}: ${proxyUrl}`);
+    return proxyUrl;
   };
 
   return (
@@ -397,7 +448,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
             {(lastRefreshTime || getModLastRefreshTime()) && (
               <LastRefreshInfo
-                lastRefreshTime={lastRefreshTime || getModLastRefreshTime()}
+                lastRefreshDate={lastRefreshTime || getModLastRefreshTime()}
                 className="text-xs text-gray-500"
               />
             )}
@@ -466,6 +517,22 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               </span>
             </button>
 
+            {/* Rarity Filter Mode Toggle - Show only when rarity filters are active */}
+            {availableRarities.some(rarity => activeFilters.has(`rarity_${rarity}`)) && (
+              <button
+                onClick={() => setRarityFilterMode(rarityFilterMode === 'OR' ? 'AND' : 'OR')}
+                className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                  rarityFilterMode === 'OR'
+                    ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
+                    : 'bg-purple-900/50 border-purple-500/50 text-purple-400 ring-1 ring-purple-500/30'
+                }`}
+                title={`Currently: ${rarityFilterMode} - Click to switch to ${rarityFilterMode === 'OR' ? 'AND' : 'OR'} mode`}
+              >
+                <Filter size={16} />
+                <span>{rarityFilterMode}</span>
+              </button>
+            )}
+
             {/* Rarity Tabs - Dynamically Generated */}
             {availableRarities.map(rarity => (
               <button
@@ -497,9 +564,9 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                 onChange={(e) => setSortBy(e.target.value as any)}
                 className="bg-gray-700/50 border border-gray-600 rounded px-2 py-1 text-xs text-white"
               >
+                <option value="totalMarketValue">Total Market Value</option>
+                <option value="maxSingleValue">Max Single Mod Value</option>
                 <option value="platPerEndo">Plat per Endo</option>
-                <option value="price">Market Value</option>
-                <option value="endoValue">Endo Value</option>
                 <option value="recommendation">Recommendation</option>
                 <option value="rarity">Rarity</option>
                 <option value="name">Name</option>
@@ -582,49 +649,82 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                   </div>
 
                   {/* Mod Image */}
-                  <div className="mb-3">
+                  <div className="mb-3 overflow-visible">
                     <img
-                      src={getModImageUrl(mod)}
+                      src={expandedImages.has(mod.name) && fullResImages.has(mod.name)
+                        ? getFullResImageUrl(mod)
+                        : getModImageUrl(mod)
+                      }
                       alt={`${mod.name} mod`}
-                      className="w-16 h-20 object-cover rounded-lg"
+                      className={`object-cover rounded-lg cursor-pointer hover:opacity-80 transition-all duration-200 ${
+                        expandedImages.has(mod.name)
+                          ? 'w-32 h-40 scale-110'
+                          : 'w-16 h-20'
+                      }`}
+                      onClick={() => {
+                        setExpandedImages(prev => {
+                          const newSet = new Set(prev);
+                          if (newSet.has(mod.name)) {
+                            // Shrinking - remove from both sets
+                            newSet.delete(mod.name);
+                            setFullResImages(fullRes => {
+                              const newFullRes = new Set(fullRes);
+                              newFullRes.delete(mod.name);
+                              return newFullRes;
+                            });
+                          } else {
+                            // Expanding - add to expanded set and load full res
+                            newSet.add(mod.name);
+                            setFullResImages(fullRes => {
+                              const newFullRes = new Set(fullRes);
+                              newFullRes.add(mod.name);
+                              return newFullRes;
+                            });
+                          }
+                          return newSet;
+                        });
+                      }}
                       onError={(e) => {
                         // Fallback to placeholder if image fails to load
                         (e.target as HTMLImageElement).src = '/images/mod.webp';
                       }}
+                      title={expandedImages.has(mod.name) ? "Click to shrink" : "Click to enlarge"}
                     />
                   </div>
 
-                  {/* Price and endo info */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-xs text-gray-400 mb-1">Market Price</div>
-                      {refreshingItems.has(mod.name) ? (
-                        <div className="animate-pulse">
-                          <div className="h-4 bg-gray-700 rounded w-12"></div>
+                  {/* Value display - show either market price OR endo value based on recommendation */}
+                  <div className="grid grid-cols-1 gap-4">
+                    {mod.recommendation === 'SELL_FOR_ENDO' || !mod.price || mod.price === 0 ? (
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Endo Value</div>
+                        <div className="text-red-400 font-medium">{mod.endoValue || 0}</div>
+                        <div className="text-xs text-gray-400">
+                          total: {((mod.endoValue || 0) * mod.quantity)}
                         </div>
-                      ) : mod.price && mod.price > 0 ? (
-                        <div>
-                          <div className="text-green-400 font-medium">{mod.price}p</div>
-                          <div className="text-xs text-gray-400">
-                            total: {(mod.price * mod.quantity)}p
-                          </div>
-                        </div>
-                      ) : mod.status === 'loaded' && mod.price === 0 ? (
-                        <div className="text-gray-500 text-xs">Not tradeable</div>
-                      ) : mod.status === 'error' ? (
-                        <div className="text-gray-500 text-xs">Not found</div>
-                      ) : (
-                        <div className="text-gray-500 text-xs">Loading...</div>
-                      )}
-                    </div>
-
-                    <div>
-                      <div className="text-xs text-gray-400 mb-1">Endo Value</div>
-                      <div className="text-red-400 font-medium">{mod.endoValue || 0}</div>
-                      <div className="text-xs text-gray-400">
-                        total: {((mod.endoValue || 0) * mod.quantity)}
                       </div>
-                    </div>
+                    ) : (
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Market Price</div>
+                        {refreshingItems.has(mod.name) ? (
+                          <div className="animate-pulse">
+                            <div className="h-4 bg-gray-700 rounded w-12"></div>
+                          </div>
+                        ) : mod.price && mod.price > 0 ? (
+                          <div>
+                            <div className="text-green-400 font-medium">{mod.price}p</div>
+                            <div className="text-xs text-gray-400">
+                              total: {(mod.price * mod.quantity)}p
+                            </div>
+                          </div>
+                        ) : mod.status === 'loaded' && mod.price === 0 ? (
+                          <div className="text-gray-500 text-xs">Not tradeable</div>
+                        ) : mod.status === 'error' ? (
+                          <div className="text-gray-500 text-xs">Not found</div>
+                        ) : (
+                          <div className="text-gray-500 text-xs">Loading...</div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Recommendation */}
@@ -683,6 +783,8 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           )}
         </>
       )}
+
+
     </div>
   );
 };
