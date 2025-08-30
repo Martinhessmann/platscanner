@@ -6,7 +6,11 @@
       "Bash(grep:*)",
       "Bash(npm run lint)",
       "Bash(find:*)",
-      "Bash(supabase functions deploy:*)"
+      "Bash(supabase functions deploy:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }
