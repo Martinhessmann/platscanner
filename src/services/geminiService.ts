@@ -180,6 +180,63 @@ export const isGeminiConfigured = (): boolean => {
   return genAI !== null;
 };
 
+const enhanceImageContrast = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      
+      // Draw original image
+      ctx?.drawImage(img, 0, 0);
+      
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      
+      // Get image data for processing
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      // Enhance contrast and saturation
+      const contrast = 1.5; // Increase contrast
+      const saturation = 1.3; // Increase saturation
+      
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1]; 
+        const b = data[i + 2];
+        
+        // Apply contrast enhancement
+        data[i] = Math.min(255, Math.max(0, (r - 128) * contrast + 128));
+        data[i + 1] = Math.min(255, Math.max(0, (g - 128) * contrast + 128));
+        data[i + 2] = Math.min(255, Math.max(0, (b - 128) * contrast + 128));
+        
+        // Special enhancement for blue colors (mod rank dots)
+        if (b > r && b > g) {
+          // This pixel is predominantly blue - enhance it more
+          data[i + 2] = Math.min(255, b * 1.2); // Make blue more vibrant
+        }
+      }
+      
+      // Put processed data back
+      ctx.putImageData(imageData, 0, 0);
+      
+      // Convert to base64
+      const dataURL = canvas.toDataURL('image/png', 1.0);
+      const base64 = dataURL.split(',')[1];
+      resolve(base64);
+    };
+    
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -641,10 +698,12 @@ CRITICAL DETECTION REQUIREMENTS - YOU MUST DETECT ALL FOUR ELEMENTS:
    - NEVER use the number in the top-right corner for quantity!
 
 3. **LEVEL**: Count the filled/active dots at the bottom of the mod card
-   - Bright, glowing, solid blue dots = leveled up mods
-   - Count how many blue dots are filled in (1-10)
-   - If no blue dots are filled = level 0
-   - Semi-transparent grey/silver dots = unranked mods (level 0)
+   - BRIGHT BLUE glowing dots = leveled up ranks (COUNT THESE)
+   - DARK GREY/BLACK empty dots = unranked slots
+   - Count ONLY the bright blue filled dots (0-10)
+   - If ALL dots are bright blue = max rank (usually 8-10)
+   - If ALL dots are dark grey = rank 0
+   - If mixed = count only the bright blue ones
 
 4. **DRAIN**: The number in the TOP-RIGHT corner (this is mod capacity/drain cost)
    - Usually appears as a number with a small arrow pointing down
@@ -653,7 +712,10 @@ CRITICAL DETECTION REQUIREMENTS - YOU MUST DETECT ALL FOUR ELEMENTS:
 VISUAL DETECTION GUIDELINES:
 - **TOP-LEFT CORNER**: Look for small white numbers (2, 3, 4, 12, etc.) - this is QUANTITY
 - **TOP-RIGHT CORNER**: Look for numbers with arrow symbols (like "14 ↓") - this is DRAIN
-- **BOTTOM DOTS**: Count filled blue dots for level (0-10)
+- **BOTTOM DOTS**: CRITICAL - Look for bright blue vs dark dots:
+  * Bright glowing blue dots = ranked up (COUNT THESE)
+  * Dark grey/black dots = empty slots (DON'T COUNT)
+  * All blue dots filled = maximum rank mod (very valuable!)
 - **ABSENCE OF TOP-LEFT NUMBER**: If no number in top-left = quantity is 1
 
 RESPONSE FORMAT:
@@ -701,7 +763,7 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
   }
 
   try {
-    const imageBase64 = await fileToBase64(imageFile);
+    let imageBase64 = await fileToBase64(imageFile);
 
     // Generate hash for caching
     const imageHash = await generateImageHash(imageBase64);
@@ -718,6 +780,17 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
     console.log(`>>> [Gemini] Step 1: Determining screen type <<<`);
     let screenType = await determineScreenType(imageBase64, imageFile.type);
     console.log(`>>> [Gemini] Detected screen type: ${screenType} <<<`);
+
+    // Step 1.5: For mod screens, enhance image contrast to better detect rank dots
+    if (screenType === 'mods') {
+      console.log(`>>> [Gemini] Enhancing image contrast for mod rank detection <<<`);
+      try {
+        imageBase64 = await enhanceImageContrast(imageFile);
+      } catch (error) {
+        console.warn(`>>> [Gemini] Contrast enhancement failed, using original image:`, error);
+        // Continue with original image if enhancement fails
+      }
+    }
 
     // Step 2: Use appropriate analysis based on screen type
     let analysisText: string;

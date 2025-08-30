@@ -6,7 +6,8 @@
       "Bash(grep:*)",
       "Bash(npm run lint)",
       "Bash(find:*)",
-      "Bash(supabase functions deploy:*)"
+      "Bash(supabase functions deploy:*)",
+      "mcp__ide__executeCode"
     ],
     "deny": []
   }
