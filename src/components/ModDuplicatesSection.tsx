@@ -391,7 +391,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
     }
 
     // Fallback to placeholder with rarity-based styling
-    console.log(`>>> [Mod Image Debug] Using placeholder for ${mod.name}`);
+    console.log(`>>> [Mod Image Debug] Using placeholder for ${(mod as any).name}`);
     return '/images/mod.webp';
   };
 
@@ -418,7 +418,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
     // Use direct Warframe Market URL for full resolution
     const directUrl = `https://warframe.market/static/assets/${fullResPath}`;
-    console.log(`>>> [Mod Image Debug] Full res direct URL for ${mod.name}: ${directUrl}`);
+    console.log(`>>> [Mod Image Debug] Full res direct URL for ${(mod as any).name}: ${directUrl}`);
     return directUrl;
   };
 
