@@ -2,7 +2,7 @@
 // Follows the exact pattern of SyndicateRewardsSection for consistency
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Star, Package, Coins, X, Heart, Sword } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Star, Package, Coins, X, Heart, Sword, Clock } from 'lucide-react';
 import { Mod } from '../types';
 import {
   ModItem,
@@ -15,6 +15,7 @@ import {
 } from '../services/modService';
 import { getCategorizedInventory } from '../services/inventoryService';
 import LastRefreshInfo from './LastRefreshInfo';
+import { logger } from '../utils/logger';
 
 interface ModDuplicatesSectionProps {
   isRefreshing: boolean;
@@ -111,10 +112,12 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       const newFilters = new Set(prev);
 
       // Handle mutual exclusivity for main view filters
-      if (filterType === 'sell_on_market' || filterType === 'sell_for_endo') {
-        // Remove both main filters first
+      if (filterType === 'sell_on_market' || filterType === 'sell_for_endo' || filterType === 'keep' || filterType === 'hold') {
+        // Remove all main filters first
         newFilters.delete('sell_on_market');
         newFilters.delete('sell_for_endo');
+        newFilters.delete('keep');
+        newFilters.delete('hold');
 
         // Add the selected one if it wasn't already active
         if (!prev.has(filterType)) {
@@ -146,13 +149,21 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   const filteredAndSortedMods = useMemo(() => {
     let filtered = allMods;
 
-    // Apply smart filters based on activeFilters
+    // Apply smart filters based on activeFilters - filter by recommendation
     if (activeFilters.has('sell_on_market')) {
-      filtered = filtered.filter(mod => mod.price && mod.price > 0);
+      filtered = filtered.filter(mod => mod.recommendation === 'TRADE_ON_MARKET');
     }
 
     if (activeFilters.has('sell_for_endo')) {
-      filtered = filtered.filter(mod => !mod.price || mod.price === 0);
+      filtered = filtered.filter(mod => mod.recommendation === 'SELL_FOR_ENDO');
+    }
+
+    if (activeFilters.has('keep')) {
+      filtered = filtered.filter(mod => mod.recommendation === 'KEEP');
+    }
+
+    if (activeFilters.has('hold')) {
+      filtered = filtered.filter(mod => mod.recommendation === 'HOLD');
     }
 
     // Apply rarity filters with OR/AND logic
@@ -182,9 +193,9 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           bVal = rarityOrder[b.rarity] || 0;
           break;
         case 'recommendation':
-          const recOrder = { 'KEEP_ALL': 4, 'KEEP_ONE_SELL_REST': 3, 'TRADE_ON_MARKET': 2, 'SELL_FOR_ENDO': 1 };
-          aVal = recOrder[a.recommendation || 'SELL_FOR_ENDO'];
-          bVal = recOrder[b.recommendation || 'SELL_FOR_ENDO'];
+          const recOrder = { 'KEEP': 4, 'HOLD': 3, 'TRADE_ON_MARKET': 2, 'SELL_FOR_ENDO': 1 };
+          aVal = recOrder[a.recommendation || 'SELL_FOR_ENDO'] || 1;
+          bVal = recOrder[b.recommendation || 'SELL_FOR_ENDO'] || 1;
           break;
         case 'platPerEndo':
           aVal = a.platPerEndo || 0;
@@ -315,10 +326,10 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
   const getRecommendationColor = (recommendation?: string) => {
     switch (recommendation) {
-      case 'KEEP_ALL': return 'text-green-400';
-      case 'KEEP_ONE_SELL_REST': return 'text-yellow-400';
-      case 'TRADE_ON_MARKET': return 'text-blue-400';
-      case 'SELL_FOR_ENDO': return 'text-red-400';
+      case 'KEEP': return 'text-purple-400';
+      case 'HOLD': return 'text-yellow-400';
+      case 'TRADE_ON_MARKET': return 'text-green-400';
+      case 'SELL_FOR_ENDO': return 'text-orange-400';
       default: return 'text-gray-400';
     }
   };
@@ -330,7 +341,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
     // Helper function to get mod image URL
   const getModImageUrl = (mod: ModItem, useFullRes = false) => {
-    console.log(`>>> [Mod Image Debug] ${mod.name}:`, {
+    logger.debug('mod-image-debug', `${mod.name}:`, {
       imgUrl: mod.imgUrl,
       hasImgUrl: !!mod.imgUrl,
       includesWarframeMarket: mod.imgUrl?.includes('warframe.market'),
@@ -347,17 +358,17 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         // Extract path from full URL
         const url = new URL(mod.imgUrl);
         imagePath = url.pathname.replace('/static/assets/', '');
-        console.log(`>>> [Mod Image Debug] Migrated full URL to path: ${mod.imgUrl} -> ${imagePath}`);
+        logger.debug('mod-image-debug', `Migrated full URL to path: ${mod.imgUrl} -> ${imagePath}`);
       }
 
       // Try direct Warframe Market URL first (faster)
       const directUrl = `https://warframe.market/static/assets/${imagePath}`;
-      console.log(`>>> [Mod Image Debug] Using direct Warframe Market URL: ${directUrl}`);
+      logger.debug('mod-image-debug', `Using direct Warframe Market URL: ${directUrl}`);
       return directUrl;
     }
 
     // Fallback to placeholder with rarity-based styling
-    console.log(`>>> [Mod Image Debug] Using placeholder for ${mod.name}`);
+    logger.debug('mod-image-debug', `Using placeholder for ${mod.name}`);
     return '/images/mod.webp';
   };
 
@@ -384,7 +395,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
     // Try direct Warframe Market URL for full resolution
     const directUrl = `https://warframe.market/static/assets/${fullResPath}`;
-    console.log(`>>> [Mod Image Debug] Full res direct URL for ${mod.name}: ${directUrl}`);
+    logger.debug('mod-image-debug', `Full res direct URL for ${mod.name}: ${directUrl}`);
     return directUrl;
   };
 
@@ -505,7 +516,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('sell_on_market') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {allMods.filter(mod => mod.price && mod.price > 0).length}
+                {allMods.filter(mod => mod.recommendation === 'TRADE_ON_MARKET').length}
               </span>
             </button>
 
@@ -523,7 +534,43 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('sell_for_endo') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {allMods.filter(mod => !mod.price || mod.price === 0).length}
+                {allMods.filter(mod => mod.recommendation === 'SELL_FOR_ENDO').length}
+              </span>
+            </button>
+
+            {/* Keep (Ranked Mods) */}
+            <button
+              onClick={() => toggleFilter('keep')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('keep')
+                  ? 'bg-purple-900/50 border-purple-500/50 text-purple-400 ring-1 ring-purple-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Shield size={16} />
+              <span>Keep</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('keep') ? 'bg-purple-800/50 text-purple-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {allMods.filter(mod => mod.recommendation === 'KEEP').length}
+              </span>
+            </button>
+
+            {/* Hold */}
+            <button
+              onClick={() => toggleFilter('hold')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('hold')
+                  ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Clock size={16} />
+              <span>Hold</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('hold') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {allMods.filter(mod => mod.recommendation === 'HOLD').length}
               </span>
             </button>
 
@@ -742,12 +789,30 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                     />
                   </div>
 
-                  {/* Value display - show either market price OR endo value based on recommendation */}
+                  {/* Value display - show based on recommendation */}
                   <div className="grid grid-cols-1 gap-4">
-                    {mod.recommendation === 'SELL_FOR_ENDO' || !mod.price || mod.price === 0 ? (
+                    {mod.recommendation === 'KEEP' ? (
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Status</div>
+                        <div className="text-purple-400 font-medium">Keep</div>
+                        {mod.rank && mod.rank > 0 && (
+                          <div className="text-xs text-gray-400">
+                            Rank {mod.rank}
+                          </div>
+                        )}
+                      </div>
+                    ) : mod.recommendation === 'HOLD' ? (
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Average Price</div>
+                        <div className="text-yellow-400 font-medium">{mod.average || 0}p</div>
+                        <div className="text-xs text-gray-400">
+                          Hold for later
+                        </div>
+                      </div>
+                    ) : mod.recommendation === 'SELL_FOR_ENDO' ? (
                       <div>
                         <div className="text-xs text-gray-400 mb-1">Endo Value</div>
-                        <div className="text-red-400 font-medium">{mod.endoValue || 0}</div>
+                        <div className="text-orange-400 font-medium">{mod.endoValue || 0}</div>
                         <div className="text-xs text-gray-400">
                           total: {((mod.endoValue || 0) * mod.quantity)}
                         </div>

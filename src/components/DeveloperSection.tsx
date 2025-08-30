@@ -11,6 +11,7 @@ const DeveloperSection: React.FC = () => {
   const availableContexts = [
     'built-sets-filter',
     'mod-service',
+    'mod-image-debug',
     'inventory-service',
     'gemini-service',
     'warframe-market',

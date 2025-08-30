@@ -252,8 +252,10 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
     }
 
     // Syndicate reward format: "ITEM_NAME | 25,000"
+    // CRITICAL: Only parse syndicate rewards when screenType is 'syndicate' or undefined
+    // NEVER parse syndicate rewards in mod screens - this prevents confusion with mod format
     const syndicateRewardMatch = line.match(/^(.*?)\s*\|\s*([\d,]+)/);
-    if (syndicateRewardMatch) {
+    if (syndicateRewardMatch && screenType !== 'mods') {
       const name = syndicateRewardMatch[1].trim();
       const standingStr = syndicateRewardMatch[2].replace(/,/g, '');
       const standingCost = parseInt(standingStr, 10);
@@ -714,7 +716,7 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
 
     // Step 1: Determine screen type
     console.log(`>>> [Gemini] Step 1: Determining screen type <<<`);
-    const screenType = await determineScreenType(imageBase64, imageFile.type);
+    let screenType = await determineScreenType(imageBase64, imageFile.type);
     console.log(`>>> [Gemini] Detected screen type: ${screenType} <<<`);
 
     // Step 2: Use appropriate analysis based on screen type

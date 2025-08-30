@@ -23,7 +23,7 @@ export interface ModItem {
   // Analysis fields
   marketValue?: number;
   endoValue?: number;
-  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP_ONE_SELL_REST' | 'KEEP_ALL';
+  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD';
   reasoning?: string;
   platPerEndo?: number;
 }
@@ -300,66 +300,44 @@ export const analyzeModForDuplicates = (mod: ModItem): ModItem => {
   let recommendation: ModItem['recommendation'] = 'SELL_FOR_ENDO';
   let reasoning = '';
 
-  // CRITICAL: Leveled mods should generally be kept (they have investment)
+  // RULE 1: Leveled mods (R>0) are always KEEP
   if (mod.rank && mod.rank > 0) {
-    if (mod.quantity > 1) {
-      recommendation = 'KEEP_ONE_SELL_REST';
-      reasoning = `Leveled mod (R${mod.rank}) - keep the leveled one, sell unranked duplicates`;
-    } else {
-      recommendation = 'KEEP_ALL';
-      reasoning = `Leveled mod (R${mod.rank}) - valuable investment, keep for builds`;
-    }
+    recommendation = 'KEEP';
+    reasoning = `Leveled mod (R${mod.rank}) - valuable investment`;
   }
-  // High-value mods should generally be kept/traded
-  else if (HIGH_VALUE_MODS.has(lowerName)) {
-    if (mod.quantity > 1) {
-      recommendation = 'KEEP_ONE_SELL_REST';
-      reasoning = 'High-value mod - keep one, consider trading extras if market price is good';
-    } else {
-      recommendation = 'KEEP_ALL';
-      reasoning = 'High-value mod - keep for builds';
-    }
+  // RULE 2: High-value mods, primed mods, and augments are KEEP
+  else if (HIGH_VALUE_MODS.has(lowerName) || mod.rarity === 'primed' || mod.type === 'augment') {
+    recommendation = 'KEEP';
+    reasoning = mod.rarity === 'primed' ? 'Primed mod - valuable for builds' :
+                mod.type === 'augment' ? 'Augment mod - useful for specialized builds' :
+                'High-value mod - keep for builds';
   }
-  // Primed mods are always valuable
-  else if (mod.rarity === 'primed') {
-    if (mod.quantity > 1) {
-      recommendation = 'KEEP_ONE_SELL_REST';
-      reasoning = 'Primed mod - keep one, trade extras for good platinum';
-    } else {
-      recommendation = 'KEEP_ALL';
-      reasoning = 'Primed mod - valuable for builds';
+  // RULE 3: Check market conditions
+  else if (mod.price !== undefined && mod.price >= 0) {
+    // If price is 0 but has average price (historical sales but no current buyers)
+    if (mod.price === 0 && mod.average && mod.average > 0) {
+      recommendation = 'HOLD';
+      reasoning = `Hold for later - average price ${mod.average}p (no current buyers)`;
     }
-  }
-  // Check market price vs endo value
-  else if (mod.price && mod.price >= marketThreshold) {
-    const platPerEndo = mod.price / endoValue;
-    if (platPerEndo > 0.1) { // If you get more than 0.1 plat per endo equivalent
-      if (mod.quantity > 1) {
-        recommendation = 'KEEP_ONE_SELL_REST';
-        reasoning = `Market price (${mod.price}p) is better than endo value - keep one, trade rest`;
-      } else {
+    // If current price is good compared to endo value
+    else if (mod.price >= marketThreshold) {
+      const platPerEndo = mod.price / endoValue;
+      if (platPerEndo > 0.1) { // If you get more than 0.1 plat per endo equivalent
         recommendation = 'TRADE_ON_MARKET';
         reasoning = `Market price (${mod.price}p) is better than endo value`;
+      } else {
+        recommendation = 'SELL_FOR_ENDO';
+        reasoning = `Low plat/endo ratio - better to dissolve for ${endoValue} endo`;
       }
     } else {
       recommendation = 'SELL_FOR_ENDO';
-      reasoning = `Market price too low compared to endo value (${endoValue} endo)`;
+      reasoning = `Price too low - dissolve for ${endoValue} endo`;
     }
   }
-  // Augment mods might be worth checking market
-  else if (mod.type === 'augment') {
-    if (mod.quantity > 1) {
-      recommendation = 'KEEP_ONE_SELL_REST';
-      reasoning = 'Augment mod - keep one for builds, check market for extras';
-    } else {
-      recommendation = 'KEEP_ALL';
-      reasoning = 'Augment mod - useful for specialized builds';
-    }
-  }
-  // Default: sell for endo if low value
+  // RULE 4: Default - sell for endo if no market value or low value
   else {
     recommendation = 'SELL_FOR_ENDO';
-    reasoning = `Low market value - better to dissolve for ${endoValue} endo`;
+    reasoning = `No/low market value - dissolve for ${endoValue} endo`;
   }
 
   return {
@@ -425,17 +403,26 @@ export const refreshModPrices = async (
   onProgress?: (current: number, total: number) => void
 ): Promise<ModItem[]> => {
   // Separate tradeable and non-tradeable mods
-  const tradeableMods = mods.filter(mod => isModTradeable(mod.name, mod.type, mod.rarity));
-  const nonTradeableMods = mods.filter(mod => !isModTradeable(mod.name, mod.type, mod.rarity));
+  // Also exclude ranked mods (R>0) from market fetching as they're not traded on market
+  const tradeableMods = mods.filter(mod => 
+    isModTradeable(mod.name, mod.type, mod.rarity) && 
+    (!mod.rank || mod.rank === 0)
+  );
+  const nonTradeableMods = mods.filter(mod => 
+    !isModTradeable(mod.name, mod.type, mod.rarity) || 
+    (mod.rank && mod.rank > 0)
+  );
 
-  logger.debug('mod-service', `Processing ${mods.length} mods: ${tradeableMods.length} tradeable, ${nonTradeableMods.length} non-tradeable`);
+  logger.debug('mod-service', `Processing ${mods.length} mods: ${tradeableMods.length} tradeable, ${nonTradeableMods.length} non-tradeable/ranked`);
 
-  // Set non-tradeable mods to loaded status with 0 price
+  // Set non-tradeable and ranked mods to loaded status with 0 price
+  // Ranked mods (R>0) are kept by players and not traded on market
   const nonTradeableResults = nonTradeableMods.map(mod => ({
     ...mod,
     price: 0,
     volume: 0,
     average: 0,
+    imgUrl: mod.imgUrl || '/images/mod.webp', // Use existing image or fallback
     status: 'loaded' as const,
     lastUpdated: new Date(),
     error: undefined // Clear any existing error
@@ -496,7 +483,7 @@ export const refreshModPrices = async (
           average: priceItem.average,
           rarity: updatedRarity,
           type: updatedType,
-          imgUrl: priceItem.thumb, // Set the image URL from market data
+          imgUrl: priceItem.thumb ? `https://warframe.market/static/assets/${priceItem.thumb}` : '/images/mod.webp',
           status: 'loaded' as const,
           lastUpdated: new Date(),
           error: undefined // Clear any existing error
@@ -504,6 +491,7 @@ export const refreshModPrices = async (
       } else {
         return {
           ...mod,
+          imgUrl: mod.imgUrl || '/images/mod.webp', // Provide fallback image
           status: 'error' as const,
           error: priceItem?.error || 'Price not found',
           lastUpdated: new Date()
@@ -516,6 +504,7 @@ export const refreshModPrices = async (
     logger.error('mod-service', 'Failed to refresh mod prices:', error);
     const errorResults = tradeableMods.map(mod => ({
       ...mod,
+      imgUrl: mod.imgUrl || '/images/mod.webp', // Provide fallback image
       status: 'error' as const,
       error: 'Failed to fetch price',
       lastUpdated: new Date()
