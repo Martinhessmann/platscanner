@@ -2,7 +2,6 @@
 // Helps users decide which duplicate mods to sell for endo vs trade on Warframe Market
 
 import { fetchBatchPriceData } from './warframeMarketService';
-import { logger } from '../utils/logger';
 
 export interface ModItem {
   id: string;
@@ -413,7 +412,6 @@ export const refreshModPrices = async (
     (mod.rank && mod.rank > 0)
   );
 
-  logger.debug('mod-service', `Processing ${mods.length} mods: ${tradeableMods.length} tradeable, ${nonTradeableMods.length} non-tradeable/ranked`);
 
   // Set non-tradeable and ranked mods to loaded status with 0 price
   // Ranked mods (R>0) are kept by players and not traded on market
@@ -458,7 +456,6 @@ export const refreshModPrices = async (
                          marketRarity === 'rare' ? 'rare' :
                          marketRarity === 'legendary' ? 'legendary' :
                          marketRarity === 'primed' ? 'primed' : 'unknown';
-          logger.debug('mod-service', `Updated ${mod.name} rarity from "${mod.rarity}" to "${updatedRarity}" (Market API: "${priceItem.rarity}")`);
         }
 
         // Extract type from tags if available
@@ -501,7 +498,7 @@ export const refreshModPrices = async (
 
     return [...tradeableResults, ...nonTradeableResults];
   } catch (error) {
-    logger.error('mod-service', 'Failed to refresh mod prices:', error);
+    console.error('Failed to refresh mod prices:', error);
     const errorResults = tradeableMods.map(mod => ({
       ...mod,
       imgUrl: mod.imgUrl || '/images/mod.webp', // Provide fallback image
@@ -528,7 +525,7 @@ export const saveModInventory = (mods: ModItem[]): void => {
     };
     localStorage.setItem(MOD_INVENTORY_KEY, JSON.stringify(data));
   } catch (error) {
-    logger.error('mod-service', 'Failed to save mod inventory:', error);
+    console.error('Failed to save mod inventory:', error);
   }
 };
 
@@ -547,7 +544,7 @@ export const loadModInventory = (): ModItem[] => {
       lastUpdated: new Date(mod.lastUpdated)
     }));
   } catch (error) {
-    logger.error('mod-service', 'Failed to load mod inventory:', error);
+    console.error('Failed to load mod inventory:', error);
     return [];
   }
 };

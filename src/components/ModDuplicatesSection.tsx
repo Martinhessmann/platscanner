@@ -15,7 +15,6 @@ import {
 } from '../services/modService';
 import { getCategorizedInventory } from '../services/inventoryService';
 import LastRefreshInfo from './LastRefreshInfo';
-import { logger } from '../utils/logger';
 
 interface ModDuplicatesSectionProps {
   isRefreshing: boolean;
@@ -341,14 +340,6 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
     // Helper function to get mod image URL
   const getModImageUrl = (mod: ModItem, useFullRes = false) => {
-    logger.debug('mod-image-debug', `${mod.name}:`, {
-      imgUrl: mod.imgUrl,
-      hasImgUrl: !!mod.imgUrl,
-      includesWarframeMarket: mod.imgUrl?.includes('warframe.market'),
-      includesItemsImages: mod.imgUrl?.includes('items/images'),
-      useFullRes,
-      imgUrlLength: mod.imgUrl?.length
-    });
 
     // If we have a thumb path, try direct Warframe Market URL first
     if (mod.imgUrl && mod.imgUrl.includes('items/images')) {
@@ -358,17 +349,14 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         // Extract path from full URL
         const url = new URL(mod.imgUrl);
         imagePath = url.pathname.replace('/static/assets/', '');
-        logger.debug('mod-image-debug', `Migrated full URL to path: ${mod.imgUrl} -> ${imagePath}`);
       }
 
       // Try direct Warframe Market URL first (faster)
       const directUrl = `https://warframe.market/static/assets/${imagePath}`;
-      logger.debug('mod-image-debug', `Using direct Warframe Market URL: ${directUrl}`);
       return directUrl;
     }
 
     // Fallback to placeholder with rarity-based styling
-    logger.debug('mod-image-debug', `Using placeholder for ${mod.name}`);
     return '/images/mod.webp';
   };
 
@@ -395,7 +383,6 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
     // Try direct Warframe Market URL for full resolution
     const directUrl = `https://warframe.market/static/assets/${fullResPath}`;
-    logger.debug('mod-image-debug', `Full res direct URL for ${mod.name}: ${directUrl}`);
     return directUrl;
   };
 

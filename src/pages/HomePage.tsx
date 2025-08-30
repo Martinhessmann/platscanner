@@ -6,7 +6,6 @@ import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import ModDuplicatesSection from '../components/ModDuplicatesSection';
 import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
 import { fetchPriceData, fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
-import { logger } from '../utils/logger';
 import { cloudSyncService } from '../services/cloudSyncService';
 import { initializeStaticData } from '../services/staticDataService';
 import {
@@ -96,10 +95,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   // Load built set parts when component mounts or mastered sets change
   useEffect(() => {
     const loadBuiltSetParts = async () => {
-      const builtSetsLogger = logger.withContext('built-sets-filter');
       const masteredSets = getMasteredSets();
 
-      builtSetsLogger.debug(`Loading built set parts for ${masteredSets.length} mastered sets`);
 
       if (masteredSets.length === 0) {
         setBuiltSetParts(new Set());
@@ -141,7 +138,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const isPartFromBuiltSet = useCallback((partName: string) => {
     const hasMatch = builtSetParts.has(partName.toLowerCase());
     if (hasMatch) {
-      logger.debug('built-sets-filter', `Part matches built set: ${partName}`);
     }
     return hasMatch;
   }, [builtSetParts]);
