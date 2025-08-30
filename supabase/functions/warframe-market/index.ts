@@ -13,6 +13,24 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const WARFRAME_MARKET_API = 'https://api.warframe.market/v1';
 
 /**
+ * Warframe Market API Proxy
+ * 
+ * This Edge Function provides:
+ * - Current market prices (highest buy orders)
+ * - 90-day median/average prices (from all orders)
+ * - Market volume data
+ * - Rate limiting and caching
+ * 
+ * IMPORTANT: This function must be deployed to Supabase for the
+ * 90-day median price functionality to work in the frontend.
+ * 
+ * MOD RANK FILTERING:
+ * - For mods, only unranked (rank 0) orders are included in price calculations
+ * - This ensures we never show prices for leveled mods that shouldn't be sold
+ * - Ranked mod orders are filtered out from both current prices and averages
+ */
+
+/**
  * Normalizes item names to match Warframe Market URL format
  * Handles special cases for mods and other items
  */
@@ -109,7 +127,9 @@ const fetchSingleItemData = async (itemName: string) => {
       order.order_type === 'buy' &&
       ['online', 'ingame'].includes(order.user.status) &&
       !order.user.banned &&
-      order.visible
+      order.visible &&
+      // For mods, only include unranked (rank 0) orders
+      (itemDetails.mod_max_rank === undefined || order.mod_rank === 0 || order.mod_rank === undefined)
     );
 
     // Find highest bidder
@@ -119,19 +139,29 @@ const fetchSingleItemData = async (itemName: string) => {
         )
       : null;
 
-    // Calculate true market average from all orders
+    // Calculate true market average from all unranked orders only
     const allValidOrders = ordersData.payload.orders.filter((order: any) =>
       ['online', 'ingame'].includes(order.user.status) &&
       !order.user.banned &&
-      order.visible
+      order.visible &&
+      // For mods, only include unranked (rank 0) orders
+      (itemDetails.mod_max_rank === undefined || order.mod_rank === 0 || order.mod_rank === undefined)
     );
+
+    // Log rank filtering for mods
+    if (itemDetails.mod_max_rank !== undefined) {
+      const totalOrders = ordersData.payload.orders.length;
+      const unrankedOrders = allValidOrders.length;
+      const rankedOrders = totalOrders - unrankedOrders;
+      console.log(`>>> [Supabase] ${itemName}: Mod rank filtering - Total: ${totalOrders}, Unranked: ${unrankedOrders}, Ranked: ${rankedOrders} <<<`);
+    }
 
     const result = {
       name: itemDetails.en.item_name,
       thumb: itemDetails.thumb ? itemDetails.thumb.replace('https://warframe.market/static/assets/', '') : '',
       ducats: itemDetails.ducats || 0,
       price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
-      volume: ordersData.payload.orders.length,
+      volume: allValidOrders.length, // Only count unranked orders for mods
       average: allValidOrders.length > 0
         ? Math.round(allValidOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / allValidOrders.length)
         : 0,

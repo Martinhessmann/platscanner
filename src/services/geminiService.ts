@@ -100,6 +100,16 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
 
   const newItems = detectedItems.filter(item => {
     const itemKey = `${item.category}:${item.name}`;
+    
+    // Skip leveled mods (rank > 0) - these should not be saved to inventory
+    if (item.category === 'mods') {
+      const modItem = item as any;
+      if (modItem.rank && modItem.rank > 0) {
+        console.log(`>>> [Gemini Filter] Skipping leveled mod: ${item.name} (rank ${modItem.rank}) <<<`);
+        return false;
+      }
+    }
+    
     return !existingItems.has(itemKey);
   });
 
@@ -575,41 +585,49 @@ If you cannot clearly see any items or syndicate name, respond with "NONE_DETECT
 };
 
 const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
-  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods WITH THEIR CORRECT QUANTITIES.
+  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ONLY UNRANKED mods with their duplicate quantities.
+
+CRITICAL FILTERING RULES - ONLY DETECT UNRANKED MODS:
+- **ONLY** detect mods with SEMI-TRANSPARENT GREY/SILVER DOTS (unranked mods)
+- **NEVER** detect mods with BRIGHT BLUE DOTS (leveled mods) - these should be completely ignored
+- **NEVER** detect mods with any rank > 0 - these are not for sale
 
 CRITICAL DUPLICATE DETECTION RULES:
 - DUPLICATE INDICATOR: Look for a small number in the TOP-LEFT corner of mod cards (usually white text)
 - DUPLICATE ICON: Look for an icon that looks like two overlapping pieces of paper in the top-left area
 - DO NOT confuse the mod drain number (top-right corner) with quantity - drain is NOT quantity!
 
-CRITICAL LEVEL DETECTION - VISUAL DIFFERENCES:
-- **ACTIVE BLUE DOTS** = Leveled up mods (NOT for sale)
-  * Bright, glowing, solid blue dots
-  * Often 5-10 dots in a row
-  * Clear, vibrant blue color
-  * These mods are RANKED UP and should be IGNORED
-
+VISUAL DIFFERENCES TO IDENTIFY UNRANKED VS LEVELED:
 - **SEMI-TRANSPARENT GREY/SILVER DOTS** = Unranked mods (SAFE to sell)
   * Faint, transparent, grey or silver dots
   * Usually 3 dots in a row
   * Dull, non-glowing appearance
   * These mods are RANK 0 and can be sold as duplicates
+  * **ONLY DETECT THESE**
 
-WHAT TO IGNORE:
+- **ACTIVE BLUE DOTS** = Leveled up mods (NOT for sale)
+  * Bright, glowing, solid blue dots
+  * Often 5-10 dots in a row
+  * Clear, vibrant blue color
+  * These mods are RANKED UP and should be COMPLETELY IGNORED
+  * **NEVER DETECT THESE**
+
+WHAT TO IGNORE COMPLETELY:
 - The number in the TOP-RIGHT corner (this is mod drain/capacity, NOT quantity)
 - Mods with ACTIVE BLUE DOTS at the bottom (these are leveled up, not duplicates)
 - Any mod with bright, glowing blue progression indicators
+- Any mod that appears to have been upgraded or leveled
 
-WHAT TO LOOK FOR:
+WHAT TO LOOK FOR (ONLY UNRANKED MODS):
 - Small number in TOP-LEFT corner indicating duplicates (2, 3, 4, 12, etc.)
 - Two-paper-stack icon in top-left area indicating duplicates
 - Only unranked mods (semi-transparent grey dots) should be considered for duplicates
 - Exact mod names as they appear
 
 RESPONSE FORMAT:
-List each mod with its correct duplicate quantity from the top-left indicator.
+List each UNRANKED mod with its correct duplicate quantity from the top-left indicator.
 Use format "QUANTITY x MOD_NAME" for duplicates, single name for singles.
-Do NOT include rank information unless specifically requested.
+Do NOT include rank information.
 
 Example format:
 Serration
@@ -618,9 +636,11 @@ Serration
 Primed Flow
 2 x Condition Overload
 
-IMPORTANT: If you see a number in the top-right, that is MOD DRAIN, not quantity!
-Only count the small number in the TOP-LEFT or the paper-stack icon as duplicate indicators.
-ONLY count mods with semi-transparent grey dots (unranked), IGNORE mods with bright blue dots (leveled).
+IMPORTANT: 
+- If you see a number in the top-right, that is MOD DRAIN, not quantity!
+- Only count the small number in the TOP-LEFT or the paper-stack icon as duplicate indicators.
+- ONLY count mods with semi-transparent grey dots (unranked), IGNORE mods with bright blue dots (leveled).
+- If you cannot clearly see any UNRANKED mods, respond with "NONE_DETECTED".
 
 If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
 

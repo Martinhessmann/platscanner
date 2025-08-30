@@ -60,16 +60,17 @@ export interface SyndicateReward extends BaseItem {
   availability?: 'always' | 'rotation' | 'limited';
 }
 
-export interface Mod extends BaseItem {
-  category: 'mods';
+export interface Mod extends DetectedItem {
   rank?: number;
-  rarity: 'common' | 'uncommon' | 'rare' | 'legendary' | 'primed';
-  type: 'warframe' | 'weapon' | 'companion' | 'archwing' | 'stance' | 'augment' | 'other';
-  // Analysis fields for duplicate management
+  rarity: string;
+  type: string;
   endoValue?: number;
-  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP_ONE_SELL_REST' | 'KEEP_ALL';
+  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'HOLD_FOR_LATER';
   reasoning?: string;
   platPerEndo?: number;
+  imgUrl?: string;
+  hasHistoricalSales?: boolean;
+  average?: number; // Historical average price from market data
 }
 
 export type DetectedItem = PrimePart | VoidRelic | SyndicateReward | Mod;
