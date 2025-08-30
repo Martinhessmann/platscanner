@@ -189,9 +189,9 @@ export const testContrastLevelsForModDetection = async (debugImagePath: string) 
     return;
   }
 
-  // Test different contrast levels - starting much higher since 1.5 didn't work
-  const contrastLevels = [2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0];
-  const blueBoostLevels = [1.5, 2.0, 3.0, 4.0];
+  // Test much higher contrast levels to make R0 dots completely invisible
+  const contrastLevels = [5.0, 8.0, 10.0, 15.0, 20.0];
+  const blueBoostLevels = [2.0, 3.0, 4.0, 5.0];
   
   try {
     // Load the debug image as a File
@@ -215,16 +215,12 @@ export const testContrastLevelsForModDetection = async (debugImagePath: string) 
           downloadLink.download = `debug_mods_c${contrast}_b${blueBoost}.png`;
           console.log(`>>> [Contrast Test] Enhanced image available for download: ${downloadLink.download} <<<`);
           
-          // Auto-download first few enhanced images for comparison
-          if (contrastLevels.indexOf(contrast) < 3 && blueBoostLevels.indexOf(blueBoost) < 2) {
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-          }
+          // Auto-download all enhanced images for comparison
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
           
-          // Test with Gemini
-          const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
-          
+          // Test with Gemini using the same API pattern as the rest of the service
           const prompt = `Analyze this Warframe mod inventory screenshot and list each mod with its rank.
 
 CRITICAL INSTRUCTIONS for mod rank detection:
@@ -243,31 +239,39 @@ Transient Fortitude | R5
 Whirlwind | R0
 Steel Fiber | R10`;
 
-          const result = await model.generateContent([
-            prompt,
-            {
-              inlineData: {
-                data: enhancedBase64,
-                mimeType: 'image/png'
+          const result = await genAI!.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      data: enhancedBase64,
+                      mimeType: 'image/png'
+                    }
+                  }
+                ]
               }
-            }
-          ]);
+            ]
+          });
           
-          const analysisText = result.response.text();
+          const analysisText = result.text;
           console.log(`>>> [Contrast Test] Contrast ${contrast}, Blue Boost ${blueBoost} Result: <<<`);
           console.log(analysisText);
           
-          // Check if we found any R5 or higher ranks (indicating success)
+          // Analyze the results for accuracy
           const hasHighRanks = /R[5-9]|R10/.test(analysisText);
           const hasR0Only = /R0/.test(analysisText) && !/R[1-9]|R10/.test(analysisText);
+          const r10Count = (analysisText.match(/R10/g) || []).length;
+          const r5Count = (analysisText.match(/R5/g) || []).length;
+          const r0Count = (analysisText.match(/R0/g) || []).length;
           
-          console.log(`>>> [Contrast Test] Has high ranks: ${hasHighRanks}, All R0: ${hasR0Only} <<<`);
+          console.log(`>>> [Contrast Test] Stats - R10: ${r10Count}, R5: ${r5Count}, R0: ${r0Count}, Has high ranks: ${hasHighRanks}, All R0: ${hasR0Only} <<<`);
           
-          if (hasHighRanks && !hasR0Only) {
-            console.log(`>>> [Contrast Test] SUCCESS! Found optimal settings: contrast=${contrast}, blueBoost=${blueBoost} <<<`);
-            console.log(`>>> [Contrast Test] Recommended settings found - stopping test <<<`);
-            return { contrast, blueBoost, analysisText };
-          }
+          // Store all results for comparison (don't stop early)
+          // We want to test all combinations to find the most accurate one
           
         } catch (error) {
           console.error(`>>> [Contrast Test] Error testing contrast ${contrast}, blue boost ${blueBoost}:`, error);
@@ -802,13 +806,23 @@ CRITICAL DETECTION REQUIREMENTS - YOU MUST DETECT ALL FOUR ELEMENTS:
    - If number is present (2, 3, 4, 12, etc.) = that is the quantity
    - NEVER use the number in the top-right corner for quantity!
 
-3. **LEVEL**: Count the filled/active dots at the bottom of the mod card
-   - BRIGHT BLUE glowing dots = leveled up ranks (COUNT THESE)
-   - DARK GREY/BLACK empty dots = unranked slots
-   - Count ONLY the bright blue filled dots (0-10)
-   - If ALL dots are bright blue = max rank (usually 8-10)
-   - If ALL dots are dark grey = rank 0
-   - If mixed = count only the bright blue ones
+3. **LEVEL**: Count ONLY the BRIGHT/GLOWING dots - DO NOT count total dots!
+   - IGNORE THE TOP-RIGHT CORNER NUMBERS (that's drain, not rank!)
+   - Look at the bottom edge - you'll see a row of small circular dots
+   - CRITICAL DISTINCTION:
+     * BRIGHT/GLOWING/FILLED dots = these are "ON" (count these for rank)
+     * DARK/DIM/EMPTY dots = these are "OFF" (DO NOT count these)
+   - NEVER count the total number of dots - only count the BRIGHT ones
+   - Example: If you see 10 total dots but only 3 are bright/glowing = R3 (NOT R10!)
+   - Example: If you see 5 total dots but 0 are bright/glowing = R0 (NOT R5!)
+   - Example: If you see 10 total dots and ALL 10 are bright/glowing = R10
+   - CRITICAL FOR DUPLICATE MODS: Each individual mod card has its own rank
+     * If you see "Condition Overload" twice, examine EACH card's bottom dots separately
+     * One might have 0 glowing dots out of 10 total = R0
+     * Another might have 10 glowing dots out of 10 total = R10
+     * Report them as separate entries with their individual ranks
+   - Visual cues for BRIGHT dots: they glow, they're vivid blue/cyan, they stand out
+   - Visual cues for DARK dots: they're gray, black, dim, barely visible, empty circles
 
 4. **DRAIN**: The number in the TOP-RIGHT corner (this is mod capacity/drain cost)
    - Usually appears as a number with a small arrow pointing down
@@ -817,21 +831,59 @@ CRITICAL DETECTION REQUIREMENTS - YOU MUST DETECT ALL FOUR ELEMENTS:
 VISUAL DETECTION GUIDELINES:
 - **TOP-LEFT CORNER**: Look for small white numbers (2, 3, 4, 12, etc.) - this is QUANTITY
 - **TOP-RIGHT CORNER**: Look for numbers with arrow symbols (like "14 ↓") - this is DRAIN
-- **BOTTOM DOTS**: CRITICAL - Look for bright blue vs dark dots:
-  * Bright glowing blue dots = ranked up (COUNT THESE)
-  * Dark grey/black dots = empty slots (DON'T COUNT)
-  * All blue dots filled = maximum rank mod (very valuable!)
+- **BOTTOM DOTS - MOST CRITICAL**: Examine the bottom edge of each mod card very carefully:
+  * Look for a ROW OF SMALL CIRCULAR DOTS (usually 5-10 dots per mod)
+  * BRIGHT/GLOWING/FILLED dots = count these for the rank
+  * DARK/DIM/EMPTY dots = ignore these (they're unfilled slots)
+  * EXAMINE EACH MOD INDIVIDUALLY - don't assume all mods have the same rank pattern
+  * Some mods will have ALL dots bright (max rank), others will have NO bright dots (rank 0)
+  * The number of BRIGHT dots = the rank number
 - **ABSENCE OF TOP-LEFT NUMBER**: If no number in top-left = quantity is 1
+
+CRITICAL RANK DETECTION STEPS FOR EACH MOD CARD:
+1. Find each individual mod card (scan left to right, top to bottom)
+2. For DUPLICATE mod names: treat each card as a separate item with its own rank
+3. Look at the very bottom edge of THAT SPECIFIC CARD for a row of dots
+4. Count BOTH types of dots separately:
+   - Count BRIGHT dots (glowing, vivid blue/cyan, stand out visually)
+   - Count TOTAL dots (bright + dark combined)
+5. Report as BRIGHT_DOTS/TOTAL_DOTS format
+6. If you see the same mod name multiple times, report each occurrence separately
+
+EXAMPLES OF CORRECT COUNTING:
+- "I see 10 total dots, 8 are bright, 2 are dark" → 8/10
+- "I see 5 total dots, all 5 are bright" → 5/5  
+- "I see 10 total dots, 0 are bright, all are dark" → 0/10
+- "I see 8 total dots, 3 are bright, 5 are dark" → 3/8
+
+WRONG APPROACH: "I see bright dots, so 10"
+CORRECT APPROACH: "I count 8 bright dots out of 10 total dots, so 8/10"
+
+SANITY CHECK RULES:
+- Same mod name at same rank = must have same drain (e.g., both R0 Condition Overload should have same drain)
+- Quantity should be 1-5 (not 17!)
+- If you get impossible combinations, re-examine that specific mod card more carefully
+- Higher rank = higher drain (R0 has lower drain than R10)
+
+EXAMPLE OUTPUT FOR DUPLICATES:
+Condition Overload | 1 | 0 | 15
+Condition Overload | 1 | 10 | 18
+
+NOT IMPOSSIBLE COMBINATIONS LIKE:
+Condition Overload | 1 | 0 | 15
+Condition Overload | 1 | 0 | 10  ← WRONG: same rank, different drain!
 
 RESPONSE FORMAT:
 Use this exact format for each mod:
-"MOD_NAME | QUANTITY | LEVEL | DRAIN"
+"MOD_NAME | QUANTITY | BRIGHT_DOTS/TOTAL_DOTS | DRAIN"
 
 Examples:
-Narrow Minded | 1 | 1 | 14
-Vitality | 3 | 0 | 4
-Primed Flow | 1 | 5 | 16
-Serration | 12 | 0 | 4
+Narrow Minded | 1 | 1/10 | 14
+Vitality | 3 | 0/5 | 4
+Primed Flow | 1 | 5/10 | 16
+Serration | 12 | 0/8 | 4
+Adaptation | 1 | 8/10 | 10
+Condition Overload | 1 | 5/5 | 15
 
 IMPORTANT RULES:
 - If no number in top-left corner = quantity is 1 (single copy)
@@ -890,7 +942,7 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
     if (screenType === 'mods') {
       console.log(`>>> [Gemini] Enhancing image contrast for mod rank detection <<<`);
       try {
-        imageBase64 = await enhanceImageContrast(imageFile);
+        imageBase64 = await enhanceImageContrast(imageFile, 10.0, 3.0);
       } catch (error) {
         console.warn(`>>> [Gemini] Contrast enhancement failed, using original image:`, error);
         // Continue with original image if enhancement fails
