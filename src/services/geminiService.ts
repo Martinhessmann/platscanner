@@ -180,7 +180,112 @@ export const isGeminiConfigured = (): boolean => {
   return genAI !== null;
 };
 
-const enhanceImageContrast = (file: File): Promise<string> => {
+// Test function to find optimal contrast levels for mod rank detection
+export const testContrastLevelsForModDetection = async (debugImagePath: string) => {
+  console.log(`>>> [Contrast Test] Starting progressive contrast test with ${debugImagePath} <<<`);
+  
+  if (!genAI) {
+    console.error('>>> [Contrast Test] Gemini API not initialized <<<');
+    return;
+  }
+
+  // Test different contrast levels - starting much higher since 1.5 didn't work
+  const contrastLevels = [2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0];
+  const blueBoostLevels = [1.5, 2.0, 3.0, 4.0];
+  
+  try {
+    // Load the debug image as a File
+    const response = await fetch(debugImagePath);
+    const blob = await response.blob();
+    const file = new File([blob], 'debug_mods.png', { type: 'image/png' });
+    
+    console.log(`>>> [Contrast Test] Testing ${contrastLevels.length} contrast levels with ${blueBoostLevels.length} blue boost levels <<<`);
+    
+    for (const contrast of contrastLevels) {
+      for (const blueBoost of blueBoostLevels) {
+        console.log(`>>> [Contrast Test] Testing contrast: ${contrast}, blue boost: ${blueBoost} <<<`);
+        
+        try {
+          // Enhance image with current settings
+          const enhancedBase64 = await enhanceImageContrast(file, contrast, blueBoost);
+          
+          // Save enhanced image for visual inspection (browser will show download)
+          const downloadLink = document.createElement('a');
+          downloadLink.href = `data:image/png;base64,${enhancedBase64}`;
+          downloadLink.download = `debug_mods_c${contrast}_b${blueBoost}.png`;
+          console.log(`>>> [Contrast Test] Enhanced image available for download: ${downloadLink.download} <<<`);
+          
+          // Auto-download first few enhanced images for comparison
+          if (contrastLevels.indexOf(contrast) < 3 && blueBoostLevels.indexOf(blueBoost) < 2) {
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+          }
+          
+          // Test with Gemini
+          const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+          
+          const prompt = `Analyze this Warframe mod inventory screenshot and list each mod with its rank.
+
+CRITICAL INSTRUCTIONS for mod rank detection:
+- Look at the BOTTOM of each mod card for rank dots
+- BRIGHT BLUE glowing dots = leveled up ranks (COUNT THESE)
+- DARK GREY/BLACK empty dots = unranked slots  
+- Count ONLY the bright blue filled dots (0-10)
+- If ALL dots are bright blue = max rank (usually 5-10)
+- If ALL dots are dark grey = rank 0
+
+For each mod, output format:
+MOD_NAME | R[RANK_NUMBER]
+
+Example output:
+Transient Fortitude | R5
+Whirlwind | R0
+Steel Fiber | R10`;
+
+          const result = await model.generateContent([
+            prompt,
+            {
+              inlineData: {
+                data: enhancedBase64,
+                mimeType: 'image/png'
+              }
+            }
+          ]);
+          
+          const analysisText = result.response.text();
+          console.log(`>>> [Contrast Test] Contrast ${contrast}, Blue Boost ${blueBoost} Result: <<<`);
+          console.log(analysisText);
+          
+          // Check if we found any R5 or higher ranks (indicating success)
+          const hasHighRanks = /R[5-9]|R10/.test(analysisText);
+          const hasR0Only = /R0/.test(analysisText) && !/R[1-9]|R10/.test(analysisText);
+          
+          console.log(`>>> [Contrast Test] Has high ranks: ${hasHighRanks}, All R0: ${hasR0Only} <<<`);
+          
+          if (hasHighRanks && !hasR0Only) {
+            console.log(`>>> [Contrast Test] SUCCESS! Found optimal settings: contrast=${contrast}, blueBoost=${blueBoost} <<<`);
+            console.log(`>>> [Contrast Test] Recommended settings found - stopping test <<<`);
+            return { contrast, blueBoost, analysisText };
+          }
+          
+        } catch (error) {
+          console.error(`>>> [Contrast Test] Error testing contrast ${contrast}, blue boost ${blueBoost}:`, error);
+        }
+        
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    console.log(`>>> [Contrast Test] No optimal settings found in tested range <<<`);
+    
+  } catch (error) {
+    console.error(`>>> [Contrast Test] Failed to load debug image:`, error);
+  }
+};
+
+const enhanceImageContrast = (file: File, contrastLevel: number = 1.5, blueBoost: number = 1.2): Promise<string> => {
   return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -203,7 +308,7 @@ const enhanceImageContrast = (file: File): Promise<string> => {
       const data = imageData.data;
       
       // Enhance contrast and saturation
-      const contrast = 1.5; // Increase contrast
+      const contrast = contrastLevel; // Configurable contrast
       const saturation = 1.3; // Increase saturation
       
       for (let i = 0; i < data.length; i += 4) {
@@ -219,7 +324,7 @@ const enhanceImageContrast = (file: File): Promise<string> => {
         // Special enhancement for blue colors (mod rank dots)
         if (b > r && b > g) {
           // This pixel is predominantly blue - enhance it more
-          data[i + 2] = Math.min(255, b * 1.2); // Make blue more vibrant
+          data[i + 2] = Math.min(255, b * blueBoost); // Make blue more vibrant
         }
       }
       

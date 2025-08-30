@@ -4,7 +4,7 @@ import ProcessingPanel from '../components/ProcessingPanel';
 import InventorySection from '../components/InventorySection';
 import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import ModDuplicatesSection from '../components/ModDuplicatesSection';
-import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
+import { analyzeImage, isGeminiConfigured, testContrastLevelsForModDetection } from '../services/geminiService';
 import { fetchPriceData, fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
 import { cloudSyncService } from '../services/cloudSyncService';
 import { initializeStaticData } from '../services/staticDataService';
@@ -1651,6 +1651,31 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               <Package size={40} className="mx-auto text-gray-500 mb-3" />
               <p className="text-gray-400 mb-2">Your inventory is empty</p>
               <p className="text-xs text-gray-500">Upload screenshots to start building your inventory</p>
+            </div>
+          )}
+
+          {/* Debug: Contrast Test Button (only show if configured) */}
+          {isConfigured && (
+            <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
+              <h3 className="text-sm font-semibold mb-2 text-gray-300">Debug Tools</h3>
+              <button
+                onClick={async () => {
+                  console.log('>>> [Debug] Starting contrast test with debug/mods.png <<<');
+                  try {
+                    const result = await testContrastLevelsForModDetection('/debug/mods.png');
+                    console.log('>>> [Debug] Test completed:', result);
+                  } catch (error) {
+                    console.error('>>> [Debug] Test failed:', error);
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+              >
+                <Zap size={16} />
+                Test Contrast Levels
+              </button>
+              <p className="text-xs text-gray-500 mt-2">
+                Tests different contrast settings to find optimal mod rank detection
+              </p>
             </div>
           )}
 
