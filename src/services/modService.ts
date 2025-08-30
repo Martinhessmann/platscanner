@@ -375,11 +375,24 @@ export const refreshModPrices = async (
   }
 
   try {
-    const itemNames = tradeableMods.map(mod => mod.name);
+    // Normalize mod names for API lookup (display name -> api name)
+    const normalizeItemName = (name: string): string => {
+      return name
+        .toLowerCase()
+        .replace(/\s*&\s*/g, '_and_') // Replace & with 'and'
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_]/g, '');
+    };
+
+    const itemNames = tradeableMods.map(mod => normalizeItemName(mod.name));
     const priceData = await fetchBatchPriceData(itemNames, onProgress);
 
     const tradeableResults = tradeableMods.map(mod => {
-      const priceItem = priceData.find(item => item.name === mod.name);
+      // Look up price data using normalized name
+      const normalizedModName = normalizeItemName(mod.name);
+      const priceItem = priceData.find(item => 
+        normalizeItemName(item.name) === normalizedModName || item.name === mod.name
+      );
       console.log(`>>> [Mod Service Debug] ${mod.name}:`, {
         found: !!priceItem,
         price: priceItem?.price,

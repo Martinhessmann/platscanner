@@ -10,6 +10,7 @@ import {
   loadModInventory,
   refreshModPrices,
   analyzeModDuplicates,
+  analyzeModForDuplicates,
   getModLastRefreshTime,
   setModLastRefreshTime
 } from '../services/modService';
@@ -372,7 +373,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       imgUrlLength: mod.imgUrl?.length
     });
 
-    // If we have a thumb path, try direct Warframe Market URL first
+    // If we have a thumb path, try direct Warframe Market URL (CORS warnings are OK)
     if (mod.imgUrl && mod.imgUrl.includes('items/images')) {
       // Handle migration from old full URL format to new path format
       let imagePath = mod.imgUrl;
@@ -383,7 +384,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         console.log(`>>> [Mod Image Debug] Migrated full URL to path: ${mod.imgUrl} -> ${imagePath}`);
       }
 
-      // Try direct Warframe Market URL first (faster)
+      // Use direct Warframe Market URL (CORS warnings are expected but images display fine)
       const directUrl = `https://warframe.market/static/assets/${imagePath}`;
       console.log(`>>> [Mod Image Debug] Using direct Warframe Market URL: ${directUrl}`);
       return directUrl;
@@ -415,7 +416,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       .replace('/thumbs/', '/')
       .replace(/\.\d+x\d+\.png$/, '.png');
 
-    // Try direct Warframe Market URL for full resolution
+    // Use direct Warframe Market URL for full resolution
     const directUrl = `https://warframe.market/static/assets/${fullResPath}`;
     console.log(`>>> [Mod Image Debug] Full res direct URL for ${mod.name}: ${directUrl}`);
     return directUrl;
