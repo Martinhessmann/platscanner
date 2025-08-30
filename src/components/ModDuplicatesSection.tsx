@@ -251,8 +251,8 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         await onRefreshItem(itemName);
       } else {
         // Use the same logic as bulk refresh to preserve mod metadata
-        const { fetchSinglePriceData, calculateEndoValue, analyzeModForDuplicates } = await import('../services/warframeMarketService');
-        const { calculateEndoValue: calculateEndoValueMod } = await import('../services/modService');
+        const { fetchSinglePriceData } = await import('../services/warframeMarketService');
+        const { calculateEndoValue: calculateEndoValueMod, analyzeModForDuplicates } = await import('../services/modService');
         
         const priceData = await fetchSinglePriceData(item);
         
