@@ -667,7 +667,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                     <div className="text-gray-400">Unranked</div>
                   </div>
                 </div>
-                <div className="mt-3 pt-3 border-t border-gray-700/50 grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                <div className="mt-3 pt-3 border-t border-gray-700/50 grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
                   <div className="text-center">
                     <div className="text-green-400 font-medium">{analyzedMods.recommendedForMarket.length}</div>
                     <div className="text-gray-400">Market Trade</div>
@@ -677,8 +677,12 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                     <div className="text-gray-400">Sell for Endo</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-yellow-400 font-medium">{analyzedMods.keepOneSellRest.length}</div>
-                    <div className="text-gray-400">Keep One</div>
+                    <div className="text-purple-400 font-medium">{allMods.filter(mod => mod.recommendation === 'KEEP').length}</div>
+                    <div className="text-gray-400">Keep</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-yellow-400 font-medium">{analyzedMods.recommendedForHold.length}</div>
+                    <div className="text-gray-400">Hold for Later</div>
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-700/50 grid grid-cols-2 gap-4 text-xs">
