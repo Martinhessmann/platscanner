@@ -920,39 +920,6 @@ If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
   return result.text;
 };
 
-/**
- * Retry wrapper for Gemini API calls with exponential backoff
- */
-const retryWithBackoff = async <T>(
-  fn: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelay: number = 15000 // 15 seconds as suggested by API
-): Promise<T> => {
-  let lastError: any;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn();
-    } catch (error: any) {
-      lastError = error;
-
-      // Check if it's a rate limit error (429)
-      if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('quota')) {
-        if (attempt < maxRetries) {
-          const delay = baseDelay * Math.pow(2, attempt); // Exponential backoff: 15s, 30s, 60s
-          console.log(`>>> [Gemini] Rate limit hit, retrying in ${delay/1000}s (attempt ${attempt + 1}/${maxRetries + 1}) <<<`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-      }
-
-      // For non-rate-limit errors or final attempt, throw immediately
-      throw error;
-    }
-  }
-
-  throw lastError;
-};
 
 export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedItem[]; screenType: string }> => {
   if (!isGeminiConfigured()) {
@@ -973,9 +940,9 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
       return filterNewItems(cachedResult);
     }
 
-    // Step 1: Determine screen type with retry
+    // Step 1: Determine screen type
     console.log(`>>> [Gemini] Step 1: Determining screen type <<<`);
-    let screenType = await retryWithBackoff(() => determineScreenType(imageBase64, imageFile.type));
+    let screenType = await determineScreenType(imageBase64, imageFile.type);
     console.log(`>>> [Gemini] Detected screen type: ${screenType} <<<`);
 
     // Step 1.5: For mod screens, enhance image contrast to better detect rank dots
@@ -995,26 +962,26 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
 
     if (screenType === 'prime_parts') {
       console.log(`>>> [Gemini] Step 2: Analyzing Prime Parts with focused prompt <<<`);
-      analysisText = await retryWithBackoff(() => analyzePrimeParts(imageBase64, imageFile.type));
+      analysisText = await analyzePrimeParts(imageBase64, imageFile.type);
     } else if (screenType === 'relics') {
       console.log(`>>> [Gemini] Step 2: Analyzing Relics with detailed filtering <<<`);
-      analysisText = await retryWithBackoff(() => analyzeRelics(imageBase64, imageFile.type));
+      analysisText = await analyzeRelics(imageBase64, imageFile.type);
     } else if (screenType === 'syndicate') {
       console.log(`>>> [Gemini] Step 2: Analyzing Syndicate Offerings <<<`);
-      analysisText = await retryWithBackoff(() => analyzeSyndicate(imageBase64, imageFile.type));
+      analysisText = await analyzeSyndicate(imageBase64, imageFile.type);
 
       // CRITICAL FALLBACK: If syndicate analysis finds nothing, try mod analysis
       if (analysisText.trim() === "NONE_DETECTED") {
         console.log(`>>> [Gemini] Syndicate analysis found nothing, falling back to mod analysis <<<`);
-        analysisText = await retryWithBackoff(() => analyzeMods(imageBase64, imageFile.type));
+        analysisText = await analyzeMods(imageBase64, imageFile.type);
         screenType = 'mods'; // Update screen type for correct parsing
       }
     } else if (screenType === 'mods') {
       console.log(`>>> [Gemini] Step 2: Analyzing Mods <<<`);
-      analysisText = await retryWithBackoff(() => analyzeMods(imageBase64, imageFile.type));
+      analysisText = await analyzeMods(imageBase64, imageFile.type);
     } else {
       console.log(`>>> [Gemini] Unknown screen type, using generic analysis <<<`);
-      analysisText = await retryWithBackoff(() => analyzePrimeParts(imageBase64, imageFile.type)); // Default to prime parts
+      analysisText = await analyzePrimeParts(imageBase64, imageFile.type); // Default to prime parts
     }
 
     // Debug: Log the analysis type and first few lines of response

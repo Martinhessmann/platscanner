@@ -465,8 +465,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
           // Extract items using Gemini AI
           const analysisResult = await analyzeImage(nextImage.file);
-          const detectedItems = analysisResult.items;
-          const screenType = analysisResult.screenType;
+          const detectedItems = analysisResult.items || [];
+          const screenType = analysisResult.screenType || 'unknown';
 
           // If analysis was very fast (< 500ms), it was likely cached
           const analysisTime = Date.now() - startTime;
@@ -492,10 +492,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           // Filter out items already in inventory to avoid duplicates (for ALL items including syndicate)
           const currentInventory = loadInventory();
           const existingItemNames = new Set(currentInventory.items.map(item => item.name));
-          const newItems = detectedItems.filter(item => !existingItemNames.has(item.name));
-          const duplicatesCount = detectedItems.length - newItems.length;
+          const newItems = Array.isArray(detectedItems) ? detectedItems.filter(item => !existingItemNames.has(item.name)) : [];
+          const duplicatesCount = Array.isArray(detectedItems) ? detectedItems.length - newItems.length : 0;
 
-          console.log(`>>> [AI Analysis] Detected ${detectedItems.length} items, ${newItems.length} are new, ${duplicatesCount} duplicates <<<`);
+          console.log(`>>> [AI Analysis] Detected ${Array.isArray(detectedItems) ? detectedItems.length : 0} items, ${newItems.length} are new, ${duplicatesCount} duplicates <<<`);
 
           // Track duplicates for this image
           setProcessingMetadata(current => ({
