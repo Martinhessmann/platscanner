@@ -31,7 +31,10 @@ function App() {
         // Verify migration completed successfully
         const verification = verifyLocalImageMigration();
         if (verification.hasExternalUrls) {
-          console.warn('⚠️ CDN independence incomplete - some external URLs remain:', verification.externalUrls);
+          // Only log in development mode to avoid console spam
+          if (__DEV_MODE__ === 'true') {
+            console.log('ℹ️ Some items still use external URLs (this is normal for new items):', verification.externalUrls.length, 'items');
+          }
         } else {
           console.log('✅ CDN independence complete - all images are local');
         }
