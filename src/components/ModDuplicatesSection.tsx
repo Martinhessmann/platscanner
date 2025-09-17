@@ -46,7 +46,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['sell_on_market']));
-  const [sortBy, setSortBy] = useState<'totalMarketValue' | 'maxSingleValue' | 'recommendation' | 'rarity' | 'name'>('totalMarketValue');
+  const [sortBy, setSortBy] = useState<'totalMarketValue' | 'maxSingleValue' | 'recommendation' | 'rarity' | 'name' | 'quantity'>('totalMarketValue');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [expandedImages, setExpandedImages] = useState<Set<string>>(new Set());
   const [fullResImages, setFullResImages] = useState<Set<string>>(new Set());
@@ -209,6 +209,10 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         case 'maxSingleValue':
           aVal = a.price || 0;
           bVal = b.price || 0;
+          break;
+        case 'quantity':
+          aVal = a.quantity;
+          bVal = b.quantity;
           break;
         default:
           aVal = a.price || 0;
@@ -710,6 +714,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               >
                 <option value="totalMarketValue">Total Market Value</option>
                 <option value="maxSingleValue">Max Single Mod Value</option>
+                <option value="quantity">Number of Copies</option>
                 <option value="recommendation">Recommendation</option>
                 <option value="rarity">Rarity</option>
                 <option value="name">Name</option>
