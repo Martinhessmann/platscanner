@@ -983,12 +983,23 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     });
   }, []);
 
-  // Retry a failed image: re-queue for analysis
-  const handleImageRetry = useCallback((id: string) => {
-    setProcessingState(prev => {
-      const image = prev.images.get(id);
-      if (!image) return prev;
+  // Retry a failed image: re-queue for analysis and clear cache
+  const handleImageRetry = useCallback(async (id: string) => {
+    const image = processingState.images.get(id);
+    if (!image) return;
 
+    // Clear the cache for this image to force a fresh analysis
+    try {
+      const { clearCachedAnalysis, generateImageHash, fileToBase64 } = await import('./services/geminiService');
+      const imageBase64 = await fileToBase64(image.file);
+      const imageHash = await generateImageHash(imageBase64);
+      clearCachedAnalysis(imageHash);
+      console.log(`>>> [Retry] Cleared cache for image: ${id} <<<`);
+    } catch (error) {
+      console.warn('Failed to clear cache for retry:', error);
+    }
+
+    setProcessingState(prev => {
       const newImages = new Map(prev.images);
       newImages.set(id, {
         ...image,
@@ -1005,7 +1016,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         processedCount: Math.max(0, prev.processedCount - 1)
       };
     });
-  }, []);
+  }, [processingState.images]);
 
   const activeImage = processingState.activeImageId
     ? processingState.images.get(processingState.activeImageId)

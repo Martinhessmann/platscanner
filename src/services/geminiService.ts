@@ -54,6 +54,24 @@ const getCachedAnalysis = (imageHash: string): DetectedItem[] | null => {
   }
 };
 
+/**
+ * Clear cached result for a specific image hash (for retry functionality)
+ */
+export const clearCachedAnalysis = (imageHash: string): void => {
+  try {
+    const stored = localStorage.getItem(IMAGE_CACHE_KEY);
+    if (!stored) return;
+
+    const cache = JSON.parse(stored);
+    const filteredCache = cache.filter((entry: any) => entry.hash !== imageHash);
+
+    localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(filteredCache));
+    console.log(`>>> [Gemini Cache] Cleared cached result for image hash ${imageHash} <<<`);
+  } catch (error) {
+    console.error('Failed to clear image cache:', error);
+  }
+};
+
 // Store analysis result in cache
 const setCachedAnalysis = (imageHash: string, screenType: string, detectedItems: DetectedItem[]): void => {
   try {
@@ -926,7 +944,7 @@ If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
 };
 
 
-export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedItem[]; screenType: string }> => {
+export const analyzeImage = async (imageFile: File, forceRetry: boolean = false): Promise<{ items: DetectedItem[]; screenType: string }> => {
   if (!isGeminiConfigured()) {
     throw new Error('Gemini API key not configured');
   }
@@ -937,12 +955,17 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
     // Generate hash for caching
     const imageHash = await generateImageHash(imageBase64);
 
-    // Check cache first to avoid redundant Gemini calls
-    const cachedResult = getCachedAnalysis(imageHash);
-    if (cachedResult) {
-      console.log(`>>> [Gemini] Using cached analysis result - avoiding API call <<<`);
-      // Still filter out duplicates in case inventory changed
-      return filterNewItems(cachedResult);
+    // Check cache first to avoid redundant Gemini calls (unless force retry)
+    if (!forceRetry) {
+      const cachedResult = getCachedAnalysis(imageHash);
+      if (cachedResult) {
+        console.log(`>>> [Gemini] Using cached analysis result - avoiding API call <<<`);
+        // Still filter out duplicates in case inventory changed
+        return filterNewItems(cachedResult);
+      }
+    } else {
+      console.log(`>>> [Gemini] Force retry requested - bypassing cache for image hash ${imageHash} <<<`);
+      clearCachedAnalysis(imageHash);
     }
 
     // Step 1: Determine screen type
