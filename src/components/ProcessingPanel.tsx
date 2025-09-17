@@ -16,6 +16,7 @@ interface ProcessingPanelProps {
   currentFetchItem?: { name: string; index: number; total: number };
   onImageRemove?: (id: string) => void;
   onImageSelect?: (id: string) => void;
+  onImageRetry?: (id: string) => void;
 }
 
 const ProcessingPanel: React.FC<ProcessingPanelProps> = ({
@@ -28,7 +29,8 @@ const ProcessingPanel: React.FC<ProcessingPanelProps> = ({
   duplicatesPerImage = new Map(),
   currentFetchItem,
   onImageRemove,
-  onImageSelect
+  onImageSelect,
+  onImageRetry
 }) => {
   const imageArray = Array.from(images.entries());
   const activeImage = activeImageId ? images.get(activeImageId) : null;
@@ -61,7 +63,7 @@ const ProcessingPanel: React.FC<ProcessingPanelProps> = ({
         acc[item.category] = (acc[item.category] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
-      
+
       return Object.entries(categories)
         .map(([category, count]) => {
           const categoryName = category === 'prime_parts' ? 'Prime Parts' :
@@ -151,7 +153,7 @@ const ProcessingPanel: React.FC<ProcessingPanelProps> = ({
               className="text-tenno-blue transition-all duration-500"
             />
           </svg>
-          
+
           {/* Icon in center */}
           <div className="absolute inset-0 flex items-center justify-center">
             {stage === 'analyzing' && (
@@ -189,12 +191,12 @@ const ProcessingPanel: React.FC<ProcessingPanelProps> = ({
           <Archive size={14} />
           Image Details
         </h4>
-        
+
         <div className="space-y-2 max-h-64 overflow-y-auto">
           {imageArray.map(([id, image]) => {
             const isActive = id === activeImageId;
             const duplicates = duplicatesPerImage.get(id) || 0;
-            
+
             return (
               <div
                 key={id}
@@ -245,12 +247,24 @@ const ProcessingPanel: React.FC<ProcessingPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Item count badge and remove button */}
+                {/* Right-side actions: count (success) or retry (error) and remove */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {image.status !== 'queued' && image.status !== 'analyzing' && image.results.length > 0 && (
                     <span className="px-1.5 py-0.5 bg-gray-700/50 rounded text-xs text-gray-300">
                       {image.results.length}
                     </span>
+                  )}
+                  {image.status === 'error' && onImageRetry && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onImageRetry(id);
+                      }}
+                      className="px-2 py-0.5 bg-tenno-blue/20 hover:bg-tenno-blue/35 border border-tenno-blue/40 text-tenno-light rounded text-xs transition-colors"
+                      title="Retry analysis"
+                    >
+                      Retry
+                    </button>
                   )}
                   {onImageRemove && stage === 'complete' && (
                     <button

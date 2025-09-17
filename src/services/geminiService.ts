@@ -240,7 +240,7 @@ Whirlwind | R0
 Steel Fiber | R10`;
 
           const result = await genAI!.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.0-flash-exp',
             contents: [
               {
                 role: 'user',
@@ -289,7 +289,7 @@ Steel Fiber | R10`;
   }
 };
 
-const enhanceImageContrast = (file: File, contrastLevel: number = 1.5, blueBoost: number = 1.2): Promise<string> => {
+const enhanceImageContrast = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -299,41 +299,14 @@ const enhanceImageContrast = (file: File, contrastLevel: number = 1.5, blueBoost
       canvas.width = img.width;
       canvas.height = img.height;
       
-      // Draw original image
-      ctx?.drawImage(img, 0, 0);
-      
       if (!ctx) {
         reject(new Error('Failed to get canvas context'));
         return;
       }
       
-      // Get image data for processing
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      
-      // Enhance contrast and saturation
-      const contrast = contrastLevel; // Configurable contrast
-      const saturation = 1.3; // Increase saturation
-      
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1]; 
-        const b = data[i + 2];
-        
-        // Apply contrast enhancement
-        data[i] = Math.min(255, Math.max(0, (r - 128) * contrast + 128));
-        data[i + 1] = Math.min(255, Math.max(0, (g - 128) * contrast + 128));
-        data[i + 2] = Math.min(255, Math.max(0, (b - 128) * contrast + 128));
-        
-        // Special enhancement for blue colors (mod rank dots)
-        if (b > r && b > g) {
-          // This pixel is predominantly blue - enhance it more
-          data[i + 2] = Math.min(255, b * blueBoost); // Make blue more vibrant
-        }
-      }
-      
-      // Put processed data back
-      ctx.putImageData(imageData, 0, 0);
+      // Apply CSS filter: brightness(125%) saturate(300%)
+      ctx.filter = 'brightness(125%) saturate(300%)';
+      ctx.drawImage(img, 0, 0);
       
       // Convert to base64
       const dataURL = canvas.toDataURL('image/png', 1.0);
@@ -627,7 +600,7 @@ Respond with EXACTLY ONE word:
 IMPORTANT: If you see mod names but NO explicit syndicate header, classify as MODS. Only classify as SYNDICATE if you see the actual syndicate header.`;
 
   const result = await genAI!.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     contents: [
       {
         role: 'user',
@@ -674,7 +647,7 @@ FORMAT: List each item name exactly as written, one per line. For items with qua
 If you cannot clearly see any Prime items, respond with "NONE_DETECTED".`;
 
   const result = await genAI!.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     contents: [
       {
         role: 'user',
@@ -731,7 +704,7 @@ Lith A1 Relic (Intact)
 If you cannot clearly see any owned relics, respond with "NONE_DETECTED".`;
 
   const result = await genAI!.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     contents: [
       {
         role: 'user',
@@ -775,7 +748,7 @@ Stinging Truth | 25,000
 If you cannot clearly see syndicate header, respond with "NONE_DETECTED"`;
 
   const result = await genAI!.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     contents: [
       {
         role: 'user',
@@ -798,6 +771,11 @@ If you cannot clearly see syndicate header, respond with "NONE_DETECTED"`;
 const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
   const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods with COMPLETE information.
 
+IMPORTANT: Only analyze FULLY VISIBLE and COMPLETE mod cards. Skip any mods that are:
+- Cropped at screenshot edges
+- Cut off at top, bottom, left, or right
+- Missing any part of their card (name, corners, or rank dots)
+
 CRITICAL DETECTION REQUIREMENTS - YOU MUST DETECT ALL FOUR ELEMENTS:
 
 1. **MOD NAME**: The exact name as displayed on the mod card
@@ -809,18 +787,20 @@ CRITICAL DETECTION REQUIREMENTS - YOU MUST DETECT ALL FOUR ELEMENTS:
 3. **LEVEL**: Count ONLY the BRIGHT/GLOWING dots - DO NOT count total dots!
    - IGNORE THE TOP-RIGHT CORNER NUMBERS (that's drain, not rank!)
    - Look at the bottom edge - you'll see a row of small circular dots
+   - CRITICAL: DO NOT DEFAULT TO ANY NUMBER - actually count each mod's dots individually
+   - NEVER assume all mods have the same rank (like 4 or 5) - each mod is different
    - CRITICAL DISTINCTION:
      * BRIGHT/GLOWING/FILLED dots = these are "ON" (count these for rank)
      * DARK/DIM/EMPTY dots = these are "OFF" (DO NOT count these)
-   - NEVER count the total number of dots - only count the BRIGHT ones
-   - Example: If you see 10 total dots but only 3 are bright/glowing = R3 (NOT R10!)
-   - Example: If you see 5 total dots but 0 are bright/glowing = R0 (NOT R5!)
-   - Example: If you see 10 total dots and ALL 10 are bright/glowing = R10
+   - Common ranks you'll see:
+     * Many mods will be rank 0 (NO bright dots at all)
+     * Some mods will be rank 3, 4, or 5 (partially ranked)
+     * Few mods will be rank 8, 9, or 10 (highly ranked)
+   - DO NOT use 4/5 or any other default - COUNT EACH MOD INDIVIDUALLY
+   - Example: If you see 10 total dots but only 3 are bright/glowing = rank 3
+   - Example: If you see 5 total dots but 0 are bright/glowing = rank 0
+   - Example: If you see 10 total dots and ALL 10 are bright/glowing = rank 10
    - CRITICAL FOR DUPLICATE MODS: Each individual mod card has its own rank
-     * If you see "Condition Overload" twice, examine EACH card's bottom dots separately
-     * One might have 0 glowing dots out of 10 total = R0
-     * Another might have 10 glowing dots out of 10 total = R10
-     * Report them as separate entries with their individual ranks
    - Visual cues for BRIGHT dots: they glow, they're vivid blue/cyan, they stand out
    - Visual cues for DARK dots: they're gray, black, dim, barely visible, empty circles
 
@@ -842,13 +822,18 @@ VISUAL DETECTION GUIDELINES:
 
 CRITICAL RANK DETECTION STEPS FOR EACH MOD CARD:
 1. Find each individual mod card (scan left to right, top to bottom)
-2. For DUPLICATE mod names: treat each card as a separate item with its own rank
-3. Look at the very bottom edge of THAT SPECIFIC CARD for a row of dots
-4. Count BOTH types of dots separately:
+2. ONLY ANALYZE COMPLETE MODS: Skip any mod cards that are cropped or cut off at edges
+   - If you can't see the full mod name, skip it
+   - If you can't see the top corners (where quantity/drain numbers are), skip it
+   - If you can't see the bottom edge (where rank dots are), skip it
+   - Only analyze mods that are fully visible and complete
+3. For DUPLICATE mod names: treat each card as a separate item with its own rank
+4. Look at the very bottom edge of THAT SPECIFIC CARD for a row of dots
+5. Count BOTH types of dots separately:
    - Count BRIGHT dots (glowing, vivid blue/cyan, stand out visually)
    - Count TOTAL dots (bright + dark combined)
-5. Report as BRIGHT_DOTS/TOTAL_DOTS format
-6. If you see the same mod name multiple times, report each occurrence separately
+6. Report as BRIGHT_DOTS/TOTAL_DOTS format
+7. If you see the same mod name multiple times, report each occurrence separately
 
 EXAMPLES OF CORRECT COUNTING:
 - "I see 10 total dots, 8 are bright, 2 are dark" → 8/10
@@ -875,15 +860,17 @@ Condition Overload | 1 | 0 | 10  ← WRONG: same rank, different drain!
 
 RESPONSE FORMAT:
 Use this exact format for each mod:
-"MOD_NAME | QUANTITY | BRIGHT_DOTS/TOTAL_DOTS | DRAIN"
+"MOD_NAME | QUANTITY | RANK | DRAIN"
 
-Examples:
-Narrow Minded | 1 | 1/10 | 14
-Vitality | 3 | 0/5 | 4
-Primed Flow | 1 | 5/10 | 16
-Serration | 12 | 0/8 | 4
-Adaptation | 1 | 8/10 | 10
-Condition Overload | 1 | 5/5 | 15
+Where RANK is ONLY the number of BRIGHT/GLOWING dots you count at the bottom.
+
+Examples (based on actual dot counts):
+Narrow Minded | 1 | 1 | 14  (1 bright dot out of 10 total)
+Vitality | 3 | 0 | 4  (0 bright dots - all dark)
+Primed Flow | 1 | 5 | 16  (5 bright dots out of 10 total)
+Serration | 12 | 0 | 4  (0 bright dots - all dark)
+Adaptation | 1 | 8 | 10  (8 bright dots out of 10 total)
+Condition Overload | 1 | 5 | 15  (5 bright dots out of 5 total - max rank)
 
 IMPORTANT RULES:
 - If no number in top-left corner = quantity is 1 (single copy)
@@ -894,7 +881,7 @@ IMPORTANT RULES:
 If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
 
   const result = await genAI!.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     contents: [
       {
         role: 'user',
@@ -942,7 +929,16 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
     if (screenType === 'mods') {
       console.log(`>>> [Gemini] Enhancing image contrast for mod rank detection <<<`);
       try {
-        imageBase64 = await enhanceImageContrast(imageFile, 10.0, 3.0);
+        imageBase64 = await enhanceImageContrast(imageFile);
+        
+        // DEBUG: Download enhanced image to verify enhancement
+        const debugLink = document.createElement('a');
+        debugLink.href = `data:image/png;base64,${imageBase64}`;
+        debugLink.download = `enhanced_mod_image_${Date.now()}.png`;
+        document.body.appendChild(debugLink);
+        debugLink.click();
+        document.body.removeChild(debugLink);
+        console.log(`>>> [Gemini] DEBUG: Enhanced image downloaded as ${debugLink.download} <<<`);
       } catch (error) {
         console.warn(`>>> [Gemini] Contrast enhancement failed, using original image:`, error);
         // Continue with original image if enhancement fails

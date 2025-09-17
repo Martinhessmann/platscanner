@@ -765,12 +765,18 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                         });
                       }}
                       onError={(e) => {
-                        console.error(`>>> [Mod Image Error] Failed to load image for ${mod.name}:`, e);
+                        // Only log errors in development mode to avoid console spam
+                        if (__DEV_MODE__ === 'true') {
+                          console.error(`>>> [Mod Image Error] Failed to load: ${mod.name}`, e);
+                        }
                         // Fallback to placeholder if image fails to load
                         (e.target as HTMLImageElement).src = '/images/mod.webp';
                       }}
                       onLoad={() => {
-                        console.log(`>>> [Mod Image Success] Successfully loaded image for ${mod.name}`);
+                        // Only log in development mode to avoid console spam
+                        if (__DEV_MODE__ === 'true') {
+                          console.log(`>>> [Mod Image] Loaded: ${mod.name}`);
+                        }
                       }}
                       title={expandedImages.has(mod.name) ? "Click to shrink" : "Click to enlarge"}
                     />

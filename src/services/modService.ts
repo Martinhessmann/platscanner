@@ -357,7 +357,7 @@ export const analyzeModDuplicates = (mods: ModItem[]): ModDuplicateAnalysis => {
   const duplicates = analyzedMods.filter(mod => mod.quantity > 1);
   const leveledMods = analyzedMods.filter(mod => mod.rank && mod.rank > 0);
   const unrankedMods = analyzedMods.filter(mod => !mod.rank || mod.rank === 0);
-  
+
   const recommendedForEndo = analyzedMods.filter(mod =>
     mod.recommendation === 'SELL_FOR_ENDO'
   );
@@ -403,12 +403,12 @@ export const refreshModPrices = async (
 ): Promise<ModItem[]> => {
   // Separate tradeable and non-tradeable mods
   // Also exclude ranked mods (R>0) from market fetching as they're not traded on market
-  const tradeableMods = mods.filter(mod => 
-    isModTradeable(mod.name, mod.type, mod.rarity) && 
+  const tradeableMods = mods.filter(mod =>
+    isModTradeable(mod.name, mod.type, mod.rarity) &&
     (!mod.rank || mod.rank === 0)
   );
-  const nonTradeableMods = mods.filter(mod => 
-    !isModTradeable(mod.name, mod.type, mod.rarity) || 
+  const nonTradeableMods = mods.filter(mod =>
+    !isModTradeable(mod.name, mod.type, mod.rarity) ||
     (mod.rank && mod.rank > 0)
   );
 
@@ -437,12 +437,10 @@ export const refreshModPrices = async (
 
     const tradeableResults = tradeableMods.map(mod => {
       const priceItem = priceData.find(item => item.name === mod.name);
-      console.log(`>>> [Mod Service Debug] ${mod.name}:`, {
-        found: !!priceItem,
-        price: priceItem?.price,
-        thumb: priceItem?.thumb,
-        hasThumb: !!priceItem?.thumb
-      });
+      // Only log in development mode to avoid console spam
+      if (__DEV_MODE__ === 'true') {
+        console.log(`>>> [Mod Service] ${mod.name}: price=${priceItem?.price || 'N/A'}, thumb=${!!priceItem?.thumb}`);
+      }
       if (priceItem && priceItem.price !== undefined) {
         // Use Market API rarity and type if available
         let updatedRarity = mod.rarity;
