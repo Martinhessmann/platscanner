@@ -366,19 +366,23 @@ export const fetchBatchPriceData = async (itemNames: string[]): Promise<any[]> =
   const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
   const isDevMode = __DEV_MODE__ === 'true';
 
-  console.log(`>>> [Batch Request] ${itemNames.length} items - Supabase: ${useSupabase ? 'available' : 'not configured'} - Dev Mode: ${isDevMode} <<<`);
+  // Only log in development mode to avoid console spam
+  if (isDevMode) {
+    console.log(`>>> [Batch Request] ${itemNames.length} items - Supabase: ${useSupabase ? 'available' : 'not configured'}`);
+  }
 
   // In development mode, force direct API calls for easier debugging
   if (!useSupabase || isDevMode) {
-    console.log(`>>> [Batch Request] Using direct API calls (${isDevMode ? 'dev mode override' : 'no Supabase config'}) <<<`);
+    if (isDevMode) {
+      console.log(`>>> [Batch Request] Using direct API calls (${isDevMode ? 'dev mode override' : 'no Supabase config'})`);
+    }
     const results = [];
     for (let i = 0; i < itemNames.length; i++) {
       const itemName = itemNames[i];
       try {
-        console.log(`>>> [Batch Direct] Fetching ${i + 1}/${itemNames.length}: ${itemName} <<<`);
         const data = await fetchViaDirect(itemName);
         results.push(data);
-        console.log(`>>> [Batch Direct] Success: ${itemName} = ${data.price}p <<<`);
+        // Only log errors, not every successful fetch
       } catch (error) {
         console.error(`>>> [Batch Direct] Failed: ${itemName}:`, error);
         results.push({
@@ -390,14 +394,20 @@ export const fetchBatchPriceData = async (itemNames: string[]): Promise<any[]> =
       // Add delay between requests
       await new Promise(resolve => setTimeout(resolve, 334));
     }
-    console.log(`>>> [Batch Direct] Completed: ${results.length} items processed <<<`);
+    if (isDevMode) {
+      console.log(`>>> [Batch Direct] Completed: ${results.length} items processed`);
+    }
     return results;
   }
 
   try {
-    console.log(`>>> [Batch Supabase] Fetching ${itemNames.length} items via Edge Function <<<`);
+    if (isDevMode) {
+      console.log(`>>> [Batch Supabase] Fetching ${itemNames.length} items via Edge Function`);
+    }
     const results = await fetchBatchViaSupabase(itemNames);
-    console.log(`>>> [Batch Supabase] Completed:`, results);
+    if (isDevMode) {
+      console.log(`>>> [Batch Supabase] Completed: ${results.length} items`);
+    }
     return results;
   } catch (error) {
     console.error('>>> [Batch Supabase] Failed:', error);
@@ -418,7 +428,10 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
   const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
 
   try {
-    console.log(`Fetching price data for: ${primePart.name}`);
+    // Only log in development mode to avoid console spam
+    if (__DEV_MODE__ === 'true') {
+      console.log(`>>> [Single Price] Fetching: ${primePart.name}`);
+    }
 
     let data;
     let normalizedName: string;
@@ -449,7 +462,10 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
       data = await fetchViaDirect(normalizedName);
     }
 
-    console.log(`Raw price data for ${primePart.name}:`, data);
+    // Only log in development mode to avoid console spam
+    if (__DEV_MODE__ === 'true') {
+      console.log(`>>> [Single Price] ${primePart.name}: ${data.price}p`);
+    }
 
     return {
       ...primePart,

@@ -1,21 +1,32 @@
-import React from 'react';
-import { ImageState } from '../types';
+import React, { useState } from 'react';
+import { ImageState, DetectedItem } from '../types';
 import { Camera, Package, AlertCircle, CheckCircle, Clock, Zap, Archive, ShieldAlert, Database } from 'lucide-react';
+import ImageModal from './ImageModal';
 
 interface ProcessingDetailsProps {
   images: Map<string, ImageState>;
   activeImageId: string | null;
   duplicatesPerImage?: Map<string, number>;
   currentFetchItem?: { name: string; index: number; total: number };
+  onImageRetry?: (id: string) => void;
 }
 
 const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
   images,
   activeImageId,
   duplicatesPerImage = new Map(),
-  currentFetchItem
+  currentFetchItem,
+  onImageRetry
 }) => {
   const imageArray = Array.from(images.entries());
+
+  // Modal state
+  const [modalImage, setModalImage] = useState<{
+    src: string;
+    fileName: string;
+    items: DetectedItem[];
+    screenType?: string;
+  } | null>(null);
 
   const getStatusIcon = (status: ImageState['status']) => {
     switch (status) {
@@ -38,6 +49,24 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
     const duplicates = duplicatesPerImage.get(imageId) || 0;
     const newItems = image.results.length;
     const totalDetected = newItems + duplicates;
+
+    // Helper function to get category breakdown
+    const getCategoryBreakdown = (items: DetectedItem[]) => {
+      const categories = items.reduce((acc, item) => {
+        acc[item.category] = (acc[item.category] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      return Object.entries(categories)
+        .map(([category, count]) => {
+          const categoryName = category === 'prime_parts' ? 'Prime Parts' :
+                              category === 'relics' ? 'Relics' :
+                              category === 'syndicate_rewards' ? 'Syndicate' :
+                              category === 'mods' ? 'Mods' : category;
+          return `${count} ${categoryName}`;
+        })
+        .join(', ');
+    };
 
     switch (image.status) {
       case 'queued':
@@ -65,9 +94,11 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
         if (totalDetected === 0) {
           return 'No items found';
         } else if (duplicates > 0) {
-          return `Added ${newItems} items (${duplicates} duplicates skipped)`;
+          const categoryBreakdown = getCategoryBreakdown(image.results);
+          return `Added ${newItems} items (${duplicates} duplicates skipped) - ${categoryBreakdown}`;
         } else {
-          return `Added ${newItems} items to inventory`;
+          const categoryBreakdown = getCategoryBreakdown(image.results);
+          return `Added ${newItems} items to inventory - ${categoryBreakdown}`;
         }
       case 'error':
         return image.error || 'Processing failed';
@@ -88,11 +119,11 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
         <Archive size={16} />
         Processing Details
       </h4>
-      
+
       {imageArray.map(([id, image]) => {
         const isActive = id === activeImageId;
         const duplicates = duplicatesPerImage.get(id) || 0;
-        
+
         return (
           <div
             key={id}
@@ -110,7 +141,20 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
             </div>
 
             {/* Image Preview */}
-            <div className="w-10 h-10 rounded overflow-hidden bg-gray-800 flex-shrink-0">
+            <div
+              className="w-10 h-10 rounded overflow-hidden bg-gray-800 flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => {
+                if (image.status !== 'queued' && image.status !== 'analyzing') {
+                  setModalImage({
+                    src: image.preview,
+                    fileName: image.file.name,
+                    items: image.results,
+                    screenType: image.screenType
+                  });
+                }
+              }}
+              title={image.status !== 'queued' && image.status !== 'analyzing' ? 'Click to view details' : ''}
+            >
               <img
                 src={image.preview}
                 alt={image.file.name}
@@ -142,18 +186,40 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
               </div>
             </div>
 
-            {/* Item count badge */}
-            {image.status !== 'queued' && image.status !== 'analyzing' && image.results.length > 0 && (
-              <div className="flex-shrink-0">
+            {/* Right-side area: show count on success or retry on error */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {image.status !== 'queued' && image.status !== 'analyzing' && image.results.length > 0 && (
                 <span className="px-2 py-1 bg-gray-700/50 rounded text-xs text-gray-300">
                   {image.results.length} new
                 </span>
-              </div>
-            )}
+              )}
+              {image.status === 'error' && onImageRetry && (
+                <button
+                  onClick={() => onImageRetry(id)}
+                  className="px-2 py-1 bg-tenno-blue/20 hover:bg-tenno-blue/35 border border-tenno-blue/40 text-tenno-light rounded text-xs transition-colors"
+                  title="Retry analysis"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
           </div>
         );
       })}
     </div>
+
+    {/* Image Modal */}
+    {modalImage && (
+      <ImageModal
+        isOpen={!!modalImage}
+        onClose={() => setModalImage(null)}
+        imageSrc={modalImage.src}
+        fileName={modalImage.fileName}
+        detectedItems={modalImage.items}
+        screenType={modalImage.screenType}
+      />
+    )}
+  </div>
   );
 };
 

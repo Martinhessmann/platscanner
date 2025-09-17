@@ -65,7 +65,7 @@ export interface Mod extends DetectedItem {
   rarity: string;
   type: string;
   endoValue?: number;
-  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'HOLD_FOR_LATER';
+  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD' | 'HOLD_FOR_LATER';
   reasoning?: string;
   platPerEndo?: number;
   imgUrl?: string;
@@ -84,6 +84,7 @@ export interface ImageState {
   syndicateRewards?: SyndicateReward[]; // Track syndicate rewards for price fetching
   error?: string;
   wasCached?: boolean; // Track if this image used cached Gemini results
+  screenType?: 'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown'; // Track detected screen type
 }
 
 export interface ProcessingState {

@@ -4,9 +4,8 @@ import ProcessingPanel from '../components/ProcessingPanel';
 import InventorySection from '../components/InventorySection';
 import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import ModDuplicatesSection from '../components/ModDuplicatesSection';
-import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
+import { analyzeImage, isGeminiConfigured, testContrastLevelsForModDetection } from '../services/geminiService';
 import { fetchPriceData, fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
-import { logger } from '../utils/logger';
 import { cloudSyncService } from '../services/cloudSyncService';
 import { initializeStaticData } from '../services/staticDataService';
 import {
@@ -93,55 +92,51 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   // State for built set parts
   const [builtSetParts, setBuiltSetParts] = useState<Set<string>>(new Set());
 
-  // Load built set parts when component mounts or mastered sets change
+  // Load built set parts when component mounts
+  // Note: Mastered sets are static data that don't change during runtime,
+  // so we only need to load them once, not on every inventory change
   useEffect(() => {
     const loadBuiltSetParts = async () => {
-      const builtSetsLogger = logger.withContext('built-sets-filter');
       const masteredSets = getMasteredSets();
-
-      builtSetsLogger.debug(`Loading built set parts for ${masteredSets.length} mastered sets`);
 
       if (masteredSets.length === 0) {
         setBuiltSetParts(new Set());
         return;
       }
 
-      try {
-        const primeSets = await loadPrimeSets();
-        builtSetsLogger.debug(`Loaded ${primeSets.length} prime sets from static data`);
-
-        const parts = new Set<string>();
+              try {
+          const primeSets = await loadPrimeSets();
+          const parts = new Set<string>();
         let processedSets = 0;
 
         primeSets.forEach(set => {
           if (masteredSets.includes(set.id)) {
             processedSets++;
-            if (builtSetsLogger.isEnabled()) {
-              builtSetsLogger.debug(`Processing mastered set: ${set.name} (${set.requiredParts.length} parts)`);
-            }
             set.requiredParts.forEach(part => {
               parts.add(part.name.toLowerCase());
             });
           }
         });
 
-        builtSetsLogger.summary(`Processed ${processedSets} mastered sets, generated ${parts.size} tradeable parts for filter`);
+        // Only log once when the function actually runs
+        if (__DEV_MODE__ === 'true') {
+          console.log(`>>> [Built Sets] Processed ${processedSets} mastered sets, generated ${parts.size} tradeable parts <<<`);
+        }
 
         setBuiltSetParts(parts);
       } catch (error) {
-        builtSetsLogger.error('Error loading prime sets:', error);
+        console.error('>>> [Built Sets] Error loading prime sets:', error);
         setBuiltSetParts(new Set());
       }
     };
 
     loadBuiltSetParts();
-  }, [inventoryRefreshTrigger]); // Reload when inventory changes
+  }, []); // Only run once on mount - mastered sets don't change during runtime
 
   // Helper function to check if a part belongs to a built/mastered set
   const isPartFromBuiltSet = useCallback((partName: string) => {
     const hasMatch = builtSetParts.has(partName.toLowerCase());
     if (hasMatch) {
-      logger.debug('built-sets-filter', `Part matches built set: ${partName}`);
     }
     return hasMatch;
   }, [builtSetParts]);
@@ -469,7 +464,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           const startTime = Date.now();
 
           // Extract items using Gemini AI
-          const detectedItems = await analyzeImage(nextImage.file);
+          const analysisResult = await analyzeImage(nextImage.file);
+          const detectedItems = analysisResult.items;
+          const screenType = analysisResult.screenType;
 
           // If analysis was very fast (< 500ms), it was likely cached
           const analysisTime = Date.now() - startTime;
@@ -484,6 +481,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 status: 'complete',
                 error: 'Processing stopped by user',
                 results: [],
+                screenType,
                 wasCached
               }),
               processedCount: current.processedCount + 1
@@ -512,6 +510,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 ...nextImage,
                 status: 'complete',
                 results: [],
+                screenType,
                 wasCached
               }),
               processedCount: current.processedCount + 1
@@ -527,6 +526,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               status: 'analyzed', // New status indicating ready for price fetching
               results: newItems,
               syndicateRewards: newItems.filter(item => item.category === 'syndicate_rewards'), // Store syndicate rewards for price fetching
+              screenType, // Store the detected screen type
               wasCached
             })
           }));
@@ -691,35 +691,35 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 // For mods, fetch market data first to get accurate rarity
                 if (item.category === 'mods') {
                   const { calculateEndoValue, analyzeModForDuplicates, isModTradeable } = await import('../services/modService');
-                  
+
                   // Try to fetch price data first to get accurate rarity from Market API
                   let priceData = null;
                   let actualRarity = item.rarity || 'unknown';
                   let actualType = item.type || 'other';
-                  
+
                   try {
                     priceData = await fetchSinglePriceData(item);
-                    console.log(`>>> [DEBUG RARITY] ${item.name} - priceData:`, priceData);
-                    console.log(`>>> [DEBUG RARITY] ${item.name} - priceData.rarity:`, priceData?.rarity);
                     if (priceData && priceData.rarity) {
                       // Use Market API rarity as authoritative source
                       const marketRarity = priceData.rarity.toLowerCase();
-                      console.log(`>>> [DEBUG RARITY] ${item.name} - marketRarity (lowercased):`, marketRarity);
                       // Map market API rarity to our ModItem rarity types
                       actualRarity = marketRarity === 'common' ? 'common' :
                                    marketRarity === 'uncommon' ? 'uncommon' :
                                    marketRarity === 'rare' ? 'rare' :
                                    marketRarity === 'legendary' ? 'legendary' :
                                    marketRarity === 'primed' ? 'primed' : 'unknown';
-                      console.log(`>>> [Price Fetching] Updated ${item.name} rarity from "${item.rarity}" to "${actualRarity}" (Market API: "${priceData.rarity}") <<<`);
+                      // Only log in development mode to avoid console spam
+                      if (__DEV_MODE__ === 'true') {
+                        console.log(`>>> [Price Fetching] Updated ${item.name} rarity from "${item.rarity}" to "${actualRarity}"`);
+                      }
                     }
                     // Extract type from tags if available
                     if (priceData && priceData.tags && Array.isArray(priceData.tags)) {
-                      const typeFromTags = priceData.tags.find(tag => 
+                      const typeFromTags = priceData.tags.find(tag =>
                         ['warframe', 'weapon', 'stance', 'archwing', 'companion', 'augment'].includes(tag.toLowerCase())
                       );
                       if (typeFromTags) {
-                        actualType = typeFromTags.toLowerCase() === 'weapon' ? 'weapon' : 
+                        actualType = typeFromTags.toLowerCase() === 'weapon' ? 'weapon' :
                                    typeFromTags.toLowerCase() === 'warframe' ? 'warframe' :
                                    typeFromTags.toLowerCase() === 'stance' ? 'stance' :
                                    typeFromTags.toLowerCase() === 'archwing' ? 'archwing' :
@@ -727,16 +727,19 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                                    typeFromTags.toLowerCase() === 'augment' ? 'augment' : 'other';
                       }
                     }
-                  } catch (error) {
-                    console.log(`>>> [Price Fetching] Could not fetch market data for ${item.name}, using fallback rarity <<<`);
-                    // If market fetch fails, check if it should be tradeable based on initial rarity
-                    const fallbackTradeable = isModTradeable(item.name, actualType, actualRarity);
-                    if (!fallbackTradeable) {
-                      // Non-tradeable mod, don't try to fetch price
-                      priceData = null;
+                                      } catch (error) {
+                      // Only log in development mode to avoid console spam
+                      if (__DEV_MODE__ === 'true') {
+                        console.log(`>>> [Price Fetching] Could not fetch market data for ${item.name}, using fallback rarity`);
+                      }
+                      // If market fetch fails, check if it should be tradeable based on initial rarity
+                      const fallbackTradeable = isModTradeable(item.name, actualType, actualRarity);
+                      if (!fallbackTradeable) {
+                        // Non-tradeable mod, don't try to fetch price
+                        priceData = null;
+                      }
                     }
-                  }
-                  
+
                   const modItem = {
                     ...item,
                     price: priceData ? priceData.price : 0,
@@ -772,7 +775,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                       const standingCost = syndicateItem.standingCost || 25000; // Default to 25k for mods
                       if (priceData.price > 0 && standingCost > 0) {
                         platPerStanding = (priceData.price * 1000) / standingCost;
-                        console.log(`>>> [Price Fetching] Calculated plat/1k standing for ${item.name}: ${platPerStanding.toFixed(2)} (${priceData.price}p / ${standingCost} standing) <<<`);
+                        // Only log in development mode to avoid console spam
+                        if (__DEV_MODE__ === 'true') {
+                          console.log(`>>> [Price Fetching] ${item.name}: ${platPerStanding.toFixed(2)}p/1k standing`);
+                        }
                       }
                     }
 
@@ -973,6 +979,30 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       return {
         ...prev,
         duplicatesPerImage: newDuplicatesMap
+      };
+    });
+  }, []);
+
+  // Retry a failed image: re-queue for analysis
+  const handleImageRetry = useCallback((id: string) => {
+    setProcessingState(prev => {
+      const image = prev.images.get(id);
+      if (!image) return prev;
+
+      const newImages = new Map(prev.images);
+      newImages.set(id, {
+        ...image,
+        status: 'queued',
+        error: undefined,
+        results: [],
+        wasCached: false
+      });
+
+      return {
+        ...prev,
+        images: newImages,
+        activeImageId: id,
+        processedCount: Math.max(0, prev.processedCount - 1)
       };
     });
   }, []);
@@ -1566,6 +1596,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 currentFetchItem={processingMetadata.currentFetchItem}
                 onImageRemove={handleImageRemove}
                 onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
+                onImageRetry={handleImageRetry}
               />
             </div>
           )}
@@ -1657,6 +1688,31 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               <Package size={40} className="mx-auto text-gray-500 mb-3" />
               <p className="text-gray-400 mb-2">Your inventory is empty</p>
               <p className="text-xs text-gray-500">Upload screenshots to start building your inventory</p>
+            </div>
+          )}
+
+          {/* Debug: Contrast Test Button (only show if configured) */}
+          {isConfigured && (
+            <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
+              <h3 className="text-sm font-semibold mb-2 text-gray-300">Debug Tools</h3>
+              <button
+                onClick={async () => {
+                  console.log('>>> [Debug] Starting contrast test with debug/mods.png <<<');
+                  try {
+                    const result = await testContrastLevelsForModDetection('/debug/mods.png');
+                    console.log('>>> [Debug] Test completed:', result);
+                  } catch (error) {
+                    console.error('>>> [Debug] Test failed:', error);
+                  }
+                }}
+                className="inline-flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors"
+              >
+                <Zap size={16} />
+                Test Contrast Levels
+              </button>
+              <p className="text-xs text-gray-500 mt-2">
+                Tests different contrast settings to find optimal mod rank detection
+              </p>
             </div>
           )}
 

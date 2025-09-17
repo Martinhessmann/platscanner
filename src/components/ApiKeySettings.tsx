@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, X, Key, HardDrive, Cloud, Bug } from 'lucide-react';
+import { Settings, X, Key, HardDrive, Cloud } from 'lucide-react';
 import DataBackupSection from './DataBackupSection';
 import CloudSyncSection from './CloudSyncSection';
-import DeveloperSection from './DeveloperSection';
 
 interface ApiKeySettingsProps {
   onApiKeyChange: (key: string) => Promise<void>;
@@ -129,19 +128,6 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                 <HardDrive size={16} />
                 Data Backup
               </button>
-              {process.env.NODE_ENV === 'development' && (
-                <button
-                  onClick={() => setActiveTab('dev')}
-                  className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors ${
-                    activeTab === 'dev'
-                      ? 'text-white border-b-2 border-tenno-blue bg-gray-800'
-                      : 'text-gray-400 hover:text-gray-300'
-                  }`}
-                >
-                  <Bug size={16} />
-                  Developer
-                </button>
-              )}
             </div>
 
             {/* Tab Content */}
@@ -205,9 +191,6 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                 <DataBackupSection onDataImported={onDataImported} />
               )}
 
-              {activeTab === 'dev' && (
-                <DeveloperSection />
-              )}
             </div>
           </div>
         </div>

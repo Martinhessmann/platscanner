@@ -7,6 +7,7 @@
       "Bash(npm run lint)",
       "Bash(find:*)",
       "Bash(supabase functions deploy:*)",
+      "mcp__ide__executeCode",
       "Bash(git fetch:*)",
       "Bash(git merge:*)",
       "Bash(git add:*)",

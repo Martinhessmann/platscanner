@@ -98,7 +98,7 @@ export interface InventoryItem {
   maxDropValue?: number;
   expectedDropValue?: number;
   directSalePrice?: number;
-  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'HOLD_FOR_LATER';
+  recommendation?: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT' | 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD' | 'HOLD_FOR_LATER';
   expectedProfit?: number;
   refinementAnalysis?: {
     platPerVoidTrace?: number;
@@ -209,8 +209,11 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
       // Include mod-specific properties for Mod items
       if (item.category === 'mods') {
         const modItem = item as any; // Using any since Mod extends DetectedItem
-        
-        console.log(`>>> [InventoryService] Saving mod item: ${item.name}, rarity: ${modItem.rarity}, type: ${modItem.type} <<<`);
+
+        // Only log in development mode to avoid console spam
+        if (__DEV_MODE__ === 'true') {
+          console.log(`>>> [InventoryService] Saving mod: ${item.name} (${modItem.rarity} ${modItem.type})`);
+        }
         return {
           ...baseItem,
           rank: modItem.rank,

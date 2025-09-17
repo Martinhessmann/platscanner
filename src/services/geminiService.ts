@@ -100,7 +100,7 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
 
   const newItems = detectedItems.filter(item => {
     const itemKey = `${item.category}:${item.name}`;
-    
+
     // Skip leveled mods (rank > 0) - these should not be saved to inventory
     if (item.category === 'mods') {
       const modItem = item as any;
@@ -109,7 +109,7 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
         return false;
       }
     }
-    
+
     return !existingItems.has(itemKey);
   });
 
@@ -190,6 +190,145 @@ export const isGeminiConfigured = (): boolean => {
   return genAI !== null;
 };
 
+// Test function to find optimal contrast levels for mod rank detection
+export const testContrastLevelsForModDetection = async (debugImagePath: string) => {
+  console.log(`>>> [Contrast Test] Starting progressive contrast test with ${debugImagePath} <<<`);
+
+  if (!genAI) {
+    console.error('>>> [Contrast Test] Gemini API not initialized <<<');
+    return;
+  }
+
+  // Test much higher contrast levels to make R0 dots completely invisible
+  const contrastLevels = [5.0, 8.0, 10.0, 15.0, 20.0];
+  const blueBoostLevels = [2.0, 3.0, 4.0, 5.0];
+
+  try {
+    // Load the debug image as a File
+    const response = await fetch(debugImagePath);
+    const blob = await response.blob();
+    const file = new File([blob], 'debug_mods.png', { type: 'image/png' });
+
+    console.log(`>>> [Contrast Test] Testing ${contrastLevels.length} contrast levels with ${blueBoostLevels.length} blue boost levels <<<`);
+
+    for (const contrast of contrastLevels) {
+      for (const blueBoost of blueBoostLevels) {
+        console.log(`>>> [Contrast Test] Testing contrast: ${contrast}, blue boost: ${blueBoost} <<<`);
+
+        try {
+          // Enhance image with current settings
+          const enhancedBase64 = await enhanceImageContrast(file, contrast, blueBoost);
+
+          // Save enhanced image for visual inspection (browser will show download)
+          const downloadLink = document.createElement('a');
+          downloadLink.href = `data:image/png;base64,${enhancedBase64}`;
+          downloadLink.download = `debug_mods_c${contrast}_b${blueBoost}.png`;
+          console.log(`>>> [Contrast Test] Enhanced image available for download: ${downloadLink.download} <<<`);
+
+          // Auto-download all enhanced images for comparison
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+
+          // Test with Gemini using the same API pattern as the rest of the service
+          const prompt = `Analyze this Warframe mod inventory screenshot and list each mod with its rank.
+
+CRITICAL INSTRUCTIONS for mod rank detection:
+- Look at the BOTTOM of each mod card for rank dots
+- BRIGHT BLUE glowing dots = leveled up ranks (COUNT THESE)
+- DARK GREY/BLACK empty dots = unranked slots
+- Count ONLY the bright blue filled dots (0-10)
+- If ALL dots are bright blue = max rank (usually 5-10)
+- If ALL dots are dark grey = rank 0
+
+For each mod, output format:
+MOD_NAME | R[RANK_NUMBER]
+
+Example output:
+Transient Fortitude | R5
+Whirlwind | R0
+Steel Fiber | R10`;
+
+          const result = await genAI!.models.generateContent({
+            model: 'gemini-2.0-flash-exp',
+            contents: [
+              {
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      data: enhancedBase64,
+                      mimeType: 'image/png'
+                    }
+                  }
+                ]
+              }
+            ]
+          });
+
+          const analysisText = result.text;
+          console.log(`>>> [Contrast Test] Contrast ${contrast}, Blue Boost ${blueBoost} Result: <<<`);
+          console.log(analysisText);
+
+          // Analyze the results for accuracy
+          const hasHighRanks = /R[5-9]|R10/.test(analysisText);
+          const hasR0Only = /R0/.test(analysisText) && !/R[1-9]|R10/.test(analysisText);
+          const r10Count = (analysisText.match(/R10/g) || []).length;
+          const r5Count = (analysisText.match(/R5/g) || []).length;
+          const r0Count = (analysisText.match(/R0/g) || []).length;
+
+          console.log(`>>> [Contrast Test] Stats - R10: ${r10Count}, R5: ${r5Count}, R0: ${r0Count}, Has high ranks: ${hasHighRanks}, All R0: ${hasR0Only} <<<`);
+
+          // Store all results for comparison (don't stop early)
+          // We want to test all combinations to find the most accurate one
+
+        } catch (error) {
+          console.error(`>>> [Contrast Test] Error testing contrast ${contrast}, blue boost ${blueBoost}:`, error);
+        }
+
+        // Small delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    console.log(`>>> [Contrast Test] No optimal settings found in tested range <<<`);
+
+  } catch (error) {
+    console.error(`>>> [Contrast Test] Failed to load debug image:`, error);
+  }
+};
+
+const enhanceImageContrast = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+
+      // Apply CSS filter: brightness(125%) saturate(300%)
+      ctx.filter = 'brightness(125%) saturate(300%)';
+      ctx.drawImage(img, 0, 0);
+
+      // Convert to base64
+      const dataURL = canvas.toDataURL('image/png', 1.0);
+      const base64 = dataURL.split(',')[1];
+      resolve(base64);
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
 const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -222,7 +361,7 @@ const isErrorResponse = (text: string): boolean => {
 /**
  * Parse the AI response to categorize detected items with quantity support
  */
-const parseDetectedItems = (responseText: string): DetectedItem[] => {
+const parseDetectedItems = (responseText: string, screenType?: string): DetectedItem[] => {
   // Filter helper to remove generic preamble/heading lines Gemini sometimes adds
   const isPreambleOrNoteLine = (line: string): boolean => {
     const lower = line.trim().toLowerCase();
@@ -262,11 +401,15 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
     }
 
     // Syndicate reward format: "ITEM_NAME | 25,000"
+    // CRITICAL: Only parse syndicate rewards when screenType is 'syndicate' or undefined
+    // NEVER parse syndicate rewards in mod screens - this prevents confusion with mod format
     const syndicateRewardMatch = line.match(/^(.*?)\s*\|\s*([\d,]+)/);
-    if (syndicateRewardMatch) {
+    if (syndicateRewardMatch && screenType !== 'mods') {
       const name = syndicateRewardMatch[1].trim();
       const standingStr = syndicateRewardMatch[2].replace(/,/g, '');
       const standingCost = parseInt(standingStr, 10);
+
+      console.log(`>>> [AI Parsing] Syndicate reward detected: "${name}" with ${standingCost} standing <<<`);
 
       const reward: SyndicateReward = {
         id: `syndicate-${Date.now()}-${index}`,
@@ -277,6 +420,7 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
         itemType: 'mod' // Most syndicate items are mods; will be refined by syndicateService
       };
       detectedItems.push(reward);
+      console.log(`>>> [AI Parsing] Added syndicate reward: "${name}" (${detectedSyndicate}) <<<`);
       return; // Continue to next line
     }
     // Parse quantity from formats like "5 x Item Name", "x5 Item Name", "2x Item Name"
@@ -289,6 +433,13 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
       quantity = parseInt(quantityMatch[1]);
       cleanLine = quantityMatch[2].trim();
       console.log(`>>> [AI Parsing] Found quantity: ${quantity}x for "${cleanLine}" <<<`);
+    }
+
+    // CRITICAL: If we're in a syndicate screen and this line doesn't match syndicate format, skip it
+    // This prevents fallback parsing from creating mod items in syndicate screens
+    if (screenType === 'syndicate' && !line.includes('|')) {
+      console.log(`>>> [AI Parsing] Skipping line in syndicate screen (no standing cost format): "${line}" <<<`);
+      return; // Skip this line entirely
     }
 
     // Check if it's a Prime part
@@ -359,8 +510,10 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
       detectedItems.push(relicItem);
     }
         // Check if it's a mod - look for common mod patterns and characteristics
-    // Filter out explanatory text, markdown formatting, and other non-mod lines
-    else if (cleanLine &&
+    // CRITICAL: Only parse mods if screen type is 'mods' or undefined (for backward compatibility)
+    // NEVER parse mods in syndicate screens - syndicate rewards can be mods but they're not inventory mods!
+    else if (screenType !== 'syndicate' && // Never parse mods in syndicate screens
+             cleanLine &&
              !cleanLine.includes('Prime') &&
              !cleanLine.includes('Relic') &&
              !cleanLine.startsWith('*') && // Markdown bullets
@@ -371,38 +524,65 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
              !cleanLine.includes('Therefore') && // Explanatory text
              !cleanLine.includes('Following the same') && // Explanatory text
              !cleanLine.includes('indicating it is') && // Explanatory text
-             cleanLine.length < 50 && // Reasonable mod name length
+             cleanLine.length < 100 && // Reasonable mod name length (increased for new format)
              !/^[*\-\s]*\*\*/.test(cleanLine) && // Markdown bold formatting
              !/^\s*\*/.test(cleanLine) && // Lines starting with asterisks
-             !cleanLine.includes(':') && // Explanatory text often has colons
              !/^\d+\./.test(cleanLine)) { // Numbered lists
-      // Parse mod with optional rank information
-      let modName = cleanLine;
-      let rank: number | undefined = undefined;
 
-      // Extract rank if present in format like "Serration (R8)" or "Primed Flow (R10)"
-      const rankMatch = cleanLine.match(/^(.*?)\s*\(R(\d+)\)$/i);
-      if (rankMatch) {
-        modName = rankMatch[1].trim();
-        rank = parseInt(rankMatch[2]);
-        console.log(`>>> [AI Parsing] Found mod with rank: "${modName}" R${rank} <<<`);
+      // Try to parse the new format: "MOD_NAME | QUANTITY | LEVEL | DRAIN"
+      const newFormatMatch = cleanLine.match(/^(.*?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)$/);
+      if (newFormatMatch) {
+        const modName = newFormatMatch[1].trim();
+        const detectedQuantity = parseInt(newFormatMatch[2]);
+        const detectedLevel = parseInt(newFormatMatch[3]);
+        const detectedDrain = parseInt(newFormatMatch[4]);
+
+        console.log(`>>> [AI Parsing] New format detected: "${modName}" qty:${detectedQuantity} level:${detectedLevel} drain:${detectedDrain} <<<`);
+
+        const rarity = determineModRarity(modName);
+        const type = determineModType(modName);
+
+        const modItem: Mod = {
+          id: `mod-${Date.now()}-${index}`,
+          name: modName,
+          category: 'mods',
+          rank: detectedLevel > 0 ? detectedLevel : undefined,
+          quantity: detectedQuantity,
+          rarity,
+          type,
+          status: 'loading'
+        };
+        detectedItems.push(modItem);
+        console.log(`>>> [AI Parsing] Added mod (new format): "${modName}" (${rarity} ${type}) qty:${detectedQuantity} level:${detectedLevel} <<<`);
+      } else {
+        // Fallback to old format parsing for backward compatibility
+        let modName = cleanLine;
+        let rank: number | undefined = undefined;
+
+        // Extract rank if present in format like "Serration (R8)" or "Primed Flow (R10)"
+        const rankMatch = cleanLine.match(/^(.*?)\s*\(R(\d+)\)$/i);
+        if (rankMatch) {
+          modName = rankMatch[1].trim();
+          rank = parseInt(rankMatch[2]);
+          console.log(`>>> [AI Parsing] Found mod with rank: "${modName}" R${rank} <<<`);
+        }
+
+        const rarity = determineModRarity(modName);
+        const type = determineModType(modName);
+
+        const modItem: Mod = {
+          id: `mod-${Date.now()}-${index}`,
+          name: modName,
+          category: 'mods',
+          rank,
+          quantity,
+          rarity,
+          type,
+          status: 'loading'
+        };
+        detectedItems.push(modItem);
+        console.log(`>>> [AI Parsing] Added mod (fallback): "${modName}" (${rarity} ${type}) qty:${quantity} rank:${rank || 'unranked'} <<<`);
       }
-
-      const rarity = determineModRarity(modName);
-      const type = determineModType(modName);
-
-      const modItem: Mod = {
-        id: `mod-${Date.now()}-${index}`,
-        name: modName,
-        category: 'mods',
-        rank,
-        quantity,
-        rarity,
-        type,
-        status: 'loading'
-      };
-      detectedItems.push(modItem);
-      console.log(`>>> [AI Parsing] Added mod: "${modName}" (${rarity} ${type}) qty:${quantity} rank:${rank || 'unranked'} <<<`);
     }
   });
 
@@ -410,17 +590,27 @@ const parseDetectedItems = (responseText: string): DetectedItem[] => {
 };
 
 const determineScreenType = async (imageBase64: string, mimeType: string): Promise<'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown'> => {
-  const screenTypePrompt = `Look at this Warframe screenshot and determine what type of inventory screen this is.
+  const screenTypePrompt = `Look at this Warframe screenshot and determine what type of screen this is.
 
-Respond with EXACTLY ONE of these options:
-- PRIME_PARTS (if you see items with "Prime" in their names like "Sevagoth Prime Blueprint", "Mirage Prime Chassis", etc.)
-- RELICS (if you see Void Relics like "Lith A1 Relic", "Meso B2 Relic", "Neo C3 Relic", "Axi D4 Relic")
-- SYNDICATE (if you see a Syndicate Offerings shop with items that cost Standing values like 5,000 / 25,000 / 100,000, words like "Offerings", "Syndicate", "Sigil", or faction names like Telos, Secura, Synoid, Rakta, Sancti)
-- MODS (if you see mod cards/inventory with mod names like "Serration", "Primed Flow", "Vitality", "Steel Fiber", "Condition Overload", etc. Often shows mod ranks, polarity symbols, and capacity costs)
-- UNKNOWN (if you cannot clearly determine the screen type)`;
+SIMPLE RULES:
+- If you see "Syndicate Offerings" or syndicate names like "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda" in the header/title area = SYNDICATE
+- If you see "Prime Parts" or items with "Prime" in their names = PRIME_PARTS
+- If you see "Void Relics" or items like "Lith A1", "Meso B2" = RELICS
+- If you see mod cards with polarity symbols (V, D, -) and capacity costs (numbers like 4, 6, 8, 10, 12, 14, 16) = MODS
+- If you see mod names but NO syndicate header = MODS (default to mods if unsure)
+
+RESPONSE FORMAT:
+Respond with EXACTLY ONE word:
+- MODS
+- SYNDICATE
+- PRIME_PARTS
+- RELICS
+- UNKNOWN
+
+IMPORTANT: If you see mod names but NO explicit syndicate header, classify as MODS. Only classify as SYNDICATE if you see the actual syndicate header.`;
 
   const result = await genAI!.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     contents: [
       {
         role: 'user',
@@ -441,10 +631,13 @@ Respond with EXACTLY ONE of these options:
 
   console.log(`>>> [Gemini Screen Type] Raw response: "${text}" <<<`);
 
-  if (text.includes('PRIME_PARTS')) return 'prime_parts';
-  if (text.includes('RELICS')) return 'relics';
-  if (text.includes('SYNDICATE')) return 'syndicate';
-  if (text.includes('MODS')) return 'mods';
+  // More specific matching to avoid false positives
+  if (text === 'PRIME_PARTS' || text.includes('PRIME_PARTS')) return 'prime_parts';
+  if (text === 'RELICS' || text.includes('RELICS')) return 'relics';
+  if (text === 'SYNDICATE' || text.includes('SYNDICATE')) return 'syndicate';
+  if (text === 'MODS' || text.includes('MODS')) return 'mods';
+
+  console.log(`>>> [Gemini Screen Type] No match found, defaulting to unknown. Raw text: "${text}" <<<`);
   return 'unknown';
 };
 
@@ -464,7 +657,7 @@ FORMAT: List each item name exactly as written, one per line. For items with qua
 If you cannot clearly see any Prime items, respond with "NONE_DETECTED".`;
 
   const result = await genAI!.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     contents: [
       {
         role: 'user',
@@ -521,7 +714,7 @@ Lith A1 Relic (Intact)
 If you cannot clearly see any owned relics, respond with "NONE_DETECTED".`;
 
   const result = await genAI!.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     contents: [
       {
         role: 'user',
@@ -542,14 +735,15 @@ If you cannot clearly see any owned relics, respond with "NONE_DETECTED".`;
 };
 
 const analyzeSyndicate = async (imageBase64: string, mimeType: string): Promise<string> => {
-  const syndicatePrompt = `Analyze this Warframe Syndicate Offerings screen. First identify the syndicate name from the title/header, then extract tradable rewards and their Standing costs.
+  const syndicatePrompt = `Analyze this Warframe Syndicate Offerings screen.
+
+CRITICAL: This MUST be a Syndicate Offerings screen with syndicate header visible!
 
 STRICT RULES:
-- Read the ACTUAL image. Do not invent items.
-- Identify the syndicate name from the screen title (e.g., "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda")
-- Prefer items likely tradable on Warframe Market (e.g., Telos/Secura/Synoid/Rakta/Sancti weapons, augment mods)
-- Ignore pure sigils, simulacrum access, caches, or consumable blueprints unless clearly visible and tradable
-- Use the standing price numbers shown on each card (e.g., 25,000 or 100,000)
+- MUST see syndicate name in header (e.g., "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda")
+- MUST see standing costs (numbers like 5,000, 25,000, 100,000) on items
+- If you see mod names but NO syndicate header, respond with "NONE_DETECTED"
+- If you see mod names but NO standing costs, respond with "NONE_DETECTED"
 
 RESPONSE FORMAT:
 First line: SYNDICATE: [Syndicate Name]
@@ -561,10 +755,10 @@ SYNDICATE: Arbiters of Hexis
 Telos Akbolto | 100,000
 Stinging Truth | 25,000
 
-If you cannot clearly see any items or syndicate name, respond with "NONE_DETECTED".`;
+If you cannot clearly see syndicate header, respond with "NONE_DETECTED"`;
 
   const result = await genAI!.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     contents: [
       {
         role: 'user',
@@ -585,58 +779,119 @@ If you cannot clearly see any items or syndicate name, respond with "NONE_DETECT
 };
 
 const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
-  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ONLY UNRANKED mods with their duplicate quantities.
+  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods with COMPLETE information.
 
 CRITICAL FILTERING RULES - ONLY DETECT UNRANKED MODS:
 - **ONLY** detect mods with SEMI-TRANSPARENT GREY/SILVER DOTS (unranked mods)
 - **NEVER** detect mods with BRIGHT BLUE DOTS (leveled mods) - these should be completely ignored
 - **NEVER** detect mods with any rank > 0 - these are not for sale
 
-CRITICAL DUPLICATE DETECTION RULES:
-- DUPLICATE INDICATOR: Look for a small number in the TOP-LEFT corner of mod cards (usually white text)
-- DUPLICATE ICON: Look for an icon that looks like two overlapping pieces of paper in the top-left area
-- DO NOT confuse the mod drain number (top-right corner) with quantity - drain is NOT quantity!
+IMPORTANT: Only analyze FULLY VISIBLE and COMPLETE mod cards. Skip any mods that are:
+- Cropped at screenshot edges
+- Cut off at top, bottom, left, or right
+- Missing any part of their card (name, corners, or rank dots)
 
-VISUAL DIFFERENCES TO IDENTIFY UNRANKED VS LEVELED:
-- **SEMI-TRANSPARENT GREY/SILVER DOTS** = Unranked mods (SAFE to sell)
-  * Faint, transparent, grey or silver dots
-  * Usually 3 dots in a row
-  * Dull, non-glowing appearance
-  * These mods are RANK 0 and can be sold as duplicates
-  * **ONLY DETECT THESE**
+CRITICAL DETECTION REQUIREMENTS - YOU MUST DETECT ALL FOUR ELEMENTS:
 
-- **ACTIVE BLUE DOTS** = Leveled up mods (NOT for sale)
-  * Bright, glowing, solid blue dots
-  * Often 5-10 dots in a row
-  * Clear, vibrant blue color
-  * These mods are RANKED UP and should be COMPLETELY IGNORED
-  * **NEVER DETECT THESE**
+1. **MOD NAME**: The exact name as displayed on the mod card
+2. **QUANTITY**: Look for a small number in the TOP-LEFT corner of mod cards (usually white text)
+   - If NO number is visible in top-left corner = quantity is 1 (single copy)
+   - If number is present (2, 3, 4, 12, etc.) = that is the quantity
+   - NEVER use the number in the top-right corner for quantity!
 
-WHAT TO IGNORE COMPLETELY:
-- The number in the TOP-RIGHT corner (this is mod drain/capacity, NOT quantity)
-- Mods with ACTIVE BLUE DOTS at the bottom (these are leveled up, not duplicates)
-- Any mod with bright, glowing blue progression indicators
-- Any mod that appears to have been upgraded or leveled
+3. **LEVEL**: Count ONLY the BRIGHT/GLOWING dots - DO NOT count total dots!
+   - IGNORE THE TOP-RIGHT CORNER NUMBERS (that's drain, not rank!)
+   - Look at the bottom edge - you'll see a row of small circular dots
+   - CRITICAL: DO NOT DEFAULT TO ANY NUMBER - actually count each mod's dots individually
+   - NEVER assume all mods have the same rank (like 4 or 5) - each mod is different
+   - CRITICAL DISTINCTION:
+     * BRIGHT/GLOWING/FILLED dots = these are "ON" (count these for rank)
+     * DARK/DIM/EMPTY dots = these are "OFF" (DO NOT count these)
+   - Common ranks you'll see:
+     * Many mods will be rank 0 (NO bright dots at all)
+     * Some mods will be rank 3, 4, or 5 (partially ranked)
+     * Few mods will be rank 8, 9, or 10 (highly ranked)
+   - DO NOT use 4/5 or any other default - COUNT EACH MOD INDIVIDUALLY
+   - Example: If you see 10 total dots but only 3 are bright/glowing = rank 3
+   - Example: If you see 5 total dots but 0 are bright/glowing = rank 0
+   - Example: If you see 10 total dots and ALL 10 are bright/glowing = rank 10
+   - CRITICAL FOR DUPLICATE MODS: Each individual mod card has its own rank
+   - Visual cues for BRIGHT dots: they glow, they're vivid blue/cyan, they stand out
+   - Visual cues for DARK dots: they're gray, black, dim, barely visible, empty circles
 
-WHAT TO LOOK FOR (ONLY UNRANKED MODS):
-- Small number in TOP-LEFT corner indicating duplicates (2, 3, 4, 12, etc.)
-- Two-paper-stack icon in top-left area indicating duplicates
-- Only unranked mods (semi-transparent grey dots) should be considered for duplicates
-- Exact mod names as they appear
+4. **DRAIN**: The number in the TOP-RIGHT corner (this is mod capacity/drain cost)
+   - Usually appears as a number with a small arrow pointing down
+   - This is NOT quantity - it's the mod's capacity cost
+
+VISUAL DETECTION GUIDELINES:
+- **TOP-LEFT CORNER**: Look for small white numbers (2, 3, 4, 12, etc.) - this is QUANTITY
+- **TOP-RIGHT CORNER**: Look for numbers with arrow symbols (like "14 ↓") - this is DRAIN
+- **BOTTOM DOTS - MOST CRITICAL**: Examine the bottom edge of each mod card very carefully:
+  * Look for a ROW OF SMALL CIRCULAR DOTS (usually 5-10 dots per mod)
+  * BRIGHT/GLOWING/FILLED dots = count these for the rank
+  * DARK/DIM/EMPTY dots = ignore these (they're unfilled slots)
+  * EXAMINE EACH MOD INDIVIDUALLY - don't assume all mods have the same rank pattern
+  * Some mods will have ALL dots bright (max rank), others will have NO bright dots (rank 0)
+  * The number of BRIGHT dots = the rank number
+- **ABSENCE OF TOP-LEFT NUMBER**: If no number in top-left = quantity is 1
+
+CRITICAL RANK DETECTION STEPS FOR EACH MOD CARD:
+1. Find each individual mod card (scan left to right, top to bottom)
+2. ONLY ANALYZE COMPLETE MODS: Skip any mod cards that are cropped or cut off at edges
+   - If you can't see the full mod name, skip it
+   - If you can't see the top corners (where quantity/drain numbers are), skip it
+   - If you can't see the bottom edge (where rank dots are), skip it
+   - Only analyze mods that are fully visible and complete
+3. For DUPLICATE mod names: treat each card as a separate item with its own rank
+4. Look at the very bottom edge of THAT SPECIFIC CARD for a row of dots
+5. Count BOTH types of dots separately:
+   - Count BRIGHT dots (glowing, vivid blue/cyan, stand out visually)
+   - Count TOTAL dots (bright + dark combined)
+6. Report as BRIGHT_DOTS/TOTAL_DOTS format
+7. If you see the same mod name multiple times, report each occurrence separately
+
+EXAMPLES OF CORRECT COUNTING:
+- "I see 10 total dots, 8 are bright, 2 are dark" → 8/10
+- "I see 5 total dots, all 5 are bright" → 5/5
+- "I see 10 total dots, 0 are bright, all are dark" → 0/10
+- "I see 8 total dots, 3 are bright, 5 are dark" → 3/8
+
+WRONG APPROACH: "I see bright dots, so 10"
+CORRECT APPROACH: "I count 8 bright dots out of 10 total dots, so 8/10"
+
+SANITY CHECK RULES:
+- Same mod name at same rank = must have same drain (e.g., both R0 Condition Overload should have same drain)
+- Quantity should be 1-5 (not 17!)
+- If you get impossible combinations, re-examine that specific mod card more carefully
+- Higher rank = higher drain (R0 has lower drain than R10)
+
+EXAMPLE OUTPUT FOR DUPLICATES:
+Condition Overload | 1 | 0 | 15
+Condition Overload | 1 | 10 | 18
+
+NOT IMPOSSIBLE COMBINATIONS LIKE:
+Condition Overload | 1 | 0 | 15
+Condition Overload | 1 | 0 | 10  ← WRONG: same rank, different drain!
 
 RESPONSE FORMAT:
-List each UNRANKED mod with its correct duplicate quantity from the top-left indicator.
-Use format "QUANTITY x MOD_NAME" for duplicates, single name for singles.
-Do NOT include rank information.
+Use this exact format for each mod:
+"MOD_NAME | QUANTITY | RANK | DRAIN"
 
-Example format:
-Serration
-3 x Vitality
-12 x Finishing Touch
-Primed Flow
-2 x Condition Overload
+Where RANK is ONLY the number of BRIGHT/GLOWING dots you count at the bottom.
 
-IMPORTANT: 
+Examples (based on actual dot counts):
+Narrow Minded | 1 | 1 | 14  (1 bright dot out of 10 total)
+Vitality | 3 | 0 | 4  (0 bright dots - all dark)
+Primed Flow | 1 | 5 | 16  (5 bright dots out of 10 total)
+Serration | 12 | 0 | 4  (0 bright dots - all dark)
+Adaptation | 1 | 8 | 10  (8 bright dots out of 10 total)
+Condition Overload | 1 | 5 | 15  (5 bright dots out of 5 total - max rank)
+
+IMPORTANT RULES:
+- If no number in top-left corner = quantity is 1 (single copy)
+- If you see "14 ↓" in top-right = drain is 14, NOT quantity
+- Count filled blue dots at bottom for level (0 if no blue dots filled)
+- Be extremely careful not to confuse drain (top-right) with quantity (top-left)
 - If you see a number in the top-right, that is MOD DRAIN, not quantity!
 - Only count the small number in the TOP-LEFT or the paper-stack icon as duplicate indicators.
 - ONLY count mods with semi-transparent grey dots (unranked), IGNORE mods with bright blue dots (leveled).
@@ -645,7 +900,7 @@ IMPORTANT:
 If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
 
   const result = await genAI!.models.generateContent({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     contents: [
       {
         role: 'user',
@@ -665,13 +920,13 @@ If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
   return result.text;
 };
 
-export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => {
+export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedItem[]; screenType: string }> => {
   if (!isGeminiConfigured()) {
     throw new Error('Gemini API key not configured');
   }
 
   try {
-    const imageBase64 = await fileToBase64(imageFile);
+    let imageBase64 = await fileToBase64(imageFile);
 
     // Generate hash for caching
     const imageHash = await generateImageHash(imageBase64);
@@ -686,8 +941,28 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
 
     // Step 1: Determine screen type
     console.log(`>>> [Gemini] Step 1: Determining screen type <<<`);
-    const screenType = await determineScreenType(imageBase64, imageFile.type);
+    let screenType = await determineScreenType(imageBase64, imageFile.type);
     console.log(`>>> [Gemini] Detected screen type: ${screenType} <<<`);
+
+    // Step 1.5: For mod screens, enhance image contrast to better detect rank dots
+    if (screenType === 'mods') {
+      console.log(`>>> [Gemini] Enhancing image contrast for mod rank detection <<<`);
+      try {
+        imageBase64 = await enhanceImageContrast(imageFile);
+
+        // DEBUG: Download enhanced image to verify enhancement
+        const debugLink = document.createElement('a');
+        debugLink.href = `data:image/png;base64,${imageBase64}`;
+        debugLink.download = `enhanced_mod_image_${Date.now()}.png`;
+        document.body.appendChild(debugLink);
+        debugLink.click();
+        document.body.removeChild(debugLink);
+        console.log(`>>> [Gemini] DEBUG: Enhanced image downloaded as ${debugLink.download} <<<`);
+      } catch (error) {
+        console.warn(`>>> [Gemini] Contrast enhancement failed, using original image:`, error);
+        // Continue with original image if enhancement fails
+      }
+    }
 
     // Step 2: Use appropriate analysis based on screen type
     let analysisText: string;
@@ -701,6 +976,13 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     } else if (screenType === 'syndicate') {
       console.log(`>>> [Gemini] Step 2: Analyzing Syndicate Offerings <<<`);
       analysisText = await analyzeSyndicate(imageBase64, imageFile.type);
+
+      // CRITICAL FALLBACK: If syndicate analysis finds nothing, try mod analysis
+      if (analysisText.trim() === "NONE_DETECTED") {
+        console.log(`>>> [Gemini] Syndicate analysis found nothing, falling back to mod analysis <<<`);
+        analysisText = await analyzeMods(imageBase64, imageFile.type);
+        screenType = 'mods'; // Update screen type for correct parsing
+      }
     } else if (screenType === 'mods') {
       console.log(`>>> [Gemini] Step 2: Analyzing Mods <<<`);
       analysisText = await analyzeMods(imageBase64, imageFile.type);
@@ -708,6 +990,10 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
       console.log(`>>> [Gemini] Unknown screen type, using generic analysis <<<`);
       analysisText = await analyzePrimeParts(imageBase64, imageFile.type); // Default to prime parts
     }
+
+    // Debug: Log the analysis type and first few lines of response
+    console.log(`>>> [Gemini] Analysis type: ${screenType} <<<`);
+    console.log(`>>> [Gemini] Analysis response preview:`, analysisText.substring(0, 200) + (analysisText.length > 200 ? '...' : ''), ` <<<`);
 
     // Debug: Log the raw AI response
     console.log(`>>> [Gemini Raw Response] <<<`);
@@ -724,8 +1010,16 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
       return [];
     }
 
-    const detectedItems = parseDetectedItems(analysisText);
+    const detectedItems = parseDetectedItems(analysisText, screenType);
+    console.log(`>>> [Gemini] Screen type: ${screenType} <<<`);
     console.log(`>>> [Gemini] Parsed ${detectedItems.length} items:`, detectedItems.map(item => `${item.name} (${item.category})`), ` <<<`);
+
+    // Debug: Check for category distribution
+    const categoryCounts = detectedItems.reduce((acc, item) => {
+      acc[item.category] = (acc[item.category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    console.log(`>>> [Gemini] Category distribution:`, categoryCounts, ` <<<`);
 
     // Cache the results for future use
     setCachedAnalysis(imageHash, screenType, detectedItems);
@@ -734,7 +1028,7 @@ export const analyzeImage = async (imageFile: File): Promise<DetectedItem[]> => 
     const newItems = filterNewItems(detectedItems);
     console.log(`>>> [Gemini] ${newItems.length} new items after deduplication <<<`);
 
-    return newItems;
+    return { items: newItems, screenType };
   } catch (error) {
     console.error('Error analyzing image with Gemini:', error);
     throw new Error('Failed to analyze image. Please try again.');

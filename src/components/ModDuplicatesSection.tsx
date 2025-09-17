@@ -100,16 +100,24 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   // Use mods directly from inventory
   const allMods = mods;
 
+  // Analyze mods for duplicate recommendations
+  const analyzedMods = useMemo(() => {
+    if (allMods.length === 0) return null;
+    return analyzeModDuplicates(allMods);
+  }, [allMods]);
+
   // Smart filter toggle function with mutual exclusivity for main filters
   const toggleFilter = (filterType: string) => {
     setActiveFilters(prev => {
       const newFilters = new Set(prev);
 
       // Handle mutual exclusivity for main view filters
-      if (filterType === 'sell_on_market' || filterType === 'sell_for_endo' || filterType === 'hold_for_later') {
+      if (filterType === 'sell_on_market' || filterType === 'sell_for_endo' || filterType === 'keep' || filterType === 'hold' || filterType === 'hold_for_later') {
         // Remove all main filters first
         newFilters.delete('sell_on_market');
         newFilters.delete('sell_for_endo');
+        newFilters.delete('keep');
+        newFilters.delete('hold');
         newFilters.delete('hold_for_later');
 
         // Add the selected one if it wasn't already active
@@ -142,13 +150,21 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   const filteredAndSortedMods = useMemo(() => {
     let filtered = allMods;
 
-    // Apply smart filters based on activeFilters
+    // Apply smart filters based on activeFilters - filter by recommendation
     if (activeFilters.has('sell_on_market')) {
-      filtered = filtered.filter(mod => mod.price && mod.price > 0);
+      filtered = filtered.filter(mod => mod.recommendation === 'TRADE_ON_MARKET');
     }
 
     if (activeFilters.has('sell_for_endo')) {
-      filtered = filtered.filter(mod => !mod.price || mod.price === 0);
+      filtered = filtered.filter(mod => mod.recommendation === 'SELL_FOR_ENDO');
+    }
+
+    if (activeFilters.has('keep')) {
+      filtered = filtered.filter(mod => mod.recommendation === 'KEEP');
+    }
+
+    if (activeFilters.has('hold')) {
+      filtered = filtered.filter(mod => mod.recommendation === 'HOLD');
     }
 
     if (activeFilters.has('hold_for_later')) {
@@ -182,9 +198,9 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           bVal = rarityOrder[b.rarity] || 0;
           break;
         case 'recommendation':
-          const recOrder = { 'TRADE_ON_MARKET': 3, 'HOLD_FOR_LATER': 2, 'SELL_FOR_ENDO': 1 };
-          aVal = recOrder[a.recommendation || 'SELL_FOR_ENDO'];
-          bVal = recOrder[b.recommendation || 'SELL_FOR_ENDO'];
+          const recOrder = { 'KEEP': 5, 'HOLD': 4, 'TRADE_ON_MARKET': 3, 'HOLD_FOR_LATER': 2, 'SELL_FOR_ENDO': 1 };
+          aVal = recOrder[a.recommendation || 'SELL_FOR_ENDO'] || 1;
+          bVal = recOrder[b.recommendation || 'SELL_FOR_ENDO'] || 1;
           break;
         case 'totalMarketValue':
           aVal = (a.price || 0) * a.quantity;
@@ -253,14 +269,14 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         // Use the same logic as bulk refresh to preserve mod metadata
         const { fetchSinglePriceData } = await import('../services/warframeMarketService');
         const { calculateEndoValue: calculateEndoValueMod, analyzeModForDuplicates } = await import('../services/modService');
-        
+
         const priceData = await fetchSinglePriceData(item);
-        
+
         if (priceData) {
           // Use the same logic as HomePage for mods
           const actualRarity = priceData.rarity || item.rarity;
           const actualType = priceData.type || item.type;
-          
+
           const modItem = {
             ...item,
             price: priceData.price,
@@ -280,7 +296,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           // Calculate endo value and analyze for recommendations
           const endoValue = calculateEndoValueMod(modItem);
           const analyzedMod = analyzeModForDuplicates({ ...modItem, endoValue });
-          
+
           setMods(prev => prev.map(m => m.name === itemName ? analyzedMod : m));
         } else {
           // Handle error case
@@ -292,7 +308,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
             status: 'error' as const,
             error: 'Failed to fetch price'
           };
-          
+
           setMods(prev => prev.map(m => m.name === itemName ? errorMod : m));
         }
       }
@@ -350,9 +366,11 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
   const getRecommendationColor = (recommendation?: string) => {
     switch (recommendation) {
-      case 'TRADE_ON_MARKET': return 'text-blue-400';
+      case 'KEEP': return 'text-purple-400';
+      case 'HOLD': return 'text-yellow-400';
+      case 'TRADE_ON_MARKET': return 'text-green-400';
       case 'HOLD_FOR_LATER': return 'text-yellow-400';
-      case 'SELL_FOR_ENDO': return 'text-red-400';
+      case 'SELL_FOR_ENDO': return 'text-orange-400';
       default: return 'text-gray-400';
     }
   };
@@ -364,14 +382,6 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
     // Helper function to get mod image URL
   const getModImageUrl = (mod: ModItem, useFullRes = false) => {
-    console.log(`>>> [Mod Image Debug] ${mod.name}:`, {
-      imgUrl: mod.imgUrl,
-      hasImgUrl: !!mod.imgUrl,
-      includesWarframeMarket: mod.imgUrl?.includes('warframe.market'),
-      includesItemsImages: mod.imgUrl?.includes('items/images'),
-      useFullRes,
-      imgUrlLength: mod.imgUrl?.length
-    });
 
     // If we have a thumb path, try direct Warframe Market URL (CORS warnings are OK)
     if (mod.imgUrl && mod.imgUrl.includes('items/images')) {
@@ -381,17 +391,14 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         // Extract path from full URL
         const url = new URL(mod.imgUrl);
         imagePath = url.pathname.replace('/static/assets/', '');
-        console.log(`>>> [Mod Image Debug] Migrated full URL to path: ${mod.imgUrl} -> ${imagePath}`);
       }
 
       // Use direct Warframe Market URL (CORS warnings are expected but images display fine)
       const directUrl = `https://warframe.market/static/assets/${imagePath}`;
-      console.log(`>>> [Mod Image Debug] Using direct Warframe Market URL: ${directUrl}`);
       return directUrl;
     }
 
     // Fallback to placeholder with rarity-based styling
-    console.log(`>>> [Mod Image Debug] Using placeholder for ${(mod as any).name}`);
     return '/images/mod.webp';
   };
 
@@ -418,7 +425,6 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
     // Use direct Warframe Market URL for full resolution
     const directUrl = `https://warframe.market/static/assets/${fullResPath}`;
-    console.log(`>>> [Mod Image Debug] Full res direct URL for ${(mod as any).name}: ${directUrl}`);
     return directUrl;
   };
 
@@ -539,7 +545,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('sell_on_market') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {allMods.filter(mod => mod.price && mod.price > 0).length}
+                {allMods.filter(mod => mod.recommendation === 'TRADE_ON_MARKET').length}
               </span>
             </button>
 
@@ -557,7 +563,43 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('sell_for_endo') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {allMods.filter(mod => !mod.price || mod.price === 0).length}
+                {allMods.filter(mod => mod.recommendation === 'SELL_FOR_ENDO').length}
+              </span>
+            </button>
+
+            {/* Keep (Ranked Mods) */}
+            <button
+              onClick={() => toggleFilter('keep')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('keep')
+                  ? 'bg-purple-900/50 border-purple-500/50 text-purple-400 ring-1 ring-purple-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Shield size={16} />
+              <span>Keep</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('keep') ? 'bg-purple-800/50 text-purple-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {allMods.filter(mod => mod.recommendation === 'KEEP').length}
+              </span>
+            </button>
+
+            {/* Hold */}
+            <button
+              onClick={() => toggleFilter('hold')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('hold')
+                  ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Clock size={16} />
+              <span>Hold</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('hold') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {allMods.filter(mod => mod.recommendation === 'HOLD').length}
               </span>
             </button>
 
@@ -601,6 +643,57 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               </button>
             ))}
           </div>
+
+          {/* Analysis Summary */}
+          {analyzedMods && (
+            <div className="px-6 pb-4">
+              <div className="bg-gray-800/30 rounded-lg p-4 border border-gray-700/50">
+                <h4 className="text-sm font-medium text-white mb-3">Analysis Summary</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+                  <div className="text-center">
+                    <div className="text-white font-medium">{analyzedMods.totalMods}</div>
+                    <div className="text-gray-400">Total Mods</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-yellow-400 font-medium">{analyzedMods.duplicates}</div>
+                    <div className="text-gray-400">Duplicates</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-blue-400 font-medium">{analyzedMods.leveledMods}</div>
+                    <div className="text-gray-400">Leveled</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-gray-400 font-medium">{analyzedMods.unrankedMods}</div>
+                    <div className="text-gray-400">Unranked</div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-700/50 grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+                  <div className="text-center">
+                    <div className="text-green-400 font-medium">{analyzedMods.recommendedForMarket.length}</div>
+                    <div className="text-gray-400">Market Trade</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-red-400 font-medium">{analyzedMods.recommendedForEndo.length}</div>
+                    <div className="text-gray-400">Sell for Endo</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-yellow-400 font-medium">{analyzedMods.keepOneSellRest.length}</div>
+                    <div className="text-gray-400">Keep One</div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-gray-700/50 grid grid-cols-2 gap-4 text-xs">
+                  <div className="text-center">
+                    <div className="text-green-400 font-medium">{analyzedMods.totalMarketValue}p</div>
+                    <div className="text-gray-400">Market Value</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-red-400 font-medium">{analyzedMods.totalEndoValue}</div>
+                    <div className="text-gray-400">Endo Value</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Sort Controls */}
           <div className="px-6 pb-4">
@@ -731,12 +824,18 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                         });
                       }}
                       onError={(e) => {
-                        console.error(`>>> [Mod Image Error] Failed to load image for ${mod.name}:`, e);
+                        // Only log errors in development mode to avoid console spam
+                        if (__DEV_MODE__ === 'true') {
+                          console.error(`>>> [Mod Image Error] Failed to load: ${mod.name}`, e);
+                        }
                         // Fallback to placeholder if image fails to load
                         (e.target as HTMLImageElement).src = '/images/mod.webp';
                       }}
                       onLoad={() => {
-                        console.log(`>>> [Mod Image Success] Successfully loaded image for ${mod.name}`);
+                        // Only log in development mode to avoid console spam
+                        if (__DEV_MODE__ === 'true') {
+                          console.log(`>>> [Mod Image] Loaded: ${mod.name}`);
+                        }
                       }}
                       title={expandedImages.has(mod.name) ? "Click to shrink" : "Click to enlarge"}
                     />
@@ -744,7 +843,25 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
                   {/* Value display - show appropriate value based on recommendation */}
                   <div className="grid grid-cols-1 gap-4">
-                    {mod.recommendation === 'TRADE_ON_MARKET' && mod.price && mod.price > 0 ? (
+                    {mod.recommendation === 'KEEP' ? (
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Status</div>
+                        <div className="text-purple-400 font-medium">Keep</div>
+                        {mod.rank && mod.rank > 0 && (
+                          <div className="text-xs text-gray-400">
+                            Rank {mod.rank}
+                          </div>
+                        )}
+                      </div>
+                    ) : mod.recommendation === 'HOLD' ? (
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Average Price</div>
+                        <div className="text-yellow-400 font-medium">{mod.average || 0}p</div>
+                        <div className="text-xs text-gray-400">
+                          Hold for later
+                        </div>
+                      </div>
+                    ) : mod.recommendation === 'TRADE_ON_MARKET' && mod.price && mod.price > 0 ? (
                       // Current market buyers - show current price
                       <div>
                         <div className="text-xs text-gray-400 mb-1">Market Price</div>
