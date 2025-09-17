@@ -62,6 +62,7 @@ export interface SyndicateReward extends BaseItem {
 
 export interface Mod extends DetectedItem {
   rank?: number;
+  drain?: number; // Mod capacity/drain cost
   rarity: string;
   type: string;
   endoValue?: number;

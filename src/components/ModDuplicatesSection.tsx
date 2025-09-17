@@ -741,9 +741,16 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-white truncate">
                         {mod.name}
-                        {mod.rank !== undefined && (
-                          <span className="ml-2 text-xs bg-gray-600 px-1.5 py-0.5 rounded text-gray-300">
-                            R{mod.rank}
+                        <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                          (mod.rank || 0) > 0
+                            ? 'bg-blue-600 text-blue-100'
+                            : 'bg-gray-600 text-gray-300'
+                        }`}>
+                          R{mod.rank !== undefined ? mod.rank : 0}
+                        </span>
+                        {mod.drain !== undefined && (
+                          <span className="ml-1 text-xs bg-purple-600 text-purple-100 px-1.5 py-0.5 rounded">
+                            {mod.drain}↓
                           </span>
                         )}
                       </h4>

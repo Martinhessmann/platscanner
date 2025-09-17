@@ -558,6 +558,7 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
         // Fallback to old format parsing for backward compatibility
         let modName = cleanLine;
         let rank: number | undefined = undefined;
+        let drain: number | undefined = undefined;
 
         // Extract rank if present in format like "Serration (R8)" or "Primed Flow (R10)"
         const rankMatch = cleanLine.match(/^(.*?)\s*\(R(\d+)\)$/i);
@@ -567,6 +568,9 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
           console.log(`>>> [AI Parsing] Found mod with rank: "${modName}" R${rank} <<<`);
         }
 
+        // For fallback parsing, we don't have drain info, so leave it undefined
+        // This will be populated when the mod gets market data
+
         const rarity = determineModRarity(modName);
         const type = determineModType(modName);
 
@@ -575,6 +579,7 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
           name: modName,
           category: 'mods',
           rank,
+          drain,
           quantity,
           rarity,
           type,
