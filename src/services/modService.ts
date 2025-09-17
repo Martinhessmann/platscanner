@@ -3,18 +3,11 @@
 
 import { fetchBatchPriceData } from './warframeMarketService';
 
-export interface ModItem {
-  id: string;
-  name: string;
-  category: 'mods';
-  rank?: number;
-  quantity: number;
-  rarity: 'common' | 'uncommon' | 'rare' | 'legendary' | 'primed' | 'unknown';
-  type: 'warframe' | 'weapon' | 'companion' | 'archwing' | 'stance' | 'augment' | 'other';
+export interface ModItem extends Mod {
   price?: number;
-  volume?: number;
-  average?: number;
-  status: 'loading' | 'loaded' | 'error';
+  marketVolume?: number;
+  average?: number; // Historical average price from market data
+  status?: 'loading' | 'loaded' | 'error';
   error?: string;
   addedAt: Date;
   lastUpdated: Date;
@@ -22,9 +15,10 @@ export interface ModItem {
   // Analysis fields
   marketValue?: number;
   endoValue?: number;
-  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD';
+  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD' | 'HOLD_FOR_LATER';
   reasoning?: string;
   platPerEndo?: number;
+  hasHistoricalSales?: boolean; // Track if mod has sold in the past
 }
 
 export interface ModDuplicateAnalysis {
@@ -34,7 +28,7 @@ export interface ModDuplicateAnalysis {
   unrankedMods: number;
   recommendedForEndo: ModItem[];
   recommendedForMarket: ModItem[];
-  keepOneSellRest: ModItem[];
+  recommendedForHold: ModItem[];
   totalEndoValue: number;
   totalMarketValue: number;
   potentialPlatinum: number;
@@ -293,8 +287,6 @@ export const calculateEndoValue = (mod: ModItem): number => {
  */
 export const analyzeModForDuplicates = (mod: ModItem): ModItem => {
   const endoValue = calculateEndoValue(mod);
-  const marketThreshold = MARKET_THRESHOLDS[mod.rarity] || MARKET_THRESHOLDS['uncommon'];
-  const lowerName = mod.name.toLowerCase();
 
   let recommendation: ModItem['recommendation'] = 'SELL_FOR_ENDO';
   let reasoning = '';
@@ -305,7 +297,7 @@ export const analyzeModForDuplicates = (mod: ModItem): ModItem => {
     reasoning = `Leveled mod (R${mod.rank}) - valuable investment`;
   }
   // RULE 2: High-value mods, primed mods, and augments are KEEP
-  else if (HIGH_VALUE_MODS.has(lowerName) || mod.rarity === 'primed' || mod.type === 'augment') {
+  else if (HIGH_VALUE_MODS.has(mod.name.toLowerCase()) || mod.rarity === 'primed' || mod.type === 'augment') {
     recommendation = 'KEEP';
     reasoning = mod.rarity === 'primed' ? 'Primed mod - valuable for builds' :
                 mod.type === 'augment' ? 'Augment mod - useful for specialized builds' :
@@ -315,11 +307,11 @@ export const analyzeModForDuplicates = (mod: ModItem): ModItem => {
   else if (mod.price !== undefined && mod.price >= 0) {
     // If price is 0 but has average price (historical sales but no current buyers)
     if (mod.price === 0 && mod.average && mod.average > 0) {
-      recommendation = 'HOLD';
+      recommendation = 'HOLD_FOR_LATER';
       reasoning = `Hold for later - average price ${mod.average}p (no current buyers)`;
     }
     // If current price is good compared to endo value
-    else if (mod.price >= marketThreshold) {
+    else if (mod.price > 0) {
       const platPerEndo = mod.price / endoValue;
       if (platPerEndo > 0.1) { // If you get more than 0.1 plat per endo equivalent
         recommendation = 'TRADE_ON_MARKET';
@@ -364,8 +356,8 @@ export const analyzeModDuplicates = (mods: ModItem[]): ModDuplicateAnalysis => {
   const recommendedForMarket = analyzedMods.filter(mod =>
     mod.recommendation === 'TRADE_ON_MARKET'
   );
-  const keepOneSellRest = analyzedMods.filter(mod =>
-    mod.recommendation === 'KEEP_ONE_SELL_REST'
+  const recommendedForHold = analyzedMods.filter(mod =>
+    mod.recommendation === 'HOLD_FOR_LATER'
   );
 
   const totalEndoValue = recommendedForEndo.reduce((sum, mod) =>
@@ -376,10 +368,6 @@ export const analyzeModDuplicates = (mods: ModItem[]): ModDuplicateAnalysis => {
     sum + ((mod.price || 0) * mod.quantity), 0
   );
 
-  const keepOneMarketValue = keepOneSellRest.reduce((sum, mod) =>
-    sum + ((mod.price || 0) * (mod.quantity - 1)), 0
-  );
-
   return {
     totalMods: analyzedMods.length,
     duplicates: duplicates.length,
@@ -387,10 +375,10 @@ export const analyzeModDuplicates = (mods: ModItem[]): ModDuplicateAnalysis => {
     unrankedMods: unrankedMods.length,
     recommendedForEndo,
     recommendedForMarket,
-    keepOneSellRest,
+    recommendedForHold,
     totalEndoValue,
     totalMarketValue,
-    potentialPlatinum: totalMarketValue + keepOneMarketValue
+    potentialPlatinum: totalMarketValue
   };
 };
 
@@ -432,11 +420,24 @@ export const refreshModPrices = async (
   }
 
   try {
-    const itemNames = tradeableMods.map(mod => mod.name);
+    // Normalize mod names for API lookup (display name -> api name)
+    const normalizeItemName = (name: string): string => {
+      return name
+        .toLowerCase()
+        .replace(/\s*&\s*/g, '_and_') // Replace & with 'and'
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_]/g, '');
+    };
+
+    const itemNames = tradeableMods.map(mod => normalizeItemName(mod.name));
     const priceData = await fetchBatchPriceData(itemNames, onProgress);
 
     const tradeableResults = tradeableMods.map(mod => {
-      const priceItem = priceData.find(item => item.name === mod.name);
+      // Look up price data using normalized name
+      const normalizedModName = normalizeItemName(mod.name);
+      const priceItem = priceData.find(item => 
+        normalizeItemName(item.name) === normalizedModName || item.name === mod.name
+      );
       // Only log in development mode to avoid console spam
       if (__DEV_MODE__ === 'true') {
         console.log(`>>> [Mod Service] ${mod.name}: price=${priceItem?.price || 'N/A'}, thumb=${!!priceItem?.thumb}`);
@@ -475,10 +476,11 @@ export const refreshModPrices = async (
           ...mod,
           price: priceItem.price,
           volume: priceItem.volume,
-          average: priceItem.average,
+          average: priceItem.average || mod.average, // Preserve existing average if new one is not available
           rarity: updatedRarity,
           type: updatedType,
-          imgUrl: priceItem.thumb ? `https://warframe.market/static/assets/${priceItem.thumb}` : '/images/mod.webp',
+          imgUrl: priceItem.thumb ? `https://warframe.market/static/assets/${priceItem.thumb}` : (mod.imgUrl || '/images/mod.webp'),
+          hasHistoricalSales: mod.hasHistoricalSales || (priceItem.volume > 0 || priceItem.average > 0), // Preserve or update historical sales flag
           status: 'loaded' as const,
           lastUpdated: new Date(),
           error: undefined // Clear any existing error

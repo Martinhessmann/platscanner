@@ -744,12 +744,19 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                     ...item,
                     price: priceData ? priceData.price : 0,
                     marketVolume: priceData ? priceData.volume : 0,
+                    average: priceData ? priceData.average : 0, // Include historical average price
                     lastUpdated: new Date(),
                     status: 'loaded' as const,
                     rarity: actualRarity,
                     type: actualType,
-                    imgUrl: priceData ? `https://warframe.market/static/assets/${priceData.thumb}` : '/images/mod.webp'
+                    imgUrl: priceData ? `https://warframe.market/static/assets/${priceData.thumb}` : undefined,
+                    hasHistoricalSales: priceData && (priceData.volume > 0 || priceData.average > 0) // Consider historical sales if there's any market activity or average price
                   } as any;
+
+                  // Log mod price data for debugging
+                  if (priceData) {
+                    console.log(`>>> [Mod Price Data] ${item.name}: current=${priceData.price}p, avg=${priceData.average}p, volume=${priceData.volume}, historical=${modItem.hasHistoricalSales} <<<`);
+                  }
 
                   // Calculate endo value and analyze for recommendations
                   const endoValue = calculateEndoValue(modItem);

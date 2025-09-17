@@ -98,7 +98,7 @@ export interface InventoryItem {
   maxDropValue?: number;
   expectedDropValue?: number;
   directSalePrice?: number;
-  recommendation?: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT' | 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD';
+  recommendation?: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT' | 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD' | 'HOLD_FOR_LATER';
   expectedProfit?: number;
   refinementAnalysis?: {
     platPerVoidTrace?: number;
@@ -223,7 +223,9 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
           recommendation: modItem.recommendation,
           reasoning: modItem.reasoning,
           platPerEndo: modItem.platPerEndo,
-          imgUrl: modItem.imgUrl
+          imgUrl: modItem.imgUrl,
+          average: modItem.average,
+          hasHistoricalSales: modItem.hasHistoricalSales
         };
       }
 

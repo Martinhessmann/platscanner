@@ -10,6 +10,7 @@ import {
   loadModInventory,
   refreshModPrices,
   analyzeModDuplicates,
+  analyzeModForDuplicates,
   getModLastRefreshTime,
   setModLastRefreshTime
 } from '../services/modService';
@@ -45,7 +46,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['sell_on_market']));
-  const [sortBy, setSortBy] = useState<'totalMarketValue' | 'maxSingleValue' | 'platPerEndo' | 'name' | 'rarity' | 'recommendation'>('totalMarketValue');
+  const [sortBy, setSortBy] = useState<'totalMarketValue' | 'maxSingleValue' | 'recommendation' | 'rarity' | 'name'>('totalMarketValue');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [expandedImages, setExpandedImages] = useState<Set<string>>(new Set());
   const [fullResImages, setFullResImages] = useState<Set<string>>(new Set());
@@ -111,12 +112,13 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       const newFilters = new Set(prev);
 
       // Handle mutual exclusivity for main view filters
-      if (filterType === 'sell_on_market' || filterType === 'sell_for_endo' || filterType === 'keep' || filterType === 'hold') {
+      if (filterType === 'sell_on_market' || filterType === 'sell_for_endo' || filterType === 'keep' || filterType === 'hold' || filterType === 'hold_for_later') {
         // Remove all main filters first
         newFilters.delete('sell_on_market');
         newFilters.delete('sell_for_endo');
         newFilters.delete('keep');
         newFilters.delete('hold');
+        newFilters.delete('hold_for_later');
 
         // Add the selected one if it wasn't already active
         if (!prev.has(filterType)) {
@@ -165,6 +167,10 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       filtered = filtered.filter(mod => mod.recommendation === 'HOLD');
     }
 
+    if (activeFilters.has('hold_for_later')) {
+      filtered = filtered.filter(mod => mod.hasHistoricalSales && (!mod.price || mod.price === 0));
+    }
+
     // Apply rarity filters with OR/AND logic
     const activeRarityFilters = availableRarities.filter(rarity =>
       activeFilters.has(`rarity_${rarity}`)
@@ -192,13 +198,9 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           bVal = rarityOrder[b.rarity] || 0;
           break;
         case 'recommendation':
-          const recOrder = { 'KEEP': 4, 'HOLD': 3, 'TRADE_ON_MARKET': 2, 'SELL_FOR_ENDO': 1 };
+          const recOrder = { 'KEEP': 5, 'HOLD': 4, 'TRADE_ON_MARKET': 3, 'HOLD_FOR_LATER': 2, 'SELL_FOR_ENDO': 1 };
           aVal = recOrder[a.recommendation || 'SELL_FOR_ENDO'] || 1;
           bVal = recOrder[b.recommendation || 'SELL_FOR_ENDO'] || 1;
-          break;
-        case 'platPerEndo':
-          aVal = a.platPerEndo || 0;
-          bVal = b.platPerEndo || 0;
           break;
         case 'totalMarketValue':
           aVal = (a.price || 0) * a.quantity;
@@ -209,8 +211,8 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           bVal = b.price || 0;
           break;
         default:
-          aVal = a.platPerEndo || 0;
-          bVal = b.platPerEndo || 0;
+          aVal = a.price || 0;
+          bVal = b.price || 0;
       }
 
       if (sortOrder === 'asc') {
@@ -264,11 +266,50 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       if (onRefreshItem) {
         await onRefreshItem(itemName);
       } else {
-        const updatedMods = await refreshModPrices([item]);
+        // Use the same logic as bulk refresh to preserve mod metadata
+        const { fetchSinglePriceData } = await import('../services/warframeMarketService');
+        const { calculateEndoValue: calculateEndoValueMod, analyzeModForDuplicates } = await import('../services/modService');
+        
+        const priceData = await fetchSinglePriceData(item);
+        
+        if (priceData) {
+          // Use the same logic as HomePage for mods
+          const actualRarity = priceData.rarity || item.rarity;
+          const actualType = priceData.type || item.type;
+          
+          const modItem = {
+            ...item,
+            price: priceData.price,
+            marketVolume: priceData.volume,
+            average: priceData.average || item.average, // Preserve existing average if new one is not available
+            lastUpdated: new Date(),
+            status: 'loaded' as const,
+            rarity: actualRarity,
+            type: actualType,
+            imgUrl: priceData.thumb ? `https://warframe.market/static/assets/${priceData.thumb}` : item.imgUrl, // Preserve existing image if new one is not available
+            hasHistoricalSales: item.hasHistoricalSales || (priceData.volume > 0 || priceData.average > 0) // Preserve or update historical sales flag
+          } as any;
 
-        if (updatedMods.length > 0) {
-          const updatedMod = updatedMods[0];
-          setMods(prev => prev.map(m => m.name === itemName ? updatedMod : m));
+          // Log mod price data for debugging
+          console.log(`>>> [Single Mod Refresh] ${item.name}: current=${priceData.price}p, avg=${priceData.average}p, volume=${priceData.volume}, historical=${modItem.hasHistoricalSales} <<<`);
+
+          // Calculate endo value and analyze for recommendations
+          const endoValue = calculateEndoValueMod(modItem);
+          const analyzedMod = analyzeModForDuplicates({ ...modItem, endoValue });
+          
+          setMods(prev => prev.map(m => m.name === itemName ? analyzedMod : m));
+        } else {
+          // Handle error case
+          const errorMod = {
+            ...item,
+            price: 0,
+            marketVolume: 0,
+            lastUpdated: new Date(),
+            status: 'error' as const,
+            error: 'Failed to fetch price'
+          };
+          
+          setMods(prev => prev.map(m => m.name === itemName ? errorMod : m));
         }
       }
     } catch (error) {
@@ -328,6 +369,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       case 'KEEP': return 'text-purple-400';
       case 'HOLD': return 'text-yellow-400';
       case 'TRADE_ON_MARKET': return 'text-green-400';
+      case 'HOLD_FOR_LATER': return 'text-yellow-400';
       case 'SELL_FOR_ENDO': return 'text-orange-400';
       default: return 'text-gray-400';
     }
@@ -341,7 +383,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
     // Helper function to get mod image URL
   const getModImageUrl = (mod: ModItem, useFullRes = false) => {
 
-    // If we have a thumb path, try direct Warframe Market URL first
+    // If we have a thumb path, try direct Warframe Market URL (CORS warnings are OK)
     if (mod.imgUrl && mod.imgUrl.includes('items/images')) {
       // Handle migration from old full URL format to new path format
       let imagePath = mod.imgUrl;
@@ -351,7 +393,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         imagePath = url.pathname.replace('/static/assets/', '');
       }
 
-      // Try direct Warframe Market URL first (faster)
+      // Use direct Warframe Market URL (CORS warnings are expected but images display fine)
       const directUrl = `https://warframe.market/static/assets/${imagePath}`;
       return directUrl;
     }
@@ -381,7 +423,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
       .replace('/thumbs/', '/')
       .replace(/\.\d+x\d+\.png$/, '.png');
 
-    // Try direct Warframe Market URL for full resolution
+    // Use direct Warframe Market URL for full resolution
     const directUrl = `https://warframe.market/static/assets/${fullResPath}`;
     return directUrl;
   };
@@ -561,6 +603,24 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               </span>
             </button>
 
+            {/* Hold for Later */}
+            <button
+              onClick={() => toggleFilter('hold_for_later')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('hold_for_later')
+                  ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Clock size={16} />
+              <span>Hold for Later</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('hold_for_later') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {allMods.filter(mod => mod.hasHistoricalSales && (!mod.price || mod.price === 0)).length}
+              </span>
+            </button>
+
 
             {/* Rarity Tabs - Dynamically Generated */}
             {availableRarities.map(rarity => (
@@ -646,7 +706,6 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               >
                 <option value="totalMarketValue">Total Market Value</option>
                 <option value="maxSingleValue">Max Single Mod Value</option>
-                <option value="platPerEndo">Plat per Endo</option>
                 <option value="recommendation">Recommendation</option>
                 <option value="rarity">Rarity</option>
                 <option value="name">Name</option>
@@ -782,7 +841,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                     />
                   </div>
 
-                  {/* Value display - show based on recommendation */}
+                  {/* Value display - show appropriate value based on recommendation */}
                   <div className="grid grid-cols-1 gap-4">
                     {mod.recommendation === 'KEEP' ? (
                       <div>
@@ -802,68 +861,66 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
                           Hold for later
                         </div>
                       </div>
-                    ) : mod.recommendation === 'SELL_FOR_ENDO' ? (
-                      <div>
-                        <div className="text-xs text-gray-400 mb-1">Endo Value</div>
-                        <div className="text-orange-400 font-medium">{mod.endoValue || 0}</div>
-                        <div className="text-xs text-gray-400">
-                          total: {((mod.endoValue || 0) * mod.quantity)}
-                        </div>
-                      </div>
-                    ) : (
+                    ) : mod.recommendation === 'TRADE_ON_MARKET' && mod.price && mod.price > 0 ? (
+                      // Current market buyers - show current price
                       <div>
                         <div className="text-xs text-gray-400 mb-1">Market Price</div>
                         {refreshingItems.has(mod.name) ? (
                           <div className="animate-pulse">
                             <div className="h-4 bg-gray-700 rounded w-12"></div>
                           </div>
-                        ) : mod.price && mod.price > 0 ? (
+                        ) : (
                           <div>
                             <div className="text-green-400 font-medium">{mod.price}p</div>
+                            {mod.average && mod.average > 0 && (
+                              <div className="text-xs text-gray-400">
+                                90d avg: {mod.average}p
+                              </div>
+                            )}
                             <div className="text-xs text-gray-400">
                               total: {(mod.price * mod.quantity)}p
                             </div>
                           </div>
-                        ) : mod.status === 'loaded' && mod.price === 0 ? (
-                          <div className="text-gray-500 text-xs">Not tradeable</div>
-                        ) : mod.status === 'error' ? (
-                          <div className="text-gray-500 text-xs">Not found</div>
+                        )}
+                      </div>
+                    ) : mod.recommendation === 'HOLD_FOR_LATER' && mod.average && mod.average > 0 ? (
+                      // Historical sales but no current buyers - show historical average
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Historical Average</div>
+                        {refreshingItems.has(mod.name) ? (
+                          <div className="animate-pulse">
+                            <div className="h-4 bg-gray-700 rounded w-12"></div>
+                          </div>
                         ) : (
-                          <div className="text-gray-500 text-xs">Loading...</div>
+                          <div>
+                            <div className="text-yellow-400 font-medium">{mod.average}p</div>
+                            <div className="text-xs text-gray-400">
+                              total: {(mod.average * mod.quantity)}p
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              (No current buyers)
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      // No market activity - show endo value
+                      <div>
+                        <div className="text-xs text-gray-400 mb-1">Endo Value</div>
+                        {refreshingItems.has(mod.name) ? (
+                          <div className="animate-pulse">
+                            <div className="h-4 bg-gray-700 rounded w-12"></div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="text-red-400 font-medium">{mod.endoValue || 0}</div>
+                            <div className="text-xs text-gray-400">
+                              total: {((mod.endoValue || 0) * mod.quantity)}
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
-                  </div>
-
-                  {/* Recommendation */}
-                  {mod.recommendation && (
-                    <div className="mt-3 pt-3 border-t border-gray-700/50">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400">Recommendation</span>
-                        <span className={`text-xs font-medium ${getRecommendationColor(mod.recommendation)}`}>
-                          {mod.recommendation.replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                      {mod.reasoning && (
-                        <p className="text-xs text-gray-400 mt-1">{mod.reasoning}</p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Plat per endo - key metric */}
-                  <div className="mt-3 pt-3 border-t border-gray-700/50">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Plat per Endo</span>
-                      {refreshingItems.has(mod.name) ? (
-                        <div className="animate-pulse">
-                          <div className="h-4 bg-gray-700 rounded w-16"></div>
-                        </div>
-                      ) : (
-                        <span className={mod.platPerEndo && mod.platPerEndo > 0 ? 'text-blue-400 font-medium' : 'text-gray-500'}>
-                          {formatPlatPerEndo(mod.platPerEndo)}
-                        </span>
-                      )}
-                    </div>
                   </div>
                 </div>
               ))}

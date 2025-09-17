@@ -100,6 +100,16 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
 
   const newItems = detectedItems.filter(item => {
     const itemKey = `${item.category}:${item.name}`;
+    
+    // Skip leveled mods (rank > 0) - these should not be saved to inventory
+    if (item.category === 'mods') {
+      const modItem = item as any;
+      if (modItem.rank && modItem.rank > 0) {
+        console.log(`>>> [Gemini Filter] Skipping leveled mod: ${item.name} (rank ${modItem.rank}) <<<`);
+        return false;
+      }
+    }
+    
     return !existingItems.has(itemKey);
   });
 
@@ -771,6 +781,11 @@ If you cannot clearly see syndicate header, respond with "NONE_DETECTED"`;
 const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
   const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods with COMPLETE information.
 
+CRITICAL FILTERING RULES - ONLY DETECT UNRANKED MODS:
+- **ONLY** detect mods with SEMI-TRANSPARENT GREY/SILVER DOTS (unranked mods)
+- **NEVER** detect mods with BRIGHT BLUE DOTS (leveled mods) - these should be completely ignored
+- **NEVER** detect mods with any rank > 0 - these are not for sale
+
 IMPORTANT: Only analyze FULLY VISIBLE and COMPLETE mod cards. Skip any mods that are:
 - Cropped at screenshot edges
 - Cut off at top, bottom, left, or right
@@ -877,6 +892,10 @@ IMPORTANT RULES:
 - If you see "14 ↓" in top-right = drain is 14, NOT quantity
 - Count filled blue dots at bottom for level (0 if no blue dots filled)
 - Be extremely careful not to confuse drain (top-right) with quantity (top-left)
+- If you see a number in the top-right, that is MOD DRAIN, not quantity!
+- Only count the small number in the TOP-LEFT or the paper-stack icon as duplicate indicators.
+- ONLY count mods with semi-transparent grey dots (unranked), IGNORE mods with bright blue dots (leveled).
+- If you cannot clearly see any UNRANKED mods, respond with "NONE_DETECTED".
 
 If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
 
