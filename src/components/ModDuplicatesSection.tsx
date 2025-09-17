@@ -269,14 +269,14 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         // Use the same logic as bulk refresh to preserve mod metadata
         const { fetchSinglePriceData } = await import('../services/warframeMarketService');
         const { calculateEndoValue: calculateEndoValueMod, analyzeModForDuplicates } = await import('../services/modService');
-        
+
         const priceData = await fetchSinglePriceData(item);
-        
+
         if (priceData) {
           // Use the same logic as HomePage for mods
           const actualRarity = priceData.rarity || item.rarity;
           const actualType = priceData.type || item.type;
-          
+
           const modItem = {
             ...item,
             price: priceData.price,
@@ -296,7 +296,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
           // Calculate endo value and analyze for recommendations
           const endoValue = calculateEndoValueMod(modItem);
           const analyzedMod = analyzeModForDuplicates({ ...modItem, endoValue });
-          
+
           setMods(prev => prev.map(m => m.name === itemName ? analyzedMod : m));
         } else {
           // Handle error case
@@ -308,7 +308,7 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
             status: 'error' as const,
             error: 'Failed to fetch price'
           };
-          
+
           setMods(prev => prev.map(m => m.name === itemName ? errorMod : m));
         }
       }

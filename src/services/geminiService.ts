@@ -100,7 +100,7 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
 
   const newItems = detectedItems.filter(item => {
     const itemKey = `${item.category}:${item.name}`;
-    
+
     // Skip leveled mods (rank > 0) - these should not be saved to inventory
     if (item.category === 'mods') {
       const modItem = item as any;
@@ -109,7 +109,7 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
         return false;
       }
     }
-    
+
     return !existingItems.has(itemKey);
   });
 
@@ -193,7 +193,7 @@ export const isGeminiConfigured = (): boolean => {
 // Test function to find optimal contrast levels for mod rank detection
 export const testContrastLevelsForModDetection = async (debugImagePath: string) => {
   console.log(`>>> [Contrast Test] Starting progressive contrast test with ${debugImagePath} <<<`);
-  
+
   if (!genAI) {
     console.error('>>> [Contrast Test] Gemini API not initialized <<<');
     return;
@@ -202,41 +202,41 @@ export const testContrastLevelsForModDetection = async (debugImagePath: string) 
   // Test much higher contrast levels to make R0 dots completely invisible
   const contrastLevels = [5.0, 8.0, 10.0, 15.0, 20.0];
   const blueBoostLevels = [2.0, 3.0, 4.0, 5.0];
-  
+
   try {
     // Load the debug image as a File
     const response = await fetch(debugImagePath);
     const blob = await response.blob();
     const file = new File([blob], 'debug_mods.png', { type: 'image/png' });
-    
+
     console.log(`>>> [Contrast Test] Testing ${contrastLevels.length} contrast levels with ${blueBoostLevels.length} blue boost levels <<<`);
-    
+
     for (const contrast of contrastLevels) {
       for (const blueBoost of blueBoostLevels) {
         console.log(`>>> [Contrast Test] Testing contrast: ${contrast}, blue boost: ${blueBoost} <<<`);
-        
+
         try {
           // Enhance image with current settings
           const enhancedBase64 = await enhanceImageContrast(file, contrast, blueBoost);
-          
+
           // Save enhanced image for visual inspection (browser will show download)
           const downloadLink = document.createElement('a');
           downloadLink.href = `data:image/png;base64,${enhancedBase64}`;
           downloadLink.download = `debug_mods_c${contrast}_b${blueBoost}.png`;
           console.log(`>>> [Contrast Test] Enhanced image available for download: ${downloadLink.download} <<<`);
-          
+
           // Auto-download all enhanced images for comparison
           document.body.appendChild(downloadLink);
           downloadLink.click();
           document.body.removeChild(downloadLink);
-          
+
           // Test with Gemini using the same API pattern as the rest of the service
           const prompt = `Analyze this Warframe mod inventory screenshot and list each mod with its rank.
 
 CRITICAL INSTRUCTIONS for mod rank detection:
 - Look at the BOTTOM of each mod card for rank dots
 - BRIGHT BLUE glowing dots = leveled up ranks (COUNT THESE)
-- DARK GREY/BLACK empty dots = unranked slots  
+- DARK GREY/BLACK empty dots = unranked slots
 - Count ONLY the bright blue filled dots (0-10)
 - If ALL dots are bright blue = max rank (usually 5-10)
 - If ALL dots are dark grey = rank 0
@@ -266,34 +266,34 @@ Steel Fiber | R10`;
               }
             ]
           });
-          
+
           const analysisText = result.text;
           console.log(`>>> [Contrast Test] Contrast ${contrast}, Blue Boost ${blueBoost} Result: <<<`);
           console.log(analysisText);
-          
+
           // Analyze the results for accuracy
           const hasHighRanks = /R[5-9]|R10/.test(analysisText);
           const hasR0Only = /R0/.test(analysisText) && !/R[1-9]|R10/.test(analysisText);
           const r10Count = (analysisText.match(/R10/g) || []).length;
           const r5Count = (analysisText.match(/R5/g) || []).length;
           const r0Count = (analysisText.match(/R0/g) || []).length;
-          
+
           console.log(`>>> [Contrast Test] Stats - R10: ${r10Count}, R5: ${r5Count}, R0: ${r0Count}, Has high ranks: ${hasHighRanks}, All R0: ${hasR0Only} <<<`);
-          
+
           // Store all results for comparison (don't stop early)
           // We want to test all combinations to find the most accurate one
-          
+
         } catch (error) {
           console.error(`>>> [Contrast Test] Error testing contrast ${contrast}, blue boost ${blueBoost}:`, error);
         }
-        
+
         // Small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
-    
+
     console.log(`>>> [Contrast Test] No optimal settings found in tested range <<<`);
-    
+
   } catch (error) {
     console.error(`>>> [Contrast Test] Failed to load debug image:`, error);
   }
@@ -304,26 +304,26 @@ const enhanceImageContrast = (file: File): Promise<string> => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
-    
+
     img.onload = () => {
       canvas.width = img.width;
       canvas.height = img.height;
-      
+
       if (!ctx) {
         reject(new Error('Failed to get canvas context'));
         return;
       }
-      
+
       // Apply CSS filter: brightness(125%) saturate(300%)
       ctx.filter = 'brightness(125%) saturate(300%)';
       ctx.drawImage(img, 0, 0);
-      
+
       // Convert to base64
       const dataURL = canvas.toDataURL('image/png', 1.0);
       const base64 = dataURL.split(',')[1];
       resolve(base64);
     };
-    
+
     img.onerror = () => reject(new Error('Failed to load image'));
     img.src = URL.createObjectURL(file);
   });
@@ -536,9 +536,9 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
         const detectedQuantity = parseInt(newFormatMatch[2]);
         const detectedLevel = parseInt(newFormatMatch[3]);
         const detectedDrain = parseInt(newFormatMatch[4]);
-        
+
         console.log(`>>> [AI Parsing] New format detected: "${modName}" qty:${detectedQuantity} level:${detectedLevel} drain:${detectedDrain} <<<`);
-        
+
         const rarity = determineModRarity(modName);
         const type = determineModType(modName);
 
@@ -594,7 +594,7 @@ const determineScreenType = async (imageBase64: string, mimeType: string): Promi
 
 SIMPLE RULES:
 - If you see "Syndicate Offerings" or syndicate names like "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda" in the header/title area = SYNDICATE
-- If you see "Prime Parts" or items with "Prime" in their names = PRIME_PARTS  
+- If you see "Prime Parts" or items with "Prime" in their names = PRIME_PARTS
 - If you see "Void Relics" or items like "Lith A1", "Meso B2" = RELICS
 - If you see mod cards with polarity symbols (V, D, -) and capacity costs (numbers like 4, 6, 8, 10, 12, 14, 16) = MODS
 - If you see mod names but NO syndicate header = MODS (default to mods if unsure)
@@ -636,7 +636,7 @@ IMPORTANT: If you see mod names but NO explicit syndicate header, classify as MO
   if (text === 'RELICS' || text.includes('RELICS')) return 'relics';
   if (text === 'SYNDICATE' || text.includes('SYNDICATE')) return 'syndicate';
   if (text === 'MODS' || text.includes('MODS')) return 'mods';
-  
+
   console.log(`>>> [Gemini Screen Type] No match found, defaulting to unknown. Raw text: "${text}" <<<`);
   return 'unknown';
 };
@@ -852,7 +852,7 @@ CRITICAL RANK DETECTION STEPS FOR EACH MOD CARD:
 
 EXAMPLES OF CORRECT COUNTING:
 - "I see 10 total dots, 8 are bright, 2 are dark" → 8/10
-- "I see 5 total dots, all 5 are bright" → 5/5  
+- "I see 5 total dots, all 5 are bright" → 5/5
 - "I see 10 total dots, 0 are bright, all are dark" → 0/10
 - "I see 8 total dots, 3 are bright, 5 are dark" → 3/8
 
@@ -949,7 +949,7 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
       console.log(`>>> [Gemini] Enhancing image contrast for mod rank detection <<<`);
       try {
         imageBase64 = await enhanceImageContrast(imageFile);
-        
+
         // DEBUG: Download enhanced image to verify enhancement
         const debugLink = document.createElement('a');
         debugLink.href = `data:image/png;base64,${imageBase64}`;
@@ -976,7 +976,7 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
     } else if (screenType === 'syndicate') {
       console.log(`>>> [Gemini] Step 2: Analyzing Syndicate Offerings <<<`);
       analysisText = await analyzeSyndicate(imageBase64, imageFile.type);
-      
+
       // CRITICAL FALLBACK: If syndicate analysis finds nothing, try mod analysis
       if (analysisText.trim() === "NONE_DETECTED") {
         console.log(`>>> [Gemini] Syndicate analysis found nothing, falling back to mod analysis <<<`);
@@ -1013,7 +1013,7 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
     const detectedItems = parseDetectedItems(analysisText, screenType);
     console.log(`>>> [Gemini] Screen type: ${screenType} <<<`);
     console.log(`>>> [Gemini] Parsed ${detectedItems.length} items:`, detectedItems.map(item => `${item.name} (${item.category})`), ` <<<`);
-    
+
     // Debug: Check for category distribution
     const categoryCounts = detectedItems.reduce((acc, item) => {
       acc[item.category] = (acc[item.category] || 0) + 1;

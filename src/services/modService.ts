@@ -435,7 +435,7 @@ export const refreshModPrices = async (
     const tradeableResults = tradeableMods.map(mod => {
       // Look up price data using normalized name
       const normalizedModName = normalizeItemName(mod.name);
-      const priceItem = priceData.find(item => 
+      const priceItem = priceData.find(item =>
         normalizeItemName(item.name) === normalizedModName || item.name === mod.name
       );
       // Only log in development mode to avoid console spam
