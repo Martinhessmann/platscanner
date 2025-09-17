@@ -950,14 +950,6 @@ export const analyzeImage = async (imageFile: File): Promise<{ items: DetectedIt
       try {
         imageBase64 = await enhanceImageContrast(imageFile);
 
-        // DEBUG: Download enhanced image to verify enhancement
-        const debugLink = document.createElement('a');
-        debugLink.href = `data:image/png;base64,${imageBase64}`;
-        debugLink.download = `enhanced_mod_image_${Date.now()}.png`;
-        document.body.appendChild(debugLink);
-        debugLink.click();
-        document.body.removeChild(debugLink);
-        console.log(`>>> [Gemini] DEBUG: Enhanced image downloaded as ${debugLink.download} <<<`);
       } catch (error) {
         console.warn(`>>> [Gemini] Contrast enhancement failed, using original image:`, error);
         // Continue with original image if enhancement fails
