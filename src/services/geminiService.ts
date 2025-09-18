@@ -336,8 +336,8 @@ const enhanceImageContrast = (file: File): Promise<string> => {
         return;
       }
 
-      // Apply CSS filter: brightness(125%) saturate(300%)
-      ctx.filter = 'brightness(110%) saturate(150%) contrast(110%)';
+      // Apply CSS filter: very light enhancement to preserve dot distinction
+      ctx.filter = 'brightness(102%) saturate(110%) contrast(102%)';
       ctx.drawImage(img, 0, 0);
 
       // Convert to base64
@@ -489,6 +489,13 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
     arr.forEach((m, i) => {
       if (!m || !m.name) return;
       const name = String(m.name).trim();
+      
+      // Filter out invalid mod names from JSON parsing artifacts
+      if (name.startsWith('```') || name === '[]' || name === '{}' || name.length < 2) {
+        console.log(`>>> [AI Parsing] Skipping invalid mod name: "${name}" <<<`);
+        return;
+      }
+      
       const qty = Number(m.copies ?? m.quantity ?? 1) || 1;
       const rankCurrent = Number(m.rank?.current ?? m.rankCurrent ?? m.rank ?? 0);
       const drain = m.drain !== undefined ? Number(m.drain) : undefined;
@@ -667,13 +674,17 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
              !cleanLine.includes('Relic') &&
              !cleanLine.startsWith('*') && // Markdown bullets
              !cleanLine.startsWith('-') && // List items
+             !cleanLine.startsWith('```') && // JSON artifacts
              !cleanLine.includes('This mod has') && // Explanatory text
              !cleanLine.includes('blue dots') && // Explanatory text
              !cleanLine.includes('According to') && // Explanatory text
              !cleanLine.includes('Therefore') && // Explanatory text
              !cleanLine.includes('Following the same') && // Explanatory text
              !cleanLine.includes('indicating it is') && // Explanatory text
+             cleanLine !== '[]' && // Empty JSON array
+             cleanLine !== '{}' && // Empty JSON object
              cleanLine.length < 100 && // Reasonable mod name length (increased for new format)
+             cleanLine.length > 1 && // Must be at least 2 characters
              !/^[*\-\s]*\*\*/.test(cleanLine) && // Markdown bold formatting
              !/^\s*\*/.test(cleanLine) && // Lines starting with asterisks
              !/^\d+\./.test(cleanLine)) { // Numbered lists
@@ -966,9 +977,18 @@ const analyzeMods = async (imageBase64: string, mimeType: string): Promise<strin
 2.  **Copies:** Look at the TOP-LEFT corner. If there is a page/stack icon with a number, that is the number of copies. If there is NO icon, the number of copies is 1.
 3.  **Drain:** Look at the TOP-RIGHT corner. The number there is the drain cost.
 4.  **Rank:** Look at the BOTTOM of the card for the rank dots.
-    a. Count the number of BRIGHT, GLOWING BLUE dots. This is the 'current' rank.
-    b. Count the TOTAL number of dots (ALL bright blue ones + ALL dark grey ones). This is the 'total' rank.
-    c. It is CRITICAL to count the total dots for each mod individually. Do not assume they are all the same. Totals are often 3, 5, or 10.
+    a. Look for a ROW of small circular dots at the very bottom edge of the mod card
+    b. FILLED dots appear as BRIGHT BLUE/CYAN and are clearly visible
+    c. EMPTY dots appear as DARK/GREY outlines or are barely visible
+    d. Count the BRIGHT BLUE filled dots = 'current' rank (0 to 10)
+    e. Count ALL dots (bright + dark) = 'total' rank (must be 3, 5, or 10)
+    
+    CRITICAL RULES:
+    - If ALL dots are bright blue = current equals total (e.g., 3/3, 5/5, 10/10)
+    - If NO dots are bright blue = current is 0 (e.g., 0/3, 0/5, 0/10)  
+    - If SOME dots are bright = count only the bright ones (e.g., 3/5, 7/10)
+    - Total must be exactly 3, 5, or 10 - never any other number
+    - Pay close attention to distinguish bright vs dark dots
 
 CRITICAL: It is better to OMIT a mod entirely if you cannot clearly see all its details (especially the rank dots) than to guess.
 
@@ -1044,16 +1064,16 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     console.log(`>>> [Gemini] Detected screen type: ${screenType} <<<`);
 
     // Step 1.5: For mod screens, enhance image contrast to better detect rank dots
-    if (screenType === 'mods') {
-      console.log(`>>> [Gemini] Enhancing image contrast for mod rank detection <<<`);
-      try {
-        imageBase64 = await enhanceImageContrast(imageFile);
-
-      } catch (error) {
-        console.warn(`>>> [Gemini] Contrast enhancement failed, using original image:`, error);
-        // Continue with original image if enhancement fails
-      }
-    }
+    // TEMPORARILY DISABLED - testing if original image works better with improved prompt
+    // if (screenType === 'mods') {
+    //   console.log(`>>> [Gemini] Enhancing image contrast for mod rank detection <<<`);
+    //   try {
+    //     imageBase64 = await enhanceImageContrast(imageFile);
+    //   } catch (error) {
+    //     console.warn(`>>> [Gemini] Contrast enhancement failed, using original image:`, error);
+    //     // Continue with original image if enhancement fails
+    //   }
+    // }
 
     // Step 2: Use appropriate analysis based on screen type
     let analysisText: string;
