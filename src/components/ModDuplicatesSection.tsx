@@ -432,6 +432,11 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
     return directUrl;
   };
 
+  // Hide when empty
+  if (totals.totalMods === 0) {
+    return null;
+  }
+
   return (
     <div ref={sectionRef} className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50">
       {/* Header - Mobile-friendly */}
@@ -449,27 +454,6 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
               <h3 className="font-semibold text-white group-hover:text-tenno-blue transition-colors">
                 Mod Duplicates
               </h3>
-              {/* Essential info line - item count and key values */}
-              <div className="flex items-center gap-3 text-xs text-gray-400">
-                <span>{totals.totalMods} mod{totals.totalMods !== 1 ? 's' : ''}</span>
-                {totals.duplicateCount > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Package size={10} className="text-yellow-400" />
-                    <span className="text-yellow-400">{totals.duplicateCount} duplicates</span>
-                  </div>
-                )}
-                {totals.totalMarketValue > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Coins size={10} className="text-green-400" />
-                    <span className="text-green-400">{totals.totalMarketValue}p</span>
-                  </div>
-                )}
-                {isRefreshing && progress && (
-                  <span className="text-tenno-blue">
-                    Refreshing {progress.current}/{progress.total}
-                  </span>
-                )}
-              </div>
             </div>
           </button>
 
@@ -532,6 +516,24 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
 
       {isExpanded && (
         <>
+          {/* Item count and key values - moved from header */}
+          <div className="p-4 border-b border-gray-700/50">
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span>{totals.totalMods} mod{totals.totalMods !== 1 ? 's' : ''}</span>
+              {totals.duplicateCount > 0 && (
+                <div className="flex items-center gap-1">
+                  <Package size={10} className="text-yellow-400" />
+                  <span className="text-yellow-400">{totals.duplicateCount} duplicates</span>
+                </div>
+              )}
+              {totals.totalMarketValue > 0 && (
+                <div className="flex items-center gap-1">
+                  <Coins size={10} className="text-green-400" />
+                  <span className="text-green-400">{totals.totalMarketValue}p</span>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Smart Filter Tabs */}
           <div className="flex flex-wrap gap-2 p-6 pb-4">
@@ -965,6 +967,33 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
         </>
       )}
 
+      {!isExpanded && (
+        <button
+          onClick={() => setIsExpanded(true)}
+          className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl p-4 hover:bg-gray-800/50 transition-colors group"
+        >
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span>{totals.totalMods} mod{totals.totalMods !== 1 ? 's' : ''}</span>
+              {totals.duplicateCount > 0 && (
+                <div className="flex items-center gap-1">
+                  <Package size={10} className="text-yellow-400" />
+                  <span className="text-yellow-400">{totals.duplicateCount} duplicates</span>
+                </div>
+              )}
+              {totals.totalMarketValue > 0 && (
+                <div className="flex items-center gap-1">
+                  <Coins size={10} className="text-green-400" />
+                  <span className="text-green-400">{totals.totalMarketValue}p</span>
+                </div>
+              )}
+            </div>
+            <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
+              Tap to expand
+            </span>
+          </div>
+        </button>
+      )}
 
     </div>
   );

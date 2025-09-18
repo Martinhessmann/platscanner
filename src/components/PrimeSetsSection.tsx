@@ -788,15 +788,6 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
               <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
                 Prime Sets
               </h3>
-              {/* Essential info line - item count and key values */}
-              <div className="flex items-center gap-3 text-xs text-gray-400">
-                <span>{totalSets} sets</span>
-                {isRefreshing && refreshProgress && (
-                  <span className="text-tenno-blue">
-                    Refreshing {refreshProgress.current}/{refreshProgress.total}
-                  </span>
-                )}
-              </div>
             </div>
           </button>
 
@@ -854,6 +845,25 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       {/* Content */}
       {isExpanded && (
         <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl overflow-hidden">
+          {/* Item count and key values - moved from header */}
+          <div className="p-4 border-b border-gray-700/50">
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span>{totalSets} sets</span>
+              {vaultedSets > 0 && (
+                <div className="flex items-center gap-1">
+                  <Package size={10} className="text-amber-400" />
+                  <span className="text-amber-400">{vaultedSets} vaulted</span>
+                </div>
+              )}
+              {inProgressSets > 0 && (
+                <div className="flex items-center gap-1">
+                  <Star size={10} className="text-yellow-400" />
+                  <span className="text-yellow-400">{inProgressSets} planned</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Compact Tab Pills */}
           <div className="flex flex-wrap gap-2 p-6 pb-4">
         {/* All Sets */}
@@ -1365,7 +1375,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                           key={base}
                                           onClick={() => {
                                             console.log('[PrimeSets] Button clicked for relic:', base);
-                                            
+
                                             // First expand the relics section
                                             console.log('[PrimeSets] Dispatching expand-section event');
                                             window.dispatchEvent(new CustomEvent('expand-section', {
@@ -1432,23 +1442,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 {totalSets} prime set{totalSets !== 1 ? 's' : ''}
               </span>
             </div>
-            <div className="flex items-center gap-4">
-              {vaultedSets > 0 && (
-                <div className="flex items-center gap-1 text-amber-400">
-                  <Package size={14} />
-                  <span className="font-medium">{vaultedSets} vaulted</span>
-                </div>
-              )}
-              {inProgressSets > 0 && (
-                <div className="flex items-center gap-1 text-yellow-400">
-                  <Star size={14} />
-                  <span className="font-medium">{inProgressSets} planned</span>
-                </div>
-              )}
-              <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
-                Tap to expand
-              </span>
-            </div>
+            <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
+              Tap to expand
+            </span>
           </div>
         </button>
       )}

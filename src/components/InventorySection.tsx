@@ -72,13 +72,13 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   useEffect(() => {
     localStorage.setItem(getStorageKey(), JSON.stringify(isExpanded));
   }, [isExpanded, category]);
-  
+
   // Listen for expand-section events
   useEffect(() => {
     const handleExpandSection = (event: Event) => {
       const customEvent = event as CustomEvent;
       console.log('[InventorySection] Received expand-section event for:', customEvent.detail.section, '- This section is:', category);
-      
+
       if (customEvent.detail.section === category) {
         console.log('[InventorySection] Expanding section:', category);
         setIsExpanded(true);
@@ -88,7 +88,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
         }
       }
     };
-    
+
     window.addEventListener('expand-section', handleExpandSection);
     return () => window.removeEventListener('expand-section', handleExpandSection);
   }, [category]);
@@ -105,7 +105,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
     setIsExpanded(!isExpanded);
   };
 
-  // Always show Prime Parts section, even when empty (for filter switching)
+  // Hide when empty (except Prime Parts which should always show for filter switching)
   if (items.length === 0 && category !== 'prime_parts') {
     return null; // Don't render empty sections (except Prime Parts)
   }
@@ -130,35 +130,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
             <div>
               <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
                 {title}
-                {category === 'prime_parts' && primePartsFilter && (
-                  <span className="text-xs font-normal text-gray-400 ml-2">
-                    {primePartsFilter === 'all' && '(All Items)'}
-                    {primePartsFilter === 'blueprints' && '(Blueprints Only)'}
-                    {primePartsFilter === 'built_sets' && '(Built Sets - Safe to Sell)'}
-                  </span>
-                )}
               </h3>
-              {/* Essential info line - item count and key values */}
-              <div className="flex items-center gap-3 text-xs text-gray-400">
-                <span>{items.length} item{items.length !== 1 ? 's' : ''}</span>
-                {totalValue > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Zap size={10} className="text-gray-300" />
-                    <span className="text-gray-300">{totalValue}p</span>
-                  </div>
-                )}
-                {category === 'prime_parts' && totalDucats > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Coins size={10} className="text-yellow-500" />
-                    <span className="text-yellow-500">{totalDucats}d</span>
-                  </div>
-                )}
-                {isRefreshing && progress && (
-                  <span className="text-tenno-blue">
-                    Refreshing {progress.current}/{progress.total}
-                  </span>
-                )}
-              </div>
             </div>
           </button>
 
@@ -181,37 +153,14 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               {isRefreshing && progress ? `${progress.current}/${progress.total}` : ''}
             </button>
 
-            {/* Filter buttons for prime parts */}
-            {category === 'prime_parts' && onPrimePartsFilterChange && (
-              <div className="flex items-center gap-1">
-                {[
-                  { value: 'blueprints' as const, label: 'Blueprints', title: 'Show only tradeable blueprints' },
-                  { value: 'built_sets' as const, label: 'Built Sets', title: 'Show parts from completed sets (safe to sell for ducats)' },
-                  { value: 'all' as const, label: 'All', title: 'Show all prime parts' }
-                ].map(({ value, label, title }) => (
-                  <button
-                    key={value}
-                    onClick={() => onPrimePartsFilterChange(value)}
-                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-                      primePartsFilter === value
-                        ? 'text-yellow-400 bg-yellow-400/10 border border-yellow-400/30' 
-                        : 'text-gray-400 hover:bg-gray-700/50'
-                    }`}
-                    title={title}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
 
             <button
               onClick={onClearAll}
               className="flex items-center gap-1 px-2 py-1 rounded text-xs text-grineer-red hover:bg-grineer-red/10 transition-colors"
-              title={category === 'prime_parts' ? 
-                (primePartsFilter === 'all' ? 'Clear ALL prime parts' : 
+              title={category === 'prime_parts' ?
+                (primePartsFilter === 'all' ? 'Clear ALL prime parts' :
                  primePartsFilter === 'built_sets' ? 'Clear built set parts' :
-                 'Clear tradeable blueprints only') : 
+                 'Clear tradeable blueprints only') :
                 `Clear all ${getCategoryDisplayName(category).toLowerCase()}`
               }
             >
@@ -252,10 +201,67 @@ const InventorySection: React.FC<InventorySectionProps> = ({
       {/* Content */}
       {isExpanded && (
         <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl overflow-hidden">
+          {/* Item count and key values - moved from header */}
+          <div className="p-4 border-b border-gray-700/50">
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span>{items.length} item{items.length !== 1 ? 's' : ''}</span>
+              {totalValue > 0 && (
+                <div className="flex items-center gap-1">
+                  <Zap size={10} className="text-gray-300" />
+                  <span className="text-gray-300">{totalValue}p</span>
+                </div>
+              )}
+              {category === 'prime_parts' && totalDucats > 0 && (
+                <div className="flex items-center gap-1">
+                  <Coins size={10} className="text-yellow-500" />
+                  <span className="text-yellow-500">{totalDucats}d</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Prime Parts Filter Buttons - moved from header */}
+          {category === 'prime_parts' && onPrimePartsFilterChange && (
+            <div className="p-4 border-b border-gray-700/50">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onPrimePartsFilterChange('blueprints')}
+                  className={`px-3 py-1 rounded text-xs transition-colors ${
+                    primePartsFilter === 'blueprints'
+                      ? 'bg-orokin-gold/20 text-orokin-gold border border-orokin-gold/50'
+                      : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-gray-600/50'
+                  }`}
+                >
+                  Blueprints
+                </button>
+                <button
+                  onClick={() => onPrimePartsFilterChange('built_sets')}
+                  className={`px-3 py-1 rounded text-xs transition-colors ${
+                    primePartsFilter === 'built_sets'
+                      ? 'bg-orokin-gold/20 text-orokin-gold border border-orokin-gold/50'
+                      : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-gray-600/50'
+                  }`}
+                >
+                  Built Sets
+                </button>
+                <button
+                  onClick={() => onPrimePartsFilterChange('all')}
+                  className={`px-3 py-1 rounded text-xs transition-colors ${
+                    primePartsFilter === 'all'
+                      ? 'bg-orokin-gold/20 text-orokin-gold border border-orokin-gold/50'
+                      : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-gray-600/50'
+                  }`}
+                >
+                  All
+                </button>
+              </div>
+            </div>
+          )}
+
           {items.length === 0 ? (
             <div className="p-6 text-center">
               <p className="text-gray-400 mb-2">
-                {category === 'prime_parts' && primePartsFilter === 'built_sets' 
+                {category === 'prime_parts' && primePartsFilter === 'built_sets'
                   ? 'No parts from built sets found'
                   : category === 'prime_parts' && primePartsFilter === 'blueprints'
                   ? 'No blueprint parts found'
@@ -263,7 +269,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
                 }
               </p>
               <p className="text-sm text-gray-500">
-                {category === 'prime_parts' && primePartsFilter === 'built_sets' 
+                {category === 'prime_parts' && primePartsFilter === 'built_sets'
                   ? 'Mark some Prime Sets as "built" in the Prime Sets section below to see parts safe to sell for ducats.'
                   : 'Try switching to a different filter or upload more screenshots.'
                 }
@@ -294,7 +300,16 @@ const InventorySection: React.FC<InventorySectionProps> = ({
           onClick={() => setIsExpanded(true)}
           className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl p-4 hover:bg-gray-800/50 transition-colors group"
         >
-          <div className="flex items-center justify-center text-sm">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span>{items.length} item{items.length !== 1 ? 's' : ''}</span>
+              {category === 'prime_parts' && totalDucats > 0 && (
+                <div className="flex items-center gap-1">
+                  <Coins size={10} className="text-yellow-500" />
+                  <span className="text-yellow-500">{totalDucats}d</span>
+                </div>
+              )}
+            </div>
             <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
               Tap to expand
             </span>

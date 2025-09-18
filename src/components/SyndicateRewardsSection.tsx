@@ -253,27 +253,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
               <h3 className="font-semibold text-white group-hover:text-orokin-gold transition-colors">
                 Syndicate Rewards
               </h3>
-              {/* Essential info line - item count and key values */}
-              <div className="flex items-center gap-3 text-xs text-gray-400">
-                <span>{totals.totalCount} item{totals.totalCount !== 1 ? 's' : ''}</span>
-                {totals.totalValue > 0 && (
-                  <div className="flex items-center gap-1">
-                    <Zap size={10} className="text-gray-300" />
-                    <span className="text-gray-300">{totals.totalValue}p</span>
-                  </div>
-                )}
-                {totals.totalStanding > 0 && (
-                  <div className="flex items-center gap-1">
-                    <TrendingUp size={10} className="text-purple-400" />
-                    <span className="text-purple-400">{formatStanding(totals.totalStanding)}</span>
-                  </div>
-                )}
-                {isRefreshing && progress && (
-                  <span className="text-tenno-blue">
-                    Refreshing {progress.current}/{progress.total}
-                  </span>
-                )}
-              </div>
             </div>
           </button>
 
@@ -337,6 +316,25 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
       {/* Content */}
       {isExpanded && (
         <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl overflow-hidden">
+          {/* Item count and key values - moved from header */}
+          <div className="p-4 border-b border-gray-700/50">
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span>{totals.totalCount} item{totals.totalCount !== 1 ? 's' : ''}</span>
+              {totals.totalValue > 0 && (
+                <div className="flex items-center gap-1">
+                  <Zap size={10} className="text-gray-300" />
+                  <span className="text-gray-300">{totals.totalValue}p</span>
+                </div>
+              )}
+              {totals.totalStanding > 0 && (
+                <div className="flex items-center gap-1">
+                  <TrendingUp size={10} className="text-purple-400" />
+                  <span className="text-purple-400">{formatStanding(totals.totalStanding)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Controls and Stats Row */}
           <div className="p-4 border-b border-gray-700/50">
             <div className="flex items-center justify-between mb-3">
@@ -621,7 +619,22 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
           onClick={() => setIsExpanded(true)}
           className="w-full bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl p-4 hover:bg-gray-800/50 transition-colors group"
         >
-          <div className="flex items-center justify-center text-sm">
+          <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span>{totals.totalCount} item{totals.totalCount !== 1 ? 's' : ''}</span>
+              {totals.totalValue > 0 && (
+                <div className="flex items-center gap-1">
+                  <Zap size={10} className="text-gray-300" />
+                  <span className="text-gray-300">{totals.totalValue}p</span>
+                </div>
+              )}
+              {totals.totalStanding > 0 && (
+                <div className="flex items-center gap-1">
+                  <TrendingUp size={10} className="text-purple-400" />
+                  <span className="text-purple-400">{formatStanding(totals.totalStanding)}</span>
+                </div>
+              )}
+            </div>
             <span className="text-xs text-gray-500 group-hover:text-gray-400 transition-colors">
               Tap to expand
             </span>
