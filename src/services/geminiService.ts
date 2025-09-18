@@ -170,6 +170,10 @@ export const getCacheStats = (): { entries: number; oldestEntry?: Date; newestEn
 };
 
 let genAI: GoogleGenAI | null = null;
+// Feature flag: enable per-card segmentation for mod detection
+const USE_MOD_SEGMENTATION: boolean = true;
+// Limit number of segments to analyze to control token usage during tests
+const MAX_MOD_SEGMENTS: number = 4;
 
 export const initializeGemini = (apiKey: string) => {
   try {
@@ -345,6 +349,81 @@ const enhanceImageContrast = (file: File): Promise<string> => {
     img.onerror = () => reject(new Error('Failed to load image'));
     img.src = URL.createObjectURL(file);
   });
+};
+
+// Crop a file image to a bounding box (normalized box_2d: [y0,x0,y1,x1] in 0..1000)
+const cropImageToBase64 = (file: File, box2d: number[]): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    img.onload = () => {
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      const y0 = Math.floor((box2d[0] / 1000) * img.height);
+      const x0 = Math.floor((box2d[1] / 1000) * img.width);
+      const y1 = Math.floor((box2d[2] / 1000) * img.height);
+      const x1 = Math.floor((box2d[3] / 1000) * img.width);
+      const w = Math.max(0, x1 - x0);
+      const h = Math.max(0, y1 - y0);
+      if (w === 0 || h === 0) {
+        reject(new Error('Invalid crop box'));
+        return;
+      }
+      canvas.width = w;
+      canvas.height = h;
+      ctx.drawImage(img, x0, y0, w, h, 0, 0, w, h);
+      const dataURL = canvas.toDataURL('image/png', 1.0);
+      resolve(dataURL.split(',')[1]);
+    };
+    img.onerror = () => reject(new Error('Failed to load image for crop'));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+// Ask Gemini 2.5 for mod-card segment boxes
+const segmentModCards = async (imageBase64: string, mimeType: string): Promise<Array<{ box_2d: number[]; label?: string }>> => {
+  const segmentationPrompt = `Give the segmentation masks for each individual mod card visible in this Warframe modding interface.
+Output a JSON list where each entry contains the 2D bounding box in the key "box_2d" (normalized 0..1000), the segmentation mask in key "mask", and the text label in the key "label".
+Use "mod_card" as the label for mod cards.`;
+
+  try {
+    const result = await genAI!.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: segmentationPrompt },
+            { inlineData: { mimeType, data: imageBase64 } }
+          ]
+        }
+      ]
+    });
+    const text = result.text || '';
+    // Reuse JSON extraction logic similar to parseDetectedItems.tryExtractJson
+    const fenced = text.match(/```json\s*([\s\S]*?)\s*```/i) || text.match(/```\s*([\s\S]*?)\s*```/i);
+    const candidate = fenced ? fenced[1] : text;
+    const firstBrace = candidate.indexOf('[') !== -1 ? candidate.indexOf('[') : candidate.indexOf('{');
+    if (firstBrace === -1) return [];
+    const snippet = candidate.substring(firstBrace);
+    try {
+      const parsed = JSON.parse(snippet);
+      const arr: any[] = Array.isArray(parsed) ? parsed : [];
+      return arr.filter(it => Array.isArray(it?.box_2d));
+    } catch {
+      const lastArray = snippet.lastIndexOf(']');
+      if (lastArray > 0) {
+        try { return JSON.parse(snippet.substring(0, lastArray + 1)); } catch {}
+      }
+      return [];
+    }
+  } catch (e) {
+    console.warn('Segmentation failed, falling back to non-segmented analysis:', e);
+    return [];
+  }
 };
 
 const fileToBase64 = (file: File): Promise<string> => {
@@ -996,7 +1075,46 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
         screenType = 'mods'; // Update screen type for correct parsing
       }
     } else if (screenType === 'mods') {
-      console.log(`>>> [Gemini] Step 2: Analyzing Mods <<<`);
+      // Optional segmentation-driven path
+      if (USE_MOD_SEGMENTATION) {
+        console.log('>>> [Gemini] Attempting segmentation-based mod analysis <<<');
+        const segments = await segmentModCards(imageBase64, imageFile.type);
+        const modSegments = segments.filter(s => Array.isArray(s.box_2d) && (s.label === 'mod_card' || !s.label));
+        if (modSegments.length > 0) {
+          const limited = modSegments.slice(0, MAX_MOD_SEGMENTS);
+          const perCardItems: DetectedItem[] = [];
+          for (let i = 0; i < limited.length; i++) {
+            try {
+              const base64Crop = await cropImageToBase64(imageFile, limited[i].box_2d);
+              const text = await analyzeMods(base64Crop, 'image/png');
+              console.log(`>>> [Gemini Segment ${i + 1}] Raw response from individual mod card:`, text);
+              const items = parseDetectedItems(text, 'mods');
+              console.log(`>>> [Gemini Segment ${i + 1}] Parsed items:`, items);
+              perCardItems.push(...items);
+            } catch (e) {
+              console.warn('Per-card mod analysis failed for segment', i, e);
+            }
+          }
+          const categoryCounts = perCardItems.reduce((acc, item) => {
+            acc[item.category] = (acc[item.category] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          console.log('>>> [Gemini] Segmentation-based parsed items:', categoryCounts, 'total:', perCardItems.length, '<<<');
+          if (perCardItems.length > 0) {
+            // Cache segmented results and return
+            setCachedAnalysis(imageHash, screenType, perCardItems);
+            const newItems = filterNewItems(perCardItems);
+            console.log(`>>> [Gemini] ${newItems.length} new items after deduplication (segmentation) <<<`);
+            return { items: newItems, screenType };
+          }
+          // If segmentation produced no items, fall back to full-frame analysis
+          console.log('>>> [Gemini] Segmentation produced no items; falling back to full image analysis <<<');
+        } else {
+          console.log('>>> [Gemini] No segments detected; falling back to full image analysis <<<');
+        }
+      }
+
+      console.log(`>>> [Gemini] Step 2: Analyzing Mods (full image) <<<`);
       analysisText = await analyzeMods(imageBase64, imageFile.type);
     } else {
       console.log(`>>> [Gemini] Unknown screen type, using generic analysis <<<`);

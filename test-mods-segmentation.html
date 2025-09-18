@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mods Segmentation Test (Gemini 2.5)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:#0f1115; color:#e6e6e6; margin:0; padding:24px; }
+    h1 { margin: 0 0 16px; font-size: 20px; }
+    .card { background:#151922; border:1px solid #232838; border-radius:12px; padding:16px; margin-bottom:16px; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap: wrap; }
+    input[type=password] { background:#0f1115; color:#e6e6e6; border:1px solid #2a3144; border-radius:8px; padding:8px 10px; min-width:300px; }
+    button { background:#1959ff; color:white; border:0; border-radius:8px; padding:8px 12px; cursor:pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; white-space: pre-wrap; }
+    .img { max-width: 520px; border-radius:8px; border:1px solid #2a3144; }
+    .crop { max-width: 200px; border-radius:4px; border:1px solid #2a3144; margin:4px; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border:1px solid #2a3144; padding:8px; text-align:left; }
+    th { background:#0f1115; }
+    .ok { color:#3ddc84; }
+    .bad { color:#ff5d5d; }
+    .warn { color:#ffd166; }
+    .crops { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0; }
+  </style>
+  <script type="module">
+    console.log("Test script loaded and executing.");
+    import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai';
+
+    let genAI = null;
+    let originalImageBlob = null;
+    let expected = [];
+    const SHOW_CROPS = false; // Set to true to display cropped images for debugging
+
+    const segmentationPrompt = `Give the segmentation masks for each individual mod card visible in this Warframe modding interface.
+Output a JSON list of segmentation masks where each entry contains the 2D bounding box in the key "box_2d", the segmentation mask in key "mask", and the text label in the key "label".
+Use "mod_card" as the label for each detected mod card.`;
+
+    const detailedModAnalysisPrompt = `Analyze this SINGLE Warframe Mod card. For THIS mod card, you MUST perform the following steps and provide a JSON entry. DO NOT guess or assume values:
+1. **Name:** Read the exact name of the mod from the card's text.
+2. **Copies:** Look ONLY at the TOP-LEFT corner of THIS mod card. If a small page/stack icon with a number is present, that number is the 'copies'. If NO such icon/number is visible, 'copies' is 1.
+3. **Drain:** Look ONLY at the TOP-RIGHT corner of THIS mod card. The number displayed here (often with a small down arrow) is the 'drain' cost.
+4. **Rank:** Carefully examine the dots at the BOTTOM of THIS mod card for its rank.
+   a. **Current Rank (rank.current):** Count ONLY the BRIGHT, GLOWING BLUE dots. This is the current rank. (0-10)
+   b. **Total Rank (rank.total):** Count ALL the dots visible at the bottom (both BRIGHT BLUE and DARK GREY/EMPTY dots). This is the total possible rank for THIS SPECIFIC MOD CARD. Common totals are 3, 5, or 10.
+
+CRITICAL RULE: If any of these four details (Name, Copies, Drain, or Rank dots) for THIS single mod card are unclear or partially obscured, respond with "NONE_DETECTED". DO NOT GUESS.
+
+Return STRICT JSON object only, no prose, no commentary, no additional text, matching this schema:
+{ "name": "string", "copies": number, "rank": { "current": number, "total": number }, "drain": number }`;
+
+    async function init() {
+      console.log("init() called.");
+      try {
+        // Load expected JSON
+        console.log("Fetching debug/mods_expected_output.json...");
+        const expRes = await fetch('debug/mods_expected_output.json');
+        expected = await expRes.json();
+        console.log("Expected JSON loaded successfully.");
+        // Load PNG
+        console.log("Fetching debug/mods.png...");
+        const imgRes = await fetch('debug/mods.png');
+        originalImageBlob = await imgRes.blob();
+        console.log("Image blob loaded successfully.");
+        document.getElementById('img').src = URL.createObjectURL(originalImageBlob);
+      } catch (e) {
+        console.error("Error during init():", e);
+        document.getElementById('out').textContent = 'Failed to load local test files: ' + e.message;
+      }
+    }
+
+    function parseJson(text) {
+      try {
+        // Handle fenced code blocks
+        const fenced = text.match(/```json\s*([\s\S]*?)\s*```/i) || text.match(/```\s*([\s\S]*?)\s*```/i);
+        const candidate = fenced ? fenced[1] : text;
+
+        const first = candidate.indexOf('[') !== -1 ? candidate.indexOf('[') : candidate.indexOf('{');
+        if (first === -1) return null;
+
+        const snippet = candidate.substring(first);
+        try { return JSON.parse(snippet); } catch {}
+
+        const lastArr = snippet.lastIndexOf(']');
+        const lastObj = snippet.lastIndexOf('}');
+        const end = Math.max(lastArr, lastObj);
+        if (end > 0) return JSON.parse(snippet.substring(0, end + 1));
+
+        return null;
+      } catch { return null; }
+    }
+
+    async function cropImageFromBoundingBox(imageBlob, box) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          // Convert normalized coordinates (0-1000) to actual pixels
+          const y0 = Math.floor(box[0] / 1000 * img.height);
+          const x0 = Math.floor(box[1] / 1000 * img.width);
+          const y1 = Math.floor(box[2] / 1000 * img.height);
+          const x1 = Math.floor(box[3] / 1000 * img.width);
+
+          const width = x1 - x0;
+          const height = y1 - y0;
+
+          if (width <= 0 || height <= 0) {
+            reject(new Error('Invalid bounding box'));
+            return;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          // Draw the cropped portion
+          ctx.drawImage(img, x0, y0, width, height, 0, 0, width, height);
+
+          // Convert to base64
+          const dataUrl = canvas.toDataURL('image/png');
+          const base64 = dataUrl.split(',')[1];
+          resolve(base64);
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(imageBlob);
+      });
+    }
+
+    function indexByName(list) {
+      const map = new Map();
+      list.forEach(item => { map.set(item.name, item); });
+      return map;
+    }
+
+    function compare(actual, expected) {
+      const aMap = indexByName(actual);
+      const eMap = indexByName(expected);
+      const names = Array.from(new Set([...aMap.keys(), ...eMap.keys()])).sort();
+      const rows = names.map(name => {
+        const a = aMap.get(name);
+        const e = eMap.get(name);
+        if (!a || !e) {
+          return { name, status: !a ? 'missing-actual' : 'missing-expected' };
+        }
+        const diffs = [];
+        function cmp(label, av, ev) {
+          if (av !== ev) diffs.push({ field: label, actual: av, expected: ev });
+        }
+        cmp('copies', a.copies, e.copies);
+        cmp('rank.current', a.rank?.current ?? null, e.rank?.current ?? null);
+        cmp('rank.total', a.rank?.total ?? null, e.rank?.total ?? null);
+        cmp('drain', a.drain, e.drain);
+        return { name, diffs };
+      });
+      return rows;
+    }
+
+    async function runSegmentation() {
+      console.log("runSegmentation() called.");
+      const key = document.getElementById('key').value.trim();
+      if (!key) {
+        alert('Enter Gemini API key');
+        console.warn("Run cancelled: No API key.");
+        return;
+      }
+
+      try {
+        console.log("Initializing GoogleGenerativeAI...");
+        genAI = new GoogleGenerativeAI(key);
+        console.log("Gemini AI initialized.");
+      } catch (e) {
+        console.error("Failed to initialize Gemini:", e);
+        document.getElementById('out').textContent = 'Failed to initialize Gemini: ' + e.message;
+        return;
+      }
+
+      document.getElementById('run').disabled = true;
+      document.getElementById('out').textContent = 'Phase 1: Getting segmentation masks...';
+      console.log("Starting Phase 1: Segmentation.");
+
+      try {
+        // Phase 1: Use Gemini 2.5 Flash as recommended, with thinkingBudget=0
+        const model = genAI.getGenerativeModel({
+          model: 'gemini-2.5-flash',
+          thinkingConfig: { thinkingBudget: 0 }
+        });
+
+        const segmentationResult = await model.generateContent([
+          { text: segmentationPrompt },
+          { inlineData: { mimeType: 'image/png', data: await blobToBase64(originalImageBlob) } }
+        ]);
+
+        const segmentationText = segmentationResult.response.text();
+        document.getElementById('out').textContent = 'Phase 1 complete. Parsing segmentation masks...';
+
+        const segmentationData = parseJson(segmentationText);
+        if (!segmentationData || !Array.isArray(segmentationData)) {
+          throw new Error('Failed to parse segmentation data: ' + segmentationText);
+        }
+
+        const segments = segmentationData.filter(s => s && s.box_2d && (s.label === 'mod_card' || !s.label)).slice(0, 4);
+        document.getElementById('out').textContent = `Found ${segmentationData.length} mod cards. Limiting to first ${segments.length}. Phase 2: Analyzing each mod card...`;
+
+        // Phase 2: Analyze each segmented mod card individually
+        const modResults = [];
+        const cropContainer = document.getElementById('crops');
+        cropContainer.innerHTML = '';
+
+        for (let i = 0; i < segments.length; i++) {
+          const segment = segments[i];
+
+          try {
+            // Crop the image using bounding box
+            const croppedBase64 = await cropImageFromBoundingBox(originalImageBlob, segment.box_2d);
+
+            // Show cropped image for debugging
+            if (SHOW_CROPS) {
+              const cropImg = document.createElement('img');
+              cropImg.src = `data:image/png;base64,${croppedBase64}`;
+              cropImg.className = 'crop';
+              cropImg.title = `Mod Card ${i + 1}`;
+              cropContainer.appendChild(cropImg);
+            }
+
+            // Analyze this individual mod card
+            const analysisResult = await model.generateContent([
+              { text: detailedModAnalysisPrompt },
+              { inlineData: { mimeType: 'image/png', data: croppedBase64 } }
+            ]);
+
+            const analysisText = analysisResult.response.text();
+            if (analysisText.trim() !== "NONE_DETECTED") {
+              const modData = parseJson(analysisText);
+              if (modData && modData.name) {
+                modResults.push(modData);
+              }
+            }
+
+            document.getElementById('out').textContent = `Analyzed ${i + 1}/${segments.length} mod cards...`;
+
+          } catch (error) {
+            console.warn(`Failed to analyze mod card ${i + 1}:`, error);
+          }
+        }
+
+        // Phase 3: Compare results
+        const rows = compare(modResults, expected);
+        render(segmentationText, modResults, rows, segments.length);
+
+      } catch (e) {
+        document.getElementById('out').textContent = 'Error: ' + e.message;
+        console.error(e);
+      } finally {
+        document.getElementById('run').disabled = false;
+      }
+    }
+
+    async function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result;
+          resolve(String(dataUrl).split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    function render(segmentationRaw, parsed, rows, totalSegments) {
+      const total = rows.length;
+      const exact = rows.filter(r => Array.isArray(r.diffs) && r.diffs.length === 0).length;
+      const missingActual = rows.filter(r => r.status === 'missing-actual').length;
+      const missingExpected = rows.filter(r => r.status === 'missing-expected').length;
+
+      let html = '';
+      html += `<div class="card"><strong>Segmentation Results:</strong> Found ${totalSegments} mod cards, analyzed ${parsed.length} successfully</div>`;
+      html += `<div class="card"><strong>Accuracy:</strong> ${exact}/${total} exact matches`+
+              (missingActual ? `, <span class="warn">${missingActual} missing in actual</span>` : '')+
+              (missingExpected ? `, <span class="warn">${missingExpected} unexpected in actual</span>` : '')+
+              `</div>`;
+
+      html += `<div class="card"><h3>Parsed Results:</h3><div class="mono">${escapeHtml(JSON.stringify(parsed, null, 2))}</div></div>`;
+
+      html += '<div class="card">';
+      html += '<table><thead><tr><th>Name</th><th>Status</th><th>Diffs</th></tr></thead><tbody>';
+      rows.forEach(r => {
+        if (r.status === 'missing-actual') {
+          html += `<tr><td>${escapeHtml(r.name)}</td><td class="bad">missing in actual</td><td></td></tr>`;
+        } else if (r.status === 'missing-expected') {
+          html += `<tr><td>${escapeHtml(r.name)}</td><td class="warn">unexpected (not in expected)</td><td></td></tr>`;
+        } else if (r.diffs.length === 0) {
+          html += `<tr><td>${escapeHtml(r.name)}</td><td class="ok">match</td><td></td></tr>`;
+        } else {
+          const parts = r.diffs.map(d => `${d.field}: actual=${d.actual} expected=${d.expected}`);
+          html += `<tr><td>${escapeHtml(r.name)}</td><td class="bad">diff</td><td class="mono">${parts.map(escapeHtml).join('\n')}</td></tr>`;
+        }
+      });
+      html += '</tbody></table></div>';
+
+      document.getElementById('out').innerHTML = html;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+    window.runSegmentation = runSegmentation;
+  </script>
+</head>
+<body>
+  <h1>Mods Segmentation Test (Gemini 2.5)</h1>
+  <div class="card row">
+    <input id="key" type="password" placeholder="Enter Gemini API key" />
+    <button id="run" onclick="runSegmentation()">Run Segmentation Analysis</button>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <img id="img" class="img" alt="mods.png" />
+      <div>
+        <div><strong>Image:</strong> debug/mods.png</div>
+        <div><strong>Expected JSON:</strong> debug/mods_expected_output.json</div>
+        <div class="mono" style="margin-top:8px; opacity:.8">Model: gemini-2.5-flash</div>
+        <div style="margin-top:8px;">
+          <strong>Strategy:</strong><br>
+          1. Segment mod cards with Gemini 2.5<br>
+          2. Crop each mod card individually<br>
+          3. Analyze each cropped mod separately
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Cropped Mod Cards:</h3>
+    <div id="crops" class="crops"></div>
+  </div>
+
+  <div id="out"></div>
+</body>
+</html>
