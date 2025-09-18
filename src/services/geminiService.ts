@@ -984,11 +984,21 @@ const analyzeMods = async (imageBase64: string, mimeType: string): Promise<strin
     e. Count ALL dots (bright + dark) = 'total' rank (must be 3, 5, or 10)
     
     CRITICAL RULES:
+    - EXAMINE EACH MOD INDIVIDUALLY - don't assume they're all the same rank
+    - LOOK VERY CAREFULLY at the bottom dots - they are the most important part
+    - BRIGHT/GLOWING dots = filled ranks (count these)
+    - DARK/FADED dots = empty ranks (don't count these)
     - If ALL dots are bright blue = current equals total (e.g., 3/3, 5/5, 10/10)
     - If NO dots are bright blue = current is 0 (e.g., 0/3, 0/5, 0/10)  
     - If SOME dots are bright = count only the bright ones (e.g., 3/5, 7/10)
     - Total must be exactly 3, 5, or 10 - never any other number
-    - Pay close attention to distinguish bright vs dark dots
+    - DOUBLE-CHECK your dot counting - this is the most error-prone part
+
+VISUAL EXAMPLES:
+- Mod with 3 bright blue dots + 0 dark dots = "current": 3, "total": 3
+- Mod with 0 bright dots + 5 dark dots = "current": 0, "total": 5  
+- Mod with 2 bright dots + 3 dark dots = "current": 2, "total": 5
+- Mod with 5 bright blue dots + 0 dark dots = "current": 5, "total": 5
 
 CRITICAL: It is better to OMIT a mod entirely if you cannot clearly see all its details (especially the rank dots) than to guess.
 
