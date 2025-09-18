@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mods Detection Compare (mods.png vs expected JSON)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; background:#0f1115; color:#e6e6e6; margin:0; padding:24px; }
+    h1 { margin: 0 0 16px; font-size: 20px; }
+    .card { background:#151922; border:1px solid #232838; border-radius:12px; padding:16px; margin-bottom:16px; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap: wrap; }
+    input[type=password] { background:#0f1115; color:#e6e6e6; border:1px solid #2a3144; border-radius:8px; padding:8px 10px; min-width:300px; }
+    button { background:#1959ff; color:white; border:0; border-radius:8px; padding:8px 12px; cursor:pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; white-space: pre-wrap; }
+    .img { max-width: 520px; border-radius:8px; border:1px solid #2a3144; }
+    table { width:100%; border-collapse: collapse; }
+    th, td { border:1px solid #2a3144; padding:8px; text-align:left; }
+    th { background:#0f1115; }
+    .ok { color:#3ddc84; }
+    .bad { color:#ff5d5d; }
+    .warn { color:#ffd166; }
+  </style>
+  <script type="module">
+    import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai';
+
+    let genAI = null;
+    let base64Png = null;
+    let expected = [];
+
+    const prompt = `Analyze this Warframe Mod inventory screenshot. For EACH fully visible mod card, you MUST follow these steps carefully:
+1. Name: Read the mod's name from the card.
+2. Copies: Look at the TOP-LEFT corner. If there is a page/stack icon with a number, that is the number of copies. If there is NO icon, the number of copies is 1.
+3. Drain: Look at the TOP-RIGHT corner. The number there is the drain cost.
+4. Rank: Look at the BOTTOM of the card for the rank dots.
+   a. Count BRIGHT, GLOWING BLUE dots = rank.current.
+   b. Count ALL dots (bright + dark) = rank.total.
+   c. Count rank.total for EACH mod individually; do NOT assume the same value across mods.
+
+Return STRICT JSON array only, no prose:
+[
+  { "name": "string", "copies": number, "rank": { "current": number, "total": number }, "drain": number }
+]`;
+
+    async function init() {
+      try {
+        // Load expected JSON
+        const expRes = await fetch('debug/mods_expected_output.json');
+        expected = await expRes.json();
+        // Load PNG and convert to base64
+        const imgRes = await fetch('debug/mods.png');
+        const blob = await imgRes.blob();
+        document.getElementById('img').src = URL.createObjectURL(blob);
+        base64Png = await blobToBase64(blob);
+      } catch (e) {
+        document.getElementById('out').textContent = 'Failed to load files: ' + e.message;
+      }
+    }
+
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const dataUrl = reader.result;
+          resolve(String(dataUrl).split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    function tryParseJson(text) {
+      try {
+        const fenced = text.match(/```json\s*([\s\S]*?)\s*```/i) || text.match(/```\s*([\s\S]*?)\s*```/i);
+        const candidate = fenced ? fenced[1] : text;
+        const first = candidate.indexOf('[') !== -1 ? candidate.indexOf('[') : candidate.indexOf('{');
+        if (first === -1) return null;
+        const snippet = candidate.substring(first);
+        try { return JSON.parse(snippet); } catch {}
+        const lastArr = snippet.lastIndexOf(']');
+        const lastObj = snippet.lastIndexOf('}');
+        const end = Math.max(lastArr, lastObj);
+        if (end > 0) return JSON.parse(snippet.substring(0, end + 1));
+        return null;
+      } catch { return null; }
+    }
+
+    function indexByName(list) {
+      const map = new Map();
+      list.forEach(item => { map.set(item.name, item); });
+      return map;
+    }
+
+    function compare(actual, expected) {
+      const aMap = indexByName(actual);
+      const eMap = indexByName(expected);
+      const names = Array.from(new Set([...aMap.keys(), ...eMap.keys()])).sort();
+      const rows = names.map(name => {
+        const a = aMap.get(name);
+        const e = eMap.get(name);
+        if (!a || !e) {
+          return { name, status: !a ? 'missing-actual' : 'missing-expected' };
+        }
+        const diffs = [];
+        function cmp(label, av, ev) {
+          if (av !== ev) diffs.push({ field: label, actual: av, expected: ev });
+        }
+        cmp('copies', a.copies, e.copies);
+        cmp('rank.current', a.rank?.current ?? null, e.rank?.current ?? null);
+        cmp('rank.total', a.rank?.total ?? null, e.rank?.total ?? null);
+        cmp('drain', a.drain, e.drain);
+        return { name, diffs };
+      });
+      return rows;
+    }
+
+    async function run() {
+      const key = /** @type {HTMLInputElement} */(document.getElementById('key')).value.trim();
+      if (!key) { alert('Enter Gemini API key'); return; }
+
+      try {
+        genAI = new GoogleGenerativeAI(key);
+      } catch (e) {
+        document.getElementById('out').textContent = 'Failed to initialize Gemini: ' + e.message;
+        return;
+      }
+
+      document.getElementById('run').disabled = true;
+      document.getElementById('out').textContent = 'Running...';
+      try {
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+        const result = await model.generateContent([
+          { text: prompt },
+          { inlineData: { mimeType: 'image/png', data: base64Png } }
+        ]);
+        const text = result.response.text() || '';
+        const parsed = tryParseJson(text) || [];
+        const rows = compare(parsed, expected);
+        render(text, parsed, rows);
+      } catch (e) {
+        document.getElementById('out').textContent = String(e);
+      } finally {
+        document.getElementById('run').disabled = false;
+      }
+    }
+
+    function render(raw, parsed, rows) {
+      const total = rows.length;
+      const exact = rows.filter(r => Array.isArray(r.diffs) && r.diffs.length === 0).length;
+      const missingActual = rows.filter(r => r.status === 'missing-actual').length;
+      const missingExpected = rows.filter(r => r.status === 'missing-expected').length;
+
+      let html = '';
+      html += `<div class="card"><strong>Overview:</strong> ${exact}/${total} exact matches`+
+              (missingActual ? `, <span class="warn">${missingActual} missing in actual</span>` : '')+
+              (missingExpected ? `, <span class="warn">${missingExpected} unexpected in actual</span>` : '')+
+              `</div>`;
+
+      html += '<div class="card"><div class="mono">'+escapeHtml(raw)+'</div></div>';
+
+      html += '<div class="card">';
+      html += '<table><thead><tr><th>Name</th><th>Status</th><th>Diffs</th></tr></thead><tbody>';
+      rows.forEach(r => {
+        if (r.status === 'missing-actual') {
+          html += `<tr><td>${escapeHtml(r.name)}</td><td class="bad">missing in actual</td><td></td></tr>`;
+        } else if (r.status === 'missing-expected') {
+          html += `<tr><td>${escapeHtml(r.name)}</td><td class="warn">unexpected (not in expected)</td><td></td></tr>`;
+        } else if (r.diffs.length === 0) {
+          html += `<tr><td>${escapeHtml(r.name)}</td><td class="ok">match</td><td></td></tr>`;
+        } else {
+          const parts = r.diffs.map(d => `${d.field}: actual=${d.actual} expected=${d.expected}`);
+          html += `<tr><td>${escapeHtml(r.name)}</td><td class="bad">diff</td><td class="mono">${parts.map(escapeHtml).join('\n')}</td></tr>`;
+        }
+      });
+      html += '</tbody></table></div>';
+
+      document.getElementById('out').innerHTML = html;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+    window.runCompare = run;
+  </script>
+</head>
+<body>
+  <h1>Mods Detection Compare</h1>
+  <div class="card row">
+    <input id="key" type="password" placeholder="Enter Gemini API key" />
+    <button id="run" onclick="runCompare()">Run Compare</button>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <img id="img" class="img" alt="mods.png" />
+      <div>
+        <div><strong>Image:</strong> debug/mods.png</div>
+        <div><strong>Expected JSON:</strong> debug/mods_expected_output.json</div>
+        <div class="mono" style="margin-top:8px; opacity:.8">Model: gemini-2.0-flash-exp</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="out"></div>
+</body>
+</html>
