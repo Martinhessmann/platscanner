@@ -362,10 +362,20 @@ const cropImageToBase64 = (file: File, box2d: number[]): Promise<string> => {
         reject(new Error('Failed to get canvas context'));
         return;
       }
-      const y0 = Math.floor((box2d[0] / 1000) * img.height);
-      const x0 = Math.floor((box2d[1] / 1000) * img.width);
-      const y1 = Math.floor((box2d[2] / 1000) * img.height);
-      const x1 = Math.floor((box2d[3] / 1000) * img.width);
+      
+      // Add padding to ensure we don't cut off important parts (especially rank dots)
+      const padding = 0.02; // 2% padding on each side
+      const paddedBox = [
+        Math.max(0, box2d[0] - padding * 1000),           // y0 - padding
+        Math.max(0, box2d[1] - padding * 1000),           // x0 - padding  
+        Math.min(1000, box2d[2] + padding * 1000),        // y1 + padding
+        Math.min(1000, box2d[3] + padding * 1000)         // x1 + padding
+      ];
+      
+      const y0 = Math.floor((paddedBox[0] / 1000) * img.height);
+      const x0 = Math.floor((paddedBox[1] / 1000) * img.width);
+      const y1 = Math.floor((paddedBox[2] / 1000) * img.height);
+      const x1 = Math.floor((paddedBox[3] / 1000) * img.width);
       const w = Math.max(0, x1 - x0);
       const h = Math.max(0, y1 - y0);
       if (w === 0 || h === 0) {
@@ -386,6 +396,14 @@ const cropImageToBase64 = (file: File, box2d: number[]): Promise<string> => {
 // Ask Gemini 2.5 for mod-card segment boxes
 const segmentModCards = async (imageBase64: string, mimeType: string): Promise<Array<{ box_2d: number[]; label?: string }>> => {
   const segmentationPrompt = `Give the segmentation masks for each individual mod card visible in this Warframe modding interface.
+
+CRITICAL: Each mod card bounding box MUST include the COMPLETE mod card from top to bottom:
+- Include the mod name at the top
+- Include the TOP-LEFT corner (for copies icon)
+- Include the TOP-RIGHT corner (for drain/polarity icon)  
+- Include the BOTTOM edge with the rank dots (MOST IMPORTANT!)
+- Do NOT crop too tightly - ensure full mod card is captured
+
 Output a JSON list where each entry contains the 2D bounding box in the key "box_2d" (normalized 0..1000), the segmentation mask in key "mask", and the text label in the key "label".
 Use "mod_card" as the label for mod cards.`;
 
@@ -972,10 +990,16 @@ If you cannot clearly see syndicate header, respond with "NONE_DETECTED"`;
 };
 
 const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
-  const modsPrompt = `Analyze this Warframe Mod inventory screenshot. For EACH fully visible mod card, you MUST follow these steps carefully:
+  const modsPrompt = `This is a cropped image of a single Warframe MOD CARD. Analyze this individual mod card carefully:
 1.  **Name:** Read the mod's name from the card.
-2.  **Copies:** Look at the TOP-LEFT corner. If there is a page/stack icon with a number, that is the number of copies. If there is NO icon, the number of copies is 1.
-3.  **Drain:** Look at the TOP-RIGHT corner. The number there is the drain cost.
+2.  **Copies:** Look at the TOP-LEFT corner for a COPIES ICON (looks like two stacked documents/papers). 
+   - If you see this stacked papers icon with a number, that number is the copies count
+   - If there is NO stacked papers icon, the copies count is 1 (single copy)
+   - Do NOT confuse this with other numbers or icons on the card
+3.  **Drain:** Look at the TOP-RIGHT corner for the DRAIN COST with a FORMA ICON (polarity symbol).
+   - The drain appears as a number next to a polarity symbol (V, D, -, or neutral circle)
+   - This is the mod's capacity cost, usually between 2-20
+   - Do NOT confuse this with the copies number
 4.  **Rank:** Look at the BOTTOM of the card for the rank dots.
     a. Look for a ROW of small circular dots at the very bottom edge of the mod card
     b. FILLED dots appear as BRIGHT BLUE/CYAN and are clearly visible
@@ -994,15 +1018,25 @@ const analyzeMods = async (imageBase64: string, mimeType: string): Promise<strin
     - Total must be exactly 3, 5, or 10 - never any other number
     - DOUBLE-CHECK your dot counting - this is the most error-prone part
 
-VISUAL EXAMPLES:
+CRITICAL VISUAL DISTINCTIONS:
+- TOP-LEFT: Copies icon = stacked papers/documents symbol with number
+- TOP-RIGHT: Drain = number next to polarity symbol (V, D, -, circle)
+- BOTTOM: Rank dots = small circular dots (bright blue = filled, dark = empty)
+
+RANK EXAMPLES:
 - Mod with 3 bright blue dots + 0 dark dots = "current": 3, "total": 3
 - Mod with 0 bright dots + 5 dark dots = "current": 0, "total": 5  
 - Mod with 2 bright dots + 3 dark dots = "current": 2, "total": 5
 - Mod with 5 bright blue dots + 0 dark dots = "current": 5, "total": 5
 
-CRITICAL: It is better to OMIT a mod entirely if you cannot clearly see all its details (especially the rank dots) than to guess.
+COMMON MISTAKES TO AVOID:
+- Do NOT use the drain number as copies count
+- Do NOT use any number other than the one with the stacked papers icon for copies
+- Do NOT count more than 10 for current rank
 
-Primary output format: strict JSON array, no commentary, matching this schema:
+CRITICAL: This is a SINGLE mod card image. Analyze exactly what you see in this one card.
+
+Primary output format: strict JSON array with exactly ONE mod entry, no commentary:
 [
   {
     "name": "string",
@@ -1013,9 +1047,10 @@ Primary output format: strict JSON array, no commentary, matching this schema:
 ]
 
 Rules for JSON:
-- Return ONLY the JSON array. Do not add any explanation before or after.
-- Group identical cards (same name, rank, and drain) by increasing the "copies" value.
-- Use integers for all numbers.`;
+- Return ONLY the JSON array with ONE entry for this single mod card
+- Do not add any explanation before or after
+- Use integers for all numbers
+- If you cannot clearly see this mod card, return an empty array: []`;
 
   const result = await genAI!.models.generateContent({
     model: 'gemini-2.0-flash-exp',
@@ -1117,9 +1152,7 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
             try {
               const base64Crop = await cropImageToBase64(imageFile, limited[i].box_2d);
               const text = await analyzeMods(base64Crop, 'image/png');
-              console.log(`>>> [Gemini Segment ${i + 1}] Raw response from individual mod card:`, text);
               const items = parseDetectedItems(text, 'mods');
-              console.log(`>>> [Gemini Segment ${i + 1}] Parsed items:`, items);
               perCardItems.push(...items);
             } catch (e) {
               console.warn('Per-card mod analysis failed for segment', i, e);
