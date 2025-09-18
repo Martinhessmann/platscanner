@@ -990,7 +990,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // Clear the cache for this image to force a fresh analysis
     try {
-      const { clearCachedAnalysis, generateImageHash, fileToBase64 } = await import('./services/geminiService');
+      const { clearCachedAnalysis, generateImageHash, fileToBase64 } = await import('../services/geminiService');
       const imageBase64 = await fileToBase64(image.file);
       const imageHash = await generateImageHash(imageBase64);
       clearCachedAnalysis(imageHash);

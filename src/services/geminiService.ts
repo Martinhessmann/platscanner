@@ -114,20 +114,20 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
   inventory.prime_parts.forEach(item => existingItems.add(`${item.category}:${item.name}`));
   inventory.relics.forEach(item => existingItems.add(`${item.category}:${item.name}`));
   inventory.syndicate_rewards.forEach(item => existingItems.add(`${item.category}:${item.name}`));
-  inventory.mods.forEach(item => existingItems.add(`${item.category}:${item.name}`));
+  inventory.mods.forEach(item => {
+    const r = (item as any).rank ?? 0;
+    const d = (item as any).drain ?? '';
+    existingItems.add(`${item.category}:${item.name}:r${r}:d${d}`);
+  });
 
   const newItems = detectedItems.filter(item => {
-    const itemKey = `${item.category}:${item.name}`;
-
-    // Skip leveled mods (rank > 0) - these should not be saved to inventory
+    let itemKey = `${item.category}:${item.name}`;
     if (item.category === 'mods') {
-      const modItem = item as any;
-      if (modItem.rank && modItem.rank > 0) {
-        console.log(`>>> [Gemini Filter] Skipping leveled mod: ${item.name} (rank ${modItem.rank}) <<<`);
-        return false;
-      }
+      const m = item as any;
+      const r = m.rank ?? 0;
+      const d = m.drain ?? '';
+      itemKey = `${item.category}:${item.name}:r${r}:d${d}`;
     }
-
     return !existingItems.has(itemKey);
   });
 
@@ -333,7 +333,7 @@ const enhanceImageContrast = (file: File): Promise<string> => {
       }
 
       // Apply CSS filter: brightness(125%) saturate(300%)
-      ctx.filter = 'brightness(125%) saturate(300%)';
+      ctx.filter = 'brightness(110%) saturate(150%) contrast(110%)';
       ctx.drawImage(img, 0, 0);
 
       // Convert to base64
@@ -380,6 +380,59 @@ const isErrorResponse = (text: string): boolean => {
  * Parse the AI response to categorize detected items with quantity support
  */
 const parseDetectedItems = (responseText: string, screenType?: string): DetectedItem[] => {
+  // Preferred path: try strict JSON first
+  const tryExtractJson = (text: string): any | null => {
+    try {
+      // Try fenced code block first
+      const fenced = text.match(/```json\s*([\s\S]*?)\s*```/i) || text.match(/```\s*([\s\S]*?)\s*```/i);
+      const candidate = fenced ? fenced[1] : text;
+      const firstBrace = candidate.indexOf('[') !== -1 ? candidate.indexOf('[') : candidate.indexOf('{');
+      if (firstBrace === -1) return null;
+      const snippet = candidate.substring(firstBrace);
+      try { return JSON.parse(snippet); } catch {}
+      const lastArray = snippet.lastIndexOf(']');
+      const lastObj = snippet.lastIndexOf('}');
+      const end = Math.max(lastArray, lastObj);
+      if (end > 0) {
+        const trimmed = snippet.substring(0, end + 1);
+        return JSON.parse(trimmed);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+  const json = tryExtractJson(responseText);
+  if (json) {
+    const arr: any[] = Array.isArray(json) ? json : (Array.isArray(json.mods) ? json.mods : []);
+    const items: DetectedItem[] = [];
+    arr.forEach((m, i) => {
+      if (!m || !m.name) return;
+      const name = String(m.name).trim();
+      const qty = Number(m.copies ?? m.quantity ?? 1) || 1;
+      const rankCurrent = Number(m.rank?.current ?? m.rankCurrent ?? m.rank ?? 0);
+      const drain = m.drain !== undefined ? Number(m.drain) : undefined;
+
+      const rarity = determineModRarity(name);
+      const type = determineModType(name);
+      const modItem: Mod = {
+        id: `mod-${Date.now()}-${i}`,
+        name,
+        category: 'mods',
+        quantity: qty,
+        rank: isNaN(rankCurrent) ? undefined : rankCurrent,
+        drain: drain !== undefined && !isNaN(drain) ? drain : undefined,
+        rarity,
+        type,
+        status: 'loading'
+      };
+      items.push(modItem);
+    });
+    if (items.length > 0) {
+      return items;
+    }
+  }
   // Filter helper to remove generic preamble/heading lines Gemini sometimes adds
   const isPreambleOrNoteLine = (line: string): boolean => {
     const lower = line.trim().toLowerCase();
@@ -526,11 +579,10 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
         status: 'loading'
       };
       detectedItems.push(relicItem);
-    }
-        // Check if it's a mod - look for common mod patterns and characteristics
-    // CRITICAL: Only parse mods if screen type is 'mods' or undefined (for backward compatibility)
-    // NEVER parse mods in syndicate screens - syndicate rewards can be mods but they're not inventory mods!
-    else if (screenType !== 'syndicate' && // Never parse mods in syndicate screens
+    } else if (screenType !== 'syndicate' && // Never parse mods in syndicate screens
+             // Check if it's a mod - look for common mod patterns and characteristics
+             // CRITICAL: Only parse mods if screen type is 'mods' or undefined (for backward compatibility)
+             // NEVER parse mods in syndicate screens - syndicate rewards can be mods but they're not inventory mods!
              cleanLine &&
              !cleanLine.includes('Prime') &&
              !cleanLine.includes('Relic') &&
@@ -547,6 +599,33 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
              !/^\s*\*/.test(cleanLine) && // Lines starting with asterisks
              !/^\d+\./.test(cleanLine)) { // Numbered lists
 
+      // New preferred format: "[Qx ]NAME rCURRENT/TOTAL (drain D)"
+      // Note: quantity prefix may have been parsed already from the line start.
+      const rFormatMatch = cleanLine.match(/^(.*?)\s+r\s*(\d{1,2})\/(\d{1,2})(?:\s*\(drain\s*(\d{1,3})\))?\s*$/i);
+      if (rFormatMatch) {
+        const modName = rFormatMatch[1].trim();
+        const detectedLevel = parseInt(rFormatMatch[2]);
+        const detectedTotal = parseInt(rFormatMatch[3]);
+        const detectedDrain = rFormatMatch[4] ? parseInt(rFormatMatch[4]) : undefined;
+
+        const rarity = determineModRarity(modName);
+        const type = determineModType(modName);
+
+        const modItem: Mod = {
+          id: `mod-${Date.now()}-${index}`,
+          name: modName,
+          category: 'mods',
+          rank: !isNaN(detectedLevel) ? detectedLevel : undefined,
+          // Use quantity parsed earlier if present; default is 1
+          quantity,
+          drain: detectedDrain,
+          rarity,
+          type,
+          status: 'loading'
+        };
+        detectedItems.push(modItem);
+        console.log(`>>> [AI Parsing] R-format mod detected: "${modName}" qty:${quantity} r${detectedLevel}/${detectedTotal} drain:${detectedDrain ?? 'N/A'} <<<`);
+      } else {
       // Try to parse the new format: "MOD_NAME | QUANTITY | LEVEL | DRAIN"
       const newFormatMatch = cleanLine.match(/^(.*?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)$/);
       if (newFormatMatch) {
@@ -607,6 +686,7 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
         console.log(`>>> [AI Parsing] Added mod (fallback): "${modName}" (${rarity} ${type}) qty:${quantity} rank:${rank || 'unranked'} <<<`);
       }
     }
+  }
   });
 
   return detectedItems;
@@ -802,125 +882,31 @@ If you cannot clearly see syndicate header, respond with "NONE_DETECTED"`;
 };
 
 const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
-  const modsPrompt = `Analyze this Warframe mod inventory screenshot and identify ALL visible mods with COMPLETE information.
+  const modsPrompt = `Analyze this Warframe Mod inventory screenshot. For EACH fully visible mod card, you MUST follow these steps carefully:
+1.  **Name:** Read the mod's name from the card.
+2.  **Copies:** Look at the TOP-LEFT corner. If there is a page/stack icon with a number, that is the number of copies. If there is NO icon, the number of copies is 1.
+3.  **Drain:** Look at the TOP-RIGHT corner. The number there is the drain cost.
+4.  **Rank:** Look at the BOTTOM of the card for the rank dots.
+    a. Count the number of BRIGHT, GLOWING BLUE dots. This is the 'current' rank.
+    b. Count the TOTAL number of dots (ALL bright blue ones + ALL dark grey ones). This is the 'total' rank.
+    c. It is CRITICAL to count the total dots for each mod individually. Do not assume they are all the same. Totals are often 3, 5, or 10.
 
-CRITICAL FILTERING RULES - ONLY DETECT UNRANKED MODS:
-- **ONLY** detect mods with SEMI-TRANSPARENT GREY/SILVER DOTS (unranked mods)
-- **NEVER** detect mods with BRIGHT BLUE DOTS (leveled mods) - these should be completely ignored
-- **NEVER** detect mods with any rank > 0 - these are not for sale
+CRITICAL: It is better to OMIT a mod entirely if you cannot clearly see all its details (especially the rank dots) than to guess.
 
-IMPORTANT: Only analyze FULLY VISIBLE and COMPLETE mod cards. Skip any mods that are:
-- Cropped at screenshot edges
-- Cut off at top, bottom, left, or right
-- Missing any part of their card (name, corners, or rank dots)
+Primary output format: strict JSON array, no commentary, matching this schema:
+[
+  {
+    "name": "string",
+    "copies": number,
+    "rank": { "current": number, "total": number },
+    "drain": number
+  }
+]
 
-CRITICAL DETECTION REQUIREMENTS - YOU MUST DETECT ALL FOUR ELEMENTS:
-
-1. **MOD NAME**: The exact name as displayed on the mod card
-2. **QUANTITY**: Look for a small number in the TOP-LEFT corner of mod cards (usually white text)
-   - If NO number is visible in top-left corner = quantity is 1 (single copy)
-   - If number is present (2, 3, 4, 12, etc.) = that is the quantity
-   - NEVER use the number in the top-right corner for quantity!
-
-3. **LEVEL**: Count ONLY the BRIGHT/GLOWING dots - DO NOT count total dots!
-   - IGNORE THE TOP-RIGHT CORNER NUMBERS (that's drain, not rank!)
-   - Look at the bottom edge - you'll see a row of small circular dots
-   - CRITICAL: DO NOT DEFAULT TO ANY NUMBER - actually count each mod's dots individually
-   - NEVER assume all mods have the same rank (like 4 or 5) - each mod is different
-   - CRITICAL DISTINCTION:
-     * BRIGHT/GLOWING/FILLED dots = these are "ON" (count these for rank)
-     * DARK/DIM/EMPTY dots = these are "OFF" (DO NOT count these)
-   - Common ranks you'll see:
-     * Many mods will be rank 0 (NO bright dots at all)
-     * Some mods will be rank 3, 4, or 5 (partially ranked)
-     * Few mods will be rank 8, 9, or 10 (highly ranked)
-   - DO NOT use 4/5 or any other default - COUNT EACH MOD INDIVIDUALLY
-   - Example: If you see 10 total dots but only 3 are bright/glowing = rank 3
-   - Example: If you see 5 total dots but 0 are bright/glowing = rank 0
-   - Example: If you see 10 total dots and ALL 10 are bright/glowing = rank 10
-   - CRITICAL FOR DUPLICATE MODS: Each individual mod card has its own rank
-   - Visual cues for BRIGHT dots: they glow, they're vivid blue/cyan, they stand out
-   - Visual cues for DARK dots: they're gray, black, dim, barely visible, empty circles
-
-4. **DRAIN**: The number in the TOP-RIGHT corner (this is mod capacity/drain cost)
-   - Usually appears as a number with a small arrow pointing down
-   - This is NOT quantity - it's the mod's capacity cost
-
-VISUAL DETECTION GUIDELINES:
-- **TOP-LEFT CORNER**: Look for small white numbers (2, 3, 4, 12, etc.) - this is QUANTITY
-- **TOP-RIGHT CORNER**: Look for numbers with arrow symbols (like "14 ↓") - this is DRAIN
-- **BOTTOM DOTS - MOST CRITICAL**: Examine the bottom edge of each mod card very carefully:
-  * Look for a ROW OF SMALL CIRCULAR DOTS (usually 5-10 dots per mod)
-  * BRIGHT/GLOWING/FILLED dots = count these for the rank
-  * DARK/DIM/EMPTY dots = ignore these (they're unfilled slots)
-  * EXAMINE EACH MOD INDIVIDUALLY - don't assume all mods have the same rank pattern
-  * Some mods will have ALL dots bright (max rank), others will have NO bright dots (rank 0)
-  * The number of BRIGHT dots = the rank number
-- **ABSENCE OF TOP-LEFT NUMBER**: If no number in top-left = quantity is 1
-
-CRITICAL RANK DETECTION STEPS FOR EACH MOD CARD:
-1. Find each individual mod card (scan left to right, top to bottom)
-2. ONLY ANALYZE COMPLETE MODS: Skip any mod cards that are cropped or cut off at edges
-   - If you can't see the full mod name, skip it
-   - If you can't see the top corners (where quantity/drain numbers are), skip it
-   - If you can't see the bottom edge (where rank dots are), skip it
-   - Only analyze mods that are fully visible and complete
-3. For DUPLICATE mod names: treat each card as a separate item with its own rank
-4. Look at the very bottom edge of THAT SPECIFIC CARD for a row of dots
-5. Count BOTH types of dots separately:
-   - Count BRIGHT dots (glowing, vivid blue/cyan, stand out visually)
-   - Count TOTAL dots (bright + dark combined)
-6. Report as BRIGHT_DOTS/TOTAL_DOTS format
-7. If you see the same mod name multiple times, report each occurrence separately
-
-EXAMPLES OF CORRECT COUNTING:
-- "I see 10 total dots, 8 are bright, 2 are dark" → 8/10
-- "I see 5 total dots, all 5 are bright" → 5/5
-- "I see 10 total dots, 0 are bright, all are dark" → 0/10
-- "I see 8 total dots, 3 are bright, 5 are dark" → 3/8
-
-WRONG APPROACH: "I see bright dots, so 10"
-CORRECT APPROACH: "I count 8 bright dots out of 10 total dots, so 8/10"
-
-SANITY CHECK RULES:
-- Same mod name at same rank = must have same drain (e.g., both R0 Condition Overload should have same drain)
-- Quantity should be 1-5 (not 17!)
-- If you get impossible combinations, re-examine that specific mod card more carefully
-- Higher rank = higher drain (R0 has lower drain than R10)
-
-EXAMPLE OUTPUT FOR DUPLICATES:
-Condition Overload | 1 | 0 | 15
-Condition Overload | 1 | 10 | 18
-
-NOT IMPOSSIBLE COMBINATIONS LIKE:
-Condition Overload | 1 | 0 | 15
-Condition Overload | 1 | 0 | 10  ← WRONG: same rank, different drain!
-
-RESPONSE FORMAT:
-Use this exact format for each mod:
-"MOD_NAME | QUANTITY | RANK | DRAIN"
-
-Where RANK is ONLY the number of BRIGHT/GLOWING dots you count at the bottom.
-
-Examples (based on actual dot counts):
-Narrow Minded | 1 | 1 | 14  (1 bright dot out of 10 total)
-Vitality | 3 | 0 | 4  (0 bright dots - all dark)
-Primed Flow | 1 | 5 | 16  (5 bright dots out of 10 total)
-Serration | 12 | 0 | 4  (0 bright dots - all dark)
-Adaptation | 1 | 8 | 10  (8 bright dots out of 10 total)
-Condition Overload | 1 | 5 | 15  (5 bright dots out of 5 total - max rank)
-
-IMPORTANT RULES:
-- If no number in top-left corner = quantity is 1 (single copy)
-- If you see "14 ↓" in top-right = drain is 14, NOT quantity
-- Count filled blue dots at bottom for level (0 if no blue dots filled)
-- Be extremely careful not to confuse drain (top-right) with quantity (top-left)
-- If you see a number in the top-right, that is MOD DRAIN, not quantity!
-- Only count the small number in the TOP-LEFT or the paper-stack icon as duplicate indicators.
-- ONLY count mods with semi-transparent grey dots (unranked), IGNORE mods with bright blue dots (leveled).
-- If you cannot clearly see any UNRANKED mods, respond with "NONE_DETECTED".
-
-If you cannot clearly see any mods, respond with "NONE_DETECTED".`;
+Rules for JSON:
+- Return ONLY the JSON array. Do not add any explanation before or after.
+- Group identical cards (same name, rank, and drain) by increasing the "copies" value.
+- Use integers for all numbers.`;
 
   const result = await genAI!.models.generateContent({
     model: 'gemini-2.0-flash-exp',
@@ -959,9 +945,14 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     if (!forceRetry) {
       const cachedResult = getCachedAnalysis(imageHash);
       if (cachedResult) {
-        console.log(`>>> [Gemini] Using cached analysis result - avoiding API call <<<`);
         // Still filter out duplicates in case inventory changed
-        return filterNewItems(cachedResult);
+        const items = filterNewItems(cachedResult);
+        if (items.length === 0) {
+          console.log(`>>> [Gemini] Cached result had 0 items — bypassing cache and re-analyzing <<<`);
+        } else {
+          console.log(`>>> [Gemini] Using cached analysis result - avoiding API call <<<`);
+          return { items, screenType: 'unknown' };
+        }
       }
     } else {
       console.log(`>>> [Gemini] Force retry requested - bypassing cache for image hash ${imageHash} <<<`);
@@ -1023,12 +1014,12 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
 
     if (isErrorResponse(analysisText)) {
       console.log(`>>> [Gemini] Error response detected <<<`);
-      return [];
+      return { items: [], screenType };
     }
 
     if (analysisText.trim() === "NONE_DETECTED") {
       console.log(`>>> [Gemini] No items detected in image <<<`);
-      return [];
+      return { items: [], screenType };
     }
 
     const detectedItems = parseDetectedItems(analysisText, screenType);

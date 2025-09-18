@@ -19,24 +19,25 @@ The user reported several critical bugs in the Gemini image detection system for
 - Simple format: "QUANTITY x MOD_NAME"
 
 **New Enhanced Prompt:**
-- **Explicit 4-element detection requirement:**
-  1. **MOD NAME** - Exact name as displayed
-  2. **QUANTITY** - Number in top-left corner (or 1 if none)
-  3. **LEVEL** - Count of filled blue dots at bottom (0-10)
-  4. **DRAIN** - Number in top-right corner with arrow
+- Detect all mods (ranked and unranked) and extract:
+  1. **Name** – as shown on card
+  2. **Copies** – top‑left, only if page icon is present; otherwise default to 1
+  3. **Rank** – count bright/filled dots and total dots → `rCURRENT/TOTAL`
+  4. **Drain** – top‑right number (capacity cost)
 
-- **Clear visual detection guidelines:**
-  - TOP-LEFT CORNER: Small white numbers = QUANTITY
-  - TOP-RIGHT CORNER: Numbers with arrows = DRAIN
-  - BOTTOM DOTS: Count filled blue dots for level
-  - ABSENCE OF TOP-LEFT NUMBER: Quantity = 1
+- Clear visual guidance and sanity checks connect copies with the top‑left area and drain with top‑right to prevent confusion.
 
-- **New format:** "MOD_NAME | QUANTITY | LEVEL | DRAIN"
+- New compact output format (also supported by parser):
+  - `[Qx ]MOD_NAME rCURRENT/TOTAL (drain D)`
+  - Example: `2x Tranquil Cleave r0/3 (drain 2)`
+
+- Backward compatible with the pipe format: `MOD_NAME | QUANTITY | LEVEL | DRAIN`
 
 ### 2. Enhanced Parsing Logic
 
 **Updated `parseDetectedItems` function:**
-- Added support for new format: `"MOD_NAME | QUANTITY | LEVEL | DRAIN"`
+- Added support for preferred format: `[Qx ]MOD_NAME rCURRENT/TOTAL (drain D)`
+- Keeps support for legacy pipe format: `"MOD_NAME | QUANTITY | LEVEL | DRAIN"`
 - Maintains backward compatibility with old format
 - Properly extracts all four elements
 - Maps level to mod rank field
@@ -108,7 +109,7 @@ Created `test-gemini-mod-detection.html` to:
 
 **For the "Narrow Minded" example:**
 - **Old system:** Would incorrectly report "14 x Narrow Minded" (confusing drain with quantity)
-- **New system:** Correctly reports "Narrow Minded | 1 | 1 | 14" (single copy, level 1, drain 14)
+- **New system:** Correctly reports `Narrow Minded r1/10 (drain 14)` and uses `1x` only when the copies icon is present
 
 **Benefits:**
 1. **Accurate quantity detection** - No more drain/quantity confusion
