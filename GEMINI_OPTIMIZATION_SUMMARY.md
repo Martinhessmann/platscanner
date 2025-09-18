@@ -1,14 +1,14 @@
-# Gemini API Rate Limiting Optimizations
+# Gemini AI System Optimization & Mod Detection Enhancement
 
 ## 🎯 Overview
-This document outlines the optimizations implemented to reduce Gemini API usage and handle rate limiting efficiently while maintaining full functionality for syndicate rewards.
+This document outlines the comprehensive optimizations and improvements implemented for the Gemini AI system, including rate limiting optimizations, advanced mod detection with segmentation, and enhanced accuracy improvements.
 
-## ✅ Implemented Optimizations
+## ✅ Core System Optimizations
 
 ### 1. **Cloud Storage Integration** ✅
-- **Syndicate rewards are now fully stored in the cloud inventory**
-- All scanned syndicate items persist across sessions and devices
-- Cloud sync automatically handles syndicate_rewards category
+- **All inventory categories stored in cloud** (prime parts, relics, syndicate rewards, mods)
+- Cross-device synchronization for seamless experience
+- Cloud sync automatically handles all category types
 - No data loss when Gemini is rate limited
 
 ### 2. **Intelligent Image Caching** ✅
@@ -21,13 +21,42 @@ This document outlines the optimizations implemented to reduce Gemini API usage 
 ### 3. **Smart Deduplication** ✅
 - **Inventory-aware filtering** - don't re-analyze items already in inventory
 - **Cross-category deduplication** - avoids adding same item multiple times
+- **Mod-specific deduplication** - considers name, rank, and drain for unique identification
 - **Real-time inventory checking** before making API calls
 - **Significant API call reduction** for users with existing inventories
 
 ### 4. **Efficient Data Flow** ✅
-- **Direct inventory integration** - syndicate rewards stored directly in inventory system
+- **Direct inventory integration** - all item types stored directly in inventory system
 - **Automatic cloud sync** - changes sync across devices without additional API calls
 - **Smart refresh** - only fetch prices when needed, not full re-analysis
+
+## 🚀 Advanced Mod Detection System
+
+### 1. **Segmentation-Based Analysis** ✅
+- **Individual mod card detection** using Gemini 2.5 Flash vision segmentation
+- **Per-card analysis** for improved accuracy vs full-image analysis
+- **Bounding box detection** with padding to prevent edge cutoff
+- **Complete mod card capture** including rank dots at bottom edge
+
+### 2. **Enhanced Visual Recognition** ✅
+- **Precise icon identification**:
+  - Copies: Stacked papers/documents icon in TOP-LEFT
+  - Drain: Number with polarity symbol (V, D, -, circle) in TOP-RIGHT
+  - Rank: Bright blue filled dots vs dark empty dots at BOTTOM
+- **Visual distinction training** to prevent confusion between different UI elements
+- **Rank constraints**: Total rank must be exactly 3, 5, or 10 (never other values)
+
+### 3. **Improved Prompting System** ✅
+- **Context-specific prompts** for individual mod card analysis
+- **Explicit visual guidelines** with examples and common mistakes to avoid
+- **JSON-structured output** for reliable parsing
+- **Single mod card focus** to eliminate hallucination of non-existent mods
+
+### 4. **Enhanced Image Processing** ✅
+- **Moderate contrast enhancement** (brightness 102%, saturation 110%, contrast 102%)
+- **Preserves visual distinction** between filled and empty rank dots
+- **Optional enhancement** that can be disabled if needed
+- **Cropping with padding** (2% buffer) to ensure complete mod card visibility
 
 ## 🚀 Performance Benefits
 
@@ -35,17 +64,27 @@ This document outlines the optimizations implemented to reduce Gemini API usage 
 - **Up to 100% reduction** for duplicate images (cache hits)
 - **50-80% reduction** for users with existing inventories (deduplication)
 - **Zero redundant calls** for cross-device usage (cloud sync)
+- **Segmentation efficiency** - analyze only detected mod cards vs full image
+
+### Accuracy Improvements
+- **Eliminated mod name hallucination** through individual card analysis
+- **Precise rank detection** with enhanced visual recognition prompts
+- **Correct icon interpretation** preventing drain/copies confusion
+- **Constrained total ranks** to valid Warframe values (3, 5, 10)
+- **JSON parsing artifact filtering** to prevent fake mod entries
 
 ### User Experience Improvements
 - **Faster response times** for cached images
 - **Persistent data** across sessions and devices
 - **Graceful degradation** when API is rate limited
 - **Smart retry logic** built into the system
+- **Accurate mod inventory management** with proper rank tracking
 
 ### Storage Optimization
 - **Efficient caching** with automatic cleanup
 - **Compressed image hashes** for fast lookups
 - **Cloud persistence** without local storage bloat
+- **Mod-specific deduplication** considering rank and drain values
 
 ## 🔧 Technical Implementation
 
@@ -67,15 +106,43 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
   const inventory = getCategorizedInventory();
   const existingItems = new Set();
 
-  // Build set of existing items by category:name
-  inventory.syndicate_rewards.forEach(item =>
-    existingItems.add(`${item.category}:${item.name}`)
-  );
+  // Build set of existing items by category
+  inventory.prime_parts.forEach(item => existingItems.add(`${item.category}:${item.name}`));
+  inventory.relics.forEach(item => existingItems.add(`${item.category}:${item.name}`));
+  inventory.syndicate_rewards.forEach(item => existingItems.add(`${item.category}:${item.name}`));
+  inventory.mods.forEach(item => {
+    // Mods need rank and drain for unique identification
+    const r = (item as any).rank ?? 0;
+    const d = (item as any).drain ?? '';
+    existingItems.add(`${item.category}:${item.name}:r${r}:d${d}`);
+  });
 
   // Return only truly new items
-  return detectedItems.filter(item =>
-    !existingItems.has(`${item.category}:${item.name}`)
-  );
+  return detectedItems.filter(item => {
+    let itemKey = `${item.category}:${item.name}`;
+    if (item.category === 'mods') {
+      const m = item as any;
+      const r = m.rank ?? 0;
+      const d = m.drain ?? '';
+      itemKey = `${item.category}:${item.name}:r${r}:d${d}`;
+    }
+    return !existingItems.has(itemKey);
+  });
+};
+```
+
+### Segmentation System
+```typescript
+// Individual mod card detection and analysis
+const segmentModCards = async (imageBase64: string, mimeType: string): Promise<Array<{ box_2d: number[]; label?: string }>> => {
+  // Gemini 2.5 Flash detects individual mod card bounding boxes
+  // Each box_2d: [y0, x0, y1, x1] in normalized 0..1000 coordinates
+  // Includes complete mod card with rank dots at bottom
+};
+
+const cropImageToBase64 = (file: File, box2d: number[]): Promise<string> => {
+  // Adds 2% padding to prevent cutting off rank dots
+  // Returns base64 of individual mod card for focused analysis
 };
 ```
 
