@@ -17,7 +17,9 @@ const WARFRAME_MARKET_API = 'https://api.warframe.market/v1';
  *
  * This Edge Function provides:
  * - Current market prices (highest buy orders)
- * - 90-day median/average prices (from all orders)
+ * - 90-day median/average prices (seller statistics)
+ * - 48-hour recent average price (seller statistics)
+ * - Buyer presence and counts (hasBuyers, buyerCount)
  * - Market volume data
  * - Rate limiting and caching
  *
@@ -124,16 +126,20 @@ const fetchSingleItemData = async (itemName: string) => {
       item.url_name === itemName
     ) || itemData.payload.item.items_in_set[0];
 
-    // Extract 90-day average from statistics (seller data)
+    // Extract averages from statistics (seller data)
     let historicalAverage = 0;
-    if (statsData.payload && statsData.payload.statistics_closed && statsData.payload.statistics_closed['90days']) {
-      const stats90days = statsData.payload.statistics_closed['90days'];
-      if (stats90days.length > 0) {
-        // Get the most recent 90-day period
-        const latestStats = stats90days[stats90days.length - 1];
-        historicalAverage = latestStats.avg_price || 0;
-        console.log(`>>> [Supabase] ${itemName}: 90-day historical average: ${historicalAverage}p <<<`);
+    let recentAverage48h = 0;
+    if (statsData.payload && statsData.payload.statistics_closed) {
+      const closedStats = statsData.payload.statistics_closed;
+      if (closedStats['90days'] && closedStats['90days'].length > 0) {
+        const latest90 = closedStats['90days'][closedStats['90days'].length - 1];
+        historicalAverage = latest90.avg_price || 0;
       }
+      if (closedStats['48hours'] && closedStats['48hours'].length > 0) {
+        const latest48 = closedStats['48hours'][closedStats['48hours'].length - 1];
+        recentAverage48h = latest48.avg_price || 0;
+      }
+      console.log(`>>> [Supabase] ${itemName}: avg90=${historicalAverage}p, avg48h=${recentAverage48h}p <<<`);
     }
 
     // Process orders
@@ -171,6 +177,13 @@ const fetchSingleItemData = async (itemName: string) => {
       console.log(`>>> [Supabase] ${itemName}: Mod rank filtering - Total: ${totalOrders}, Unranked Buy Orders: ${unrankedBuyOrders}, Ranked: ${rankedOrders} <<<`);
     }
 
+    const sellerOrders = ordersData.payload.orders.filter((order: any) =>
+      order.order_type === 'sell' &&
+      ['online', 'ingame'].includes(order.user.status) &&
+      !order.user.banned &&
+      order.visible
+    );
+
     const result = {
       name: itemDetails.en.item_name,
       thumb: itemDetails.thumb ? itemDetails.thumb.replace('https://warframe.market/static/assets/', '') : '',
@@ -178,8 +191,12 @@ const fetchSingleItemData = async (itemName: string) => {
       price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
       volume: allValidBuyOrders.length, // Only count unranked buy orders for mods
       average: historicalAverage, // Use 90-day historical average from seller data
+      recentAverage48h: recentAverage48h,
       buyerUsername: highestBidder?.user?.ingame_name || null,
       buyerQuantity: highestBidder?.quantity || 0,
+      hasBuyers: buyOrders.length > 0,
+      buyerCount: buyOrders.length,
+      sellerCount: sellerOrders.length,
       // Add mod-specific fields
       tags: itemDetails.tags || [],
       rarity: itemDetails.rarity || 'common',

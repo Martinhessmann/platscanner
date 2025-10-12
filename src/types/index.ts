@@ -12,11 +12,15 @@ export interface BaseItem {
   ducats?: number;
   volume?: number;
   average?: number;
+  recentAverage48h?: number;
   status: 'loading' | 'loaded' | 'error';
   error?: string;
   // Buyer information for whisper message generation
   buyerUsername?: string | null;
   buyerQuantity?: number;
+  hasBuyers?: boolean;
+  buyerCount?: number;
+  sellerCount?: number;
   // NEW: Distinguish between inventory items and truly owned items
   isOwned?: boolean; // true = user wants to keep this item, false/undefined = can be sold
 }

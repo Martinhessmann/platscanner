@@ -24,8 +24,8 @@ interface InventorySectionProps {
   onRefreshItem: (itemName: string) => void;
   onRemoveItem: (itemName: string) => void;
   // Filter controls for prime parts
-  primePartsFilter?: 'all' | 'blueprints' | 'built_sets';
-  onPrimePartsFilterChange?: (filter: 'all' | 'blueprints' | 'built_sets') => void;
+  primePartsFilter?: 'all' | 'blueprints' | 'built_sets' | 'buyers';
+  onPrimePartsFilterChange?: (filter: 'all' | 'blueprints' | 'built_sets' | 'buyers') => void;
 }
 
 const getCategoryDisplayName = (category: ItemCategory): string => {
@@ -160,7 +160,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               title={category === 'prime_parts' ?
                 (primePartsFilter === 'all' ? 'Clear ALL prime parts' :
                  primePartsFilter === 'built_sets' ? 'Clear built set parts' :
-                 'Clear tradeable blueprints only') :
+                 'Clear items with buyers') :
                 `Clear all ${getCategoryDisplayName(category).toLowerCase()}`
               }
             >
@@ -225,14 +225,14 @@ const InventorySection: React.FC<InventorySectionProps> = ({
             <div className="p-4 border-b border-gray-700/50">
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => onPrimePartsFilterChange('blueprints')}
+                  onClick={() => onPrimePartsFilterChange('buyers')}
                   className={`px-3 py-1 rounded text-xs transition-colors ${
-                    primePartsFilter === 'blueprints'
-                      ? 'bg-orokin-gold/20 text-orokin-gold border border-orokin-gold/50'
+                    primePartsFilter === 'buyers'
+                      ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/50'
                       : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-gray-600/50'
                   }`}
                 >
-                  Blueprints
+                  Has Buyers
                 </button>
                 <button
                   onClick={() => onPrimePartsFilterChange('built_sets')}
@@ -263,8 +263,8 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               <p className="text-gray-400 mb-2">
                 {category === 'prime_parts' && primePartsFilter === 'built_sets'
                   ? 'No parts from built sets found'
-                  : category === 'prime_parts' && primePartsFilter === 'blueprints'
-                  ? 'No blueprint parts found'
+                  : category === 'prime_parts' && primePartsFilter === 'buyers'
+                  ? 'No items with active buyers found'
                   : 'No items found'
                 }
               </p>

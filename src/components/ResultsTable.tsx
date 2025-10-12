@@ -22,10 +22,8 @@ import { isItemReserved } from '../services/buildPlanService';
 import { getImageUrlSync } from '../services/unifiedImageService';
 import LastRefreshInfo from './LastRefreshInfo';
 
-// Helper function to check if a prime part is tradeable (only blueprints are tradeable)
-const isPrimePartTradeable = (item: DetectedItem): boolean => {
-  return item.category !== 'prime_parts' || item.name.toLowerCase().endsWith(' blueprint');
-};
+// Helper: treat all prime parts as tradeable in UI
+const isPrimePartTradeable = (_item: DetectedItem): boolean => true;
 
 interface ResultsTableProps {
   results: DetectedItem[];
@@ -355,9 +353,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
               // Tradeable items: Show full price info
               <div className="grid grid-cols-3 gap-2 text-sm mb-2">
                 <div className="text-center">
-                  <div className="text-xs text-gray-400 mb-1">
-                    {item.average ? `Current / Avg` : 'Current'}
-                  </div>
+                  <div className="text-xs text-gray-400 mb-1">Current / Avg</div>
                   {item.status === 'loading' ? (
                     <div className="h-5 w-12 bg-gray-700 rounded animate-pulse mx-auto"></div>
                   ) : (
@@ -365,9 +361,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                       <Zap size={12} className="text-gray-300" />
                       <span className="font-semibold text-gray-300">
                         {item.price || 0}p
-                        {item.average && (
-                          <span className="text-gray-500 ml-1">/ {item.average}p</span>
-                        )}
+                        <span className="text-gray-500 ml-1">/ {(item.average || 0)}p</span>
                       </span>
                     </div>
                   )}
