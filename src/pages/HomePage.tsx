@@ -79,9 +79,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   });
 
   // Filter state for prime parts
-  const [primePartsFilter, setPrimePartsFilter] = useState<'all' | 'blueprints' | 'built_sets'>(() => {
+  const [primePartsFilter, setPrimePartsFilter] = useState<'all' | 'buyers' | 'built_sets'>(() => {
     const stored = localStorage.getItem('prime_parts_filter');
-    return stored ? JSON.parse(stored) : 'blueprints';
+    return stored ? JSON.parse(stored) : 'buyers';
   });
 
   // Save filter state to localStorage
@@ -157,12 +157,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     switch (primePartsFilter) {
       case 'all':
         return validParts;
-      case 'blueprints':
-        return validParts.filter(item => item.name.toLowerCase().endsWith(' blueprint'));
+      case 'buyers':
+        // Show items that currently have active buyer listings
+        return validParts.filter(item => (item.price || 0) > 0 || (item.buyerUsername && (item.price || 0) > 0));
       case 'built_sets':
         return validParts.filter(item => isPartFromBuiltSet(item.name));
       default:
-        return validParts.filter(item => item.name.toLowerCase().endsWith(' blueprint'));
+        return validParts;
     }
   }, [categorizedInventory.prime_parts, primePartsFilter, isPartFromBuiltSet]);
 
@@ -657,6 +658,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                     processedItem = {
                       ...item,
                       price: priceData.price,
+                      average: priceData.average,
                       marketVolume: priceData.volume,
                       lastUpdated: new Date(),
                       minDropValue: relicAnalysis.minDropValue,
@@ -667,14 +669,25 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                       directSalePrice: relicAnalysis.directSalePrice,
                       relicDrops: relicAnalysis.relicDrops,
                       refinementAnalysis: relicAnalysis.refinementAnalysis,
+                      buyerUsername: priceData.buyerUsername,
+                      buyerQuantity: priceData.buyerQuantity,
+                      hasBuyers: priceData.hasBuyers,
+                      buyerCount: priceData.buyerCount,
+                      sellerCount: priceData.sellerCount,
                       status: 'loaded' as const
                     };
                   } else {
                     processedItem = {
                       ...item,
                       price: priceData.price,
+                      average: priceData.average,
                       marketVolume: priceData.volume,
                       lastUpdated: new Date(),
+                      buyerUsername: priceData.buyerUsername,
+                      buyerQuantity: priceData.buyerQuantity,
+                      hasBuyers: priceData.hasBuyers,
+                      buyerCount: priceData.buyerCount,
+                      sellerCount: priceData.sellerCount,
                       status: 'loaded' as const
                     };
                   }
@@ -785,10 +798,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                     processedItem = {
                       ...item,
                       price: priceData.price,
+                      average: priceData.average, // include historical average consistently
                       marketVolume: priceData.volume,
                       lastUpdated: new Date(),
                       ...(platPerStanding !== undefined && { platPerStanding }),
-                      status: 'success' as const
+                      buyerUsername: priceData.buyerUsername,
+                      buyerQuantity: priceData.buyerQuantity,
+                      status: 'loaded' as const
                     };
                   } else {
                     processedItem = {

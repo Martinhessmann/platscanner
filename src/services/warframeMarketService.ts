@@ -1,9 +1,9 @@
 import { DetectedItem, VoidRelic } from '../types';
 import { getImageUrl } from './unifiedImageService';
 
-// Helper function to check if a prime part is tradeable (only blueprints are tradeable)
-const isPrimePartTradeable = (item: DetectedItem): boolean => {
-  return item.category !== 'prime_parts' || item.name.toLowerCase().endsWith(' blueprint');
+// Helper: Treat all detected prime parts as tradeable on Warframe Market
+const isPrimePartTradeable = (_item: DetectedItem): boolean => {
+  return true;
 };
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -299,19 +299,6 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
   console.log(`Using ${useSupabase ? 'Supabase Edge Function' : 'Direct API calls'} for market data`);
 
   for (const part of primeParts) {
-    // Skip non-tradeable items (non-blueprint prime parts)
-    if (!isPrimePartTradeable(part)) {
-      console.log(`Skipping non-tradeable item: ${part.name}`);
-      updatedParts.push({
-        ...part,
-        price: 0,
-        volume: 0,
-        average: 0,
-        status: 'loaded' as const
-      });
-      continue;
-    }
-
     try {
       const normalizedName = normalizeItemName(part.name);
       console.log(`Fetching data for: ${part.name} (${normalizedName})`);
@@ -334,11 +321,15 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
         ducats: data.ducats,
         volume: data.volume,
         average: data.average,
+        recentAverage48h: data.recentAverage48h,
         imgUrl: localImageUrl,
         status: 'loaded' as const,
         error: data.price === 0 ? 'No active buy orders' : undefined,
         buyerUsername: data.buyerUsername,
-        buyerQuantity: data.buyerQuantity
+        buyerQuantity: data.buyerQuantity,
+        hasBuyers: data.hasBuyers,
+        buyerCount: data.buyerCount,
+        sellerCount: data.sellerCount
       });
 
       // Add delay between requests
@@ -536,18 +527,6 @@ const determineItemType = (itemName: string): 'weapon' | 'mod' | 'cosmetic' | 'r
  * @returns Updated DetectedItem with market data
  */
 export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<DetectedItem> => {
-  // Skip non-tradeable items (non-blueprint prime parts)
-  if (!isPrimePartTradeable(primePart)) {
-    console.log(`Skipping non-tradeable item: ${primePart.name}`);
-    return {
-      ...primePart,
-      price: 0,
-      volume: 0,
-      average: 0,
-      status: 'loaded' as const
-    };
-  }
-
   const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
 
   try {
@@ -599,12 +578,16 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
       ducats: data.ducats,
       volume: data.volume,
       average: data.average,
+      recentAverage48h: data.recentAverage48h,
       imgUrl: localImageUrl,
       itemType: itemType,
       status: 'loaded' as const,
       error: data.price === 0 ? 'No active buy orders' : undefined,
       buyerUsername: data.buyerUsername,
       buyerQuantity: data.buyerQuantity,
+      hasBuyers: data.hasBuyers,
+      buyerCount: data.buyerCount,
+      sellerCount: data.sellerCount,
       // Add missing fields for mods
       rarity: data.rarity,
       tags: data.tags,
