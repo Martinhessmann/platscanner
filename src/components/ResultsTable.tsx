@@ -54,7 +54,11 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
 
   // Helper function to get the correct image URL for items
   const getItemImageUrl = (item: DetectedItem): string => {
-    if (item.category === 'prime_parts') {
+    if (item.category === 'prime_sets') {
+      // For Prime Sets, use the set name directly with unified image service
+      const imageUrl = getImageUrlSync(item.name);
+      return imageUrl || '/images/primeparts/unknown.png';
+    } else if (item.category === 'prime_parts') {
       // For prime parts, use the unified image service to get parent set image
       const imageUrl = getImageUrlSync(item.name);
       return imageUrl || '/images/primeparts/unknown.png';
@@ -335,6 +339,15 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                               <span>{setData.missingToBuy.length} need to buy</span>
                             </div>
                           )}
+                          {/* Complete Set Price */}
+                          {setData.completeSetPrice !== undefined && (
+                            <div className="flex items-center gap-1 mt-1 pt-1 border-t border-gray-600/50">
+                              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                              <span className="text-green-400">
+                                Complete Set: {setData.completeSetPrice > 0 ? `${setData.completeSetPrice}p` : 'No buyers'}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -403,8 +416,13 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                     <div className="flex items-center justify-center gap-1">
                       <Zap size={12} className="text-gray-300" />
                       <span className="font-semibold text-gray-300">
-                        {item.price || 0}p
-                        <span className="text-gray-500 ml-1">/ {(item.average || 0)}p</span>
+                        {item.category === 'prime_sets' && item.setData && !item.setData.hasActiveBuyers
+                          ? 'No buyers'
+                          : `${item.price || 0}p`
+                        }
+                        {item.category !== 'prime_sets' && (
+                          <span className="text-gray-500 ml-1">/ {(item.average || 0)}p</span>
+                        )}
                       </span>
                     </div>
                   )}
@@ -429,7 +447,10 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   <div className="flex items-center justify-center gap-1">
                     <Zap size={12} className="text-yellow-400" />
                     <span className="font-semibold text-yellow-400">
-                      {((item.price || 0) * (item.quantity || 1))}p
+                      {item.category === 'prime_sets' && item.setData && !item.setData.hasActiveBuyers
+                        ? '0p'
+                        : `${((item.price || 0) * (item.quantity || 1))}p`
+                      }
                     </span>
                   </div>
                 </div>

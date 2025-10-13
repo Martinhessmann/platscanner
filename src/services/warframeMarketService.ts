@@ -62,11 +62,11 @@ const normalizeModName = (name: string, rank?: number): string => {
   // Always normalize to unranked mod name, regardless of the mod's actual rank
   // This ensures we only get prices for level 0 mods
   let modName = name;
-  
+
   // Remove any rank information from the name (e.g., "Serration (R8)" -> "Serration")
   modName = modName.replace(/\s*\(R\d+\)$/i, '');
   modName = modName.replace(/\s*Rank\s+\d+$/i, '');
-  
+
   // Normalize the base name
   return normalizeItemName(modName);
 };
@@ -99,15 +99,18 @@ const getRelicMarketNames = (relicName: string): string[] => {
 /**
  * Fetches market data using Supabase Edge Function
  */
-const fetchViaSupabase = async (normalizedName: string) => {
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/warframe-market?item=${normalizedName}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      }
+const fetchViaSupabase = async (normalizedName: string, isPrimeSet: boolean = false) => {
+  const url = new URL(`${SUPABASE_URL}/functions/v1/warframe-market`);
+  url.searchParams.set('item', normalizedName);
+  if (isPrimeSet) {
+    url.searchParams.set('prime_set', 'true');
+  }
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
     }
-  );
+  });
 
   if (!response.ok) {
     const error = await response.json();
@@ -426,7 +429,7 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
 
     let data;
     let normalizedName: string;
-    
+
     if (useSupabase) {
       // Use smart relic lookup for relics, mod-specific normalization for mods
       if (primePart.name.includes('Relic')) {
@@ -534,7 +537,7 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
 
     let data;
     let normalizedName: string;
-    
+
     if (useSupabase) {
       // Use smart relic lookup for relics, mod-specific normalization for mods
       if (primePart.name.includes('Relic')) {
@@ -628,7 +631,8 @@ export const fetchPrimeSetMarketData = async (setName: string): Promise<{
 
     let data;
     if (useSupabase) {
-      data = await fetchViaSupabase(normalizedSetName);
+      // Use the new Prime Set endpoint with prime_set=true parameter
+      data = await fetchViaSupabase(setName, true);
     } else {
       data = await fetchViaDirect(normalizedSetName);
     }

@@ -314,6 +314,7 @@ Deno.serve(async (req) => {
     const url = new URL(req.url);
     const itemName = url.searchParams.get('item');
     const batchItems = url.searchParams.get('batch');
+    const isPrimeSet = url.searchParams.get('prime_set') === 'true';
 
     // Handle batch requests for relic value analysis
     if (batchItems) {
@@ -324,8 +325,20 @@ Deno.serve(async (req) => {
       return handleError(new Error('Item name is required'), 400);
     }
 
-    // Use the refactored single item fetcher
-    const result = await fetchSingleItemData(itemName);
+    // Handle Prime Set requests with proper URL formatting
+    let normalizedItemName = itemName;
+    if (isPrimeSet) {
+      // For Prime Sets, ensure we have the '_set' suffix
+      if (!itemName.toLowerCase().endsWith('_set')) {
+        normalizedItemName = normalizeItemName(itemName) + '_set';
+      } else {
+        normalizedItemName = normalizeItemName(itemName);
+      }
+      console.log(`>>> [Supabase] Prime Set request: ${itemName} -> ${normalizedItemName} <<<`);
+    }
+
+    // Use the refactored single item fetcher with normalized name
+    const result = await fetchSingleItemData(normalizedItemName);
 
     // Only return 500 errors for actual server issues, not "item not found"
     if (result.error && result.error !== 'not_found') {

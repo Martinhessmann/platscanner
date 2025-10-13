@@ -110,10 +110,14 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               !setProgress.obtainableFromRelics.includes(part)
             );
 
-            // Calculate total value of owned parts
+            // Calculate total value of owned parts (only include parts with active buyers)
             const ownedPartsValue = setProgress.ownedParts.reduce((total, partName) => {
               const part = categorizedInventory.prime_parts.find(p => p.name === partName);
-              return total + ((part?.price || 0) * (part?.quantity || 1));
+              // Only include price if part has active buyers
+              if (part && part.hasBuyers && part.price && part.price > 0) {
+                return total + (part.price * (part.quantity || 1));
+              }
+              return total;
             }, 0);
 
             // Calculate ducats from owned parts
@@ -141,6 +145,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               // Values
               ownedPartsValue,
               ownedPartsDucats,
+
+              // Check if any owned parts have buyers
+              hasActiveBuyers: setProgress.ownedParts.some(partName => {
+                const part = categorizedInventory.prime_parts.find(p => p.name === partName);
+                return part && part.hasBuyers && part.price && part.price > 0;
+              }),
 
               // Individual parts for display
               ownedPartsList: setProgress.ownedParts,
@@ -1128,6 +1138,43 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   // Individual item price refresh
   const handleRefreshSingleItem = useCallback(async (itemName: string) => {
     console.log(`>>> [HomePage] Refreshing single item: ${itemName} <<<`);
+
+    // Check if this is a Prime Set (from Sets filter)
+    if (primePartsFilter === 'sets') {
+      const setItem = displayedPrimeParts.find(item => item.name === itemName);
+      if (setItem && setItem.category === 'prime_sets') {
+        console.log(`>>> [HomePage] Refreshing Prime Set: ${itemName} Set <<<`);
+
+        // Fetch complete set price from Warframe Market
+        try {
+          const { fetchPrimeSetMarketData } = await import('../services/warframeMarketService');
+          const setMarketData = await fetchPrimeSetMarketData(itemName);
+
+          console.log(`>>> [HomePage] Prime Set ${itemName} market data:`, setMarketData);
+
+          // Update the incomplete sets data with market information
+          setIncompleteSetsData(prevData => 
+            prevData.map(setData => {
+              if (setData.setName === itemName) {
+                return {
+                  ...setData,
+                  completeSetPrice: setMarketData.price,
+                  completeSetAverage: setMarketData.average,
+                  completeSetVolume: setMarketData.volume,
+                  hasCompleteSetBuyers: setMarketData.price > 0
+                };
+              }
+              return setData;
+            })
+          );
+
+        } catch (error) {
+          console.error(`>>> [HomePage] Failed to fetch Prime Set market data for ${itemName}:`, error);
+        }
+
+        return;
+      }
+    }
 
     // Find item in either category
     const primeItem = categorizedInventory.prime_parts.find(item => item.name === itemName);
