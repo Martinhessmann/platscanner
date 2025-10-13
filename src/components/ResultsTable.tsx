@@ -327,24 +327,24 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
 
                         {/* Farming Analysis */}
                         <div className="text-xs text-gray-500 space-y-0.5">
-                          {setData.missingFromRelics.length > 0 && (
+                          {setData.obtainableFromRelics && setData.obtainableFromRelics.length > 0 && (
                             <div className="flex items-center gap-1">
                               <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
-                              <span>{setData.missingFromRelics.length} from relics</span>
+                              <span>{setData.obtainableFromRelics.length} from relics</span>
                             </div>
                           )}
-                          {setData.missingToBuy.length > 0 && (
+                          {setData.investmentAnalysis?.missingPartsToBuy && setData.investmentAnalysis.missingPartsToBuy.length > 0 && (
                             <div className="flex items-center gap-1">
                               <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                              <span>{setData.missingToBuy.length} need to buy</span>
+                              <span>{setData.investmentAnalysis.missingPartsToBuy.length} need to buy</span>
                             </div>
                           )}
-                          {/* Complete Set Price */}
-                          {setData.completeSetPrice !== undefined && (
+                          {/* Individual Parts Value (for comparison) */}
+                          {setData.individualPartsValue !== undefined && setData.individualPartsValue > 0 && (
                             <div className="flex items-center gap-1 mt-1 pt-1 border-t border-gray-600/50">
-                              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                              <span className="text-green-400">
-                                Complete Set: {setData.completeSetPrice > 0 ? `${setData.completeSetPrice}p` : 'No buyers'}
+                              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                              <span className="text-blue-400">
+                                Parts Value: {setData.individualPartsValue}p
                               </span>
                             </div>
                           )}
@@ -416,16 +416,20 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                     <div className="flex items-center justify-center gap-1">
                       <Zap size={12} className="text-gray-300" />
                       <span className="font-semibold text-gray-300">
-                        {item.category === 'prime_sets' && item.setData && (
-                          item.setData.hasCompleteSetBuyers !== undefined
-                            ? (item.setData.hasCompleteSetBuyers ? `${item.setData.completeSetPrice || 0}p` : 'No buyers')
-                            : (!item.setData.hasActiveBuyers ? 'No buyers' : `${item.price || 0}p`)
+                        {item.category === 'prime_sets' && item.setData ? (
+                          // For Prime Sets, show complete set price
+                          item.setData.completeSetPrice && item.setData.completeSetPrice > 0
+                            ? `${item.setData.completeSetPrice}p`
+                            : 'No buyers'
+                        ) : (
+                          // For individual parts, show individual price
+                          item.price && item.price > 0 ? `${item.price}p` : 'No buyers'
                         )}
-                        {item.category === 'prime_sets' && item.setData && item.setData.hasCompleteSetBuyers && (
-                          <span className="text-gray-500 ml-1">/ {item.setData.completeSetAverage || 0}p</span>
+                        {item.category === 'prime_sets' && item.setData?.completeSetAverage && item.setData.completeSetAverage !== item.setData.completeSetPrice && (
+                          <span className="text-gray-500 ml-1">/ {item.setData.completeSetAverage}p</span>
                         )}
-                        {item.category !== 'prime_sets' && (
-                          <span className="text-gray-500 ml-1">/ {(item.average || 0)}p</span>
+                        {item.category !== 'prime_sets' && item.average && item.average !== item.price && (
+                          <span className="text-gray-500 ml-1">/ {item.average}p</span>
                         )}
                       </span>
                     </div>
@@ -451,12 +455,15 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   <div className="flex items-center justify-center gap-1">
                     <Zap size={12} className="text-yellow-400" />
                     <span className="font-semibold text-yellow-400">
-                      {item.category === 'prime_sets' && item.setData && (
-                        item.setData.hasActiveBuyers !== undefined
-                          ? (item.setData.hasActiveBuyers ? `${item.price || 0}p` : '0p')
+                      {item.category === 'prime_sets' && item.setData ? (
+                        // For Prime Sets, show complete set price as total value
+                        item.setData.completeSetPrice && item.setData.completeSetPrice > 0
+                          ? `${item.setData.completeSetPrice}p`
                           : '0p'
+                      ) : (
+                        // For individual parts, show quantity * price
+                        `${((item.price || 0) * (item.quantity || 1))}p`
                       )}
-                      {item.category !== 'prime_sets' && `${((item.price || 0) * (item.quantity || 1))}p`}
                     </span>
                   </div>
                 </div>
