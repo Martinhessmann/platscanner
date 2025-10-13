@@ -101,8 +101,17 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         const { analyzeSetProgressWithMarketData } = await import('../services/primeSetService');
         const progress = await analyzeSetProgressWithMarketData(categorizedInventory.prime_parts, categorizedInventory.relics);
 
+        console.log(`>>> [Incomplete Sets] Total progress sets: ${progress.length} <<<`);
+        console.log(`>>> [Incomplete Sets] Sample sets:`, progress.slice(0, 5).map(p => ({ name: p.set.name, canBuild: p.canBuild, ismastered: p.ismastered, ownedParts: p.ownedParts.length })));
+
         const setsAnalysis = progress
-          .filter(setProgress => !setProgress.canBuild && !setProgress.ismastered && setProgress.ownedParts.length > 0)
+          .filter(setProgress => {
+            const meetsCriteria = !setProgress.canBuild && !setProgress.ismastered && setProgress.ownedParts.length > 0;
+            if (meetsCriteria) {
+              console.log(`>>> [Incomplete Sets] INCLUDED: ${setProgress.set.name} (canBuild=${setProgress.canBuild}, ismastered=${setProgress.ismastered}, ownedParts=${setProgress.ownedParts.length}) <<<`);
+            }
+            return meetsCriteria;
+          })
           .map(setProgress => ({
             // Use the full SetProgress object - it already has everything we need!
             ...setProgress,
@@ -134,6 +143,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           }))
           .sort((a, b) => b.completionPercentage - a.completionPercentage); // Sort by completion
 
+        console.log(`>>> [Incomplete Sets] Final filtered sets: ${setsAnalysis.length} <<<`);
+        console.log(`>>> [Incomplete Sets] Final set names:`, setsAnalysis.map(s => s.setName));
         setIncompleteSetsData(setsAnalysis);
       } catch (error) {
         console.error('>>> [Incomplete Sets Analysis] Error:', error);
