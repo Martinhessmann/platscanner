@@ -526,7 +526,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                   </span>
                 )}
                 <a
-                  href={`https://warframe.market/items/${item.category === 'prime_sets' 
+                  href={`https://warframe.market/items/${item.category === 'prime_sets'
                     ? item.name.toLowerCase().replace(/ /g, '_') + '_set'
                     : item.name.toLowerCase().replace(/ /g, '_')
                   }`}
