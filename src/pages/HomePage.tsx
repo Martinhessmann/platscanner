@@ -1141,7 +1141,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // Check if this is a Prime Set (from Sets filter)
     if (primePartsFilter === 'sets') {
+      console.log(`>>> [HomePage] Checking for Prime Set: ${itemName} in ${displayedPrimeParts.length} items <<<`);
       const setItem = displayedPrimeParts.find(item => item.name === itemName);
+      console.log(`>>> [HomePage] Found set item:`, setItem ? 'Yes' : 'No');
       if (setItem && setItem.category === 'prime_sets') {
         console.log(`>>> [HomePage] Refreshing Prime Set: ${itemName} Set <<<`);
 
@@ -1153,7 +1155,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           console.log(`>>> [HomePage] Prime Set ${itemName} market data:`, setMarketData);
 
           // Update the incomplete sets data with market information
-          setIncompleteSetsData(prevData => 
+          setIncompleteSetsData(prevData =>
             prevData.map(setData => {
               if (setData.setName === itemName) {
                 return {
