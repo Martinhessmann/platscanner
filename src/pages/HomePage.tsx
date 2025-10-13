@@ -1116,7 +1116,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // Check if this is a Prime Set (from Sets filter)
     if (primePartsFilter === 'sets') {
+      console.log(`>>> [HomePage] Looking for Prime Set: ${itemName} in ${incompleteSetsData.length} sets <<<`);
+      console.log(`>>> [HomePage] Available sets:`, incompleteSetsData.map(s => s.setName));
       const setData = incompleteSetsData.find(setData => setData.setName === itemName);
+      console.log(`>>> [HomePage] Found set data:`, setData ? 'Yes' : 'No');
       if (setData) {
         try {
           // Use the same function as PrimeSetsSection
