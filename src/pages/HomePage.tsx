@@ -1141,10 +1141,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // Check if this is a Prime Set (from Sets filter)
     if (primePartsFilter === 'sets') {
-      console.log(`>>> [HomePage] Checking for Prime Set: ${itemName} in ${displayedPrimeParts.length} items <<<`);
-      const setItem = displayedPrimeParts.find(item => item.name === itemName);
-      console.log(`>>> [HomePage] Found set item:`, setItem ? 'Yes' : 'No');
-      if (setItem && setItem.category === 'prime_sets') {
+      console.log(`>>> [HomePage] Checking for Prime Set: ${itemName} in ${incompleteSetsData.length} incomplete sets <<<`);
+      const setData = incompleteSetsData.find(setData => setData.setName === itemName);
+      console.log(`>>> [HomePage] Found set data:`, setData ? 'Yes' : 'No');
+      if (setData) {
         console.log(`>>> [HomePage] Refreshing Prime Set: ${itemName} Set <<<`);
 
         // Fetch complete set price from Warframe Market
@@ -1156,17 +1156,17 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
           // Update the incomplete sets data with market information
           setIncompleteSetsData(prevData =>
-            prevData.map(setData => {
-              if (setData.setName === itemName) {
+            prevData.map(data => {
+              if (data.setName === itemName) {
                 return {
-                  ...setData,
+                  ...data,
                   completeSetPrice: setMarketData.price,
                   completeSetAverage: setMarketData.average,
                   completeSetVolume: setMarketData.volume,
                   hasCompleteSetBuyers: setMarketData.price > 0
                 };
               }
-              return setData;
+              return data;
             })
           );
 
@@ -1418,6 +1418,53 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     try {
       const updatedItems: InventoryItem[] = [];
 
+      // Special handling for Sets filter - refresh Prime Set market data
+      if (primePartsFilter === 'sets') {
+        console.log(`>>> [HomePage] Refreshing ${items.length} Prime Sets <<<`);
+
+        for (let i = 0; i < items.length; i++) {
+          if (shouldStopProcessing) {
+            break;
+          }
+          const item = items[i];
+
+          if (item.category === 'prime_sets') {
+            try {
+              console.log(`>>> [HomePage] Refreshing Prime Set: ${item.name} (${i + 1}/${items.length}) <<<`);
+
+              const { fetchPrimeSetMarketData } = await import('../services/warframeMarketService');
+              const setMarketData = await fetchPrimeSetMarketData(item.name);
+
+              // Update the incomplete sets data with market information
+              setIncompleteSetsData(prevData =>
+                prevData.map(setData => {
+                  if (setData.setName === item.name) {
+                    return {
+                      ...setData,
+                      completeSetPrice: setMarketData.price,
+                      completeSetAverage: setMarketData.average,
+                      completeSetVolume: setMarketData.volume,
+                      hasCompleteSetBuyers: setMarketData.price > 0
+                    };
+                  }
+                  return setData;
+                })
+              );
+
+              console.log(`>>> [HomePage] Updated Prime Set ${item.name}: ${setMarketData.price}p <<<`);
+
+            } catch (error) {
+              console.error(`>>> [HomePage] Failed to refresh Prime Set ${item.name}:`, error);
+            }
+          }
+
+          setCategoryProgress({ category: 'prime_parts', current: i + 1, total: items.length });
+        }
+
+        return; // Exit early for Sets filter
+      }
+
+      // Regular refresh for individual parts
       // Mark only sellable items as loading
       const targetNames = new Set(items.map(i => i.name));
       setCategorizedInventory(prev => ({

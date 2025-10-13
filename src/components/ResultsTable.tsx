@@ -421,6 +421,9 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                             ? (item.setData.hasCompleteSetBuyers ? `${item.setData.completeSetPrice || 0}p` : 'No buyers')
                             : (!item.setData.hasActiveBuyers ? 'No buyers' : `${item.price || 0}p`)
                         )}
+                        {item.category === 'prime_sets' && item.setData && item.setData.hasCompleteSetBuyers && (
+                          <span className="text-gray-500 ml-1">/ {item.setData.completeSetAverage || 0}p</span>
+                        )}
                         {item.category !== 'prime_sets' && (
                           <span className="text-gray-500 ml-1">/ {(item.average || 0)}p</span>
                         )}
@@ -449,10 +452,11 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                     <Zap size={12} className="text-yellow-400" />
                     <span className="font-semibold text-yellow-400">
                       {item.category === 'prime_sets' && item.setData && (
-                        item.setData.hasCompleteSetBuyers !== undefined
-                          ? (item.setData.hasCompleteSetBuyers ? `${item.setData.completeSetPrice || 0}p` : '0p')
-                          : (!item.setData.hasActiveBuyers ? '0p' : `${((item.price || 0) * (item.quantity || 1))}p`)
+                        item.setData.hasActiveBuyers !== undefined
+                          ? (item.setData.hasActiveBuyers ? `${item.price || 0}p` : '0p')
+                          : '0p'
                       )}
+                      {item.category !== 'prime_sets' && `${((item.price || 0) * (item.quantity || 1))}p`}
                     </span>
                   </div>
                 </div>
