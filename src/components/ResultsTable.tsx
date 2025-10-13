@@ -32,6 +32,7 @@ interface ResultsTableProps {
   onRefreshItem?: (itemName: string) => void;
   showActionButtons?: boolean;
   lastRefreshTime?: Date | null;
+  setProgressData?: Map<string, any>;
 }
 
 const ResultsTable: React.FC<ResultsTableProps> = ({
@@ -40,7 +41,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
   onRemoveItem,
   onRefreshItem,
   showActionButtons = false,
-  lastRefreshTime
+  lastRefreshTime,
+  setProgressData
 }) => {
   const [sortField, setSortField] = useState<'price' | 'name' | 'ducats' | 'totalValue'>('price');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -90,7 +92,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
 
   // Apply filters
   let filteredResults = results;
-  
+
   if (showUnreservedOnly) {
     filteredResults = filteredResults.filter(item => !isItemReserved(item.name, 'prime_parts').reserved);
   }
@@ -165,7 +167,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
         <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-t-lg">
           <div className="flex items-center gap-3">
             <div className="text-sm text-gray-400">
-              {filteredResults.length} of {results.length} item{results.length !== 1 ? 's' : ''} 
+              {filteredResults.length} of {results.length} item{results.length !== 1 ? 's' : ''}
               {showUnreservedOnly && ' filtered'}
             </div>
 
@@ -186,8 +188,8 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
           </div>
           <div className="flex items-center gap-3">
             {lastRefreshTime && (
-              <LastRefreshInfo 
-                lastRefreshDate={lastRefreshTime} 
+              <LastRefreshInfo
+                lastRefreshDate={lastRefreshTime}
                 className="text-xs text-gray-500"
               />
             )}
@@ -296,6 +298,47 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                       </span>
                     )}
                   </div>
+                  {/* Set Analysis Info for Prime Sets */}
+                  {item.category === 'prime_sets' && item.setData && (() => {
+                    const setData = item.setData;
+                    return (
+                      <div className="mt-2 space-y-1">
+                        {/* Progress Bar */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">
+                            {setData.ownedParts}/{setData.totalParts} parts
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <div className="w-12 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-tenno-blue transition-all duration-300"
+                                style={{ width: `${setData.completionPercentage}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-gray-400">
+                              {Math.round(setData.completionPercentage)}%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Farming Analysis */}
+                        <div className="text-xs text-gray-500 space-y-0.5">
+                          {setData.missingFromRelics.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                              <span>{setData.missingFromRelics.length} from relics</span>
+                            </div>
+                          )}
+                          {setData.missingToBuy.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                              <span>{setData.missingToBuy.length} need to buy</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {(() => {
                     const reservation = isItemReserved(item.name, 'prime_parts');
                     if (reservation.reserved) {
@@ -407,7 +450,7 @@ const ResultsTable: React.FC<ResultsTableProps> = ({
                     <span className="text-gray-600 text-xs">-</span>
                   )}
                 </div>
-                
+
                 <div className="text-center">
                   <div className="text-xs text-gray-400 mb-1">Status</div>
                   <span className="text-xs text-orange-400">Not Tradeable</span>

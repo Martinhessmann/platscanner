@@ -24,8 +24,8 @@ interface InventorySectionProps {
   onRefreshItem: (itemName: string) => void;
   onRemoveItem: (itemName: string) => void;
   // Filter controls for prime parts
-  primePartsFilter?: 'all' | 'blueprints' | 'built_sets' | 'buyers';
-  onPrimePartsFilterChange?: (filter: 'all' | 'blueprints' | 'built_sets' | 'buyers') => void;
+  primePartsFilter?: 'all' | 'blueprints' | 'buyers' | 'sets';
+  onPrimePartsFilterChange?: (filter: 'all' | 'blueprints' | 'buyers' | 'sets') => void;
 }
 
 const getCategoryDisplayName = (category: ItemCategory): string => {
@@ -235,14 +235,14 @@ const InventorySection: React.FC<InventorySectionProps> = ({
                   Has Buyers
                 </button>
                 <button
-                  onClick={() => onPrimePartsFilterChange('built_sets')}
+                  onClick={() => onPrimePartsFilterChange('sets')}
                   className={`px-3 py-1 rounded text-xs transition-colors ${
-                    primePartsFilter === 'built_sets'
-                      ? 'bg-orokin-gold/20 text-orokin-gold border border-orokin-gold/50'
+                    primePartsFilter === 'sets'
+                      ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/50'
                       : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-gray-600/50'
                   }`}
                 >
-                  Built Sets
+                  Sets
                 </button>
                 <button
                   onClick={() => onPrimePartsFilterChange('all')}
@@ -261,16 +261,16 @@ const InventorySection: React.FC<InventorySectionProps> = ({
           {items.length === 0 ? (
             <div className="p-6 text-center">
               <p className="text-gray-400 mb-2">
-                {category === 'prime_parts' && primePartsFilter === 'built_sets'
-                  ? 'No parts from built sets found'
+                {category === 'prime_parts' && primePartsFilter === 'sets'
+                  ? 'No incomplete sets found'
                   : category === 'prime_parts' && primePartsFilter === 'buyers'
                   ? 'No items with active buyers found'
                   : 'No items found'
                 }
               </p>
               <p className="text-sm text-gray-500">
-                {category === 'prime_parts' && primePartsFilter === 'built_sets'
-                  ? 'Mark some Prime Sets as "built" in the Prime Sets section below to see parts safe to sell for ducats.'
+                {category === 'prime_parts' && primePartsFilter === 'sets'
+                  ? 'Upload screenshots of your prime parts inventory to see parts from incomplete sets with build progress.'
                   : 'Try switching to a different filter or upload more screenshots.'
                 }
               </p>

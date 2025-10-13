@@ -228,6 +228,7 @@ const fetchSingleItemData = async (itemName: string) => {
   }
 };
 
+
 /**
  * Handles batch requests for relic value analysis
  */

@@ -22,7 +22,7 @@ import {
   updateInventoryWithStaticDucats,
   InventoryItem
 } from '../services/inventoryService';
-import { getPrimeSetsCache, getMasteredSets, loadPrimeSets } from '../services/primeSetService';
+import { getPrimeSetsCache, loadPrimeSets, analyzeSetProgress } from '../services/primeSetService';
 import { ImageState, DetectedItem, ProcessingState, VoidRelic } from '../types';
 import InfoCard from '../components/InfoCard';
 import PrimeSetsSection from '../components/PrimeSetsSection';
@@ -79,7 +79,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   });
 
   // Filter state for prime parts
-  const [primePartsFilter, setPrimePartsFilter] = useState<'all' | 'buyers' | 'built_sets'>(() => {
+  const [primePartsFilter, setPrimePartsFilter] = useState<'all' | 'buyers' | 'sets'>(() => {
     const stored = localStorage.getItem('prime_parts_filter');
     return stored ? JSON.parse(stored) : 'buyers';
   });
@@ -89,57 +89,79 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     localStorage.setItem('prime_parts_filter', JSON.stringify(primePartsFilter));
   }, [primePartsFilter]);
 
-  // State for built set parts
-  const [builtSetParts, setBuiltSetParts] = useState<Set<string>>(new Set());
 
-  // Load built set parts when component mounts
-  // Note: Mastered sets are static data that don't change during runtime,
-  // so we only need to load them once, not on every inventory change
+  // State for incomplete sets analysis
+  const [incompleteSetsData, setIncompleteSetsData] = useState<any[]>([]);
+
+  // Load incomplete sets analysis when inventory changes
   useEffect(() => {
-    const loadBuiltSetParts = async () => {
-      const masteredSets = getMasteredSets();
+    const loadIncompleteSetsAnalysis = async () => {
+      try {
+        const progress = await analyzeSetProgress(categorizedInventory.prime_parts, categorizedInventory.relics);
 
-      if (masteredSets.length === 0) {
-        setBuiltSetParts(new Set());
-        return;
-      }
+        const setsAnalysis = progress
+          .filter(setProgress => !setProgress.canBuild && !setProgress.ismastered && setProgress.ownedParts.length > 0)
+          .map(setProgress => {
+            // Calculate farming vs buying analysis
+            const missingFromRelics = setProgress.missingParts.filter(part =>
+              setProgress.obtainableFromRelics.includes(part)
+            );
+            const missingToBuy = setProgress.missingParts.filter(part =>
+              !setProgress.obtainableFromRelics.includes(part)
+            );
 
-              try {
-          const primeSets = await loadPrimeSets();
-          const parts = new Set<string>();
-        let processedSets = 0;
+            // Calculate total value of owned parts
+            const ownedPartsValue = setProgress.ownedParts.reduce((total, partName) => {
+              const part = categorizedInventory.prime_parts.find(p => p.name === partName);
+              return total + ((part?.price || 0) * (part?.quantity || 1));
+            }, 0);
 
-        primeSets.forEach(set => {
-          if (masteredSets.includes(set.id)) {
-            processedSets++;
-            set.requiredParts.forEach(part => {
-              parts.add(part.name.toLowerCase());
-            });
-          }
-        });
+            // Calculate ducats from owned parts
+            const ownedPartsDucats = setProgress.ownedParts.reduce((total, partName) => {
+              const part = categorizedInventory.prime_parts.find(p => p.name === partName);
+              return total + ((part?.ducats || 0) * (part?.quantity || 1));
+            }, 0);
 
-        // Only log once when the function actually runs
-        if (__DEV_MODE__ === 'true') {
-          console.log(`>>> [Built Sets] Processed ${processedSets} mastered sets, generated ${parts.size} tradeable parts <<<`);
-        }
+            return {
+              // Set info
+              setName: setProgress.set.name,
+              category: setProgress.set.type,
+              vaulted: setProgress.set.vaulted,
 
-        setBuiltSetParts(parts);
+              // Progress info
+              completionPercentage: setProgress.completionPercentage,
+              ownedParts: setProgress.ownedParts.length,
+              totalParts: setProgress.set.requiredParts.length,
+              missingParts: setProgress.missingParts,
+
+              // Farming analysis
+              missingFromRelics,
+              missingToBuy,
+
+              // Values
+              ownedPartsValue,
+              ownedPartsDucats,
+
+              // Individual parts for display
+              ownedPartsList: setProgress.ownedParts,
+              missingPartsList: setProgress.missingParts
+            };
+          })
+          .sort((a, b) => b.completionPercentage - a.completionPercentage); // Sort by completion
+
+        setIncompleteSetsData(setsAnalysis);
       } catch (error) {
-        console.error('>>> [Built Sets] Error loading prime sets:', error);
-        setBuiltSetParts(new Set());
+        console.error('>>> [Incomplete Sets Analysis] Error:', error);
+        setIncompleteSetsData([]);
       }
     };
 
-    loadBuiltSetParts();
-  }, []); // Only run once on mount - mastered sets don't change during runtime
-
-  // Helper function to check if a part belongs to a built/mastered set
-  const isPartFromBuiltSet = useCallback((partName: string) => {
-    const hasMatch = builtSetParts.has(partName.toLowerCase());
-    if (hasMatch) {
+    if (categorizedInventory.prime_parts.length > 0) {
+      loadIncompleteSetsAnalysis();
+    } else {
+      setIncompleteSetsData([]);
     }
-    return hasMatch;
-  }, [builtSetParts]);
+  }, [categorizedInventory.prime_parts, categorizedInventory.relics]);
 
   // Prime parts to display based on filter
   const displayedPrimeParts = useMemo(() => {
@@ -160,12 +182,23 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       case 'buyers':
         // Show items that currently have active buyer listings
         return validParts.filter(item => (item.price || 0) > 0 || (item.buyerUsername && (item.price || 0) > 0));
-      case 'built_sets':
-        return validParts.filter(item => isPartFromBuiltSet(item.name));
+      case 'sets':
+        // Return sets as items instead of individual parts
+        return incompleteSetsData.map(setData => ({
+          id: `set-${setData.setName.toLowerCase().replace(/\s+/g, '-')}`,
+          name: setData.setName,
+          category: 'prime_sets' as const,
+          price: setData.ownedPartsValue,
+          ducats: setData.ownedPartsDucats,
+          quantity: 1,
+          status: 'loaded' as const,
+          // Custom set data
+          setData: setData
+        }));
       default:
         return validParts;
     }
-  }, [categorizedInventory.prime_parts, primePartsFilter, isPartFromBuiltSet]);
+  }, [categorizedInventory.prime_parts, primePartsFilter, incompleteSetsData]);
 
   // Totals for displayed parts
   const displayedPrimePartsTotals = useMemo(() => {
