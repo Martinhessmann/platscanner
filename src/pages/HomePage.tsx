@@ -97,66 +97,41 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   useEffect(() => {
     const loadIncompleteSetsAnalysis = async () => {
       try {
-        const progress = await analyzeSetProgress(categorizedInventory.prime_parts, categorizedInventory.relics);
+        // Use the same function as PrimeSetsSection that includes market data
+        const { analyzeSetProgressWithMarketData } = await import('../services/primeSetService');
+        const progress = await analyzeSetProgressWithMarketData(categorizedInventory.prime_parts, categorizedInventory.relics);
 
         const setsAnalysis = progress
           .filter(setProgress => !setProgress.canBuild && !setProgress.ismastered && setProgress.ownedParts.length > 0)
-          .map(setProgress => {
-            // Calculate farming vs buying analysis
-            const missingFromRelics = setProgress.missingParts.filter(part =>
-              setProgress.obtainableFromRelics.includes(part)
-            );
-            const missingToBuy = setProgress.missingParts.filter(part =>
-              !setProgress.obtainableFromRelics.includes(part)
-            );
+          .map(setProgress => ({
+            // Use the full SetProgress object - it already has everything we need!
+            ...setProgress,
 
-            // Calculate total value of owned parts (only include parts with active buyers)
-            const ownedPartsValue = setProgress.ownedParts.reduce((total, partName) => {
-              const part = categorizedInventory.prime_parts.find(p => p.name === partName);
-              // Only include price if part has active buyers
-              if (part && part.hasBuyers && part.price && part.price > 0) {
-                return total + (part.price * (part.quantity || 1));
-              }
-              return total;
-            }, 0);
+            // Add computed values for display
+            setName: setProgress.set.name,
+            category: setProgress.set.type,
+            vaulted: setProgress.set.vaulted,
+            completionPercentage: setProgress.completionPercentage,
+            ownedParts: setProgress.ownedParts.length,
+            totalParts: setProgress.set.requiredParts.length,
 
-            // Calculate ducats from owned parts
-            const ownedPartsDucats = setProgress.ownedParts.reduce((total, partName) => {
+            // Values for ResultsTable display
+            ownedPartsValue: setProgress.individualPartsValue || 0,
+            ownedPartsDucats: setProgress.ownedParts.reduce((total, partName) => {
               const part = categorizedInventory.prime_parts.find(p => p.name === partName);
               return total + ((part?.ducats || 0) * (part?.quantity || 1));
-            }, 0);
+            }, 0),
 
-            return {
-              // Set info
-              setName: setProgress.set.name,
-              category: setProgress.set.type,
-              vaulted: setProgress.set.vaulted,
+            // Check if any owned parts have buyers
+            hasActiveBuyers: setProgress.ownedParts.some(partName => {
+              const part = categorizedInventory.prime_parts.find(p => p.name === partName);
+              return part && part.hasBuyers && part.price && part.price > 0;
+            }),
 
-              // Progress info
-              completionPercentage: setProgress.completionPercentage,
-              ownedParts: setProgress.ownedParts.length,
-              totalParts: setProgress.set.requiredParts.length,
-              missingParts: setProgress.missingParts,
-
-              // Farming analysis
-              missingFromRelics,
-              missingToBuy,
-
-              // Values
-              ownedPartsValue,
-              ownedPartsDucats,
-
-              // Check if any owned parts have buyers
-              hasActiveBuyers: setProgress.ownedParts.some(partName => {
-                const part = categorizedInventory.prime_parts.find(p => p.name === partName);
-                return part && part.hasBuyers && part.price && part.price > 0;
-              }),
-
-              // Individual parts for display
-              ownedPartsList: setProgress.ownedParts,
-              missingPartsList: setProgress.missingParts
-            };
-          })
+            // Lists for display
+            ownedPartsList: setProgress.ownedParts,
+            missingPartsList: setProgress.missingParts
+          }))
           .sort((a, b) => b.completionPercentage - a.completionPercentage); // Sort by completion
 
         setIncompleteSetsData(setsAnalysis);
@@ -1141,40 +1116,26 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // Check if this is a Prime Set (from Sets filter)
     if (primePartsFilter === 'sets') {
-      console.log(`>>> [HomePage] Checking for Prime Set: ${itemName} in ${incompleteSetsData.length} incomplete sets <<<`);
       const setData = incompleteSetsData.find(setData => setData.setName === itemName);
-      console.log(`>>> [HomePage] Found set data:`, setData ? 'Yes' : 'No');
       if (setData) {
-        console.log(`>>> [HomePage] Refreshing Prime Set: ${itemName} Set <<<`);
-
-        // Fetch complete set price from Warframe Market
         try {
-          const { fetchPrimeSetMarketData } = await import('../services/warframeMarketService');
-          const setMarketData = await fetchPrimeSetMarketData(itemName);
+          // Use the same function as PrimeSetsSection
+          const { refreshIndividualSetMarketData } = await import('../services/primeSetService');
+          await refreshIndividualSetMarketData(itemName, categorizedInventory.prime_parts, categorizedInventory.relics);
 
-          console.log(`>>> [HomePage] Prime Set ${itemName} market data:`, setMarketData);
+          // Clear cache and re-run analysis to pick up the updated market data
+          const { clearPrimeSetsCache } = await import('../services/primeSetService');
+          clearPrimeSetsCache();
 
-          // Update the incomplete sets data with market information
-          setIncompleteSetsData(prevData =>
-            prevData.map(data => {
-              if (data.setName === itemName) {
-                return {
-                  ...data,
-                  completeSetPrice: setMarketData.price,
-                  completeSetAverage: setMarketData.average,
-                  completeSetVolume: setMarketData.volume,
-                  hasCompleteSetBuyers: setMarketData.price > 0
-                };
-              }
-              return data;
-            })
-          );
+          // Trigger the useEffect to re-run by updating a dependency
+          // We'll force a re-analysis by updating the incomplete sets data
+          setIncompleteSetsData(prevData => [...prevData]); // Force re-render
 
+          console.log(`>>> [HomePage] Refreshed Prime Set: ${itemName} using primeSetService <<<`);
+          return;
         } catch (error) {
-          console.error(`>>> [HomePage] Failed to fetch Prime Set market data for ${itemName}:`, error);
+          console.error(`>>> [HomePage] Failed to refresh Prime Set ${itemName}:`, error);
         }
-
-        return;
       }
     }
 
