@@ -5,7 +5,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { RefreshCw, Trash2, ChevronDown, ChevronRight, Zap, Coins } from 'lucide-react';
 import { InventoryItem } from '../services/inventoryService';
 import { ItemCategory, VoidRelic } from '../types';
-import ResultsTable from './ResultsTable';
+import PrimeParts from './PrimeParts';
 import RelicResultsTable from './RelicResultsTable';
 import LastRefreshInfo from './LastRefreshInfo';
 
@@ -284,7 +284,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               lastRefreshTime={lastRefreshTime}
             />
           ) : (
-            <ResultsTable
+            <PrimeParts
               results={items}
               onRemoveItem={onRemoveItem}
               onRefreshItem={onRefreshItem}
