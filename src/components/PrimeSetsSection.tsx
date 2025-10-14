@@ -1500,7 +1500,14 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                         );
                                         return (
                                           <span className="text-gray-500">
-                                            {priceData ? `${priceData.price}p` : 'Market only'}
+                                            {priceData ? (
+                                              <span className="flex flex-col items-end">
+                                                <span>{priceData.price}p</span>
+                                                {priceData.avg48h && priceData.avg48h !== priceData.price && (
+                                                  <span className="text-[10px] text-gray-600">48h: {priceData.avg48h}p</span>
+                                                )}
+                                              </span>
+                                            ) : 'Market only'}
                                           </span>
                                         );
                                       })()

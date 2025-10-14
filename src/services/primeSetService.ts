@@ -54,7 +54,7 @@ export interface SetProgress {
     potentialValue: number;
     missingPartsFromRelics: string[];
     missingPartsToBuy: string[];
-    missingPartsWithPrices?: Array<{ name: string; price: number }>; // Individual prices for missing parts
+    missingPartsWithPrices?: Array<{ name: string; price: number; avg48h?: number }>; // Individual prices for missing parts
     relicInvestmentCost: number; // void traces equivalent in platinum
     buyInvestmentCost: number; // platinum cost to buy missing parts
     totalInvestmentCost: number;
@@ -707,7 +707,6 @@ export const analyzeSetProgressWithMarketData = async (
     const canBuild = missingParts.length === 0;
     // Calculate completion percentage based on inventory items
     const completionPercentage = (ownedParts.length / set.requiredParts.length) * 100;
-    const missingCost = calculateMissingCost(missingParts);
     const ismastered = masteredSets.includes(set.id);
 
     return {
@@ -717,7 +716,7 @@ export const analyzeSetProgressWithMarketData = async (
       obtainableFromRelics,
       canBuild,
       totalCost,
-      missingCost,
+      missingCost: 0, // Will be calculated with real prices
       completionPercentage,
       ismastered,
       setMarketStatus: 'loading' as const
@@ -756,16 +755,10 @@ export const analyzeSetProgressWithMarketData = async (
         progress.completeSetBuyerQuantity = setMarketData.buyerQuantity;
         progress.individualPartsValue = individualPartsValue;
         progress.profitDifference = profitDifference;
-
-        // Calculate investment analysis
-        const investmentAnalysis = calculateInvestmentAnalysis(progress, primePartsInventory, relicsInventory);
-        progress.investmentAnalysis = investmentAnalysis;
-
-        progress.recommendedStrategy = determineOptimalStrategyWithInvestment(progress, individualPartsValue, completeSetPrice, investmentAnalysis);
         progress.setMarketStatus = 'loaded' as const;
         progress.setMarketError = setMarketData.error;
 
-        console.log(`🎯 [Market Analysis] ${progress.set.name}: Parts=${individualPartsValue}p, Set=${completeSetPrice}p, Strategy=${progress.recommendedStrategy}`);
+        console.log(`🎯 [Market Analysis] ${progress.set.name}: Parts=${individualPartsValue}p, Set=${completeSetPrice}p`);
       });
 
       // Fetch missing part prices for sets that are near completion (50%+)
@@ -800,7 +793,8 @@ export const analyzeSetProgressWithMarketData = async (
               const missingPartsWithPrices = priced
                 .map((p, i) => ({
                   name: missingPartItems[i].name,
-                  price: p?.sellerPrice || p?.average || 0 // Use seller price for investment cost
+                  price: p?.sellerPrice || p?.average || 0, // Use seller price for investment cost
+                  avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
                 }))
                 .filter(p => p.price > 0);
 
@@ -811,10 +805,8 @@ export const analyzeSetProgressWithMarketData = async (
               }, 0);
               progress.missingCost = missingCost;
 
-              // Add to investment analysis
-              if (progress.investmentAnalysis && missingPartsWithPrices.length > 0) {
-                progress.investmentAnalysis.missingPartsWithPrices = missingPartsWithPrices;
-              }
+              // Store the prices temporarily - will be added to investmentAnalysis later
+              (progress as any)._tempMissingPartsWithPrices = missingPartsWithPrices;
             } catch (err) {
               console.warn(`Failed to fetch missing part prices for ${progress.set.name}:`, err);
             }
@@ -823,6 +815,26 @@ export const analyzeSetProgressWithMarketData = async (
           }
         }
       }
+
+      // NOW calculate investment analysis and strategies AFTER we have all the price data
+      setsNeedingMarketData.forEach(progress => {
+        const individualPartsValue = progress.individualPartsValue || 0;
+        const completeSetPrice = progress.completeSetPrice || 0;
+
+        // Calculate investment analysis with fetched prices
+        const investmentAnalysis = calculateInvestmentAnalysis(progress, primePartsInventory, relicsInventory);
+
+        // Add the fetched missing part prices to the analysis
+        if (investmentAnalysis && (progress as any)._tempMissingPartsWithPrices) {
+          investmentAnalysis.missingPartsWithPrices = (progress as any)._tempMissingPartsWithPrices;
+          delete (progress as any)._tempMissingPartsWithPrices; // Clean up temp field
+        }
+
+        progress.investmentAnalysis = investmentAnalysis;
+        progress.recommendedStrategy = determineOptimalStrategyWithInvestment(progress, individualPartsValue, completeSetPrice, investmentAnalysis);
+
+        console.log(`🎯 [Strategy] ${progress.set.name}: Strategy=${progress.recommendedStrategy}, Investment=${investmentAnalysis?.totalInvestmentCost || 0}p`);
+      });
 
     } catch (error) {
       console.error('🎯 [Market Analysis] Failed to fetch complete set market data:', error);
@@ -971,7 +983,6 @@ export const refreshIndividualSetMarketData = async (
     const canBuild = missingParts.length === 0;
     // Calculate completion percentage based on inventory items
     const completionPercentage = (ownedParts.length / targetSet.requiredParts.length) * 100;
-    const missingCost = calculateMissingCost(missingParts);
     const ismastered = masteredSets.includes(targetSet.id);
 
     const setProgress: SetProgress = {
@@ -981,7 +992,7 @@ export const refreshIndividualSetMarketData = async (
       obtainableFromRelics,
       canBuild,
       totalCost,
-      missingCost,
+      missingCost: 0, // Will be calculated with real prices
       completionPercentage,
       ismastered,
       setMarketStatus: 'loading' as const
@@ -1033,7 +1044,8 @@ export const refreshIndividualSetMarketData = async (
             missingPartsWithPrices = priced
               .map((p, i) => ({
                 name: missingPartItems[i].name,
-                price: p?.sellerPrice || p?.average || 0 // Use seller price for investment cost
+                price: p?.sellerPrice || p?.average || 0, // Use seller price for investment cost
+                avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
               }))
               .filter(p => p.price > 0);
 
@@ -1069,6 +1081,20 @@ export const refreshIndividualSetMarketData = async (
         setProgress.setMarketError = error instanceof Error ? error.message : 'Failed to fetch market data';
       }
     }
+
+    // CRITICAL: Update the cache with the refreshed set data
+    const cachedSets = getPrimeSetsCache();
+    const updatedSets = cachedSets.map(cached =>
+      cached.set.name === setName ? setProgress : cached
+    );
+
+    // If the set wasn't in cache (new), add it
+    if (!cachedSets.some(cached => cached.set.name === setName)) {
+      updatedSets.push(setProgress);
+    }
+
+    setPrimeSetsCache(updatedSets);
+    console.log(`💾 [Individual Set] Updated cache for ${setName}`);
 
     return setProgress;
   } catch (error) {
