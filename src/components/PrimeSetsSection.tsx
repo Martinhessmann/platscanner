@@ -1258,65 +1258,71 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   </div>
                 </div>
 
-                {/* Value summary: Parts Value / Investment needed and Total / Avg */}
+                {/* Trading Recommendation - Prominent at top */}
+                {progress.recommendedStrategy && progress.profitDifference !== undefined && (
+                  <div className={`mt-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
+                    progress.profitDifference > 0
+                      ? 'bg-green-900/30 border-green-500/30 text-green-400'
+                      : progress.profitDifference < 0
+                      ? 'bg-red-900/30 border-red-500/30 text-red-400'
+                      : 'bg-gray-800/30 border-gray-600/30 text-gray-400'
+                  }`}>
+                    💰 {progress.recommendedStrategy === 'SELL_PARTS' ? 'SELL PARTS' : progress.recommendedStrategy === 'SELL_SET' ? 'SELL SET' : progress.recommendedStrategy.replace(/_/g, ' ')}
+                    {progress.profitDifference !== 0 && (
+                      <span className="ml-1">
+                        ({progress.profitDifference > 0 ? '+' : ''}{progress.profitDifference}p profit)
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Value summary with clearer labels */}
                 <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <div className="text-xs text-gray-400">Parts Value / Investment</div>
-                    <div className="text-gray-200">
-                      {(() => {
-                        const partsValue = progress.individualPartsValue ?? 0;
-                        const invest = progress.missingCost ?? undefined;
-                        const investText = invest !== undefined ? `${Math.round(invest)}p` : '—';
-                        return (
-                          <span>
-                            {Math.round(partsValue)}p / {investText}
-                          </span>
-                        );
-                      })()}
+                    <div className="text-xs text-gray-400">Owned Parts</div>
+                    <div className="flex items-center gap-1 text-blue-400">
+                      <Zap size={12} />
+                      <span className="font-medium">
+                        {Math.round(progress.individualPartsValue ?? 0)}p
+                      </span>
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-400">Total / Avg</div>
-                    <div className="text-gray-200">
-                      {(() => {
-                        const total = progress.completeSetPrice ?? 0;
-                        const avg = progress.completeSetAverage ?? undefined;
-                        const avgText = avg !== undefined ? `${Math.round(avg * 10) / 10}p` : '—';
-                        return (
-                          <span>
-                            {Math.round(total)}p / {avgText}
-                          </span>
-                        );
-                      })()}
+                    <div className="text-xs text-gray-400">Investment</div>
+                    <div className="flex items-center gap-1 text-orange-400">
+                      <ShoppingCart size={12} />
+                      <span className="font-medium">
+                        {progress.missingCost !== undefined ? `${Math.round(progress.missingCost)}p` : '—'}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Trading Comparison */}
-                {progress.completeSetPrice && progress.individualPartsValue && (
-                  <div className="mt-3 p-2 bg-gray-800/30 rounded border border-gray-700/50">
-                    <div className="text-xs text-gray-400 mb-2">Trading Comparison</div>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex justify-between">
-                        <span>Sell as Complete Set:</span>
-                        <span className="text-green-400">{progress.completeSetPrice}p</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Sell Individual Parts:</span>
-                        <span className="text-blue-400">{progress.individualPartsValue}p</span>
-                      </div>
-                      <div className="flex justify-between border-t border-gray-700/50 pt-1">
-                        <span>Difference:</span>
-                        <span className={progress.profitDifference && progress.profitDifference > 0 ? 'text-green-400' : 'text-red-400'}>
-                          {progress.profitDifference ? (progress.profitDifference > 0 ? '+' : '') + progress.profitDifference + 'p' : 'N/A'}
-                        </span>
-                      </div>
-                      {progress.recommendedStrategy && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          Recommendation: {progress.recommendedStrategy.replace(/_/g, ' ')}
-                        </div>
-                      )}
+                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <div className="text-xs text-gray-400">Set Price</div>
+                    <div className="flex items-center gap-1 text-green-400">
+                      <DollarSign size={12} />
+                      <span className="font-medium">
+                        {Math.round(progress.completeSetPrice ?? 0)}p
+                      </span>
                     </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400">48h Average</div>
+                    <div className="flex items-center gap-1 text-gray-300">
+                      <TrendingUp size={12} />
+                      <span className="font-medium">
+                        {progress.completeSetAverage !== undefined ? `${Math.round(progress.completeSetAverage * 10) / 10}p` : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Volume indicator */}
+                {progress.completeSetVolume !== undefined && progress.completeSetVolume > 0 && (
+                  <div className="mt-2 text-xs text-gray-500">
+                    Volume: {progress.completeSetVolume} {progress.completeSetVolume === 1 ? 'sale' : 'sales'} (48h)
                   </div>
                 )}
 
