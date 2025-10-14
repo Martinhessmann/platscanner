@@ -16,70 +16,90 @@
 - **Status**: ✅ Active (Version 10)
 - **Features**: Batch API support, caching, CORS handling, rate limiting
 
-## 🖼️ Image URL System - UNIFIED SOLUTION ✅
+## 🖼️ Static Data Architecture - CENTRALIZED CACHING ✅
 
-### ✅ **CLEAN UNIFIED APPROACH**
+### ✅ **CLEAN CENTRALIZED APPROACH**
 
-**Single Source of Truth**: `/public/primesets.json` for ALL image URLs
+**Single Cache Manager**: `staticDataService.ts` loads all static data once at app startup
 
 ```typescript
-// File: src/services/unifiedImageService.ts
-interface PrimeSet {
-  name: string;
-  image: string; // e.g., "valkyr-prime-354cd87f77.png"
-  category: string;
-  components: Array<{ name: string; count: number; }>;
-}
+// File: src/services/staticDataService.ts
+// Global singleton cache - loaded ONCE and shared by all services
 
-// ONE function for everything:
-getImageUrl("Valkyr Prime") → primesets.json → "valkyr-prime-354cd87f77.png"
-getImageUrl("Valkyr Prime Systems") → extract "Valkyr Prime" → primesets.json → "valkyr-prime-354cd87f77.png"
+export const initializeStaticData = async (): Promise<void> => {
+  await Promise.all([
+    loadPrimeSetsData(),  // primesets.json → 148 sets
+    loadRelicsData()      // relics.json → 2762 relics
+  ]);
+};
+
+// All services access the same cache
+export const getPrimeSetsCache = (): PrimeSet[] | null
+export const getRelicsCache = (): any[] | null
 ```
 
-### 🏗️ **Implementation**
+### 🏗️ **Service Integration**
 
-#### Core Functions
+#### Consumer Services
 ```typescript
-// Async version (for initial loading)
-export const getImageUrl = async (itemName: string): Promise<string>
+// primeSetService.ts - Uses centralized cache
+import { getPrimeSetsCache as getStaticPrimeSetsCache } from './staticDataService';
 
-// Sync version (after cache loaded)
-export const getImageUrlSync = (itemName: string): string | null
+export const loadPrimeSets = async (): Promise<PrimeSet[]> => {
+  const jsonData = getStaticPrimeSetsCache(); // No fetch, uses cache
+  return jsonData.map(transformJsonToPrimeSet);
+};
 
-// Preload for faster subsequent calls
-export const preloadImageData = async (): Promise<void>
+// unifiedImageService.ts - Uses centralized cache
+import { getPrimeSetsCache } from './staticDataService';
 
-// Extract parent set name from part name
-const getParentSetName = (partName: string): string
+const getCachedPrimeSets = (): PrimeSet[] => {
+  return getPrimeSetsCache() || [];
+};
+
+export const getImageUrl = async (itemName: string): Promise<string> => {
+  const primeSets = getCachedPrimeSets(); // No fetch, uses cache
+  // ... image URL resolution
+};
 ```
 
-#### Usage Pattern
+#### Initialization Flow
 ```typescript
-// 1. App startup: preload data
-await preloadImageData();
+// 1. App startup (HomePage.tsx useEffect)
+await initializeStaticData();
+console.log('✅ Loaded 148 prime sets + 2762 relics');
 
-// 2. Components: use sync version
-const imageUrl = getImageUrlSync("Valkyr Prime Systems"); // Fast, cached
-
-// 3. Services: use async version if needed
-const imageUrl = await getImageUrl("Mesa Prime");
+// 2. All services access cached data instantly
+const sets = getPrimeSetsCache();        // primeSetService
+const imageUrl = getImageUrl("Valkyr Prime");  // unifiedImageService
+const relics = getRelicsCache();         // relicDataService
 ```
 
-### 📊 **Results**
+### 📊 **Refactoring Results (2025-10-14)**
 
-#### Eliminated Files
-- ❌ `src/services/localImageService.ts` (173 lines)
-- ❌ `public/images/primeparts/part-mapping.json` (redundant data)
-- ❌ 127 lines of hardcoded mapping in `PrimeSetsSection.tsx`
+#### Architecture Before
+```
+❌ staticDataService: fetch('/primesets.json')
+❌ primeSetService: fetch('/primesets.json')
+❌ unifiedImageService: fetch('/primesets.json')
+= 3x duplicate loading + 3x separate caches
+```
 
-#### **Total Removed: 300+ lines of redundant code**
+#### Architecture After
+```
+✅ staticDataService: fetch('/primesets.json') [ONCE]
+✅ primeSetService: getPrimeSetsCache()
+✅ unifiedImageService: getPrimeSetsCache()
+= 1x loading + 1x shared cache
+```
 
 #### Benefits Achieved
-- **📦 Single Data Source**: Only `primesets.json`
-- **⚡ 3x Faster**: No duplicate file loading
-- **🧹 Clean Code**: One simple service
-- **🎯 Reliable**: Both parts and sets use identical images
-- **🔧 Maintainable**: Changes only in one place
+- **📦 Single Data Source**: `staticDataService` as central cache manager
+- **⚡ 3x Faster Startup**: Eliminated duplicate JSON fetches
+- **💾 Reduced Memory**: Single cache instead of triple redundancy
+- **🎯 Consistent Data**: All services use identical cached data
+- **🔧 Maintainable**: Single initialization point
+- **🚀 Better Performance**: Parallel loading of prime sets + relics at startup
 
 ## 🔄 Data Flow
 

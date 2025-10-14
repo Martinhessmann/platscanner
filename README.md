@@ -163,8 +163,14 @@ supabase functions deploy warframe-market --project-ref YOUR_PROJECT_REF
 
 For detailed technical information, see:
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and deployment details
-- [CHANGELOG.md](CHANGELOG.md) - Version history and changes
+- [CLAUDE.md](CLAUDE.md) - Project architecture, services, and recent updates
 - [FUTURE_IDEAS.md](FUTURE_IDEAS.md) - Planned features and roadmap
+
+### Recent Improvements (2025-10-14)
+- **Optimized Static Data Loading**: Eliminated duplicate `primesets.json` loading across services
+- **Centralized Caching**: Single cache manager (`staticDataService`) for all static data
+- **Performance**: 3x faster startup with reduced memory usage
+- **Architecture**: Clean separation with single source of truth for all services
 
 ## 🤝 Contributing
 

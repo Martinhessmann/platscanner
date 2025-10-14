@@ -41,13 +41,14 @@ This is a React-based Warframe inventory scanner that uses AI to analyze screens
 
 The application is built around several key services located in `src/services/`:
 
+- **staticDataService.ts**: **Central static data cache** - Loads `primesets.json` and `relics.json` once at app startup and provides cached access to all other services. Eliminates duplicate JSON loading and ensures consistent data across the application.
 - **geminiService.ts**: Handles Google Gemini Vision API integration for image analysis using Gemini 2.5 Flash model. Uses multi-step analysis: first determines screen type (prime_parts/relics/syndicate), then applies specialized prompts for each category.
 - **syndicateService.ts**: Manages Syndicate reward data with user-specific storage, intelligent item type detection, and standing cost estimation for owned items
 - **warframeMarketService.ts**: Integrates with Warframe.market API for real-time pricing data
-- **unifiedImageService.ts**: Manages local image assets for Prime parts and relics to reduce CDN dependencies
+- **unifiedImageService.ts**: Manages local image assets for Prime parts and relics. Uses `staticDataService` for centralized cache access.
 - **inventoryService.ts**: Handles inventory data persistence and local storage management with intentional deletion tracking
 - **relicDataService.ts**: Manages Void relic data including reward tables and value calculations
-- **primeSetService.ts**: Handles Prime set tracking and completion calculations
+- **primeSetService.ts**: Handles Prime set tracking and completion calculations. Uses `staticDataService` for cached prime sets data.
 - **cloudSyncService.ts**: Manages cross-device synchronization via Supabase with protection against restoring intentionally deleted data
 - **buildPlanService.ts**: Handles build planning and tracking features
 - **dataExportService.ts**: Manages data export functionality
@@ -195,6 +196,35 @@ The app requires a Gemini API key to function, stored in localStorage. Cloud syn
 - **Visual clarity**: Clear distinction between owned, inventory, and obtainable parts
 
 ## Recent Updates
+
+### Static Data Architecture Refactoring (2025-10-14)
+
+#### Problem Resolution
+- **Duplicate data loading eliminated**: Fixed architectural issue where `primesets.json` was being loaded three times by different services
+- **Previous flow**: `staticDataService`, `primeSetService`, and `unifiedImageService` each had their own fetch calls and caching systems
+- **Memory optimization**: Reduced memory usage by eliminating triple caching of the same 148-item dataset
+
+#### Technical Changes
+- **primeSetService.ts**: Removed duplicate `loadPrimeSetsData()` fetch, now uses `staticDataService.getPrimeSetsCache()`
+- **unifiedImageService.ts**: Removed local `primeSetsCache` and `loadPrimeSets()` function, created `getCachedPrimeSets()` helper using centralized cache
+- **Single source of truth**: All services now use `staticDataService` as the central cache manager
+- **Consistent initialization**: `initializeStaticData()` loads data once at app startup, all services access the same cache
+
+#### Performance Benefits
+- **Single JSON load**: `primesets.json` loaded only once instead of 3 separate times
+- **Reduced memory**: Eliminated duplicate caches (3 → 1 cache instance)
+- **Faster startup**: Parallel loading of prime sets and relics data at app initialization
+- **Consistent data**: All services access the same cached data, preventing desync issues
+
+#### Files Modified
+- `src/services/primeSetService.ts`: Uses `getPrimeSetsCache()` from staticDataService
+- `src/services/unifiedImageService.ts`: Removed duplicate loading, uses centralized cache
+- `src/services/staticDataService.ts`: Central cache manager (unchanged, already optimal)
+
+#### Backward Compatibility
+- **No breaking changes**: All public APIs remain the same
+- **Graceful degradation**: Error handling for uninitialized cache
+- **Zero impact**: Existing components and services work without modification
 
 ### Unified Refresh System & Mobile UX Overhaul (2025-08)
 

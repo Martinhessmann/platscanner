@@ -207,12 +207,19 @@ const transformJsonToPrimeSet = (jsonSet: PrimeSetJson): PrimeSet => {
 };
 
 // Use centralized static data loading
-import { loadPrimeSetsData } from './staticDataService';
+import { getPrimeSetsCache as getStaticPrimeSetsCache } from './staticDataService';
 import { fetchBatchPrimeSetMarketData, fetchPrimeSetMarketData } from './warframeMarketService';
 
 export const loadPrimeSets = async (): Promise<PrimeSet[]> => {
   try {
-    const jsonData: PrimeSetJson[] = await loadPrimeSetsData() as any;
+    // Use cached data from staticDataService (must be initialized first)
+    const jsonData: PrimeSetJson[] | null = getStaticPrimeSetsCache() as any;
+
+    if (!jsonData) {
+      console.error('Prime sets cache not initialized. Call initializeStaticData() first.');
+      return [];
+    }
+
     return jsonData.map(transformJsonToPrimeSet);
   } catch (error) {
     console.error('Failed to load prime sets:', error);

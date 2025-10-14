@@ -3,9 +3,11 @@
 
 /**
  * Unified Image Service - Single Source of Truth
- * Uses /public/primesets.json for both prime parts and prime sets
+ * Uses staticDataService for centralized primesets.json access
  * Eliminates duplicate image URL systems and 300+ lines of redundant code
  */
+
+import { getPrimeSetsCache } from './staticDataService';
 
 interface PrimeSet {
   name: string;
@@ -17,28 +19,17 @@ interface PrimeSet {
   }>;
 }
 
-// Cache for primesets.json to avoid repeated file loads
-let primeSetsCache: PrimeSet[] | null = null;
-
 /**
- * Loads primesets.json data - the single source of truth for all images
+ * Gets primesets data from centralized cache
+ * @returns Prime sets array from staticDataService cache
  */
-const loadPrimeSets = async (): Promise<PrimeSet[]> => {
-  if (primeSetsCache) {
-    return primeSetsCache;
-  }
-
-  try {
-    const response = await fetch('/primesets.json');
-    if (!response.ok) {
-      throw new Error(`Failed to load primesets.json: ${response.status}`);
-    }
-    primeSetsCache = await response.json();
-    return primeSetsCache!;
-  } catch (error) {
-    console.error('Failed to load primesets.json:', error);
+const getCachedPrimeSets = (): PrimeSet[] => {
+  const cached = getPrimeSetsCache();
+  if (!cached) {
+    console.error('Prime sets cache not initialized. Call initializeStaticData() first.');
     return [];
   }
+  return cached as PrimeSet[];
 };
 
 /**
@@ -88,7 +79,7 @@ const getParentSetName = (partName: string): string => {
  */
 export const getImageUrl = async (itemName: string): Promise<string> => {
   try {
-    const primeSets = await loadPrimeSets();
+    const primeSets = getCachedPrimeSets();
 
     // Direct set match (e.g., "Sevagoth Prime")
     const directMatch = primeSets.find(set => set.name === itemName);
@@ -128,19 +119,18 @@ export const getImageUrl = async (itemName: string): Promise<string> => {
 };
 
 /**
- * Synchronous version - only works if primesets.json is already cached
- * Use this when you know loadPrimeSets() has already been called
+ * Synchronous version - uses centralized cache
+ * Assumes initializeStaticData() has been called first
  */
 export const getImageUrlSync = (itemName: string): string | null => {
-  if (!primeSetsCache) {
-    // Try to trigger async loading for next time, but return null for now
-    loadPrimeSets().catch(console.error);
+  const primeSets = getCachedPrimeSets();
+
+  if (primeSets.length === 0) {
     return null;
   }
 
-
   // Direct match
-  const directMatch = primeSetsCache.find(set => set.name === itemName);
+  const directMatch = primeSets.find(set => set.name === itemName);
   if (directMatch) {
     return `/images/primeparts/${directMatch.image}`;
   }
@@ -148,7 +138,7 @@ export const getImageUrlSync = (itemName: string): string | null => {
   // Parent set match
   const parentSetName = getParentSetName(itemName);
   if (parentSetName !== itemName) {
-    const parentMatch = primeSetsCache.find(set => set.name === parentSetName);
+    const parentMatch = primeSets.find(set => set.name === parentSetName);
     if (parentMatch) {
       return `/images/primeparts/${parentMatch.image}`;
     }
@@ -157,7 +147,7 @@ export const getImageUrlSync = (itemName: string): string | null => {
   // Set suffix match
   const setNameWithoutSuffix = itemName.replace(' Set', '');
   if (setNameWithoutSuffix !== itemName) {
-    const setMatch = primeSetsCache.find(set => set.name === setNameWithoutSuffix);
+    const setMatch = primeSets.find(set => set.name === setNameWithoutSuffix);
     if (setMatch) {
       return `/images/primeparts/${setMatch.image}`;
     }
@@ -168,16 +158,18 @@ export const getImageUrlSync = (itemName: string): string | null => {
 
 /**
  * Preloads primesets.json for faster subsequent calls
+ * Note: With centralized cache, this is handled by initializeStaticData()
  */
 export const preloadImageData = async (): Promise<void> => {
-  await loadPrimeSets();
+  // No-op: Data is preloaded by initializeStaticData()
+  // Keeping for backward compatibility
 };
 
 /**
  * Gets all available prime sets (useful for components that need the full list)
  */
 export const getAllPrimeSets = async (): Promise<PrimeSet[]> => {
-  return await loadPrimeSets();
+  return getCachedPrimeSets();
 };
 
 export default {
