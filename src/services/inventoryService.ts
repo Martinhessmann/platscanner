@@ -127,6 +127,20 @@ export interface InventoryItem {
   endoValue?: number;
   reasoning?: string;
   platPerEndo?: number;
+
+  // Prime Sets properties (for prime_sets items) - stores SetProgress data
+  setData?: any; // Will contain SetProgress object with all analysis data
+  completeSetPrice?: number;
+  completeSetBuyerUsername?: string;
+  completeSetBuyerQuantity?: number;
+  completeSetVolume?: number;
+  completeSetAverage?: number;
+  individualPartsValue?: number;
+  ownedPartsCount?: number;
+  totalPartsCount?: number;
+  completionPercentage?: number;
+  obtainableFromRelicsCount?: number;
+  missingPartsToBuyCount?: number;
 }
 
 export interface CategorizedInventory {
@@ -134,6 +148,7 @@ export interface CategorizedInventory {
   relics: InventoryItem[];
   syndicate_rewards: InventoryItem[];
   mods: InventoryItem[];
+  prime_sets: InventoryItem[];
 }
 
 export interface InventoryStorage {
@@ -229,6 +244,28 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
         };
       }
 
+      // Include prime set properties for Prime Sets items
+      if (item.category === 'prime_sets') {
+        const setItem = item as any;
+        return {
+          ...baseItem,
+          // Summary fields for quick display
+          completeSetPrice: setItem.completeSetPrice,
+          completeSetBuyerUsername: setItem.completeSetBuyerUsername,
+          completeSetBuyerQuantity: setItem.completeSetBuyerQuantity,
+          completeSetVolume: setItem.completeSetVolume,
+          completeSetAverage: setItem.completeSetAverage,
+          individualPartsValue: setItem.individualPartsValue,
+          ownedPartsCount: setItem.ownedPartsCount,
+          totalPartsCount: setItem.totalPartsCount,
+          completionPercentage: setItem.completionPercentage,
+          obtainableFromRelicsCount: setItem.obtainableFromRelicsCount,
+          missingPartsToBuyCount: setItem.missingPartsToBuyCount,
+          // Full analysis object
+          setData: setItem.setData
+        };
+      }
+
       return baseItem;
     });
 
@@ -316,7 +353,8 @@ export const getCategorizedInventory = (): CategorizedInventory => {
     prime_parts: inventory.items.filter(item => item.category === 'prime_parts'),
     relics: inventory.items.filter(item => item.category === 'relics'),
     syndicate_rewards: inventory.items.filter(item => item.category === 'syndicate_rewards'),
-    mods: inventory.items.filter(item => item.category === 'mods')
+    mods: inventory.items.filter(item => item.category === 'mods'),
+    prime_sets: inventory.items.filter(item => item.category === 'prime_sets')
   };
 };
 
@@ -429,6 +467,26 @@ export const updateInventoryPrices = (updatedItems: DetectedItem[]): void => {
             recommendation: relicItem.recommendation,
             expectedProfit: relicItem.expectedProfit,
             refinementAnalysis: relicItem.refinementAnalysis
+          };
+        }
+
+        // Include prime set fields for Prime Sets items
+        if (updatedItem.category === 'prime_sets') {
+          const setItem = updatedItem as any;
+          return {
+            ...baseUpdate,
+            completeSetPrice: setItem.completeSetPrice,
+            completeSetBuyerUsername: setItem.completeSetBuyerUsername,
+            completeSetBuyerQuantity: setItem.completeSetBuyerQuantity,
+            completeSetVolume: setItem.completeSetVolume,
+            completeSetAverage: setItem.completeSetAverage,
+            individualPartsValue: setItem.individualPartsValue,
+            ownedPartsCount: setItem.ownedPartsCount,
+            totalPartsCount: setItem.totalPartsCount,
+            completionPercentage: setItem.completionPercentage,
+            obtainableFromRelicsCount: setItem.obtainableFromRelicsCount,
+            missingPartsToBuyCount: setItem.missingPartsToBuyCount,
+            setData: setItem.setData || (inventoryItem as any).setData
           };
         }
 

@@ -3,6 +3,7 @@
 // Last Updated: 2025-01-28
 
 import { DetectedItem, VoidRelic } from '../types';
+import { saveToInventory, getCategorizedInventory, clearInventoryByCategory } from './inventoryService';
 import { cloudSyncService } from './cloudSyncService';
 import { isItemOwned } from './ownedItemsService';
 
@@ -207,17 +208,16 @@ const transformJsonToPrimeSet = (jsonSet: PrimeSetJson): PrimeSet => {
 };
 
 // Use centralized static data loading
-import { getPrimeSetsCache as getStaticPrimeSetsCache } from './staticDataService';
+import { getPrimeSetsCache as getStaticPrimeSetsCache, loadPrimeSetsData } from './staticDataService';
 import { fetchBatchPrimeSetMarketData, fetchPrimeSetMarketData } from './warframeMarketService';
 
 export const loadPrimeSets = async (): Promise<PrimeSet[]> => {
   try {
-    // Use cached data from staticDataService (must be initialized first)
-    const jsonData: PrimeSetJson[] | null = getStaticPrimeSetsCache() as any;
-
-    if (!jsonData) {
-      console.error('Prime sets cache not initialized. Call initializeStaticData() first.');
-      return [];
+    // Try cache first, lazily initialize if missing
+    let jsonData: PrimeSetJson[] | null = getStaticPrimeSetsCache() as any;
+    if (!jsonData || jsonData.length === 0) {
+      const loaded = await loadPrimeSetsData();
+      jsonData = loaded as any;
     }
 
     return jsonData.map(transformJsonToPrimeSet);
@@ -230,32 +230,62 @@ export const loadPrimeSets = async (): Promise<PrimeSet[]> => {
 // Mastery tracking storage key
 const MASTERY_STORAGE_KEY = 'platscanner_mastery';
 
-// NEW: Prime Sets analysis cache storage
-const PRIME_SETS_CACHE_KEY = 'platscanner_prime_sets_cache';
+// Prime Sets analysis last refresh tracking
 const PRIME_SETS_LAST_REFRESH_KEY = 'platscanner_prime_sets_last_refresh';
 
-// NEW: Cache management for Prime Sets analysis results
+// NEW: Inventory-backed storage for Prime Sets analysis results
 export const getPrimeSetsCache = (): SetProgress[] => {
   try {
-    const stored = localStorage.getItem(PRIME_SETS_CACHE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const categorized = getCategorizedInventory();
+    const sets = categorized.prime_sets || [];
+    return sets
+      .map(item => item.setData)
+      .filter(Boolean);
   } catch (error) {
-    console.error('Failed to load prime sets cache:', error);
+    console.error('Failed to load prime sets from inventory:', error);
     return [];
   }
 };
 
 export const setPrimeSetsCache = (setProgress: SetProgress[]): void => {
   try {
-    localStorage.setItem(PRIME_SETS_CACHE_KEY, JSON.stringify(setProgress));
+    // Transform SetProgress[] to inventory items and save
+    const items: DetectedItem[] = setProgress.map(progress => ({
+      id: `set-${progress.set.name.toLowerCase().replace(/\s+/g, '-')}`,
+      name: progress.set.name,
+      category: 'prime_sets',
+      quantity: 1,
+      status: 'loaded',
+      // Quick summary fields for list rendering without parsing setData
+      price: progress.individualPartsValue || 0,
+      completeSetPrice: progress.completeSetPrice,
+      completeSetBuyerUsername: progress.completeSetBuyerUsername,
+      completeSetBuyerQuantity: progress.completeSetBuyerQuantity,
+      completeSetVolume: progress.completeSetVolume,
+      completeSetAverage: progress.completeSetAverage,
+      individualPartsValue: progress.individualPartsValue,
+      ownedPartsCount: progress.ownedParts?.length || 0,
+      totalPartsCount: progress.set.requiredParts?.length || 0,
+      completionPercentage: progress.completionPercentage,
+      obtainableFromRelicsCount: progress.obtainableFromRelics?.length || 0,
+      missingPartsToBuyCount: progress.missingParts?.length || 0,
+      setData: progress
+    }) as unknown as DetectedItem);
+
+    // Clear existing prime_sets and save fresh list to avoid stale items
+    clearInventoryByCategory('prime_sets');
+    if (items.length > 0) {
+      saveToInventory(items);
+    }
+
     localStorage.setItem(PRIME_SETS_LAST_REFRESH_KEY, new Date().toISOString());
 
     // Notify cloud sync of local data modification
     cloudSyncService.onLocalDataModified().catch(error => {
-      console.error('Failed to sync prime sets cache to cloud:', error);
+      console.error('Failed to sync prime sets to cloud:', error);
     });
   } catch (error) {
-    console.error('Failed to save prime sets cache:', error);
+    console.error('Failed to save prime sets to inventory:', error);
   }
 };
 
@@ -270,9 +300,9 @@ export const getPrimeSetsLastRefresh = (): Date | null => {
 };
 
 export const clearPrimeSetsCache = (): void => {
-  localStorage.removeItem(PRIME_SETS_CACHE_KEY);
+  clearInventoryByCategory('prime_sets');
   localStorage.removeItem(PRIME_SETS_LAST_REFRESH_KEY);
-  console.log('>>> [Cache] Prime Sets cache cleared <<<');
+  console.log('>>> [Cache] Prime Sets (inventory) cleared <<<');
 };
 
 // Get mastered sets from localStorage

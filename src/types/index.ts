@@ -1,6 +1,6 @@
 import { FileWithPath } from 'react-dropzone';
 
-export type ItemCategory = 'prime_parts' | 'relics' | 'syndicate_rewards' | 'mods';
+export type ItemCategory = 'prime_parts' | 'relics' | 'syndicate_rewards' | 'mods' | 'prime_sets';
 
 export interface BaseItem {
   id: string;
@@ -64,6 +64,24 @@ export interface SyndicateReward extends BaseItem {
   availability?: 'always' | 'rotation' | 'limited';
 }
 
+export interface PrimeSetItem extends BaseItem {
+  category: 'prime_sets';
+  // Store full SetProgress analysis for the set
+  setData: any;
+  // Commonly used summary fields for quick access/display
+  completeSetPrice?: number;
+  completeSetBuyerUsername?: string;
+  completeSetBuyerQuantity?: number;
+  completeSetVolume?: number;
+  completeSetAverage?: number;
+  individualPartsValue?: number;
+  ownedPartsCount?: number;
+  totalPartsCount?: number;
+  completionPercentage?: number;
+  obtainableFromRelicsCount?: number;
+  missingPartsToBuyCount?: number;
+}
+
 export interface Mod extends DetectedItem {
   rank?: number;
   drain?: number; // Mod capacity/drain cost
@@ -78,7 +96,7 @@ export interface Mod extends DetectedItem {
   average?: number; // Historical average price from market data
 }
 
-export type DetectedItem = PrimePart | VoidRelic | SyndicateReward | Mod;
+export type DetectedItem = PrimePart | VoidRelic | SyndicateReward | Mod | PrimeSetItem;
 
 export interface ImageState {
   id: string;

@@ -13,6 +13,7 @@ import {
   refreshPrimeSetsMarketData,
   refreshIndividualSetMarketData,
   getPrimeSetsLastRefresh,
+  getPrimeSetsCache,
   SetProgress,
   PrimeSet
 } from '../services/primeSetService';
@@ -187,6 +188,29 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
         // Analyze sets without market data
         const analyzed = await analyzeSetProgress(primePartsInventory, relicsInventory);
+
+        // Merge in any cached market data from inventory-backed cache
+        const cached = getPrimeSetsCache();
+        if (cached && cached.length > 0) {
+          const byName = new Map<string, SetProgress>(cached.map(c => [c.set.name, c]));
+          analyzed.forEach(p => {
+            const c = byName.get(p.set.name);
+            if (c) {
+              p.completeSetPrice = c.completeSetPrice;
+              p.completeSetVolume = c.completeSetVolume;
+              p.completeSetAverage = c.completeSetAverage;
+              p.completeSetBuyerUsername = c.completeSetBuyerUsername;
+              p.completeSetBuyerQuantity = c.completeSetBuyerQuantity;
+              p.individualPartsValue = c.individualPartsValue;
+              p.profitDifference = c.profitDifference;
+              p.investmentAnalysis = c.investmentAnalysis;
+              p.recommendedStrategy = c.recommendedStrategy;
+              p.setMarketStatus = c.setMarketStatus || 'loaded';
+              p.setMarketError = c.setMarketError;
+            }
+          });
+        }
+
         setSetProgress(analyzed);
 
         // Get recommendations

@@ -7,7 +7,7 @@
  * Eliminates duplicate image URL systems and 300+ lines of redundant code
  */
 
-import { getPrimeSetsCache } from './staticDataService';
+import { getPrimeSetsCache, loadPrimeSetsData } from './staticDataService';
 
 interface PrimeSet {
   name: string;
@@ -25,11 +25,7 @@ interface PrimeSet {
  */
 const getCachedPrimeSets = (): PrimeSet[] => {
   const cached = getPrimeSetsCache();
-  if (!cached) {
-    console.error('Prime sets cache not initialized. Call initializeStaticData() first.');
-    return [];
-  }
-  return cached as PrimeSet[];
+  return (cached || []) as PrimeSet[];
 };
 
 /**
@@ -54,7 +50,7 @@ const getParentSetName = (partName: string): string => {
 
   let result = partName;
   let changed = true;
-  
+
   // Keep removing suffixes until no more can be removed (handles compound suffixes)
   while (changed) {
     changed = false;
@@ -79,7 +75,12 @@ const getParentSetName = (partName: string): string => {
  */
 export const getImageUrl = async (itemName: string): Promise<string> => {
   try {
-    const primeSets = getCachedPrimeSets();
+    let primeSets = getCachedPrimeSets();
+    if (!primeSets || primeSets.length === 0) {
+      // Lazy-initialize if not yet loaded
+      const data = await loadPrimeSetsData();
+      primeSets = (data || []) as any;
+    }
 
     // Direct set match (e.g., "Sevagoth Prime")
     const directMatch = primeSets.find(set => set.name === itemName);

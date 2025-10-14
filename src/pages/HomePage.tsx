@@ -22,7 +22,7 @@ import {
   updateInventoryWithStaticDucats,
   InventoryItem
 } from '../services/inventoryService';
-import { getPrimeSetsCache, loadPrimeSets, analyzeSetProgress } from '../services/primeSetService';
+import { getPrimeSetsCache, setPrimeSetsCache, analyzeSetProgress } from '../services/primeSetService';
 import { ImageState, DetectedItem, ProcessingState, VoidRelic } from '../types';
 import InfoCard from '../components/InfoCard';
 import PrimeSetsSection from '../components/PrimeSetsSection';
@@ -93,38 +93,25 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   // State for Prime Sets data (same as PrimeSetsSection)
   const [primeSetsData, setPrimeSetsData] = useState<any[]>([]);
 
-  // Load Prime Sets data (same logic as PrimeSetsSection)
+  // Load Prime Sets data from inventory-backed cache; if empty, analyze and populate
   useEffect(() => {
     const loadPrimeSetsData = async () => {
       try {
-        // Use basic analysis without market data to avoid API calls on page load
-        // Market data will be fetched only when user clicks refresh buttons
-        const { analyzeSetProgress } = await import('../services/primeSetService');
-        const progress = await analyzeSetProgress(categorizedInventory.prime_parts, categorizedInventory.relics);
+        // Prefer existing inventory-backed cache
+        let progress = getPrimeSetsCache();
+        if (!progress || progress.length === 0) {
+          const analyzed = await analyzeSetProgress(categorizedInventory.prime_parts, categorizedInventory.relics);
+          setPrimeSetsCache(analyzed);
+          progress = analyzed;
+        }
 
         // Filter to incomplete sets only (same logic as PrimeSetsSection "planner" filter)
-        console.log(`>>> [Prime Sets Data] Total progress sets: ${progress.length} <<<`);
-        console.log(`>>> [Prime Sets Data] Sample sets:`, progress.slice(0, 5).map(p => ({
-          name: p.set.name,
-          canBuild: p.canBuild,
-          ismastered: p.ismastered,
-          ownedParts: p.ownedParts.length,
-          completionPercentage: p.completionPercentage
-        })));
-
         const incompleteSets = progress
           .filter(setProgress => {
             const isIncomplete = !setProgress.ismastered && setProgress.ownedParts.length > 0;
-            if (isIncomplete) {
-              console.log(`>>> [Prime Sets Data] INCLUDED: ${setProgress.set.name} (canBuild=${setProgress.canBuild}, ismastered=${setProgress.ismastered}, ownedParts=${setProgress.ownedParts.length}) <<<`);
-            }
             return isIncomplete;
           })
           .sort((a, b) => b.completionPercentage - a.completionPercentage);
-
-        console.log(`>>> [Prime Sets Data] Final filtered sets: ${incompleteSets.length} <<<`);
-        console.log(`>>> [Prime Sets Data] Final set names:`, incompleteSets.map(s => s.set.name));
-        console.log(`>>> [Prime Sets Data] Setting primeSetsData state with ${incompleteSets.length} sets <<<`);
         setPrimeSetsData(incompleteSets);
       } catch (error) {
         console.error('>>> [Prime Sets Data] Error:', error);
