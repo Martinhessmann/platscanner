@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Data Cache Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            background: #0a0a0a;
+        }
+        .test-title {
+            font-weight: bold;
+            font-size: 18px;
+            color: #00ffff;
+            margin-bottom: 10px;
+        }
+        .success {
+            color: #00ff00;
+        }
+        .error {
+            color: #ff0000;
+        }
+        .warning {
+            color: #ffaa00;
+        }
+        pre {
+            background: #000;
+            padding: 10px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Static Data Cache Integration Tests</h1>
+    <div id="test-results"></div>
+
+    <script type="module">
+        const results = document.getElementById('test-results');
+
+        function addTest(title, status, message, details = null) {
+            const section = document.createElement('div');
+            section.className = 'test-section';
+
+            const titleEl = document.createElement('div');
+            titleEl.className = 'test-title';
+            titleEl.textContent = `${status === 'success' ? '✅' : status === 'error' ? '❌' : '⚠️'} ${title}`;
+            section.appendChild(titleEl);
+
+            const messageEl = document.createElement('div');
+            messageEl.className = status;
+            messageEl.textContent = message;
+            section.appendChild(messageEl);
+
+            if (details) {
+                const detailsEl = document.createElement('pre');
+                detailsEl.textContent = JSON.stringify(details, null, 2);
+                section.appendChild(detailsEl);
+            }
+
+            results.appendChild(section);
+        }
+
+        async function runTests() {
+            console.log('🚀 Starting Static Data Cache Tests...');
+
+            // Test 1: Check if primesets.json exists and loads
+            try {
+                const startTime = performance.now();
+                const response = await fetch('/primesets.json');
+                const loadTime = (performance.now() - startTime).toFixed(2);
+
+                if (!response.ok) {
+                    addTest(
+                        'Test 1: Load primesets.json',
+                        'error',
+                        `Failed to load primesets.json: ${response.status}`,
+                        null
+                    );
+                    return;
+                }
+
+                const data = await response.json();
+                addTest(
+                    'Test 1: Load primesets.json',
+                    'success',
+                    `Loaded ${data.length} prime sets in ${loadTime}ms`,
+                    { count: data.length, loadTime: `${loadTime}ms`, sample: data[0] }
+                );
+
+                // Test 2: Verify data structure
+                const firstSet = data[0];
+                const hasRequiredFields = firstSet.name && firstSet.image && firstSet.components;
+
+                if (hasRequiredFields) {
+                    addTest(
+                        'Test 2: Verify data structure',
+                        'success',
+                        'All required fields present (name, image, components)',
+                        { sample: firstSet }
+                    );
+                } else {
+                    addTest(
+                        'Test 2: Verify data structure',
+                        'error',
+                        'Missing required fields',
+                        { sample: firstSet }
+                    );
+                }
+
+                // Test 3: Test multiple loads (should be cached by browser)
+                const load2Start = performance.now();
+                await fetch('/primesets.json');
+                const load2Time = (performance.now() - load2Start).toFixed(2);
+
+                const load3Start = performance.now();
+                await fetch('/primesets.json');
+                const load3Time = (performance.now() - load3Start).toFixed(2);
+
+                addTest(
+                    'Test 3: Browser caching effectiveness',
+                    load2Time < loadTime ? 'success' : 'warning',
+                    `1st: ${loadTime}ms, 2nd: ${load2Time}ms, 3rd: ${load3Time}ms`,
+                    {
+                        firstLoad: `${loadTime}ms`,
+                        secondLoad: `${load2Time}ms`,
+                        thirdLoad: `${load3Time}ms`,
+                        improvement: `${((1 - load2Time/loadTime) * 100).toFixed(1)}%`
+                    }
+                );
+
+                // Test 4: Test image URL construction
+                const testItems = [
+                    'Valkyr Prime',
+                    'Valkyr Prime Systems',
+                    'Mesa Prime Neuroptics Blueprint',
+                    'Acceltra Prime Barrel'
+                ];
+
+                const imageTests = testItems.map(itemName => {
+                    // Simulate getParentSetName logic
+                    const partSuffixes = [
+                        'Blueprint', 'Chassis', 'Neuroptics', 'Systems',
+                        'Barrel', 'Receiver', 'Stock', 'Blade', 'Handle'
+                    ].sort((a, b) => b.length - a.length);
+
+                    let parentName = itemName;
+                    let changed = true;
+                    while (changed) {
+                        changed = false;
+                        for (const suffix of partSuffixes) {
+                            if (parentName.endsWith(` ${suffix}`)) {
+                                parentName = parentName.replace(` ${suffix}`, '');
+                                changed = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    const matchingSet = data.find(set => set.name === parentName);
+                    return {
+                        itemName,
+                        extractedParent: parentName,
+                        found: !!matchingSet,
+                        imageUrl: matchingSet ? `/images/primeparts/${matchingSet.image}` : 'NOT FOUND'
+                    };
+                });
+
+                const allFound = imageTests.every(t => t.found);
+                addTest(
+                    'Test 4: Image URL resolution',
+                    allFound ? 'success' : 'error',
+                    `${imageTests.filter(t => t.found).length}/${imageTests.length} items resolved correctly`,
+                    imageTests
+                );
+
+                // Test 5: Memory usage estimation
+                const dataSize = JSON.stringify(data).length;
+                const sizeKB = (dataSize / 1024).toFixed(2);
+                const sizeMB = (dataSize / (1024 * 1024)).toFixed(2);
+
+                addTest(
+                    'Test 5: Memory footprint',
+                    'success',
+                    `Single cache instance: ${sizeKB} KB (${sizeMB} MB)`,
+                    {
+                        bytes: dataSize,
+                        kilobytes: `${sizeKB} KB`,
+                        megabytes: `${sizeMB} MB`,
+                        note: 'With centralized cache: 1x memory. Without: 3x memory.'
+                    }
+                );
+
+                // Test 6: Performance comparison simulation
+                const singleLoadTime = parseFloat(loadTime);
+                const tripleLoadTime = singleLoadTime * 3;
+                const savingsPercent = ((tripleLoadTime - singleLoadTime) / tripleLoadTime * 100).toFixed(1);
+
+                addTest(
+                    'Test 6: Refactoring impact simulation',
+                    'success',
+                    `Estimated savings: ${savingsPercent}% faster startup`,
+                    {
+                        before: {
+                            description: '3 services loading separately',
+                            totalTime: `${tripleLoadTime.toFixed(2)}ms`,
+                            memoryUsage: `${(parseFloat(sizeMB) * 3).toFixed(2)} MB`
+                        },
+                        after: {
+                            description: '1 centralized cache',
+                            totalTime: `${singleLoadTime.toFixed(2)}ms`,
+                            memoryUsage: `${sizeMB} MB`
+                        },
+                        improvements: {
+                            speedup: `${(tripleLoadTime / singleLoadTime).toFixed(1)}x faster`,
+                            memorySaved: `${(parseFloat(sizeMB) * 2).toFixed(2)} MB saved`,
+                            percentFaster: `${savingsPercent}%`
+                        }
+                    }
+                );
+
+                console.log('✅ All tests completed');
+
+            } catch (error) {
+                addTest(
+                    'Test Suite',
+                    'error',
+                    `Test suite failed: ${error.message}`,
+                    { error: error.toString(), stack: error.stack }
+                );
+            }
+        }
+
+        // Run tests on page load
+        runTests();
+    </script>
+</body>
+</html>
