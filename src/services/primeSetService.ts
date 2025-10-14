@@ -310,14 +310,14 @@ const hasItemInInventory = (itemName: string, requiredCount: number, inventory: 
   const validInventory = inventory.filter(item => {
     // Must be prime_parts category
     if (item.category !== 'prime_parts') return false;
-    
+
     // Must not contain Gemini response artifacts
     const lowerName = item.name.toLowerCase();
-    if (lowerName.includes('here are the') || 
+    if (lowerName.includes('here are the') ||
         lowerName.includes('visible in the screenshot') ||
         lowerName.includes('items detected') ||
         lowerName.length < 5) return false;
-        
+
     return true;
   });
 
@@ -612,6 +612,7 @@ export const analyzeSetProgressWithMarketData = async (
   // Check for cached data first (unless force refresh requested)
   if (!forceRefresh && includeMarketData) {
     const cachedProgress = getPrimeSetsCache();
+    console.log(`📦 [Prime Sets] Cache check: ${cachedProgress.length} cached sets, forceRefresh=${forceRefresh}`);
     if (cachedProgress.length > 0) {
       console.log(`📦 [Prime Sets] Using cached analysis data (${cachedProgress.length} sets)`);
       return cachedProgress;

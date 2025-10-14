@@ -90,72 +90,52 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   }, [primePartsFilter]);
 
 
-  // State for incomplete sets analysis
-  const [incompleteSetsData, setIncompleteSetsData] = useState<any[]>([]);
+  // State for Prime Sets data (same as PrimeSetsSection)
+  const [primeSetsData, setPrimeSetsData] = useState<any[]>([]);
 
-  // Load incomplete sets analysis when inventory changes
+  // Load Prime Sets data (same logic as PrimeSetsSection)
   useEffect(() => {
-    const loadIncompleteSetsAnalysis = async () => {
+    const loadPrimeSetsData = async () => {
       try {
-        // Use the same function as PrimeSetsSection that includes market data
-        const { analyzeSetProgressWithMarketData } = await import('../services/primeSetService');
-        const progress = await analyzeSetProgressWithMarketData(categorizedInventory.prime_parts, categorizedInventory.relics);
+        // Use basic analysis without market data to avoid API calls on page load
+        // Market data will be fetched only when user clicks refresh buttons
+        const { analyzeSetProgress } = await import('../services/primeSetService');
+        const progress = await analyzeSetProgress(categorizedInventory.prime_parts, categorizedInventory.relics);
 
-        console.log(`>>> [Incomplete Sets] Total progress sets: ${progress.length} <<<`);
-        console.log(`>>> [Incomplete Sets] Sample sets:`, progress.slice(0, 5).map(p => ({ name: p.set.name, canBuild: p.canBuild, ismastered: p.ismastered, ownedParts: p.ownedParts.length })));
+        // Filter to incomplete sets only (same logic as PrimeSetsSection "planner" filter)
+        console.log(`>>> [Prime Sets Data] Total progress sets: ${progress.length} <<<`);
+        console.log(`>>> [Prime Sets Data] Sample sets:`, progress.slice(0, 5).map(p => ({
+          name: p.set.name,
+          canBuild: p.canBuild,
+          ismastered: p.ismastered,
+          ownedParts: p.ownedParts.length,
+          completionPercentage: p.completionPercentage
+        })));
 
-        const setsAnalysis = progress
+        const incompleteSets = progress
           .filter(setProgress => {
-            const meetsCriteria = !setProgress.canBuild && !setProgress.ismastered && setProgress.ownedParts.length > 0;
-            if (meetsCriteria) {
-              console.log(`>>> [Incomplete Sets] INCLUDED: ${setProgress.set.name} (canBuild=${setProgress.canBuild}, ismastered=${setProgress.ismastered}, ownedParts=${setProgress.ownedParts.length}) <<<`);
+            const isIncomplete = !setProgress.ismastered && setProgress.ownedParts.length > 0;
+            if (isIncomplete) {
+              console.log(`>>> [Prime Sets Data] INCLUDED: ${setProgress.set.name} (canBuild=${setProgress.canBuild}, ismastered=${setProgress.ismastered}, ownedParts=${setProgress.ownedParts.length}) <<<`);
             }
-            return meetsCriteria;
+            return isIncomplete;
           })
-          .map(setProgress => ({
-            // Use the full SetProgress object - it already has everything we need!
-            ...setProgress,
+          .sort((a, b) => b.completionPercentage - a.completionPercentage);
 
-            // Add computed values for display
-            setName: setProgress.set.name,
-            category: setProgress.set.type,
-            vaulted: setProgress.set.vaulted,
-            completionPercentage: setProgress.completionPercentage,
-            ownedParts: setProgress.ownedParts.length,
-            totalParts: setProgress.set.requiredParts.length,
-
-            // Values for ResultsTable display
-            ownedPartsValue: setProgress.individualPartsValue || 0,
-            ownedPartsDucats: setProgress.ownedParts.reduce((total, partName) => {
-              const part = categorizedInventory.prime_parts.find(p => p.name === partName);
-              return total + ((part?.ducats || 0) * (part?.quantity || 1));
-            }, 0),
-
-            // Check if any owned parts have buyers
-            hasActiveBuyers: setProgress.ownedParts.some(partName => {
-              const part = categorizedInventory.prime_parts.find(p => p.name === partName);
-              return part && part.hasBuyers && part.price && part.price > 0;
-            }),
-
-            // Lists for display
-            ownedPartsList: setProgress.ownedParts,
-            missingPartsList: setProgress.missingParts
-          }))
-          .sort((a, b) => b.completionPercentage - a.completionPercentage); // Sort by completion
-
-        console.log(`>>> [Incomplete Sets] Final filtered sets: ${setsAnalysis.length} <<<`);
-        console.log(`>>> [Incomplete Sets] Final set names:`, setsAnalysis.map(s => s.setName));
-        setIncompleteSetsData(setsAnalysis);
+        console.log(`>>> [Prime Sets Data] Final filtered sets: ${incompleteSets.length} <<<`);
+        console.log(`>>> [Prime Sets Data] Final set names:`, incompleteSets.map(s => s.set.name));
+        console.log(`>>> [Prime Sets Data] Setting primeSetsData state with ${incompleteSets.length} sets <<<`);
+        setPrimeSetsData(incompleteSets);
       } catch (error) {
-        console.error('>>> [Incomplete Sets Analysis] Error:', error);
-        setIncompleteSetsData([]);
+        console.error('>>> [Prime Sets Data] Error:', error);
+        setPrimeSetsData([]);
       }
     };
 
     if (categorizedInventory.prime_parts.length > 0) {
-      loadIncompleteSetsAnalysis();
+      loadPrimeSetsData();
     } else {
-      setIncompleteSetsData([]);
+      setPrimeSetsData([]);
     }
   }, [categorizedInventory.prime_parts, categorizedInventory.relics]);
 
@@ -180,21 +160,24 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         return validParts.filter(item => (item.price || 0) > 0 || (item.buyerUsername && (item.price || 0) > 0));
       case 'sets':
         // Return sets as items instead of individual parts
-        return incompleteSetsData.map(setData => ({
-          id: `set-${setData.setName.toLowerCase().replace(/\s+/g, '-')}`,
-          name: setData.setName,
+        return primeSetsData.map(setProgress => ({
+          id: `set-${setProgress.set.name.toLowerCase().replace(/\s+/g, '-')}`,
+          name: setProgress.set.name,
           category: 'prime_sets' as const,
-          price: setData.ownedPartsValue,
-          ducats: setData.ownedPartsDucats,
+          price: setProgress.individualPartsValue || 0,
+          ducats: setProgress.ownedParts.reduce((total, partName) => {
+            const part = categorizedInventory.prime_parts.find(p => p.name === partName);
+            return total + ((part?.ducats || 0) * (part?.quantity || 1));
+          }, 0),
           quantity: 1,
           status: 'loaded' as const,
-          // Custom set data
-          setData: setData
+          // Full SetProgress object
+          setData: setProgress
         }));
       default:
         return validParts;
     }
-  }, [categorizedInventory.prime_parts, primePartsFilter, incompleteSetsData]);
+  }, [categorizedInventory.prime_parts, primePartsFilter, primeSetsData]);
 
   // Totals for displayed parts
   const displayedPrimePartsTotals = useMemo(() => {
@@ -1127,23 +1110,30 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // Check if this is a Prime Set (from Sets filter)
     if (primePartsFilter === 'sets') {
-      console.log(`>>> [HomePage] Looking for Prime Set: ${itemName} in ${incompleteSetsData.length} sets <<<`);
-      console.log(`>>> [HomePage] Available sets:`, incompleteSetsData.map(s => s.setName));
-      const setData = incompleteSetsData.find(setData => setData.setName === itemName);
-      console.log(`>>> [HomePage] Found set data:`, setData ? 'Yes' : 'No');
-      if (setData) {
+      console.log(`>>> [HomePage] Looking for Prime Set: ${itemName} in ${primeSetsData.length} sets <<<`);
+      console.log(`>>> [HomePage] Available sets:`, primeSetsData.map(s => s.set.name));
+      console.log(`>>> [HomePage] primeSetsData state:`, primeSetsData);
+      const setProgress = primeSetsData.find(setProgress => setProgress.set.name === itemName);
+      console.log(`>>> [HomePage] Found set data:`, setProgress ? 'Yes' : 'No');
+      if (setProgress) {
         try {
           // Use the same function as PrimeSetsSection
-          const { refreshIndividualSetMarketData } = await import('../services/primeSetService');
-          await refreshIndividualSetMarketData(itemName, categorizedInventory.prime_parts, categorizedInventory.relics);
+          const { refreshIndividualSetMarketData, getPrimeSetsCache, setPrimeSetsCache } = await import('../services/primeSetService');
+          const updatedSetProgress = await refreshIndividualSetMarketData(itemName, categorizedInventory.prime_parts, categorizedInventory.relics);
 
-          // Clear cache and re-run analysis to pick up the updated market data
-          const { clearPrimeSetsCache } = await import('../services/primeSetService');
-          clearPrimeSetsCache();
+          if (updatedSetProgress) {
+            // Update the cache with the refreshed set data
+            const currentCache = getPrimeSetsCache();
+            const updatedCache = currentCache.map(cachedSet =>
+              cachedSet.set.name === itemName ? updatedSetProgress : cachedSet
+            );
+            setPrimeSetsCache(updatedCache);
 
-          // Trigger the useEffect to re-run by updating a dependency
-          // We'll force a re-analysis by updating the incomplete sets data
-          setIncompleteSetsData(prevData => [...prevData]); // Force re-render
+            // Update the local state to reflect the refreshed data
+            setPrimeSetsData(prevData => prevData.map(setProgress =>
+              setProgress.set.name === itemName ? updatedSetProgress : setProgress
+            ));
+          }
 
           console.log(`>>> [HomePage] Refreshed Prime Set: ${itemName} using primeSetService <<<`);
           return;
@@ -1246,7 +1236,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         )
       }));
     }
-  }, [categorizedInventory]);
+  }, [categorizedInventory, primeSetsData, primePartsFilter]);
 
   // Category-specific refresh handlers
   const handleRefreshCategoryPrices = useCallback(async (category: 'prime_parts' | 'relics') => {
