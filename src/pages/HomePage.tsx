@@ -1397,26 +1397,25 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             try {
               console.log(`>>> [HomePage] Refreshing Prime Set: ${item.name} (${i + 1}/${items.length}) <<<`);
 
-              const { fetchPrimeSetMarketData } = await import('../services/warframeMarketService');
-              const setMarketData = await fetchPrimeSetMarketData(item.name);
+              // Use the same function as individual refresh
+              const { refreshIndividualSetMarketData, getPrimeSetsCache, setPrimeSetsCache } = await import('../services/primeSetService');
+              const updatedSetProgress = await refreshIndividualSetMarketData(item.name, categorizedInventory.prime_parts, categorizedInventory.relics);
 
-              // Update the incomplete sets data with market information
-              setIncompleteSetsData(prevData =>
-                prevData.map(setData => {
-                  if (setData.setName === item.name) {
-                    return {
-                      ...setData,
-                      completeSetPrice: setMarketData.price,
-                      completeSetAverage: setMarketData.average,
-                      completeSetVolume: setMarketData.volume,
-                      hasCompleteSetBuyers: setMarketData.price > 0
-                    };
-                  }
-                  return setData;
-                })
-              );
+              if (updatedSetProgress) {
+                // Update the cache with the refreshed set data
+                const currentCache = getPrimeSetsCache();
+                const updatedCache = currentCache.map(cachedSet =>
+                  cachedSet.set.name === item.name ? updatedSetProgress : cachedSet
+                );
+                setPrimeSetsCache(updatedCache);
 
-              console.log(`>>> [HomePage] Updated Prime Set ${item.name}: ${setMarketData.price}p <<<`);
+                // Update the local state to reflect the refreshed data
+                setPrimeSetsData(prevData => prevData.map(setProgress =>
+                  setProgress.set.name === item.name ? updatedSetProgress : setProgress
+                ));
+              }
+
+              console.log(`>>> [HomePage] Updated Prime Set ${item.name} using primeSetService <<<`);
 
             } catch (error) {
               console.error(`>>> [HomePage] Failed to refresh Prime Set ${item.name}:`, error);
