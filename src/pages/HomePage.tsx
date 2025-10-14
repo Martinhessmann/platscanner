@@ -79,9 +79,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   });
 
   // Filter state for prime parts
-  const [primePartsFilter, setPrimePartsFilter] = useState<'all' | 'buyers' | 'sets'>(() => {
+  const [primePartsFilter, setPrimePartsFilter] = useState<'all' | 'buyers'>(() => {
     const stored = localStorage.getItem('prime_parts_filter');
-    return stored ? JSON.parse(stored) : 'buyers';
+    const parsed = stored ? JSON.parse(stored) : 'buyers';
+    // Migrate old 'sets' filter to 'buyers'
+    return parsed === 'sets' ? 'buyers' : parsed;
   });
 
   // Save filter state to localStorage
@@ -145,22 +147,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       case 'buyers':
         // Show items that currently have active buyer listings
         return validParts.filter(item => (item.price || 0) > 0 || (item.buyerUsername && (item.price || 0) > 0));
-      case 'sets':
-        // Return sets as items instead of individual parts
-        return primeSetsData.map(setProgress => ({
-          id: `set-${setProgress.set.name.toLowerCase().replace(/\s+/g, '-')}`,
-          name: setProgress.set.name,
-          category: 'prime_sets' as const,
-          price: setProgress.individualPartsValue || 0,
-          ducats: setProgress.ownedParts.reduce((total, partName) => {
-            const part = categorizedInventory.prime_parts.find(p => p.name === partName);
-            return total + ((part?.ducats || 0) * (part?.quantity || 1));
-          }, 0),
-          quantity: 1,
-          status: 'loaded' as const,
-          // Full SetProgress object
-          setData: setProgress
-        }));
       default:
         return validParts;
     }
@@ -1095,41 +1081,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const handleRefreshSingleItem = useCallback(async (itemName: string) => {
     console.log(`>>> [HomePage] Refreshing single item: ${itemName} <<<`);
 
-    // Check if this is a Prime Set (from Sets filter)
-    if (primePartsFilter === 'sets') {
-      console.log(`>>> [HomePage] Looking for Prime Set: ${itemName} in ${primeSetsData.length} sets <<<`);
-      console.log(`>>> [HomePage] Available sets:`, primeSetsData.map(s => s.set.name));
-      console.log(`>>> [HomePage] primeSetsData state:`, primeSetsData);
-      const setProgress = primeSetsData.find(setProgress => setProgress.set.name === itemName);
-      console.log(`>>> [HomePage] Found set data:`, setProgress ? 'Yes' : 'No');
-      if (setProgress) {
-        try {
-          // Use the same function as PrimeSetsSection
-          const { refreshIndividualSetMarketData, getPrimeSetsCache, setPrimeSetsCache } = await import('../services/primeSetService');
-          const updatedSetProgress = await refreshIndividualSetMarketData(itemName, categorizedInventory.prime_parts, categorizedInventory.relics);
-
-          if (updatedSetProgress) {
-            // Update the cache with the refreshed set data
-            const currentCache = getPrimeSetsCache();
-            const updatedCache = currentCache.map(cachedSet =>
-              cachedSet.set.name === itemName ? updatedSetProgress : cachedSet
-            );
-            setPrimeSetsCache(updatedCache);
-
-            // Update the local state to reflect the refreshed data
-            setPrimeSetsData(prevData => prevData.map(setProgress =>
-              setProgress.set.name === itemName ? updatedSetProgress : setProgress
-            ));
-          }
-
-          console.log(`>>> [HomePage] Refreshed Prime Set: ${itemName} using primeSetService <<<`);
-          return;
-        } catch (error) {
-          console.error(`>>> [HomePage] Failed to refresh Prime Set ${itemName}:`, error);
-        }
-      }
-    }
-
     // Find item in either category
     const primeItem = categorizedInventory.prime_parts.find(item => item.name === itemName);
     const relicItem = categorizedInventory.relics.find(item => item.name === itemName);
@@ -1370,52 +1321,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     try {
       const updatedItems: InventoryItem[] = [];
 
-      // Special handling for Sets filter - refresh Prime Set market data
-      if (primePartsFilter === 'sets') {
-        console.log(`>>> [HomePage] Refreshing ${items.length} Prime Sets <<<`);
-
-        for (let i = 0; i < items.length; i++) {
-          if (shouldStopProcessing) {
-            break;
-          }
-          const item = items[i];
-
-          if (item.category === 'prime_sets') {
-            try {
-              console.log(`>>> [HomePage] Refreshing Prime Set: ${item.name} (${i + 1}/${items.length}) <<<`);
-
-              // Use the same function as individual refresh
-              const { refreshIndividualSetMarketData, getPrimeSetsCache, setPrimeSetsCache } = await import('../services/primeSetService');
-              const updatedSetProgress = await refreshIndividualSetMarketData(item.name, categorizedInventory.prime_parts, categorizedInventory.relics);
-
-              if (updatedSetProgress) {
-                // Update the cache with the refreshed set data
-                const currentCache = getPrimeSetsCache();
-                const updatedCache = currentCache.map(cachedSet =>
-                  cachedSet.set.name === item.name ? updatedSetProgress : cachedSet
-                );
-                setPrimeSetsCache(updatedCache);
-
-                // Update the local state to reflect the refreshed data
-                setPrimeSetsData(prevData => prevData.map(setProgress =>
-                  setProgress.set.name === item.name ? updatedSetProgress : setProgress
-                ));
-              }
-
-              console.log(`>>> [HomePage] Updated Prime Set ${item.name} using primeSetService <<<`);
-
-            } catch (error) {
-              console.error(`>>> [HomePage] Failed to refresh Prime Set ${item.name}:`, error);
-            }
-          }
-
-          setCategoryProgress({ category: 'prime_parts', current: i + 1, total: items.length });
-        }
-
-        return; // Exit early for Sets filter
-      }
-
-      // Regular refresh for individual parts
+      // Refresh individual parts
       // Mark only sellable items as loading
       const targetNames = new Set(items.map(i => i.name));
       setCategorizedInventory(prev => ({

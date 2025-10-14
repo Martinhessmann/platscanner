@@ -54,6 +54,7 @@ export interface SetProgress {
     potentialValue: number;
     missingPartsFromRelics: string[];
     missingPartsToBuy: string[];
+    missingPartsWithPrices?: Array<{ name: string; price: number }>; // Individual prices for missing parts
     relicInvestmentCost: number; // void traces equivalent in platinum
     buyInvestmentCost: number; // platinum cost to buy missing parts
     totalInvestmentCost: number;
@@ -745,6 +746,45 @@ export const analyzeSetProgressWithMarketData = async (
         console.log(`🎯 [Market Analysis] ${progress.set.name}: Parts=${individualPartsValue}p, Set=${completeSetPrice}p, Strategy=${progress.recommendedStrategy}`);
       });
 
+      // Fetch missing part prices for sets that are near completion (50%+)
+      // This provides accurate investment costs without overwhelming the API
+      const nearCompleteSets = setsNeedingMarketData.filter(p => p.completionPercentage >= 50);
+      if (nearCompleteSets.length > 0) {
+        console.log(`💰 [Batch Refresh] Fetching missing part prices for ${nearCompleteSets.length} near-complete sets`);
+
+        for (const progress of nearCompleteSets) {
+          if (progress.missingParts && progress.missingParts.length > 0) {
+            try {
+              const missingPartItems: DetectedItem[] = progress.missingParts.map(name => ({
+                id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
+                name,
+                category: 'prime_parts',
+                status: 'loading'
+              } as any));
+
+              const priced = await Promise.all(
+                missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
+              );
+
+              // Store individual prices for display
+              const missingPartsWithPrices = priced
+                .map((p, i) => ({ name: missingPartItems[i].name, price: p?.price || 0 }))
+                .filter(p => p.price > 0);
+
+              const missingCost = priced.reduce((sum, p) => sum + ((p && p.price) ? p.price : 0), 0);
+              progress.missingCost = missingCost;
+
+              // Add to investment analysis
+              if (progress.investmentAnalysis && missingPartsWithPrices.length > 0) {
+                progress.investmentAnalysis.missingPartsWithPrices = missingPartsWithPrices;
+              }
+            } catch (err) {
+              console.warn(`Failed to fetch missing part prices for ${progress.set.name}:`, err);
+            }
+          }
+        }
+      }
+
     } catch (error) {
       console.error('🎯 [Market Analysis] Failed to fetch complete set market data:', error);
 
@@ -908,8 +948,11 @@ export const refreshIndividualSetMarketData = async (
       setMarketStatus: 'loading' as const
     };
 
+    console.log(`🔄 [Prime Set] ${setName}: ownedParts=${ownedParts.length}, canBuild=${canBuild}, will fetch market data: ${ownedParts.length > 0 || canBuild}`);
+
     // Fetch market data for this specific set if it has owned parts or can be built
     if (ownedParts.length > 0 || canBuild) {
+      console.log(`🔄 [Prime Set] Fetching market data for ${setName}...`);
       try {
         const setMarketData = await fetchPrimeSetMarketData(setName);
         const individualPartsValue = calculateIndividualPartsValue(ownedParts, primePartsInventory);
@@ -926,6 +969,7 @@ export const refreshIndividualSetMarketData = async (
         setProgress.profitDifference = profitDifference;
 
         // NEW: Fetch real market prices for missing parts to compute accurate missingCost
+        let missingPartsWithPrices: Array<{ name: string; price: number }> = [];
         if (setProgress.missingParts && setProgress.missingParts.length > 0) {
           try {
             const missingPartItems: DetectedItem[] = setProgress.missingParts.map(name => ({
@@ -939,6 +983,11 @@ export const refreshIndividualSetMarketData = async (
               missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
             );
 
+            // Store individual prices for display
+            missingPartsWithPrices = priced
+              .map((p, i) => ({ name: missingPartItems[i].name, price: p?.price || 0 }))
+              .filter(p => p.price > 0);
+
             const missingCost = priced.reduce((sum, p) => sum + ((p && p.price) ? p.price : 0), 0);
             setProgress.missingCost = missingCost;
           } catch (_err) {
@@ -948,6 +997,10 @@ export const refreshIndividualSetMarketData = async (
 
         // Calculate investment analysis (now includes improved buy cost if available)
         const investmentAnalysis = calculateInvestmentAnalysis(setProgress, primePartsInventory, relicsInventory);
+        // Add the fetched prices to investment analysis
+        if (investmentAnalysis && missingPartsWithPrices.length > 0) {
+          investmentAnalysis.missingPartsWithPrices = missingPartsWithPrices;
+        }
         setProgress.investmentAnalysis = investmentAnalysis;
 
         setProgress.recommendedStrategy = determineOptimalStrategyWithInvestment(setProgress, individualPartsValue, completeSetPrice, investmentAnalysis);

@@ -82,6 +82,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set());
+  const [refreshingSet, setRefreshingSet] = useState<string | null>(null);
+  const [copiedSetId, setCopiedSetId] = useState<string | null>(null);
 
     const sectionRef = useRef<HTMLDivElement>(null);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
@@ -169,10 +171,17 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     }
   };
 
-  const handleRefreshIndividualSet = async (progress: SetProgress) => {
+  const handleRefreshIndividualSet = async (setNameOrProgress: string | SetProgress) => {
     try {
-      await refreshIndividualSetMarketData(progress.set.name);
-      setRefreshKey(prev => prev + 1);
+      const setName = typeof setNameOrProgress === 'string' ? setNameOrProgress : setNameOrProgress.set.name;
+      const updatedProgress = await refreshIndividualSetMarketData(setName, primePartsInventory, relicsInventory);
+
+      if (updatedProgress) {
+        // Update the specific set in the state
+        setSetProgress(prev => prev.map(p =>
+          p.set.name === setName ? updatedProgress : p
+        ));
+      }
     } catch (error) {
       console.error('Failed to refresh individual set:', error);
     }
@@ -1311,6 +1320,71 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   </div>
                 )}
 
+                {/* Market Actions */}
+                <div className="flex items-center justify-between pt-2 mt-2 border-t border-gray-700/50">
+                  <div className="flex items-center gap-2">
+                    {/* Refresh Button */}
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setRefreshingSet(progress.set.name);
+                        try {
+                          await handleRefreshIndividualSet(progress.set.name);
+                        } finally {
+                          setRefreshingSet(null);
+                        }
+                      }}
+                      disabled={refreshingSet === progress.set.name}
+                      className={`p-1 rounded text-xs transition-colors ${
+                        refreshingSet === progress.set.name
+                          ? 'text-gray-500 cursor-not-allowed'
+                          : 'text-tenno-blue hover:bg-gray-700/50'
+                      }`}
+                      title="Refresh market prices"
+                    >
+                      <RefreshCw size={12} className={refreshingSet === progress.set.name ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {/* Message Button - Only show if complete set has buyers */}
+                    {progress.completeSetBuyerUsername && progress.completeSetPrice && progress.completeSetPrice > 0 ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const message = `/w ${progress.completeSetBuyerUsername} Hi! I want to sell: "${progress.set.name} Set" for ${progress.completeSetPrice} platinum. (warframe.market)`;
+                          navigator.clipboard.writeText(message);
+                          setCopiedSetId(progress.set.id);
+                          setTimeout(() => setCopiedSetId(null), 2000);
+                        }}
+                        className={`flex items-center gap-1 text-tenno-blue hover:text-tenno-light transition-colors text-xs ${
+                          copiedSetId === progress.set.id ? 'text-tenno-light' : ''
+                        }`}
+                        title="Copy message to clipboard"
+                      >
+                        {copiedSetId === progress.set.id ? <Check size={10} /> : <MessageCircle size={10} />}
+                        <span className="hidden sm:inline">Message</span>
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-1 text-gray-600 text-xs">
+                        <MessageCircle size={10} />
+                        <span className="hidden sm:inline">No buyers</span>
+                      </span>
+                    )}
+
+                    {/* Market Link */}
+                    <a
+                      href={`https://warframe.market/items/${progress.set.name.toLowerCase().replace(/ /g, '_')}_set`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-gray-500 hover:text-gray-300 transition-colors text-xs"
+                      title="View on Warframe Market"
+                    >
+                      <ExternalLink size={10} />
+                      <span className="hidden sm:inline">Market</span>
+                    </a>
+                  </div>
+                </div>
 
                 {/* Toggle Button */}
                 <button
@@ -1413,7 +1487,17 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                     isObtainableFromRelics ? (
                                       <span className="text-gray-400"></span>
                                     ) : (
-                                      <span className="text-gray-500">Market only</span>
+                                      (() => {
+                                        // Find price for this missing part
+                                        const priceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
+                                          p => p.name.toLowerCase() === part.name.toLowerCase()
+                                        );
+                                        return (
+                                          <span className="text-gray-500">
+                                            {priceData ? `${priceData.price}p` : 'Market only'}
+                                          </span>
+                                        );
+                                      })()
                                     )
                                   )}
                                 </span>
