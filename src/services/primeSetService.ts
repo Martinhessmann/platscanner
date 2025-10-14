@@ -209,7 +209,7 @@ const transformJsonToPrimeSet = (jsonSet: PrimeSetJson): PrimeSet => {
 
 // Use centralized static data loading
 import { getPrimeSetsCache as getStaticPrimeSetsCache, loadPrimeSetsData } from './staticDataService';
-import { fetchBatchPrimeSetMarketData, fetchPrimeSetMarketData } from './warframeMarketService';
+import { fetchBatchPrimeSetMarketData, fetchPrimeSetMarketData, fetchSinglePriceData } from './warframeMarketService';
 
 export const loadPrimeSets = async (): Promise<PrimeSet[]> => {
   try {
@@ -925,7 +925,28 @@ export const refreshIndividualSetMarketData = async (
         setProgress.individualPartsValue = individualPartsValue;
         setProgress.profitDifference = profitDifference;
 
-        // Calculate investment analysis
+        // NEW: Fetch real market prices for missing parts to compute accurate missingCost
+        if (setProgress.missingParts && setProgress.missingParts.length > 0) {
+          try {
+            const missingPartItems: DetectedItem[] = setProgress.missingParts.map(name => ({
+              id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
+              name,
+              category: 'prime_parts',
+              status: 'loading'
+            } as any));
+
+            const priced = await Promise.all(
+              missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
+            );
+
+            const missingCost = priced.reduce((sum, p) => sum + ((p && p.price) ? p.price : 0), 0);
+            setProgress.missingCost = missingCost;
+          } catch (_err) {
+            // Keep existing estimated missingCost on failure
+          }
+        }
+
+        // Calculate investment analysis (now includes improved buy cost if available)
         const investmentAnalysis = calculateInvestmentAnalysis(setProgress, primePartsInventory, relicsInventory);
         setProgress.investmentAnalysis = investmentAnalysis;
 

@@ -1249,6 +1249,40 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   </div>
                 </div>
 
+                {/* Value summary: Parts Value / Investment needed and Total / Avg */}
+                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <div className="text-xs text-gray-400">Parts Value / Investment</div>
+                    <div className="text-gray-200">
+                      {(() => {
+                        const partsValue = progress.individualPartsValue ?? 0;
+                        const invest = progress.missingCost ?? undefined;
+                        const investText = invest !== undefined ? `${Math.round(invest)}p` : '—';
+                        return (
+                          <span>
+                            {Math.round(partsValue)}p / {investText}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-400">Total / Avg</div>
+                    <div className="text-gray-200">
+                      {(() => {
+                        const total = progress.completeSetPrice ?? 0;
+                        const avg = progress.completeSetAverage ?? undefined;
+                        const avgText = avg !== undefined ? `${Math.round(avg * 10) / 10}p` : '—';
+                        return (
+                          <span>
+                            {Math.round(total)}p / {avgText}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Trading Comparison */}
                 {progress.completeSetPrice && progress.individualPartsValue && (
                   <div className="mt-3 p-2 bg-gray-800/30 rounded border border-gray-700/50">
