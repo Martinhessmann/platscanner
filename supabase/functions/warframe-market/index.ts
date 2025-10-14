@@ -184,6 +184,13 @@ const fetchSingleItemData = async (itemName: string) => {
       order.visible
     );
 
+    // Find lowest seller for investment cost calculations
+    const lowestSeller = sellerOrders.length > 0
+      ? sellerOrders.reduce((lowest: any, current: any) =>
+          current.platinum < lowest.platinum ? current : lowest
+        )
+      : null;
+
     const result = {
       name: itemDetails.en.item_name,
       thumb: itemDetails.thumb ? itemDetails.thumb.replace('https://warframe.market/static/assets/', '') : '',
@@ -197,6 +204,10 @@ const fetchSingleItemData = async (itemName: string) => {
       hasBuyers: buyOrders.length > 0,
       buyerCount: buyOrders.length,
       sellerCount: sellerOrders.length,
+      // Seller data for investment cost calculations
+      sellerPrice: sellerOrders.length > 0 ? Math.min(...sellerOrders.map((o: any) => o.platinum)) : 0,
+      sellerUsername: lowestSeller?.user?.ingame_name || null,
+      sellerQuantity: lowestSeller?.quantity || 0,
       // Add mod-specific fields
       tags: itemDetails.tags || [],
       rarity: itemDetails.rarity || 'common',

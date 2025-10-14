@@ -255,6 +255,13 @@ const fetchViaDirect = async (normalizedName: string) => {
         )
       : null;
 
+    // Find lowest seller for investment cost calculations
+    const lowestSeller = sellOrders.length > 0
+      ? sellOrders.reduce((lowest: any, current: any) =>
+          current.platinum < lowest.platinum ? current : lowest
+        )
+      : null;
+
     // Calculate true market average from all orders
     const allValidOrders = ordersData.payload.orders.filter((order: any) =>
       ['online', 'ingame'].includes(order.user.status) &&
@@ -272,7 +279,11 @@ const fetchViaDirect = async (normalizedName: string) => {
         ? Math.round(allValidOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / allValidOrders.length)
         : 0,
       buyerUsername: highestBidder?.user?.ingame_name || null,
-      buyerQuantity: highestBidder?.quantity || 0
+      buyerQuantity: highestBidder?.quantity || 0,
+      // Seller data for investment cost calculations
+      sellerPrice: sellOrders.length > 0 ? Math.min(...sellOrders.map((o: any) => o.platinum)) : 0,
+      sellerUsername: lowestSeller?.user?.ingame_name || null,
+      sellerQuantity: lowestSeller?.quantity || 0
     };
   } catch (error) {
     console.error('Error in fetchViaDirect:', error);
@@ -332,7 +343,10 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
         buyerQuantity: data.buyerQuantity,
         hasBuyers: data.hasBuyers,
         buyerCount: data.buyerCount,
-        sellerCount: data.sellerCount
+        sellerCount: data.sellerCount,
+        sellerPrice: data.sellerPrice,
+        sellerUsername: data.sellerUsername,
+        sellerQuantity: data.sellerQuantity
       });
 
       // Add delay between requests
@@ -471,7 +485,10 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
       status: 'loaded' as const,
       error: data.price === 0 ? 'No active buy orders' : undefined,
       buyerUsername: data.buyerUsername,
-      buyerQuantity: data.buyerQuantity
+      buyerQuantity: data.buyerQuantity,
+      sellerPrice: data.sellerPrice,
+      sellerUsername: data.sellerUsername,
+      sellerQuantity: data.sellerQuantity
       // imgUrl is preserved from existing primePart
     };
 
@@ -591,6 +608,9 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
       hasBuyers: data.hasBuyers,
       buyerCount: data.buyerCount,
       sellerCount: data.sellerCount,
+      sellerPrice: data.sellerPrice,
+      sellerUsername: data.sellerUsername,
+      sellerQuantity: data.sellerQuantity,
       // Add missing fields for mods
       rarity: data.rarity,
       tags: data.tags,

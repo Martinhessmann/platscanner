@@ -490,11 +490,11 @@ const calculateInvestmentAnalysis = (
     !setProgress.obtainableFromRelics.includes(part)
   );
 
-  // Calculate cost to buy missing parts from market
+  // Calculate cost to buy missing parts from market using SELLER prices (what it costs to buy)
   let buyInvestmentCost = 0;
   missingPartsToBuy.forEach(partName => {
-    // Try to find market price for this part in inventory (even if not owned)
-    const partPrice = getEstimatedPartPrice(partName, primePartsInventory);
+    // Use seller price (cost to buy) for investment calculations
+    const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
     buyInvestmentCost += partPrice;
   });
 
@@ -539,7 +539,12 @@ const calculateInvestmentAnalysis = (
 };
 
 // NEW: Get estimated price for a part (from existing inventory data)
-const getEstimatedPartPrice = (partName: string, primePartsInventory: DetectedItem[]): number => {
+// useSellerPrice: true = use seller price (cost to buy), false = use buyer price (what you can sell for)
+const getEstimatedPartPrice = (
+  partName: string,
+  primePartsInventory: DetectedItem[],
+  useSellerPrice: boolean = false
+): number => {
   // Try to find exact match first
   const exactMatch = primePartsInventory.find(item => {
     const lowerItemName = item.name.toLowerCase();
@@ -547,19 +552,36 @@ const getEstimatedPartPrice = (partName: string, primePartsInventory: DetectedIt
     return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
   });
 
-  if (exactMatch && exactMatch.price && exactMatch.price > 0) {
-    return exactMatch.price;
+  if (exactMatch) {
+    // Use sellerPrice for investment cost (what it costs to buy), price (buyer) for current value
+    if (useSellerPrice) {
+      // For investment calculations: use seller price (cost to buy), fallback to average if no sellers
+      const marketPrice = (exactMatch.sellerPrice && exactMatch.sellerPrice > 0)
+        ? exactMatch.sellerPrice
+        : (exactMatch.average && exactMatch.average > 0 ? exactMatch.average : 0);
+      return marketPrice;
+    } else {
+      // For current value: use buyer price (what you can sell for)
+      return (exactMatch.price && exactMatch.price > 0) ? exactMatch.price : 0;
+    }
   }
 
   // If no exact match, try to estimate based on part type
   const partType = partName.split(' ').pop()?.toLowerCase();
-  const similarParts = primePartsInventory.filter(item =>
-    item.name.toLowerCase().includes(partType || '') && item.price && item.price > 0
-  );
+  const similarParts = primePartsInventory.filter(item => {
+    const hasPartType = item.name.toLowerCase().includes(partType || '');
+    const hasPrice = useSellerPrice
+      ? (item.sellerPrice && item.sellerPrice > 0)
+      : (item.price && item.price > 0);
+    return hasPartType && hasPrice;
+  });
 
   if (similarParts.length > 0) {
     // Return average price of similar parts
-    const avgPrice = similarParts.reduce((sum, item) => sum + (item.price || 0), 0) / similarParts.length;
+    const avgPrice = similarParts.reduce((sum, item) => {
+      const priceValue = useSellerPrice ? (item.sellerPrice || 0) : (item.price || 0);
+      return sum + priceValue;
+    }, 0) / similarParts.length;
     return Math.round(avgPrice);
   }
 
@@ -748,14 +770,22 @@ export const analyzeSetProgressWithMarketData = async (
 
       // Fetch missing part prices for sets that are near completion (50%+)
       // This provides accurate investment costs without overwhelming the API
+      // OPTIMIZATION: Only fetch prices for parts that must be BOUGHT (not obtainable from relics)
       const nearCompleteSets = setsNeedingMarketData.filter(p => p.completionPercentage >= 50);
       if (nearCompleteSets.length > 0) {
         console.log(`💰 [Batch Refresh] Fetching missing part prices for ${nearCompleteSets.length} near-complete sets`);
 
         for (const progress of nearCompleteSets) {
-          if (progress.missingParts && progress.missingParts.length > 0) {
+          // FILTER: Only fetch for parts that must be bought (not obtainable from relics)
+          const partsToBuy = progress.missingParts.filter(part =>
+            !progress.obtainableFromRelics.includes(part)
+          );
+
+          if (partsToBuy.length > 0) {
             try {
-              const missingPartItems: DetectedItem[] = progress.missingParts.map(name => ({
+              console.log(`💰 [Batch Refresh] ${progress.set.name}: Fetching ${partsToBuy.length} parts to buy (skipping ${progress.obtainableFromRelics.length} relic-obtainable parts)`);
+
+              const missingPartItems: DetectedItem[] = partsToBuy.map(name => ({
                 id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
                 name,
                 category: 'prime_parts',
@@ -766,12 +796,19 @@ export const analyzeSetProgressWithMarketData = async (
                 missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
               );
 
-              // Store individual prices for display
+              // Store individual SELLER prices for display (cost to buy)
               const missingPartsWithPrices = priced
-                .map((p, i) => ({ name: missingPartItems[i].name, price: p?.price || 0 }))
+                .map((p, i) => ({
+                  name: missingPartItems[i].name,
+                  price: p?.sellerPrice || p?.average || 0 // Use seller price for investment cost
+                }))
                 .filter(p => p.price > 0);
 
-              const missingCost = priced.reduce((sum, p) => sum + ((p && p.price) ? p.price : 0), 0);
+              // Calculate cost using SELLER prices (what it costs to buy)
+              const missingCost = priced.reduce((sum, p) => {
+                const cost = (p && p.sellerPrice) ? p.sellerPrice : (p && p.average) ? p.average : 0;
+                return sum + cost;
+              }, 0);
               progress.missingCost = missingCost;
 
               // Add to investment analysis
@@ -781,6 +818,8 @@ export const analyzeSetProgressWithMarketData = async (
             } catch (err) {
               console.warn(`Failed to fetch missing part prices for ${progress.set.name}:`, err);
             }
+          } else {
+            console.log(`💰 [Batch Refresh] ${progress.set.name}: All missing parts obtainable from relics, skipping price fetch`);
           }
         }
       }
@@ -969,10 +1008,17 @@ export const refreshIndividualSetMarketData = async (
         setProgress.profitDifference = profitDifference;
 
         // NEW: Fetch real market prices for missing parts to compute accurate missingCost
+        // OPTIMIZATION: Only fetch for parts that must be BOUGHT (not obtainable from relics)
         let missingPartsWithPrices: Array<{ name: string; price: number }> = [];
-        if (setProgress.missingParts && setProgress.missingParts.length > 0) {
+        const partsToBuy = setProgress.missingParts.filter(part =>
+          !setProgress.obtainableFromRelics.includes(part)
+        );
+
+        if (partsToBuy.length > 0) {
           try {
-            const missingPartItems: DetectedItem[] = setProgress.missingParts.map(name => ({
+            console.log(`💰 [Individual Set] ${setName}: Fetching ${partsToBuy.length} parts to buy (skipping ${setProgress.obtainableFromRelics.length} relic-obtainable parts)`);
+
+            const missingPartItems: DetectedItem[] = partsToBuy.map(name => ({
               id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
               name,
               category: 'prime_parts',
@@ -983,16 +1029,25 @@ export const refreshIndividualSetMarketData = async (
               missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
             );
 
-            // Store individual prices for display
+            // Store individual SELLER prices for display (cost to buy)
             missingPartsWithPrices = priced
-              .map((p, i) => ({ name: missingPartItems[i].name, price: p?.price || 0 }))
+              .map((p, i) => ({
+                name: missingPartItems[i].name,
+                price: p?.sellerPrice || p?.average || 0 // Use seller price for investment cost
+              }))
               .filter(p => p.price > 0);
 
-            const missingCost = priced.reduce((sum, p) => sum + ((p && p.price) ? p.price : 0), 0);
+            // Calculate cost using SELLER prices (what it costs to buy)
+            const missingCost = priced.reduce((sum, p) => {
+              const cost = (p && p.sellerPrice) ? p.sellerPrice : (p && p.average) ? p.average : 0;
+              return sum + cost;
+            }, 0);
             setProgress.missingCost = missingCost;
           } catch (_err) {
             // Keep existing estimated missingCost on failure
           }
+        } else {
+          console.log(`💰 [Individual Set] ${setName}: All missing parts obtainable from relics, skipping price fetch`);
         }
 
         // Calculate investment analysis (now includes improved buy cost if available)

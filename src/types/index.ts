@@ -21,6 +21,10 @@ export interface BaseItem {
   hasBuyers?: boolean;
   buyerCount?: number;
   sellerCount?: number;
+  // Seller information for investment cost calculations
+  sellerPrice?: number;
+  sellerUsername?: string | null;
+  sellerQuantity?: number;
   // NEW: Distinguish between inventory items and truly owned items
   isOwned?: boolean; // true = user wants to keep this item, false/undefined = can be sold
 }
