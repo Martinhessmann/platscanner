@@ -160,7 +160,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   }, [displayedPrimeParts]);
 
   // Handle syndicate rewards refresh - define early for use in useEffect
-  const handleRefreshSyndicateRewards = useCallback(async () => {
+  const handleRefreshSyndicateRewards = useCallback(async (itemsToRefresh?: any[]) => {
     if (isRefreshingSyndicateRewards) {
       console.log('>>> [HomePage] Syndicate refresh already in progress, skipping <<<');
       return;
@@ -173,16 +173,19 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     try {
       const { getAllSyndicateRewards, fetchSyndicateRewardPrices } = await import('../services/syndicateService');
-      const allSyndicateRewards = getAllSyndicateRewards();
+      // Use provided filtered items, or fall back to all items
+      const rewardsToRefresh = itemsToRefresh && itemsToRefresh.length > 0
+        ? itemsToRefresh
+        : getAllSyndicateRewards();
 
-      if (allSyndicateRewards.length === 0) {
+      if (rewardsToRefresh.length === 0) {
         console.log('>>> [HomePage] No syndicate rewards to refresh <<<');
         return;
       }
 
-      console.log(`>>> [HomePage] Found ${allSyndicateRewards.length} syndicate rewards to refresh <<<`);
+      console.log(`>>> [HomePage] Found ${rewardsToRefresh.length} syndicate rewards to refresh ${itemsToRefresh ? '(filtered)' : '(all)'} <<<`);
       const updatedRewards = await fetchSyndicateRewardPrices(
-        allSyndicateRewards,
+        rewardsToRefresh,
         () => cancelSyndicateRefreshRef.current
       );
 

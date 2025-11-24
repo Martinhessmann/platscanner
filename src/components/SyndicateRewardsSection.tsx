@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Package, Star, Heart, X, Coins, CheckCircle, Circle } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Package, Star, Heart, X, Coins, CheckCircle, Circle } from 'lucide-react';
 import { SyndicateReward } from '../types';
 import {
   getAllSyndicateRewards,
@@ -12,7 +12,7 @@ import LastRefreshInfo from './LastRefreshInfo';
 
 interface SyndicateRewardsSectionProps {
   isRefreshing: boolean;
-  onRefreshStart: () => void;
+  onRefreshStart: (itemsToRefresh?: SyndicateReward[]) => void;
   onRefreshComplete: () => void;
   onCancel?: () => void;
   onClearAll: () => void;
@@ -38,19 +38,10 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
   const [rewards, setRewards] = useState<SyndicateReward[]>([]);
   const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['all']));
   const [sortBy, setSortBy] = useState<'platPerStanding' | 'price' | 'standingCost' | 'name' | 'syndicate'>('platPerStanding');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [filters, setFilters] = useState({
-    syndicate: '',
-    itemType: '',
-    minPrice: '',
-    maxPrice: '',
-    minPlatPerStanding: '',
-    maxStandingCost: '',
-    showNonTradable: false // Default to hiding non-tradable items
-  });
+  const [showNonTradable, setShowNonTradable] = useState(false); // Default to hiding non-tradable items
 
   const sectionRef = useRef<HTMLDivElement>(null);
 
@@ -113,6 +104,13 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
         // Remove "all" if selecting specific filters
         updated.delete('all');
 
+        // Special case: "Has Buyers" and "No Buyers" are mutually exclusive
+        if (filter === 'hasBuyers') {
+          updated.delete('noBuyers');
+        } else if (filter === 'noBuyers') {
+          updated.delete('hasBuyers');
+        }
+
         // Toggle the specific filter
         if (updated.has(filter)) {
           updated.delete(filter);
@@ -137,12 +135,31 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     // Apply smart filter buttons (activeFilters)
     if (!activeFilters.has('all')) {
       filtered = filtered.filter(reward => {
+        // Check buyer status filter (mutually exclusive - OR logic)
+        const hasBuyersFilter = activeFilters.has('hasBuyers');
+        const noBuyersFilter = activeFilters.has('noBuyers');
+        let buyerMatch = true;
+
+        if (hasBuyersFilter || noBuyersFilter) {
+          const hasBuyers = reward.hasBuyers && reward.price && reward.price > 0 && reward.buyerUsername;
+          // OR logic: match if either hasBuyers filter is active and item has buyers,
+          // OR noBuyers filter is active and item has no buyers
+          buyerMatch = (hasBuyersFilter && hasBuyers) || (noBuyersFilter && !hasBuyers);
+        }
+
+        // If buyer filter doesn't match, skip this item
+        if (!buyerMatch) {
+          return false;
+        }
+
+        // Check all other filters (combinable - AND logic)
         return Array.from(activeFilters).every(filter => {
+          // Skip buyer filters (already handled above)
+          if (filter === 'hasBuyers' || filter === 'noBuyers') {
+            return true;
+          }
+
           switch (filter) {
-            case 'hasBuyers':
-              return reward.hasBuyers && reward.price && reward.price > 0 && reward.buyerUsername;
-            case 'noBuyers':
-              return !reward.hasBuyers || !reward.price || reward.price === 0 || !reward.buyerUsername;
             case 'mod':
               return reward.itemType === 'mod';
             case 'weapon':
@@ -164,7 +181,7 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
     }
 
     // Filter out non-tradable items by default (unless explicitly shown)
-    if (!filters.showNonTradable) {
+    if (!showNonTradable) {
       filtered = filtered.filter(reward => {
         // Show items with real buyer data (hasBuyers + buyerUsername + price > 0)
         if (reward.hasBuyers && reward.price && reward.price > 0 && reward.buyerUsername) {
@@ -185,29 +202,11 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
       });
     }
 
-    // Apply other filters
-    if (filters.syndicate) {
-      filtered = filterSyndicateRewards(filtered, { syndicate: filters.syndicate });
-    }
-    if (filters.itemType) {
-      filtered = filterSyndicateRewards(filtered, { itemType: filters.itemType });
-    }
-    if (filters.minPrice) {
-      filtered = filterSyndicateRewards(filtered, { minPrice: parseFloat(filters.minPrice) });
-    }
-    if (filters.maxPrice) {
-      filtered = filterSyndicateRewards(filtered, { maxPrice: parseFloat(filters.maxPrice) });
-    }
-    if (filters.minPlatPerStanding) {
-      filtered = filterSyndicateRewards(filtered, { minPlatPerStanding: parseFloat(filters.minPlatPerStanding) });
-    }
-    if (filters.maxStandingCost) {
-      filtered = filterSyndicateRewards(filtered, { maxStandingCost: parseInt(filters.maxStandingCost) });
-    }
+    // Advanced filters removed - now handled by smart filter buttons
 
     // Apply sorting
     return sortSyndicateRewards(filtered, sortBy, sortOrder);
-  }, [allRewards, filters, sortBy, sortOrder, activeFilters]);
+  }, [allRewards, sortBy, sortOrder, activeFilters]);
 
   // Calculate filter counts for smart filter buttons
   const filterCounts = useMemo(() => {
@@ -265,7 +264,11 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
   }, [filteredAndSortedRewards]);
 
   const handleRefresh = async () => {
-    onRefreshStart();
+    // If filters are active, only refresh the filtered items
+    const itemsToRefresh = !activeFilters.has('all')
+      ? filteredAndSortedRewards
+      : undefined; // undefined means refresh all items
+    onRefreshStart(itemsToRefresh);
   };
 
   const handleRefreshItem = async (itemName: string) => {
@@ -422,44 +425,23 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
       {/* Content */}
       {isExpanded && (
         <div className="bg-gray-800/30 backdrop-blur-sm border border-gray-700/50 border-t-0 rounded-b-xl overflow-hidden">
-          {/* Item count and key values - moved from header */}
+          {/* Item count, values, and sorting */}
           <div className="p-4 border-b border-gray-700/50">
-            <div className="flex items-center gap-3 text-xs text-gray-400">
-              <span>{totals.totalCount} item{totals.totalCount !== 1 ? 's' : ''}</span>
-              {totals.totalValue > 0 && (
-                <div className="flex items-center gap-1">
-                  <Zap size={10} className="text-gray-300" />
-                  <span className="text-gray-300">{totals.totalValue}p</span>
-                </div>
-              )}
-              {totals.totalStanding > 0 && (
-                <div className="flex items-center gap-1">
-                  <TrendingUp size={10} className="text-purple-400" />
-                  <span className="text-purple-400">{formatStanding(totals.totalStanding)}</span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Controls and Stats Row */}
-          <div className="p-4 border-b border-gray-700/50">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-400">
-                  {filteredAndSortedRewards.length} items
-                </span>
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
-                    showFilters
-                      ? 'text-orokin-gold bg-orokin-gold/10'
-                      : 'text-gray-400 hover:text-gray-300 hover:bg-gray-700/50'
-                  }`}
-                  title="Toggle filters"
-                >
-                  <Filter size={12} />
-                  <span>Filters</span>
-                </button>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <span>{filteredAndSortedRewards.length} item{filteredAndSortedRewards.length !== 1 ? 's' : ''}</span>
+                {totals.totalValue > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Zap size={10} className="text-gray-300" />
+                    <span className="text-gray-300">{totals.totalValue}p</span>
+                  </div>
+                )}
+                {totals.totalStanding > 0 && (
+                  <div className="flex items-center gap-1">
+                    <TrendingUp size={10} className="text-purple-400" />
+                    <span className="text-purple-400">{formatStanding(totals.totalStanding)}</span>
+                  </div>
+                )}
               </div>
               <select
                 value={`${sortBy}-${sortOrder}`}
@@ -480,40 +462,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                 <option value="name-desc">Name Z-A</option>
               </select>
             </div>
-
-            {/* Stats Cards - Mobile-friendly grid */}
-            {totals.totalCount > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-                  <div className="text-xs text-gray-400 mb-1">Best Value</div>
-                  <div className="text-sm font-medium text-tenno-blue truncate">
-                    {totals.bestValueItem ? (
-                      `${totals.bestValueItem.name} (${formatPlatPerStanding(totals.bestValueItem.platPerStanding)})`
-                    ) : (
-                      'N/A'
-                    )}
-                  </div>
-                </div>
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-                  <div className="text-xs text-gray-400 mb-1">Avg Plat/1k</div>
-                  <div className="text-sm font-medium text-green-400">
-                    {formatPlatPerStanding(totals.avgPlatPerStanding)}
-                  </div>
-                </div>
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-                  <div className="text-xs text-gray-400 mb-1">With Prices</div>
-                  <div className="text-sm font-medium text-tenno-blue">
-                    {totals.loadedCount}/{totals.totalCount}
-                  </div>
-                </div>
-                <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700/50">
-                  <div className="text-xs text-gray-400 mb-1">Total Standing</div>
-                  <div className="text-sm font-medium text-purple-400">
-                    {formatStanding(totals.totalStanding)}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Smart Filter Buttons */}
@@ -673,67 +621,6 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
               ))}
           </div>
 
-          {/* Filters - Mobile-friendly */}
-          {showFilters && (
-            <div className="p-4 border-b border-gray-700/50">
-              <h4 className="text-sm font-medium text-white mb-3">Filters</h4>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Syndicate</label>
-                  <select
-                    value={filters.syndicate}
-                    onChange={(e) => setFilters({ ...filters, syndicate: e.target.value })}
-                    className="w-full bg-gray-700/50 border border-gray-600 rounded px-3 py-2 text-sm text-white"
-                  >
-                    <option value="">All Syndicates</option>
-                    {syndicates.map(syndicate => (
-                      <option key={syndicate} value={syndicate}>{syndicate}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Item Type</label>
-                    <select
-                      value={filters.itemType}
-                      onChange={(e) => setFilters({ ...filters, itemType: e.target.value })}
-                      className="w-full bg-gray-700/50 border border-gray-600 rounded px-3 py-2 text-sm text-white"
-                    >
-                      <option value="">All Types</option>
-                      <option value="weapon">Weapon</option>
-                      <option value="mod">Mod</option>
-                      <option value="cosmetic">Cosmetic</option>
-                      <option value="resource">Resource</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-400 mb-1">Min Plat/1k</label>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      value={filters.minPlatPerStanding}
-                      onChange={(e) => setFilters({ ...filters, minPlatPerStanding: e.target.value })}
-                      className="w-full bg-gray-700/50 border border-gray-600 rounded px-3 py-2 text-sm text-white"
-                      placeholder="0.0001"
-                      />
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="showNonTradable"
-                    checked={filters.showNonTradable}
-                    onChange={(e) => setFilters({ ...filters, showNonTradable: e.target.checked })}
-                    className="rounded border-gray-600 bg-gray-700/50 text-tenno-blue focus:ring-tenno-blue"
-                  />
-                  <label htmlFor="showNonTradable" className="text-xs text-gray-400">
-                    Show non-tradable items
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Mobile-friendly card layout */}
           {filteredAndSortedRewards.length > 0 ? (
@@ -851,19 +738,11 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
             </div>
           ) : (
             <div className="text-center py-8 text-gray-400">
-              {filters.syndicate || filters.itemType || filters.minPlatPerStanding ? (
+              {!activeFilters.has('all') ? (
                 <div>
                   <p>No items match the current filters.</p>
                   <button
-                    onClick={() => setFilters({
-                      syndicate: '',
-                      itemType: '',
-                      minPrice: '',
-                      maxPrice: '',
-                      minPlatPerStanding: '',
-                      maxStandingCost: '',
-                      showNonTradable: false
-                    })}
+                    onClick={() => toggleFilter('all')}
                     className="text-tenno-blue hover:underline mt-2"
                   >
                     Clear filters

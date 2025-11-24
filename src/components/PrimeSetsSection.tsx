@@ -674,17 +674,36 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     // Apply all active filters
     if (!activeFilters.has('all')) {
       filtered = filtered.filter(p => {
+        // Check status filters (mutually exclusive - OR logic)
+        const builtFilter = activeFilters.has('built');
+        const plannerFilter = activeFilters.has('planner');
+        const priorityFilter = activeFilters.has('priority');
+        let statusMatch = true;
+
+        if (builtFilter || plannerFilter || priorityFilter) {
+          const isBuilt = masteredSets.includes(p.set.id);
+          const isPriority = plannedSets.get(p.set.id)?.isPriority || false;
+          const isPlanned = !isBuilt; // All non-built sets are "planned"
+
+          // OR logic: match if any active status filter matches
+          statusMatch = (builtFilter && isBuilt) ||
+                       (plannerFilter && isPlanned) ||
+                       (priorityFilter && isPriority);
+        }
+
+        // If status filter doesn't match, skip this set
+        if (!statusMatch) {
+          return false;
+        }
+
+        // Check all other filters (combinable - AND logic)
         return Array.from(activeFilters).every(filter => {
+          // Skip status filters (already handled above)
+          if (filter === 'built' || filter === 'planner' || filter === 'priority') {
+            return true;
+          }
+
           switch (filter) {
-            case 'planner':
-              // Show all sets that are NOT built (everything you can still work on)
-              return !masteredSets.includes(p.set.id);
-            case 'priority':
-              // Show starred/priority sets (regardless of built status)
-              return plannedSets.get(p.set.id)?.isPriority || false;
-            case 'built':
-              // Show mastered/built sets
-              return masteredSets.includes(p.set.id);
             case 'vaulted':
               return p.set.vaultStatus === 'vaulted';
             case 'warframes':
@@ -764,6 +783,18 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       } else {
         // Remove "all" if selecting specific filters
         updated.delete('all');
+
+        // Special case: "Built", "Planned", and "Priority" are mutually exclusive
+        if (filter === 'built') {
+          updated.delete('planner');
+          updated.delete('priority');
+        } else if (filter === 'planner') {
+          updated.delete('built');
+          updated.delete('priority');
+        } else if (filter === 'priority') {
+          updated.delete('built');
+          updated.delete('planner');
+        }
 
         // Toggle the specific filter
         if (updated.has(filter)) {
@@ -918,7 +949,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         </button>
 
 
-        {/* Buildable with Relics */}
+        {/* Planned Sets (not built) */}
         <button
           onClick={() => toggleFilter('planner')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
@@ -928,7 +959,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           }`}
         >
           <Target size={16} />
-          <span>Planner</span>
+          <span>Planned</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
             activeFilters.has('planner') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
