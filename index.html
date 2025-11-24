@@ -43,6 +43,12 @@
     <!-- Preconnect to External Resources -->
     <link rel="preconnect" href="https://api.warframe.market" />
 
+    <!-- React Grab - Development Tool -->
+    <script type="module">
+      if (import.meta.env.DEV) {
+        import("react-grab");
+      }
+    </script>
   </head>
   <body class="bg-slate-900">
     <div id="root"></div>

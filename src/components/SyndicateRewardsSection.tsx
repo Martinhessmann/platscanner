@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Package, Star, Heart, X, Coins } from 'lucide-react';
+import { RefreshCw, ChevronDown, ChevronRight, Filter, TrendingUp, Shield, Zap, Trash2, ExternalLink, Sword, Package, Star, Heart, X, Coins, CheckCircle, Circle } from 'lucide-react';
 import { SyndicateReward } from '../types';
 import {
   getAllSyndicateRewards,
@@ -39,6 +39,7 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
   const [refreshingItems, setRefreshingItems] = useState<Set<string>>(new Set());
   const [isExpanded, setIsExpanded] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['all']));
   const [sortBy, setSortBy] = useState<'platPerStanding' | 'price' | 'standingCost' | 'name' | 'syndicate'>('platPerStanding');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [filters, setFilters] = useState({
@@ -82,11 +83,15 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
       const syndicateRewards = getAllSyndicateRewards();
 
       // Mark items as loading if they're being refreshed
+      // Also ensure items without status get a default status so they're not filtered out
       const updatedRewards = syndicateRewards.map(reward => ({
         ...reward,
-        status: refreshingItems.has(reward.name) ? 'loading' as const : reward.status
+        status: refreshingItems.has(reward.name)
+          ? 'loading' as const
+          : (reward.status || 'loaded' as const) // Default to 'loaded' if status is missing
       }));
 
+      console.log(`>>> [SyndicateRewardsSection] Loaded ${updatedRewards.length} rewards from inventory <<<`);
       setRewards(updatedRewards);
     };
 
@@ -96,17 +101,87 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
   // Use rewards directly from inventory
   const allRewards = rewards;
 
+  // Helper function to handle filter toggling
+  const toggleFilter = (filter: string) => {
+    setActiveFilters(prev => {
+      const updated = new Set(prev);
+
+      if (filter === 'all') {
+        // If clicking "All", clear other filters
+        return new Set(['all']);
+      } else {
+        // Remove "all" if selecting specific filters
+        updated.delete('all');
+
+        // Toggle the specific filter
+        if (updated.has(filter)) {
+          updated.delete(filter);
+        } else {
+          updated.add(filter);
+        }
+
+        // If no filters remain, default to "all"
+        if (updated.size === 0) {
+          updated.add('all');
+        }
+      }
+
+      return updated;
+    });
+  };
+
   // Apply filters and sorting
   const filteredAndSortedRewards = useMemo(() => {
     let filtered = allRewards;
 
+    // Apply smart filter buttons (activeFilters)
+    if (!activeFilters.has('all')) {
+      filtered = filtered.filter(reward => {
+        return Array.from(activeFilters).every(filter => {
+          switch (filter) {
+            case 'hasBuyers':
+              return reward.hasBuyers && reward.price && reward.price > 0 && reward.buyerUsername;
+            case 'noBuyers':
+              return !reward.hasBuyers || !reward.price || reward.price === 0 || !reward.buyerUsername;
+            case 'mod':
+              return reward.itemType === 'mod';
+            case 'weapon':
+              return reward.itemType === 'weapon';
+            case 'cosmetic':
+              return reward.itemType === 'cosmetic';
+            case 'resource':
+              return reward.itemType === 'resource';
+            default:
+              // Handle syndicate name filters (e.g., 'syndicate:Cephalon Suda')
+              if (filter.startsWith('syndicate:')) {
+                const syndicateName = filter.replace('syndicate:', '');
+                return reward.syndicate === syndicateName;
+              }
+              return true;
+          }
+        });
+      });
+    }
+
     // Filter out non-tradable items by default (unless explicitly shown)
     if (!filters.showNonTradable) {
       filtered = filtered.filter(reward => {
-        // Show items that have a price > 0 or are still loading
-        return (reward.price && reward.price > 0) ||
-               reward.status === 'loading' ||
-               !reward.status; // Items that haven't been fetched yet
+        // Show items with real buyer data (hasBuyers + buyerUsername + price > 0)
+        if (reward.hasBuyers && reward.price && reward.price > 0 && reward.buyerUsername) {
+          return true;
+        }
+        // Show items that are loading
+        if (reward.status === 'loading') {
+          return true;
+        }
+        // Show items with price > 0 even if they don't have buyer data
+        // (might be from old data before buyer fields were added)
+        if (reward.price && reward.price > 0) {
+          return true;
+        }
+        // Hide items that have been fetched but have no buyers and no price
+        // (status: 'error' or 'loaded' with no buyer data and no price)
+        return false;
       });
     }
 
@@ -132,11 +207,42 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
 
     // Apply sorting
     return sortSyndicateRewards(filtered, sortBy, sortOrder);
-  }, [allRewards, filters, sortBy, sortOrder]);
+  }, [allRewards, filters, sortBy, sortOrder, activeFilters]);
 
-  // Calculate totals
+  // Calculate filter counts for smart filter buttons
+  const filterCounts = useMemo(() => {
+    const hasBuyers = allRewards.filter(r => r.hasBuyers && r.price && r.price > 0 && r.buyerUsername).length;
+    const noBuyers = allRewards.filter(r => !r.hasBuyers || !r.price || r.price === 0 || !r.buyerUsername).length;
+    const mods = allRewards.filter(r => r.itemType === 'mod').length;
+    const weapons = allRewards.filter(r => r.itemType === 'weapon').length;
+    const cosmetics = allRewards.filter(r => r.itemType === 'cosmetic').length;
+    const resources = allRewards.filter(r => r.itemType === 'resource').length;
+
+    // Syndicate counts
+    const syndicateCounts: Record<string, number> = {};
+    allRewards.forEach(r => {
+      if (r.syndicate) {
+        syndicateCounts[r.syndicate] = (syndicateCounts[r.syndicate] || 0) + 1;
+      }
+    });
+
+    return {
+      all: allRewards.length,
+      hasBuyers,
+      noBuyers,
+      mods,
+      weapons,
+      cosmetics,
+      resources,
+      syndicates: syndicateCounts
+    };
+  }, [allRewards]);
+
+  // Calculate totals - only count items with real buyer data
   const totals = useMemo(() => {
-    const loadedRewards = filteredAndSortedRewards.filter(r => r.price && r.price > 0);
+    const loadedRewards = filteredAndSortedRewards.filter(r =>
+      r.hasBuyers && r.price && r.price > 0 && r.buyerUsername
+    );
     const totalValue = loadedRewards.reduce((sum, r) => sum + (r.price || 0), 0);
     const totalStanding = loadedRewards.reduce((sum, r) => sum + r.standingCost, 0);
     const avgPlatPerStanding = totalStanding > 0 ? totalValue / totalStanding : 0;
@@ -410,6 +516,163 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
             )}
           </div>
 
+          {/* Smart Filter Buttons */}
+          <div className="flex flex-wrap gap-2 p-4 border-b border-gray-700/50">
+            {/* All Items */}
+            <button
+              onClick={() => toggleFilter('all')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('all')
+                  ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Shield size={16} />
+              <span>All Items</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('all') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {filterCounts.all}
+              </span>
+            </button>
+
+            {/* Has Buyers */}
+            <button
+              onClick={() => toggleFilter('hasBuyers')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('hasBuyers')
+                  ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <CheckCircle size={16} />
+              <span>Has Buyers</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('hasBuyers') ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {filterCounts.hasBuyers}
+              </span>
+            </button>
+
+            {/* No Buyers */}
+            <button
+              onClick={() => toggleFilter('noBuyers')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('noBuyers')
+                  ? 'bg-red-900/50 border-red-500/50 text-red-400 ring-1 ring-red-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Circle size={16} />
+              <span>No Buyers</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('noBuyers') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {filterCounts.noBuyers}
+              </span>
+            </button>
+
+            {/* Item Types */}
+            {filterCounts.mods > 0 && (
+              <button
+                onClick={() => toggleFilter('mod')}
+                className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                  activeFilters.has('mod')
+                    ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
+                    : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+                }`}
+              >
+                <Star size={16} />
+                <span>Mod</span>
+                <span className={`px-1.5 py-0.5 rounded text-xs ${
+                  activeFilters.has('mod') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
+                }`}>
+                  {filterCounts.mods}
+                </span>
+              </button>
+            )}
+
+            {filterCounts.weapons > 0 && (
+              <button
+                onClick={() => toggleFilter('weapon')}
+                className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                  activeFilters.has('weapon')
+                    ? 'bg-red-900/50 border-red-500/50 text-red-400 ring-1 ring-red-500/30'
+                    : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+                }`}
+              >
+                <Sword size={16} />
+                <span>Weapon</span>
+                <span className={`px-1.5 py-0.5 rounded text-xs ${
+                  activeFilters.has('weapon') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400'
+                }`}>
+                  {filterCounts.weapons}
+                </span>
+              </button>
+            )}
+
+            {filterCounts.cosmetics > 0 && (
+              <button
+                onClick={() => toggleFilter('cosmetic')}
+                className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                  activeFilters.has('cosmetic')
+                    ? 'bg-purple-900/50 border-purple-500/50 text-purple-400 ring-1 ring-purple-500/30'
+                    : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+                }`}
+              >
+                <Heart size={16} />
+                <span>Cosmetic</span>
+                <span className={`px-1.5 py-0.5 rounded text-xs ${
+                  activeFilters.has('cosmetic') ? 'bg-purple-800/50 text-purple-300' : 'bg-gray-800/50 text-gray-400'
+                }`}>
+                  {filterCounts.cosmetics}
+                </span>
+              </button>
+            )}
+
+            {filterCounts.resources > 0 && (
+              <button
+                onClick={() => toggleFilter('resource')}
+                className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                  activeFilters.has('resource')
+                    ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
+                    : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+                }`}
+              >
+                <Package size={16} />
+                <span>Resource</span>
+                <span className={`px-1.5 py-0.5 rounded text-xs ${
+                  activeFilters.has('resource') ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
+                }`}>
+                  {filterCounts.resources}
+                </span>
+              </button>
+            )}
+
+            {/* Syndicate Filters */}
+            {Object.entries(filterCounts.syndicates)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([syndicateName, count]) => (
+                <button
+                  key={syndicateName}
+                  onClick={() => toggleFilter(`syndicate:${syndicateName}`)}
+                  className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                    activeFilters.has(`syndicate:${syndicateName}`)
+                      ? 'bg-orange-900/50 border-orange-500/50 text-orange-400 ring-1 ring-orange-500/30'
+                      : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+                  }`}
+                >
+                  <Shield size={16} />
+                  <span className="truncate max-w-[120px]">{syndicateName}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs ${
+                    activeFilters.has(`syndicate:${syndicateName}`) ? 'bg-orange-800/50 text-orange-300' : 'bg-gray-800/50 text-gray-400'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              ))}
+          </div>
+
           {/* Filters - Mobile-friendly */}
           {showFilters && (
             <div className="p-4 border-b border-gray-700/50">
@@ -536,7 +799,7 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                         <div className="animate-pulse">
                           <div className="h-4 bg-gray-700 rounded w-12"></div>
                         </div>
-                      ) : reward.price && reward.price > 0 ? (
+                      ) : reward.hasBuyers && reward.price && reward.price > 0 && reward.buyerUsername ? (
                         <div>
                           <div className="text-green-400 font-medium">{reward.price}p</div>
                           {reward.average && reward.average !== reward.price && (

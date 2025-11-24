@@ -16,6 +16,13 @@ const CloudSyncSection: React.FC<CloudSyncSectionProps> = ({ onDataImported }) =
     lastSync?: Date;
     itemCount?: number;
     totalValue?: number;
+    categoryBreakdown?: {
+      prime_parts: { count: number; value: number };
+      relics: { count: number; value: number };
+      syndicate_rewards: { count: number; value: number };
+      mods: { count: number; value: number };
+      prime_sets: { count: number; value: number };
+    };
   }>({ exists: false });
   const [syncStatus, setSyncStatus] = useState<{
     status: 'idle' | 'syncing' | 'success' | 'error' | 'conflict';
@@ -273,7 +280,7 @@ const CloudSyncSection: React.FC<CloudSyncSectionProps> = ({ onDataImported }) =
                 <Info className="w-4 h-4" />
                 Cloud Data
               </h4>
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-4 text-sm mb-3">
                 <div>
                   <p className="text-gray-400">Items</p>
                   <p className="text-white">{cloudInfo.itemCount || 0}</p>
@@ -287,6 +294,55 @@ const CloudSyncSection: React.FC<CloudSyncSectionProps> = ({ onDataImported }) =
                   <p className="text-white">{cloudInfo.lastSync?.toLocaleString() || 'Never'}</p>
                 </div>
               </div>
+
+              {/* Category Breakdown */}
+              {cloudInfo.categoryBreakdown && (
+                <div className="border-t border-gray-600 pt-3 mt-3">
+                  <p className="text-gray-400 text-xs mb-2">Item Breakdown</p>
+                  <div className="space-y-2 text-xs">
+                    {cloudInfo.categoryBreakdown.prime_parts.count > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">Prime Parts</span>
+                        <span className="text-white">
+                          {cloudInfo.categoryBreakdown.prime_parts.count} ({Math.round(cloudInfo.categoryBreakdown.prime_parts.value)}p)
+                        </span>
+                      </div>
+                    )}
+                    {cloudInfo.categoryBreakdown.relics.count > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">Relics</span>
+                        <span className="text-white">
+                          {cloudInfo.categoryBreakdown.relics.count} ({Math.round(cloudInfo.categoryBreakdown.relics.value)}p)
+                        </span>
+                      </div>
+                    )}
+                    {cloudInfo.categoryBreakdown.syndicate_rewards.count > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">Syndicate Rewards</span>
+                        <span className="text-white">
+                          {cloudInfo.categoryBreakdown.syndicate_rewards.count} ({Math.round(cloudInfo.categoryBreakdown.syndicate_rewards.value)}p)
+                        </span>
+                      </div>
+                    )}
+                    {cloudInfo.categoryBreakdown.mods.count > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">Mods</span>
+                        <span className="text-white">
+                          {cloudInfo.categoryBreakdown.mods.count} ({Math.round(cloudInfo.categoryBreakdown.mods.value)}p)
+                        </span>
+                      </div>
+                    )}
+                    {cloudInfo.categoryBreakdown.prime_sets.count > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-300">Prime Sets</span>
+                        <span className="text-white">
+                          {cloudInfo.categoryBreakdown.prime_sets.count} ({Math.round(cloudInfo.categoryBreakdown.prime_sets.value)}p)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

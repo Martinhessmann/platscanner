@@ -584,6 +584,13 @@ class CloudSyncService {
     lastSync?: Date;
     itemCount?: number;
     totalValue?: number;
+    categoryBreakdown?: {
+      prime_parts: { count: number; value: number };
+      relics: { count: number; value: number };
+      syndicate_rewards: { count: number; value: number };
+      mods: { count: number; value: number };
+      prime_sets: { count: number; value: number };
+    };
   }> {
     if (!this.isConfigured) {
       return { exists: false };
@@ -605,17 +612,39 @@ class CloudSyncService {
         return { exists: false };
       }
 
-      const itemCount = data.inventory_data?.items?.length || 0;
-      const totalValue = data.inventory_data?.items?.reduce(
+      const items = data.inventory_data?.items || [];
+      const itemCount = items.length;
+      const totalValue = items.reduce(
         (sum: number, item: any) => sum + ((item.price || 0) * (item.quantity || 1)),
         0
-      ) || 0;
+      );
+
+      // Calculate category breakdown
+      const categoryBreakdown = {
+        prime_parts: { count: 0, value: 0 },
+        relics: { count: 0, value: 0 },
+        syndicate_rewards: { count: 0, value: 0 },
+        mods: { count: 0, value: 0 },
+        prime_sets: { count: 0, value: 0 }
+      };
+
+      items.forEach((item: any) => {
+        const category = item.category || 'prime_parts';
+        const quantity = item.quantity || 1;
+        const value = (item.price || 0) * quantity;
+
+        if (categoryBreakdown[category as keyof typeof categoryBreakdown]) {
+          categoryBreakdown[category as keyof typeof categoryBreakdown].count += quantity;
+          categoryBreakdown[category as keyof typeof categoryBreakdown].value += value;
+        }
+      });
 
       return {
         exists: true,
         lastSync: new Date(data.last_sync),
         itemCount,
-        totalValue: Math.round(totalValue)
+        totalValue: Math.round(totalValue),
+        categoryBreakdown
       };
 
     } catch (error) {

@@ -100,7 +100,12 @@ export const getAllSyndicateRewards = (): SyndicateReward[] => {
     error: item.error,
     quantity: item.quantity,
     imgUrl: item.imgUrl,
-    ducats: item.ducats
+    ducats: item.ducats,
+    // Preserve buyer data to ensure we only show real buyer prices
+    hasBuyers: item.hasBuyers,
+    buyerUsername: item.buyerUsername,
+    buyerQuantity: item.buyerQuantity,
+    buyerCount: item.buyerCount
   }));
 };
 
@@ -148,7 +153,7 @@ export const fetchSyndicateRewardPrices = async (
     console.log(`>>> [SyndicateService] Fetching price for: ${reward.name} <<<`);
     try {
       const priceData = await fetchSinglePriceData(reward);
-      
+
       // Check for cancellation after API call
       if (shouldCancel && shouldCancel()) {
         console.log(`>>> [SyndicateService] Cancellation detected after fetching ${reward.name}, stopping <<<`);
@@ -168,7 +173,12 @@ export const fetchSyndicateRewardPrices = async (
           platPerStanding: platPer1000Standing, // Now represents plat per 1000 standing
           marketVolume: priceData.volume,
           status: 'loaded' as const,
-          standingCost: effectiveStandingCost // Ensure we have a standing cost
+          standingCost: effectiveStandingCost, // Ensure we have a standing cost
+          // Preserve buyer data to ensure we only show real buyer prices
+          hasBuyers: priceData.hasBuyers,
+          buyerUsername: priceData.buyerUsername,
+          buyerQuantity: priceData.buyerQuantity,
+          buyerCount: priceData.buyerCount
         });
       } else {
         updatedRewards.push({
