@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { DetectedItem } from '../types';
 import {
   Zap,
@@ -54,6 +54,12 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
     }
     // For other categories, use the original imgUrl
     return item.imgUrl || '';
+  };
+
+  // Helper function to calculate plat/ducat ratio
+  const calculateRatio = (item: DetectedItem): number => {
+    if (!item.ducats || item.ducats === 0) return Infinity;
+    return (item.price || 0) / (item.ducats * 0.1);
   };
 
   const handleSort = (field: 'price' | 'name' | 'ducats' | 'totalValue' | 'ratio') => {
@@ -128,7 +134,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
           case 'above_average': return (item.price || 0) > (item.average || 0);
           case 'below_average': return (item.price || 0) < (item.average || 0);
           case 'prime_junk': {
-            const ratio = item.ducats ? (item.price || 0) / (item.ducats * 0.1) : Infinity;
+            const ratio = calculateRatio(item);
             return ratio < 0.1 && (item.ducats || 0) > 0;
           }
           default: return true;
@@ -152,8 +158,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
         const totalValueB = (b.price || 0) * (b.quantity || 1);
         return sortDirection === 'asc' ? totalValueA - totalValueB : totalValueB - totalValueA;
       } else if (sortField === 'ratio') {
-        const ratioA = a.ducats ? (a.price || 0) / (a.ducats * 0.1) : Infinity;
-        const ratioB = b.ducats ? (b.price || 0) / (b.ducats * 0.1) : Infinity;
+        const ratioA = calculateRatio(a);
+        const ratioB = calculateRatio(b);
         return sortDirection === 'asc' ? ratioA - ratioB : ratioB - ratioA;
       } else {
         const nameComp = sortDirection === 'asc'
@@ -164,10 +170,16 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
     });
   }, [filteredResults, sortField, sortDirection]);
 
-  // Report filtered items to parent
+  // Report filtered items to parent (with stable reference to prevent infinite loops)
+  const previousResultsRef = useRef<string>('');
   useEffect(() => {
     if (onFilteredItemsChange) {
-      onFilteredItemsChange(sortedResults);
+      // Create a stable identifier based on the actual content
+      const currentKey = sortedResults.map(r => r.id).join(',');
+      if (currentKey !== previousResultsRef.current) {
+        previousResultsRef.current = currentKey;
+        onFilteredItemsChange(sortedResults);
+      }
     }
   }, [sortedResults, onFilteredItemsChange]);
 
@@ -320,7 +332,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
             </button>
             <button onClick={() => toggleFilter('prime_junk')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('prime_junk') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
               🗑️ Prime Junk <span className="ml-1 opacity-75">({results.filter(i => {
-                const ratio = i.ducats ? (i.price || 0) / (i.ducats * 0.1) : Infinity;
+                const ratio = calculateRatio(i);
                 return ratio < 0.1 && (i.ducats || 0) > 0;
               }).length})</span>
             </button>
@@ -402,7 +414,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               {/* Actions */}
               {showActionButtons && (
                 <div className="flex items-center gap-1">
-                  {onRefreshItem && isPrimePartTradeable(item) && (
+                      {onRefreshItem && isPrimePartTradeable() && (
                     <button
                       onClick={() => onRefreshItem(item.name)}
                       disabled={item.status === 'loading'}
@@ -430,9 +442,9 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
             </div>
 
             {/* Price and Info Display */}
-            {isPrimePartTradeable(item) ? (
+                {isPrimePartTradeable() ? (
               // Tradeable items: Show full price info
-              <div className="grid grid-cols-3 gap-2 text-sm mb-2">
+                  <div className="grid grid-cols-4 gap-2 text-sm mb-2">
                 <div className="text-center">
                   <div className="text-xs text-gray-400 mb-1">Current / Avg</div>
                   {item.status === 'loading' ? (
@@ -463,6 +475,19 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                     <span className="text-gray-600 text-xs">-</span>
                   )}
                 </div>
+
+                    <div className="text-center">
+                      <div className="text-xs text-gray-400 mb-1">Ratio</div>
+                      {item.ducats ? (
+                        <div className="flex items-center justify-center gap-1">
+                          <span className={`font-semibold text-xs ${calculateRatio(item) < 0.1 ? 'text-yellow-300' : 'text-blue-300'}`}>
+                            {calculateRatio(item).toFixed(2)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-600 text-xs">-</span>
+                      )}
+                    </div>
 
                 <div className="text-center">
                   <div className="text-xs text-gray-400 mb-1">Total</div>
@@ -499,7 +524,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
             )}
 
             {/* Market Actions - Only show for tradeable items */}
-            {isPrimePartTradeable(item) && (
+                {isPrimePartTradeable() && (
               <div className="flex items-center justify-between pt-2 border-t border-gray-700/50">
                 <div className="flex items-center gap-3">
                   {item.volume && (
