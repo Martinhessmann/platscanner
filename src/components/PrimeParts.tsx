@@ -135,7 +135,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
           case 'below_average': return (item.price || 0) < (item.average || 0);
           case 'prime_junk': {
             const ratio = calculateRatio(item);
-            return ratio < 0.1 && (item.ducats || 0) > 0;
+            return ratio < 1.0 && (item.ducats || 0) > 0;
           }
           default: return true;
         }
@@ -333,7 +333,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
             <button onClick={() => toggleFilter('prime_junk')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('prime_junk') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
               🗑️ Prime Junk <span className="ml-1 opacity-75">({results.filter(i => {
                 const ratio = calculateRatio(i);
-                return ratio < 0.1 && (i.ducats || 0) > 0;
+                return ratio < 1.0 && (i.ducats || 0) > 0;
               }).length})</span>
             </button>
           </div>
@@ -480,7 +480,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                       <div className="text-xs text-gray-400 mb-1">Ratio</div>
                       {item.ducats ? (
                         <div className="flex items-center justify-center gap-1">
-                          <span className={`font-semibold text-xs ${calculateRatio(item) < 0.1 ? 'text-yellow-300' : 'text-blue-300'}`}>
+                          <span className={`font-semibold text-xs ${calculateRatio(item) < 1.0 ? 'text-yellow-300' : 'text-blue-300'}`}>
                             {calculateRatio(item).toFixed(2)}
                           </span>
                         </div>
