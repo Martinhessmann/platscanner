@@ -4,8 +4,8 @@ import ProcessingPanel from '../components/ProcessingPanel';
 import InventorySection from '../components/InventorySection';
 import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import ModDuplicatesSection from '../components/ModDuplicatesSection';
-import { analyzeImage, isGeminiConfigured, testContrastLevelsForModDetection } from '../services/geminiService';
-import { fetchPriceData, fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
+import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
+import { fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
 import { cloudSyncService } from '../services/cloudSyncService';
 import { initializeStaticData } from '../services/staticDataService';
 import {
@@ -26,7 +26,7 @@ import { ImageState, DetectedItem, ProcessingState, VoidRelic, InventoryItem } f
 import InfoCard from '../components/InfoCard';
 import PrimeSetsSection from '../components/PrimeSetsSection';
 import { FileWithPath } from 'react-dropzone';
-import { RefreshCw, Package, Trash2, Archive, Zap, Key, Coins, Shield } from 'lucide-react';
+import { Package, Zap, Key } from 'lucide-react';
 
 interface HomePageProps {
   isConfigured: boolean;
@@ -53,15 +53,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     currentFetchItem: undefined
   });
 
-  const [lastPriceRefresh, setLastPriceRefresh] = useState<Date | null>(null);
   const [lastPrimePartsRefresh, setLastPrimePartsRefresh] = useState<Date | null>(null);
   const [lastRelicsRefresh, setLastRelicsRefresh] = useState<Date | null>(null);
-  const [lastSyndicateRewardsRefresh, setLastSyndicateRewardsRefresh] = useState<Date | null>(null);
   const [lastModRefresh, setLastModRefresh] = useState<Date | null>(null);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [isRefreshingSyndicateRewards, setIsRefreshingSyndicateRewards] = useState(false);
   const [isRefreshingMods, setIsRefreshingMods] = useState(false);
-  const [shouldCancelSyndicateRefresh, setShouldCancelSyndicateRefresh] = useState(false);
   const cancelSyndicateRefreshRef = useRef(false);
   const [refreshingCategories, setRefreshingCategories] = useState<Set<string>>(new Set());
   const [fetchingProgress, setFetchingProgress] = useState<{ current: number; total: number } | undefined>(undefined);
@@ -77,22 +74,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     mods: [] as InventoryItem[]
   });
 
-  // Filter state for prime parts
-  const [primePartsFilter, setPrimePartsFilter] = useState<'all' | 'buyers'>(() => {
-    const stored = localStorage.getItem('prime_parts_filter');
-    const parsed = stored ? JSON.parse(stored) : 'buyers';
-    // Migrate old 'sets' filter to 'buyers'
-    return parsed === 'sets' ? 'buyers' : parsed;
-  });
-
-  // Save filter state to localStorage
-  useEffect(() => {
-    localStorage.setItem('prime_parts_filter', JSON.stringify(primePartsFilter));
-  }, [primePartsFilter]);
-
-
   // State for Prime Sets data (same as PrimeSetsSection)
-  const [primeSetsData, setPrimeSetsData] = useState<any[]>([]);
+  const [primeSetsData, setPrimeSetsData] = useState<SetProgress[]>([]);
 
   // Load Prime Sets data from inventory-backed cache; if empty, analyze and populate
   useEffect(() => {
@@ -139,17 +122,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           lowerName.length < 5) return false;
       return true;
     });
-
-    switch (primePartsFilter) {
-      case 'all':
-        return validParts;
-      case 'buyers':
-        // Show items that currently have active buyer listings
-        return validParts.filter(item => (item.price || 0) > 0 || (item.buyerUsername && (item.price || 0) > 0));
-      default:
-        return validParts;
-    }
-  }, [categorizedInventory.prime_parts, primePartsFilter, primeSetsData]);
+    return validParts;
+  }, [categorizedInventory.prime_parts, primeSetsData]);
 
   // Totals for displayed parts
   const displayedPrimePartsTotals = useMemo(() => {
@@ -159,7 +133,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   }, [displayedPrimeParts]);
 
   // Handle syndicate rewards refresh - define early for use in useEffect
-  const handleRefreshSyndicateRewards = useCallback(async (itemsToRefresh?: any[]) => {
+  const handleRefreshSyndicateRewards = useCallback(async (itemsToRefresh?: InventoryItem[]) => {
     if (isRefreshingSyndicateRewards) {
       console.log('>>> [HomePage] Syndicate refresh already in progress, skipping <<<');
       return;
@@ -206,7 +180,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       console.error('Failed to refresh syndicate rewards:', error);
     } finally {
       setIsRefreshingSyndicateRewards(false);
-      setShouldCancelSyndicateRefresh(false);
       cancelSyndicateRefreshRef.current = false;
     }
   }, [isRefreshingSyndicateRewards]);
@@ -214,12 +187,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   // Handle syndicate rewards cancellation
   const handleCancelSyndicateRefresh = useCallback(() => {
     console.log('>>> [HomePage] Cancelling syndicate rewards refresh <<<');
-    setShouldCancelSyndicateRefresh(true);
     cancelSyndicateRefreshRef.current = true;
   }, []);
 
   // Handle mod duplicates refresh
-  const handleRefreshMods = useCallback(async (itemsToRefresh?: any[]) => {
+  const handleRefreshMods = useCallback(async (itemsToRefresh?: InventoryItem[]) => {
     if (isRefreshingMods) {
       console.log('>>> [HomePage] Mod refresh already in progress, skipping <<<');
       return;
@@ -728,20 +700,20 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                                    typeFromTags.toLowerCase() === 'augment' ? 'augment' : 'other';
                       }
                     }
-                                      } catch (error) {
-                      // Only log in development mode to avoid console spam
-                      if (__DEV_MODE__ === 'true') {
-                        console.log(`>>> [Price Fetching] Could not fetch market data for ${item.name}, using fallback rarity`);
-                      }
-                      // If market fetch fails, check if it should be tradeable based on initial rarity
-                      const fallbackTradeable = isModTradeable(item.name, actualType, actualRarity);
-                      if (!fallbackTradeable) {
-                        // Non-tradeable mod, don't try to fetch price
-                        priceData = null;
-                      }
+                  } catch {
+                    // Only log in development mode to avoid console spam
+                    if (__DEV_MODE__ === 'true') {
+                      console.log(`>>> [Price Fetching] Could not fetch market data for ${item.name}, using fallback rarity`);
                     }
+                    // If market fetch fails, check if it should be tradeable based on initial rarity
+                    const fallbackTradeable = isModTradeable(item.name, actualType, actualRarity);
+                    if (!fallbackTradeable) {
+                      // Non-tradeable mod, don't try to fetch price
+                      priceData = null;
+                    }
+                  }
 
-                  const modItem = {
+                  const modItem: Mod = {
                     ...item,
                     price: priceData ? priceData.price : 0,
                     marketVolume: priceData ? priceData.volume : 0,
@@ -751,8 +723,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                     rarity: actualRarity,
                     type: actualType,
                     imgUrl: priceData ? `https://warframe.market/static/assets/${priceData.thumb}` : undefined,
-                    hasHistoricalSales: priceData && (priceData.volume > 0 || priceData.average > 0) // Consider historical sales if there's any market activity or average price
-                  } as any;
+                    hasHistoricalSales: !!(priceData && (priceData.volume > 0 || priceData.average > 0)) // Consider historical sales if there's any market activity or average price
+                  };
 
                   // Log mod price data for debugging
                   if (priceData) {
@@ -772,7 +744,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                     // Calculate platPerStanding for syndicate rewards
                     let platPerStanding;
                     if (item.category === 'syndicate_rewards') {
-                      const syndicateItem = item as any;
+                      const syndicateItem = item as SyndicateReward;
                       const standingCost = syndicateItem.standingCost || 25000; // Default to 25k for mods
                       if (priceData.price > 0 && standingCost > 0) {
                         platPerStanding = (priceData.price * 1000) / standingCost;
@@ -1064,20 +1036,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     const namesToRemove = new Set(itemsToRemove.map(i => i.name));
     namesToRemove.forEach(name => removeFromInventory(name));
 
-    if (primePartsFilter === 'all') {
-      // Clear ALL prime parts
-      setCategorizedInventory(prev => ({
-        ...prev,
-        prime_parts: []
-      }));
-    } else {
-      // Clear only the filtered items (blueprints or built set parts)
-      setCategorizedInventory(prev => ({
-        ...prev,
-        prime_parts: prev.prime_parts.filter(item => !namesToRemove.has(item.name))
-      }));
-    }
-  }, [categorizedInventory.prime_parts, displayedPrimeParts, primePartsFilter]);
+    // Clear only the currently displayed items (which is the full valid list)
+    setCategorizedInventory(prev => ({
+      ...prev,
+      prime_parts: prev.prime_parts.filter(item => !namesToRemove.has(item.name))
+    }));
+  }, [categorizedInventory.prime_parts, displayedPrimeParts]);
 
 
   // Individual item price refresh
@@ -1177,7 +1141,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         )
       }));
     }
-  }, [categorizedInventory, primeSetsData, primePartsFilter]);
+  }, [categorizedInventory, primeSetsData]);
 
   // Category-specific refresh handlers
   const handleRefreshCategoryPrices = useCallback(async (category: 'prime_parts' | 'relics', itemsToRefresh?: InventoryItem[]) => {
@@ -1283,8 +1247,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         }));
       }
 
-      setLastPriceRefresh(new Date());
-
       // Set category-specific last refresh time
       setLastRefreshTime(category);
       if (category === 'prime_parts') {
@@ -1344,7 +1306,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             addedAt: item.addedAt,
             lastUpdated: new Date(Date.now())
           });
-        } catch (error) {
+        } catch {
           updatedItems.push({
             ...item,
             status: 'error',
@@ -1371,7 +1333,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       setLastPriceRefresh(new Date());
       setLastRefreshTime('prime_parts');
       setLastPrimePartsRefresh(new Date());
-    } catch (error) {
+    } catch {
       // Reload from storage on error
       const updatedInventory = getCategorizedInventory();
       setCategorizedInventory(updatedInventory);
@@ -1384,128 +1346,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       setCategoryProgress(undefined);
     }
   }, [displayedPrimeParts, refreshingCategories, shouldStopProcessing]);
-
-  // Refresh all market prices (including syndicate rewards)
-  const handleRefreshPrices = useCallback(async () => {
-    console.log('>>> [HomePage] Starting bulk price refresh <<<');
-
-    const allItems = [...categorizedInventory.prime_parts, ...categorizedInventory.relics];
-
-    if (allItems.length === 0) {
-      console.log('>>> [HomePage] No items to refresh <<<');
-      return;
-    }
-
-    console.log(`>>> [HomePage] Found ${allItems.length} items to refresh <<<`);
-    setFetchingProgress({ current: 0, total: allItems.length });
-    setIsRefreshingPrices(true);
-    setShouldStopProcessing(false); // Reset stop flag
-
-    // Set all items to loading state first
-    setCategorizedInventory(prev => ({
-      prime_parts: prev.prime_parts.map(item => ({ ...item, status: 'loading' as const })),
-      relics: prev.relics.map(item => ({ ...item, status: 'loading' as const }))
-    }));
-
-    try {
-      const updatedItems: InventoryItem[] = [];
-
-      for (let i = 0; i < allItems.length; i++) {
-        // Check if processing was stopped
-        if (shouldStopProcessing) {
-          console.log(`>>> [HomePage] Bulk refresh stopped by user at item ${i+1}/${allItems.length} <<<`);
-          break;
-        }
-
-        const item = allItems[i];
-        console.log(`>>> [HomePage] Bulk refresh processing ${i + 1}/${allItems.length}: ${item.name} <<<`);
-
-        try {
-          let updatedItem: DetectedItem;
-
-          if (item.category === 'relics') {
-            // For relics, fetch basic price data AND calculate relic value analysis
-            const basicItem = await fetchSinglePriceOnly(item);
-
-            // Calculate relic value analysis using the actual detected rarity and market price
-            const relicItem = item as VoidRelic;
-            const relicAnalysis = await calculateRelicValueAnalysis(
-              item.name,
-              relicItem.rarity || 'intact',
-              basicItem.price || 0
-            );
-
-            if (relicAnalysis) {
-              updatedItem = {
-                ...basicItem,
-                category: 'relics' as const,
-                quantity: relicItem.quantity, // ✅ Preserve original quantity
-                minDropValue: relicAnalysis.minDropValue,
-                maxDropValue: relicAnalysis.maxDropValue,
-                expectedDropValue: relicAnalysis.expectedDropValue,
-                recommendation: relicAnalysis.recommendation,
-                expectedProfit: relicAnalysis.expectedProfit,
-                directSalePrice: relicAnalysis.directSalePrice,
-                relicDrops: relicAnalysis.relicDrops,
-                refinementAnalysis: relicAnalysis.refinementAnalysis
-              };
-            } else {
-              updatedItem = basicItem;
-            }
-          } else {
-            // For prime parts, just fetch basic price data
-            updatedItem = await fetchSinglePriceOnly(item);
-          }
-
-          updatedItems.push({
-            ...updatedItem,
-            addedAt: item.addedAt,
-            lastUpdated: new Date(Date.now())
-          });
-          console.log(`>>> [HomePage] Bulk refresh updated: ${updatedItem.name}, status: ${updatedItem.status}, price: ${updatedItem.price} <<<`);
-        } catch (error) {
-          console.error(`Failed to fetch price for ${item.name}:`, error);
-          updatedItems.push({
-            ...item,
-            status: 'error',
-            error: 'Failed to fetch price',
-            lastUpdated: new Date(Date.now())
-          });
-        }
-
-        // Update progress less frequently to reduce flickering (every 5 items or at the end)
-        if (i % 5 === 0 || i === allItems.length - 1) {
-          setFetchingProgress({ current: i + 1, total: allItems.length });
-        }
-      }
-
-      // Update persistent storage with processed items
-      if (updatedItems.length > 0) {
-        updateInventoryPrices(updatedItems);
-
-        // Update state with all fetched items
-        const primeUpdatedItems = updatedItems.filter(item => item.category === 'prime_parts');
-        const relicUpdatedItems = updatedItems.filter(item => item.category === 'relics');
-
-        setCategorizedInventory({
-          prime_parts: primeUpdatedItems,
-          relics: relicUpdatedItems
-        });
-      }
-      console.log(`>>> [HomePage] Bulk refresh completed for ${updatedItems.length} items <<<`);
-    } catch (error) {
-      console.error('Failed to refresh prices:', error);
-    } finally {
-      setIsRefreshingPrices(false);
-      setFetchingProgress({ current: 0, total: 0 });
-    }
-
-    // Also refresh syndicate rewards during bulk refresh
-    if (!shouldStopProcessing) {
-      console.log('>>> [HomePage] Including syndicate rewards in bulk refresh <<<');
-      await handleRefreshSyndicateRewards();
-    }
-  }, [categorizedInventory, shouldStopProcessing, handleRefreshSyndicateRewards]);
 
   const inventoryStats = useMemo(() => getInventoryStats(), [categorizedInventory]);
 
@@ -1634,8 +1474,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 lastRefreshTime={lastPrimePartsRefresh}
                 onRefreshAll={handleRefreshPrimeParts}
                 onClearAll={handleClearPrimeParts}
-                primePartsFilter={primePartsFilter}
-                onPrimePartsFilterChange={setPrimePartsFilter}
                 onRefreshItem={handleRefreshSingleItem}
                 onRemoveItem={handleRemoveFromInventory}
               />

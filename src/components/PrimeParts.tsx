@@ -10,16 +10,14 @@ import {
   Check,
   AlertCircle,
   Shield,
-  ExternalLink,
-  Eye,
-  EyeOff
+  ExternalLink
 } from 'lucide-react';
 import { isItemReserved } from '../services/buildPlanService';
 import { getImageUrlSync } from '../services/unifiedImageService';
 import LastRefreshInfo from './LastRefreshInfo';
 
 // Helper: treat all prime parts as tradeable in UI
-const isPrimePartTradeable = (_item: DetectedItem): boolean => true;
+const isPrimePartTradeable = (): boolean => true;
 
 interface PrimePartsProps {
   results: DetectedItem[];
@@ -40,11 +38,10 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
   lastRefreshTime,
   onFilteredItemsChange
 }) => {
-  const [sortField, setSortField] = useState<'price' | 'name' | 'ducats' | 'totalValue'>('price');
+  const [sortField, setSortField] = useState<'price' | 'name' | 'ducats' | 'totalValue' | 'ratio'>('price');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSortOptions, setShowSortOptions] = useState(false);
-  const [showUnreservedOnly, setShowUnreservedOnly] = useState(false);
-  const [hideReservedMissing, setHideReservedMissing] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set(['all']));
   const [activeActionMenu, setActiveActionMenu] = useState<string | null>(null);
   const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
 
@@ -59,12 +56,17 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
     return item.imgUrl || '';
   };
 
-  const handleSort = (field: 'price' | 'name' | 'ducats' | 'totalValue') => {
+  const handleSort = (field: 'price' | 'name' | 'ducats' | 'totalValue' | 'ratio') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
       setSortField(field);
-      setSortDirection(field === 'name' ? 'asc' : 'desc');
+      // Default direction: ascending for ratio and name, descending for others
+      if (field === 'ratio' || field === 'name') {
+        setSortDirection('asc');
+      } else {
+        setSortDirection('desc');
+      }
     }
     setShowSortOptions(false);
   };
@@ -86,11 +88,53 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
     }
   };
 
-  // Apply filters
+  // Toggle filter function
+  const toggleFilter = (filterId: string) => {
+    setActiveFilters(prev => {
+      const newFilters = new Set(prev);
+      if (filterId === 'all') {
+        return new Set(['all']);
+      } else {
+        newFilters.delete('all');
+        // Mutually exclusive pairs
+        if (filterId === 'blueprints') newFilters.delete('components');
+        if (filterId === 'components') newFilters.delete('blueprints');
+        if (filterId === 'above_average') newFilters.delete('below_average');
+        if (filterId === 'below_average') newFilters.delete('above_average');
+        if (newFilters.has(filterId)) {
+          newFilters.delete(filterId);
+        } else {
+          newFilters.add(filterId);
+        }
+        if (newFilters.size === 0) {
+          newFilters.add('all');
+        }
+      }
+      return newFilters;
+    });
+  };
+
+  // Apply smart filters
   let filteredResults = results;
 
-  if (showUnreservedOnly) {
-    filteredResults = filteredResults.filter(item => !isItemReserved(item.name, 'prime_parts').reserved);
+  if (!activeFilters.has('all')) {
+    filteredResults = filteredResults.filter(item => {
+      return Array.from(activeFilters).every(filterId => {
+        switch (filterId) {
+          case 'has_buyers': return (item.price || 0) > 0;
+          case 'blueprints': return item.name.includes('Blueprint');
+          case 'components': return !item.name.includes('Blueprint');
+          case 'reserved': return isItemReserved(item.name, 'prime_parts').reserved;
+          case 'above_average': return (item.price || 0) > (item.average || 0);
+          case 'below_average': return (item.price || 0) < (item.average || 0);
+          case 'prime_junk': {
+            const ratio = item.ducats ? (item.price || 0) / (item.ducats * 0.1) : Infinity;
+            return ratio < 0.1 && (item.ducats || 0) > 0;
+          }
+          default: return true;
+        }
+      });
+    });
   }
 
   const sortedResults = useMemo(() => {
@@ -98,23 +142,24 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
       if (sortField === 'price') {
         const priceA = a.price || 0;
         const priceB = b.price || 0;
-        const result = sortDirection === 'asc' ? priceA - priceB : priceB - priceA;
-        return result;
+        return sortDirection === 'asc' ? priceA - priceB : priceB - priceA;
       } else if (sortField === 'ducats') {
         const ducatsA = a.ducats || 0;
         const ducatsB = b.ducats || 0;
-        const result = sortDirection === 'asc' ? ducatsA - ducatsB : ducatsB - ducatsA;
-        return result;
+        return sortDirection === 'asc' ? ducatsA - ducatsB : ducatsB - ducatsA;
       } else if (sortField === 'totalValue') {
         const totalValueA = (a.price || 0) * (a.quantity || 1);
         const totalValueB = (b.price || 0) * (b.quantity || 1);
-        const result = sortDirection === 'asc' ? totalValueA - totalValueB : totalValueB - totalValueA;
-        return result;
+        return sortDirection === 'asc' ? totalValueA - totalValueB : totalValueB - totalValueA;
+      } else if (sortField === 'ratio') {
+        const ratioA = a.ducats ? (a.price || 0) / (a.ducats * 0.1) : Infinity;
+        const ratioB = b.ducats ? (b.price || 0) / (b.ducats * 0.1) : Infinity;
+        return sortDirection === 'asc' ? ratioA - ratioB : ratioB - ratioA;
       } else {
-        const result = sortDirection === 'asc'
+        const nameComp = sortDirection === 'asc'
           ? a.name.localeCompare(b.name)
           : b.name.localeCompare(a.name);
-        return result;
+        return nameComp;
       }
     });
   }, [filteredResults, sortField, sortDirection]);
@@ -146,21 +191,13 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
     );
   }
 
-  if (filteredResults.length === 0 && showUnreservedOnly) {
-    return (
-      <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg">
-        <p className="text-gray-400">No unreserved items found.</p>
-        <p className="text-sm text-gray-500 mt-1">All items are currently reserved for build plans.</p>
-      </div>
-    );
-  }
-
   const getSortLabel = () => {
     switch (sortField) {
       case 'price': return 'Price';
       case 'ducats': return 'Ducats';
       case 'totalValue': return 'Total Value';
       case 'name': return 'Name';
+      case 'ratio': return 'Ratio';
       default: return 'Price';
     }
   };
@@ -172,24 +209,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
         <div className="flex items-center justify-between p-3 bg-gray-900/50 rounded-t-lg">
           <div className="flex items-center gap-3">
             <div className="text-sm text-gray-400">
-              {filteredResults.length} of {results.length} item{results.length !== 1 ? 's' : ''}
-              {showUnreservedOnly && ' filtered'}
+              {sortedResults.length} of {results.length} item{results.length !== 1 ? 's' : ''}
             </div>
-
-            <button
-              onClick={() => setShowUnreservedOnly(!showUnreservedOnly)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                showUnreservedOnly
-                  ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30'
-                  : 'bg-gray-800 text-gray-400 hover:text-gray-300'
-              }`}
-              title={showUnreservedOnly ? 'Show all items' : 'Show only unreserved items'}
-            >
-              {showUnreservedOnly ? <Eye size={12} /> : <EyeOff size={12} />}
-              <span className="hidden sm:inline">
-                {showUnreservedOnly ? 'Show All' : 'Unreserved'}
-              </span>
-            </button>
           </div>
           <div className="flex items-center gap-3">
             {lastRefreshTime && (
@@ -250,6 +271,17 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                      handleSort('ratio');
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <Zap size={12} className="text-blue-400" />
+                    Ratio {sortField === 'ratio' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                     handleSort('name');
                   }}
                   className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-lg flex items-center gap-2"
@@ -262,9 +294,51 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
           </div>
         </div>
 
+        {/* Smart Filter Tags */}
+        <div className="px-3 py-2 bg-gray-900/30 border-t border-gray-700/50">
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => toggleFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('all') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
+              🔷 All Parts <span className="ml-1 opacity-75">({results.length})</span>
+            </button>
+            <button onClick={() => toggleFilter('has_buyers')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('has_buyers') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
+              💰 Has Buyers <span className="ml-1 opacity-75">({results.filter(i => (i.price || 0) > 0).length})</span>
+            </button>
+            <button onClick={() => toggleFilter('blueprints')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('blueprints') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
+              📦 Blueprints <span className="ml-1 opacity-75">({results.filter(i => i.name.includes('Blueprint')).length})</span>
+            </button>
+            <button onClick={() => toggleFilter('components')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('components') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
+              🔧 Components <span className="ml-1 opacity-75">({results.filter(i => !i.name.includes('Blueprint')).length})</span>
+            </button>
+            <button onClick={() => toggleFilter('reserved')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('reserved') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
+              ⭐ Reserved <span className="ml-1 opacity-75">({results.filter(i => isItemReserved(i.name, 'prime_parts').reserved).length})</span>
+            </button>
+            <button onClick={() => toggleFilter('above_average')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('above_average') ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
+              📈 Above Avg <span className="ml-1 opacity-75">({results.filter(i => (i.price || 0) > (i.average || 0)).length})</span>
+            </button>
+            <button onClick={() => toggleFilter('below_average')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('below_average') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
+              📉 Below Avg <span className="ml-1 opacity-75">({results.filter(i => (i.price || 0) < (i.average || 0)).length})</span>
+            </button>
+            <button onClick={() => toggleFilter('prime_junk')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('prime_junk') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
+              🗑️ Prime Junk <span className="ml-1 opacity-75">({results.filter(i => {
+                const ratio = i.ducats ? (i.price || 0) / (i.ducats * 0.1) : Infinity;
+                return ratio < 0.1 && (i.ducats || 0) > 0;
+              }).length})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Empty-state when filters hide all items but inventory is not empty */}
+        {sortedResults.length === 0 && results.length > 0 && !activeFilters.has('all') && (
+          <div className="text-center p-8 border border-dashed border-gray-700 rounded-lg m-3">
+            <p className="text-gray-400">No items match the selected filters.</p>
+            <p className="text-sm text-gray-500 mt-1">Try adjusting your filter selection.</p>
+          </div>
+        )}
+
         {/* Mobile cards */}
-        <div key={`${sortField}-${sortDirection}`} className="space-y-2 p-3">
-        {sortedResults.map((item) => (
+        {sortedResults.length > 0 && (
+          <div key={`${sortField}-${sortDirection}`} className="space-y-2 p-3">
+            {sortedResults.map((item) => (
           <div
             key={item.id}
             className="bg-gray-800/50 rounded-lg border border-gray-700/50 p-3"
@@ -470,8 +544,9 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               </div>
             )}
           </div>
-        ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tap outside to close sort options */}

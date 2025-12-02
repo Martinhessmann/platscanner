@@ -22,9 +22,6 @@ interface InventorySectionProps {
   onClearAll: () => void;
   onRefreshItem: (itemName: string) => void;
   onRemoveItem: (itemName: string) => void;
-  // Filter controls for prime parts
-  primePartsFilter?: 'all' | 'blueprints' | 'buyers';
-  onPrimePartsFilterChange?: (filter: 'all' | 'blueprints' | 'buyers') => void;
 }
 
 const getCategoryDisplayName = (category: ItemCategory): string => {
@@ -53,12 +50,10 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   onRefreshAll,
   onClearAll,
   onRefreshItem,
-  onRemoveItem,
-  primePartsFilter,
-  onPrimePartsFilterChange
+  onRemoveItem
 }) => {
   const sectionRef = useRef<HTMLDivElement>(null);
-  const [visibleItems, setVisibleItems] = useState<any[] | null>(null);
+  const [visibleItems, setVisibleItems] = useState<InventoryItem[] | null>(null);
 
   // Persistent accordion state based on category
   const getStorageKey = () => `accordion_${category}`;
@@ -71,10 +66,10 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   // Save accordion state to localStorage
   useEffect(() => {
     localStorage.setItem(getStorageKey(), JSON.stringify(isExpanded));
-  }, [isExpanded, category]);
+  }, [isExpanded]);
 
   // Memoize the filtered items change handler to prevent infinite re-renders
-  const handleFilteredItemsChange = useCallback((items: any) => {
+  const handleFilteredItemsChange = useCallback((items: InventoryItem[]) => {
     setVisibleItems(items);
   }, []);
 
@@ -162,11 +157,9 @@ const InventorySection: React.FC<InventorySectionProps> = ({
             <button
               onClick={onClearAll}
               className="flex items-center gap-1 px-2 py-1 rounded text-xs text-grineer-red hover:bg-grineer-red/10 transition-colors"
-              title={category === 'prime_parts' ?
-                (primePartsFilter === 'all' ? 'Clear ALL prime parts' :
-                 primePartsFilter === 'built_sets' ? 'Clear built set parts' :
-                 'Clear items with buyers') :
-                `Clear all ${getCategoryDisplayName(category).toLowerCase()}`
+              title={category === 'prime_parts'
+                ? 'Clear ALL prime parts'
+                : `Clear all ${getCategoryDisplayName(category).toLowerCase()}`
               }
             >
               <Trash2 size={12} />
@@ -224,34 +217,6 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               )}
             </div>
           </div>
-
-          {/* Prime Parts Filter Buttons - moved from header */}
-          {category === 'prime_parts' && onPrimePartsFilterChange && (
-            <div className="p-4 border-b border-gray-700/50">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onPrimePartsFilterChange('buyers')}
-                  className={`px-3 py-1 rounded text-xs transition-colors ${
-                    primePartsFilter === 'buyers'
-                      ? 'bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/50'
-                      : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-gray-600/50'
-                  }`}
-                >
-                  Has Buyers
-                </button>
-                <button
-                  onClick={() => onPrimePartsFilterChange('all')}
-                  className={`px-3 py-1 rounded text-xs transition-colors ${
-                    primePartsFilter === 'all'
-                      ? 'bg-orokin-gold/20 text-orokin-gold border border-orokin-gold/50'
-                      : 'bg-gray-700/50 text-gray-300 hover:bg-gray-600/50 border border-gray-600/50'
-                  }`}
-                >
-                  All
-                </button>
-              </div>
-            </div>
-          )}
 
           {items.length === 0 ? (
             <div className="p-6 text-center">
