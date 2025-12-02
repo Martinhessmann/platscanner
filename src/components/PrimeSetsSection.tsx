@@ -153,10 +153,15 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
   const handleRefreshPrimeSets = async () => {
     setIsRefreshing(true);
-    setRefreshProgress({ current: 0, total: setProgress.length });
+
+    // Get currently visible sets based on filters
+    const visibleSets = filteredSets();
+    const visibleSetNames = visibleSets.map(p => p.set.name);
+
+    setRefreshProgress({ current: 0, total: visibleSetNames.length });
 
     try {
-      await refreshPrimeSetsMarketData(primePartsInventory, relicsInventory);
+      await refreshPrimeSetsMarketData(primePartsInventory, relicsInventory, visibleSetNames);
       setRefreshKey((prev: number) => prev + 1);
 
       // Update last refresh time

@@ -666,11 +666,12 @@ export const analyzeSetProgressWithMarketData = async (
   primePartsInventory: DetectedItem[],
   relicsInventory: VoidRelic[] = [],
   includeMarketData: boolean = true,
-  forceRefresh: boolean = false
+  forceRefresh: boolean = false,
+  setsToRefresh?: string[]
 ): Promise<SetProgress[]> => {
 
   // Check for cached data first (unless force refresh requested)
-  if (!forceRefresh && includeMarketData) {
+  if (!forceRefresh && includeMarketData && !setsToRefresh) {
     const cachedProgress = getPrimeSetsCache();
     console.log(`📦 [Prime Sets] Cache check: ${cachedProgress.length} cached sets, forceRefresh=${forceRefresh}`);
     if (cachedProgress.length > 0) {
@@ -729,9 +730,13 @@ export const analyzeSetProgressWithMarketData = async (
   }
 
   // Fetch complete set market data for sets that have owned parts or can be built
-  const setsNeedingMarketData = setProgress.filter(progress =>
-    progress.ownedParts.length > 0 || progress.canBuild
-  );
+  // If setsToRefresh is provided, ONLY refresh those sets (regardless of owned parts)
+  const setsNeedingMarketData = setProgress.filter(progress => {
+    if (setsToRefresh) {
+      return setsToRefresh.includes(progress.set.name);
+    }
+    return progress.ownedParts.length > 0 || progress.canBuild;
+  });
 
   if (setsNeedingMarketData.length > 0) {
     console.log(`🎯 [Market Analysis] Fetching market data for ${setsNeedingMarketData.length} sets with owned parts`);
@@ -931,15 +936,18 @@ export const getSetRecommendationsAsync = async (
 // NEW: Refresh Prime Sets market data (force refresh)
 export const refreshPrimeSetsMarketData = async (
   primePartsInventory: DetectedItem[],
-  relicsInventory: VoidRelic[] = []
+  relicsInventory: VoidRelic[] = [],
+  setsToRefresh?: string[]
 ): Promise<SetProgress[]> => {
-  console.log('🔄 [Prime Sets] Force refreshing market data...');
+  console.log(`🔄 [Prime Sets] Force refreshing market data... ${setsToRefresh ? `(${setsToRefresh.length} sets)` : '(all)'}`);
 
-  // Clear cache first
-  clearPrimeSetsCache();
+  // Clear cache first ONLY if refreshing all
+  if (!setsToRefresh) {
+    clearPrimeSetsCache();
+  }
 
   // Force fetch new data
-  return analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory, true, true);
+  return analyzeSetProgressWithMarketData(primePartsInventory, relicsInventory, true, true, setsToRefresh);
 };
 
 // NEW: Refresh individual Prime Set market data

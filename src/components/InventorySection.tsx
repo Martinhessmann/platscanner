@@ -1,10 +1,9 @@
 // Purpose: Render a toggleable inventory section for a specific item category
 // Supports Story #8: Extended Item Support with separate sections for different item types
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RefreshCw, Trash2, ChevronDown, ChevronRight, Zap, Coins } from 'lucide-react';
-import { InventoryItem } from '../services/inventoryService';
-import { ItemCategory, VoidRelic } from '../types';
+import { InventoryItem, ItemCategory, VoidRelic } from '../types';
 import PrimeParts from './PrimeParts';
 import RelicResultsTable from './RelicResultsTable';
 import LastRefreshInfo from './LastRefreshInfo';
@@ -19,7 +18,7 @@ interface InventorySectionProps {
   isRefreshing: boolean;
   progress?: { category: string; current: number; total: number };
   lastRefreshTime?: Date | null;
-  onRefreshAll: () => void;
+  onRefreshAll: (itemsToRefresh?: InventoryItem[]) => void;
   onClearAll: () => void;
   onRefreshItem: (itemName: string) => void;
   onRemoveItem: (itemName: string) => void;
@@ -59,6 +58,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   onPrimePartsFilterChange
 }) => {
   const sectionRef = useRef<HTMLDivElement>(null);
+  const [visibleItems, setVisibleItems] = useState<any[] | null>(null);
 
   // Persistent accordion state based on category
   const getStorageKey = () => `accordion_${category}`;
@@ -72,6 +72,11 @@ const InventorySection: React.FC<InventorySectionProps> = ({
   useEffect(() => {
     localStorage.setItem(getStorageKey(), JSON.stringify(isExpanded));
   }, [isExpanded, category]);
+
+  // Memoize the filtered items change handler to prevent infinite re-renders
+  const handleFilteredItemsChange = useCallback((items: any) => {
+    setVisibleItems(items);
+  }, []);
 
   // Listen for expand-section events
   useEffect(() => {
@@ -137,7 +142,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
           {/* Unified action buttons with consistent spacing */}
           <div className="flex items-center gap-2">
             <button
-              onClick={onRefreshAll}
+              onClick={() => onRefreshAll(visibleItems || undefined)}
               disabled={isRefreshing}
               className={`flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
                 isRefreshing
@@ -267,6 +272,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               onRefreshItem={onRefreshItem}
               showActionButtons={true}
               lastRefreshTime={lastRefreshTime}
+                onFilteredItemsChange={handleFilteredItemsChange}
             />
           ) : (
             <PrimeParts
@@ -275,6 +281,7 @@ const InventorySection: React.FC<InventorySectionProps> = ({
               onRefreshItem={onRefreshItem}
               showActionButtons={true}
               lastRefreshTime={lastRefreshTime}
+                  onFilteredItemsChange={handleFilteredItemsChange}
             />
           )}
         </div>

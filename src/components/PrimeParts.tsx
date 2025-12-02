@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { DetectedItem } from '../types';
 import {
   Zap,
@@ -28,6 +28,7 @@ interface PrimePartsProps {
   onRefreshItem?: (itemName: string) => void;
   showActionButtons?: boolean;
   lastRefreshTime?: Date | null;
+  onFilteredItemsChange?: (items: DetectedItem[]) => void;
 }
 
 const PrimeParts: React.FC<PrimePartsProps> = ({
@@ -36,7 +37,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
   onRemoveItem,
   onRefreshItem,
   showActionButtons = false,
-  lastRefreshTime
+  lastRefreshTime,
+  onFilteredItemsChange
 }) => {
   const [sortField, setSortField] = useState<'price' | 'name' | 'ducats' | 'totalValue'>('price');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -91,29 +93,38 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
     filteredResults = filteredResults.filter(item => !isItemReserved(item.name, 'prime_parts').reserved);
   }
 
-  const sortedResults = [...filteredResults].sort((a, b) => {
-    if (sortField === 'price') {
-      const priceA = a.price || 0;
-      const priceB = b.price || 0;
-      const result = sortDirection === 'asc' ? priceA - priceB : priceB - priceA;
-      return result;
-    } else if (sortField === 'ducats') {
-      const ducatsA = a.ducats || 0;
-      const ducatsB = b.ducats || 0;
-      const result = sortDirection === 'asc' ? ducatsA - ducatsB : ducatsB - ducatsA;
-      return result;
-    } else if (sortField === 'totalValue') {
-      const totalValueA = (a.price || 0) * (a.quantity || 1);
-      const totalValueB = (b.price || 0) * (b.quantity || 1);
-      const result = sortDirection === 'asc' ? totalValueA - totalValueB : totalValueB - totalValueA;
-      return result;
-    } else {
-      const result = sortDirection === 'asc'
-        ? a.name.localeCompare(b.name)
-        : b.name.localeCompare(a.name);
-      return result;
+  const sortedResults = useMemo(() => {
+    return [...filteredResults].sort((a, b) => {
+      if (sortField === 'price') {
+        const priceA = a.price || 0;
+        const priceB = b.price || 0;
+        const result = sortDirection === 'asc' ? priceA - priceB : priceB - priceA;
+        return result;
+      } else if (sortField === 'ducats') {
+        const ducatsA = a.ducats || 0;
+        const ducatsB = b.ducats || 0;
+        const result = sortDirection === 'asc' ? ducatsA - ducatsB : ducatsB - ducatsA;
+        return result;
+      } else if (sortField === 'totalValue') {
+        const totalValueA = (a.price || 0) * (a.quantity || 1);
+        const totalValueB = (b.price || 0) * (b.quantity || 1);
+        const result = sortDirection === 'asc' ? totalValueA - totalValueB : totalValueB - totalValueA;
+        return result;
+      } else {
+        const result = sortDirection === 'asc'
+          ? a.name.localeCompare(b.name)
+          : b.name.localeCompare(a.name);
+        return result;
+      }
+    });
+  }, [filteredResults, sortField, sortDirection]);
+
+  // Report filtered items to parent
+  useEffect(() => {
+    if (onFilteredItemsChange) {
+      onFilteredItemsChange(sortedResults);
     }
-  });
+  }, [sortedResults, onFilteredItemsChange]);
 
 
   if (isLoading && results.length === 0) {

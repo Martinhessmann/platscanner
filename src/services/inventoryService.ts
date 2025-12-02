@@ -2,7 +2,7 @@
 // Supports Story #3: Persistent Inventory across sessions
 // Extended for Story #8: Support for multiple item categories (Prime Parts, Relics, etc.)
 
-import { DetectedItem, PrimePart, VoidRelic, ItemCategory, RelicRewardItem } from '../types';
+import { DetectedItem, PrimePart, VoidRelic, ItemCategory, RelicRewardItem, InventoryItem } from '../types';
 import { getRelicDropsByName } from './relicDataService';
 import { fetchSinglePriceData, fetchBatchPriceData } from './warframeMarketService';
 import { cloudSyncService } from './cloudSyncService';
@@ -75,73 +75,7 @@ const LAST_SCAN_STORAGE_KEY = 'platscanner_last_scan';
 const PRIME_PARTS_LAST_REFRESH_KEY = 'platscanner_prime_parts_last_refresh';
 const RELICS_LAST_REFRESH_KEY = 'platscanner_relics_last_refresh';
 
-export interface InventoryItem {
-  id: string;
-  name: string;
-  category: ItemCategory;
-  quantity?: number; // Number of this item owned (default: 1)
-  imgUrl?: string;
-  price?: number;
-  ducats?: number;
-  volume?: number;
-  average?: number;
-  status: 'loading' | 'loaded' | 'error';
-  error?: string;
-  addedAt: Date;
-  lastUpdated: Date;
-  scanSession?: string; // Which scan session this item came from
 
-  // Relic analysis properties (for VoidRelic items)
-  rarity?: 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'common' | 'uncommon' | 'rare' | 'legendary' | 'primed' | 'unknown';
-  relicDrops?: RelicRewardItem[];
-  minDropValue?: number;
-  maxDropValue?: number;
-  expectedDropValue?: number;
-  directSalePrice?: number;
-  recommendation?: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT' | 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD' | 'HOLD_FOR_LATER';
-  expectedProfit?: number;
-  refinementAnalysis?: {
-    platPerVoidTrace?: number;
-    bestRefinementTarget?: 'exceptional' | 'flawless' | 'radiant';
-    bestRefinementCost?: number;
-    bestRefinementGain?: number;
-    // New optimal analysis fields
-    optimalMarketPrice?: number;
-    optimalMarketPriceFallback?: string; // 'exact', 'fallback_flawless', etc.
-    reasoning?: string; // Human-readable explanation
-    comparison?: string; // Comparison details
-  };
-
-  // Syndicate reward properties (for SyndicateReward items)
-  syndicate?: string;
-  standingCost?: number;
-  masteryRank?: number;
-  itemType?: 'weapon' | 'mod' | 'cosmetic' | 'resource' | 'other';
-  platPerStanding?: number;
-  marketVolume?: number;
-  availability?: 'always' | 'rotation' | 'limited';
-
-  // Mod-specific properties (for Mod items)
-  rank?: number;
-  type?: 'warframe' | 'weapon' | 'companion' | 'archwing' | 'stance' | 'augment' | 'other';
-  endoValue?: number;
-  reasoning?: string;
-  platPerEndo?: number;
-
-  // Prime Sets properties (for prime_sets items) - stores SetProgress data
-  setData?: any; // Will contain SetProgress object with all analysis data
-  completeSetPrice?: number;
-  completeSetBuyerUsername?: string;
-  completeSetBuyerQuantity?: number;
-  completeSetVolume?: number;
-  completeSetAverage?: number;
-  individualPartsValue?: number;
-  ownedPartsCount?: number;
-  totalPartsCount?: number;
-  completionPercentage?: number;
-  obtainableFromRelicsCount?: number;
-  missingPartsToBuyCount?: number;
-}
 
 export interface CategorizedInventory {
   prime_parts: InventoryItem[];
@@ -167,106 +101,111 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
 
     // Convert DetectedItems to InventoryItems
     const inventoryItems: InventoryItem[] = items.map(item => {
-      const baseItem = {
+      const commonFields = {
         id: item.id,
         name: item.name,
-        category: item.category,
         quantity: item.quantity,
         imgUrl: item.imgUrl,
         price: item.price,
-        ducats: item.ducats || getStaticDucatValue(item.name, item.category), // Use static ducats if not provided
+        ducats: item.ducats || getStaticDucatValue(item.name, item.category),
         volume: item.volume,
         average: item.average,
+        recentAverage48h: item.recentAverage48h,
         status: item.status,
         error: item.error,
+        buyerUsername: item.buyerUsername,
+        buyerQuantity: item.buyerQuantity,
+        hasBuyers: item.hasBuyers,
+        buyerCount: item.buyerCount,
+        sellerCount: item.sellerCount,
+        sellerPrice: item.sellerPrice,
+        sellerUsername: item.sellerUsername,
+        sellerQuantity: item.sellerQuantity,
+        isOwned: item.isOwned,
         addedAt: now,
         lastUpdated: now,
         scanSession: sessionId || `scan_${Date.now()}`
       };
 
-      // Include relic analysis properties for VoidRelic items
-      if (item.category === 'relics' && 'expectedDropValue' in item) {
-        const relicItem = item as VoidRelic;
-        return {
-          ...baseItem,
-          rarity: relicItem.rarity,
-          relicDrops: relicItem.relicDrops,
-          minDropValue: relicItem.minDropValue,
-          maxDropValue: relicItem.maxDropValue,
-          expectedDropValue: relicItem.expectedDropValue,
-          directSalePrice: relicItem.directSalePrice,
-          recommendation: relicItem.recommendation,
-          expectedProfit: relicItem.expectedProfit,
-          refinementAnalysis: relicItem.refinementAnalysis
-        };
-      }
-
-      // Include syndicate-specific properties for SyndicateReward items
-      if (item.category === 'syndicate_rewards') {
-        const syndicateItem = item as any; // Using any since SyndicateReward extends DetectedItem
-
-        // Determine proper item type
-        const properItemType = determineItemType(item.name);
-
-        console.log(`>>> [InventoryService] Saving syndicate item: ${item.name}, syndicate: ${syndicateItem.syndicate || 'NOT SET'}, type: ${properItemType} <<<`);
-        return {
-          ...baseItem,
-          syndicate: syndicateItem.syndicate || 'Unknown',
-          standingCost: syndicateItem.standingCost || 0,
-          itemType: properItemType,
-          platPerStanding: syndicateItem.platPerStanding,
-          marketVolume: syndicateItem.marketVolume,
-          availability: syndicateItem.availability,
-          masteryRank: syndicateItem.masteryRank
-        };
-      }
-
-      // Include mod-specific properties for Mod items
-      if (item.category === 'mods') {
-        const modItem = item as any; // Using any since Mod extends DetectedItem
-
-        // Only log in development mode to avoid console spam
-        if (__DEV_MODE__ === 'true') {
-          console.log(`>>> [InventoryService] Saving mod: ${item.name} (${modItem.rarity} ${modItem.type})`);
+      switch (item.category) {
+        case 'relics': {
+          const relicItem = item as VoidRelic;
+          return {
+            ...commonFields,
+            category: 'relics',
+            rarity: relicItem.rarity,
+            relicDrops: relicItem.relicDrops,
+            minDropValue: relicItem.minDropValue,
+            maxDropValue: relicItem.maxDropValue,
+            expectedDropValue: relicItem.expectedDropValue,
+            directSalePrice: relicItem.directSalePrice,
+            recommendation: relicItem.recommendation,
+            expectedProfit: relicItem.expectedProfit,
+            refinementAnalysis: relicItem.refinementAnalysis
+          };
         }
-        return {
-          ...baseItem,
-          rank: modItem.rank,
-          rarity: modItem.rarity,
-          type: modItem.type,
-          endoValue: modItem.endoValue,
-          recommendation: modItem.recommendation,
-          reasoning: modItem.reasoning,
-          platPerEndo: modItem.platPerEndo,
-          imgUrl: modItem.imgUrl,
-          average: modItem.average,
-          hasHistoricalSales: modItem.hasHistoricalSales
-        };
+        case 'syndicate_rewards': {
+          const syndicateItem = item as any; // Cast to any to access properties if they are missing in DetectedItem union member
+          // Determine proper item type
+          const properItemType = determineItemType(item.name);
+          console.log(`>>> [InventoryService] Saving syndicate item: ${item.name}, syndicate: ${syndicateItem.syndicate || 'NOT SET'}, type: ${properItemType} <<<`);
+          return {
+            ...commonFields,
+            category: 'syndicate_rewards',
+            syndicate: syndicateItem.syndicate || 'Unknown',
+            standingCost: syndicateItem.standingCost || 0,
+            itemType: properItemType,
+            platPerStanding: syndicateItem.platPerStanding,
+            marketVolume: syndicateItem.marketVolume,
+            availability: syndicateItem.availability,
+            masteryRank: syndicateItem.masteryRank
+          };
+        }
+        case 'mods': {
+          const modItem = item as any;
+          if (__DEV_MODE__ === 'true') {
+            console.log(`>>> [InventoryService] Saving mod: ${item.name} (${modItem.rarity} ${modItem.type})`);
+          }
+          return {
+            ...commonFields,
+            category: 'mods',
+            rank: modItem.rank,
+            rarity: modItem.rarity,
+            type: modItem.type,
+            endoValue: modItem.endoValue,
+            recommendation: modItem.recommendation,
+            reasoning: modItem.reasoning,
+            platPerEndo: modItem.platPerEndo,
+            hasHistoricalSales: modItem.hasHistoricalSales,
+            drain: modItem.drain
+          };
+        }
+        case 'prime_sets': {
+          const setItem = item as any;
+          return {
+            ...commonFields,
+            category: 'prime_sets',
+            completeSetPrice: setItem.completeSetPrice,
+            completeSetBuyerUsername: setItem.completeSetBuyerUsername,
+            completeSetBuyerQuantity: setItem.completeSetBuyerQuantity,
+            completeSetVolume: setItem.completeSetVolume,
+            completeSetAverage: setItem.completeSetAverage,
+            individualPartsValue: setItem.individualPartsValue,
+            ownedPartsCount: setItem.ownedPartsCount,
+            totalPartsCount: setItem.totalPartsCount,
+            completionPercentage: setItem.completionPercentage,
+            obtainableFromRelicsCount: setItem.obtainableFromRelicsCount,
+            missingPartsToBuyCount: setItem.missingPartsToBuyCount,
+            setData: setItem.setData
+          };
+        }
+        case 'prime_parts':
+        default:
+          return {
+            ...commonFields,
+            category: 'prime_parts'
+          };
       }
-
-      // Include prime set properties for Prime Sets items
-      if (item.category === 'prime_sets') {
-        const setItem = item as any;
-        return {
-          ...baseItem,
-          // Summary fields for quick display
-          completeSetPrice: setItem.completeSetPrice,
-          completeSetBuyerUsername: setItem.completeSetBuyerUsername,
-          completeSetBuyerQuantity: setItem.completeSetBuyerQuantity,
-          completeSetVolume: setItem.completeSetVolume,
-          completeSetAverage: setItem.completeSetAverage,
-          individualPartsValue: setItem.individualPartsValue,
-          ownedPartsCount: setItem.ownedPartsCount,
-          totalPartsCount: setItem.totalPartsCount,
-          completionPercentage: setItem.completionPercentage,
-          obtainableFromRelicsCount: setItem.obtainableFromRelicsCount,
-          missingPartsToBuyCount: setItem.missingPartsToBuyCount,
-          // Full analysis object
-          setData: setItem.setData
-        };
-      }
-
-      return baseItem;
     });
 
     // Merge with existing inventory (avoid duplicates by name)
@@ -442,55 +381,114 @@ export const updateInventoryPrices = (updatedItems: DetectedItem[]): void => {
     const now = new Date();
 
     // Update prices for existing items
+    // Update prices for existing items
     const updatedInventoryItems = currentInventory.items.map(inventoryItem => {
-      const updatedItem = updatedItems.find(item => item.name === inventoryItem.name);
+      const updatedItem = updatedItems.find(item => item.name === inventoryItem.name && item.category === inventoryItem.category);
+
       if (updatedItem) {
-        const baseUpdate = {
-          ...inventoryItem,
-          ...updatedItem,
-          quantity: updatedItem.quantity || inventoryItem.quantity, // Preserve or update quantity
-          addedAt: inventoryItem.addedAt, // Preserve original add date
-          lastUpdated: now
+        const commonFields = {
+          id: inventoryItem.id,
+          name: inventoryItem.name,
+          quantity: updatedItem.quantity || inventoryItem.quantity,
+          imgUrl: updatedItem.imgUrl || inventoryItem.imgUrl,
+          price: updatedItem.price,
+          ducats: updatedItem.ducats || inventoryItem.ducats,
+          volume: updatedItem.volume,
+          average: updatedItem.average,
+          recentAverage48h: updatedItem.recentAverage48h,
+          status: updatedItem.status,
+          error: updatedItem.error,
+          buyerUsername: updatedItem.buyerUsername,
+          buyerQuantity: updatedItem.buyerQuantity,
+          hasBuyers: updatedItem.hasBuyers,
+          buyerCount: updatedItem.buyerCount,
+          sellerCount: updatedItem.sellerCount,
+          sellerPrice: updatedItem.sellerPrice,
+          sellerUsername: updatedItem.sellerUsername,
+          sellerQuantity: updatedItem.sellerQuantity,
+          isOwned: updatedItem.isOwned !== undefined ? updatedItem.isOwned : inventoryItem.isOwned,
+          addedAt: inventoryItem.addedAt,
+          lastUpdated: now,
+          scanSession: inventoryItem.scanSession
         };
 
-        // Include relic analysis properties for VoidRelic items
-        if (updatedItem.category === 'relics' && 'expectedDropValue' in updatedItem) {
-          const relicItem = updatedItem as VoidRelic;
-          return {
-            ...baseUpdate,
-            rarity: relicItem.rarity,
-            relicDrops: relicItem.relicDrops,
-            minDropValue: relicItem.minDropValue,
-            maxDropValue: relicItem.maxDropValue,
-            expectedDropValue: relicItem.expectedDropValue,
-            directSalePrice: relicItem.directSalePrice,
-            recommendation: relicItem.recommendation,
-            expectedProfit: relicItem.expectedProfit,
-            refinementAnalysis: relicItem.refinementAnalysis
-          };
+        switch (inventoryItem.category) {
+          case 'relics': {
+            const relicInventory = inventoryItem as VoidRelic;
+            const relicUpdated = updatedItem as VoidRelic;
+            return {
+              ...commonFields,
+              category: 'relics',
+              rarity: relicUpdated.rarity || relicInventory.rarity,
+              relicDrops: relicUpdated.relicDrops || relicInventory.relicDrops,
+              minDropValue: relicUpdated.minDropValue,
+              maxDropValue: relicUpdated.maxDropValue,
+              expectedDropValue: relicUpdated.expectedDropValue,
+              directSalePrice: relicUpdated.directSalePrice,
+              recommendation: relicUpdated.recommendation,
+              expectedProfit: relicUpdated.expectedProfit,
+              refinementAnalysis: relicUpdated.refinementAnalysis
+            };
+          }
+          case 'syndicate_rewards': {
+            const syndInventory = inventoryItem as any;
+            const syndUpdated = updatedItem as any;
+            return {
+              ...commonFields,
+              category: 'syndicate_rewards',
+              syndicate: syndUpdated.syndicate || syndInventory.syndicate,
+              standingCost: syndUpdated.standingCost || syndInventory.standingCost,
+              itemType: syndUpdated.itemType || syndInventory.itemType,
+              platPerStanding: syndUpdated.platPerStanding,
+              marketVolume: syndUpdated.marketVolume,
+              availability: syndUpdated.availability,
+              masteryRank: syndUpdated.masteryRank
+            };
+          }
+          case 'mods': {
+            const modInventory = inventoryItem as any;
+            const modUpdated = updatedItem as any;
+            return {
+              ...commonFields,
+              category: 'mods',
+              rank: modUpdated.rank !== undefined ? modUpdated.rank : modInventory.rank,
+              rarity: modUpdated.rarity || modInventory.rarity,
+              type: modUpdated.type || modInventory.type,
+              endoValue: modUpdated.endoValue,
+              recommendation: modUpdated.recommendation,
+              reasoning: modUpdated.reasoning,
+              platPerEndo: modUpdated.platPerEndo,
+              hasHistoricalSales: modUpdated.hasHistoricalSales,
+              drain: modUpdated.drain || modInventory.drain
+            };
+          }
+          case 'prime_sets': {
+            const setInventory = inventoryItem as any;
+            const setUpdated = updatedItem as any;
+            return {
+              ...commonFields,
+              category: 'prime_sets',
+              completeSetPrice: setUpdated.completeSetPrice,
+              completeSetBuyerUsername: setUpdated.completeSetBuyerUsername,
+              completeSetBuyerQuantity: setUpdated.completeSetBuyerQuantity,
+              completeSetVolume: setUpdated.completeSetVolume,
+              completeSetAverage: setUpdated.completeSetAverage,
+              individualPartsValue: setUpdated.individualPartsValue,
+              ownedPartsCount: setUpdated.ownedPartsCount,
+              totalPartsCount: setUpdated.totalPartsCount,
+              completionPercentage: setUpdated.completionPercentage,
+              obtainableFromRelicsCount: setUpdated.obtainableFromRelicsCount,
+              missingPartsToBuyCount: setUpdated.missingPartsToBuyCount,
+              setData: setUpdated.setData || setInventory.setData
+            };
+          }
+          case 'prime_parts':
+          default:
+            return {
+              ...commonFields,
+              category: 'prime_parts'
+            };
         }
-
-        // Include prime set fields for Prime Sets items
-        if (updatedItem.category === 'prime_sets') {
-          const setItem = updatedItem as any;
-          return {
-            ...baseUpdate,
-            completeSetPrice: setItem.completeSetPrice,
-            completeSetBuyerUsername: setItem.completeSetBuyerUsername,
-            completeSetBuyerQuantity: setItem.completeSetBuyerQuantity,
-            completeSetVolume: setItem.completeSetVolume,
-            completeSetAverage: setItem.completeSetAverage,
-            individualPartsValue: setItem.individualPartsValue,
-            ownedPartsCount: setItem.ownedPartsCount,
-            totalPartsCount: setItem.totalPartsCount,
-            completionPercentage: setItem.completionPercentage,
-            obtainableFromRelicsCount: setItem.obtainableFromRelicsCount,
-            missingPartsToBuyCount: setItem.missingPartsToBuyCount,
-            setData: setItem.setData || (inventoryItem as any).setData
-          };
-        }
-
-        return baseUpdate;
       }
       return inventoryItem;
     });

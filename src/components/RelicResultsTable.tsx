@@ -1,7 +1,7 @@
 // Purpose: Trading platform-style table for Void Relics with comprehensive refinement analysis
 // Shows all refinement levels and market comparison in a data-dense table format
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { VoidRelic } from '../types';
 import { Filter, TrendingUp, RefreshCw, Trash2, Circle, ExternalLink, Zap, MessageCircle, Info, X, AlertCircle, Check, Shield, Eye, EyeOff, ChevronDown, ChevronUp, Package } from 'lucide-react';
 import { getRelicImagePath } from '../lib/relicUtils';
@@ -16,6 +16,7 @@ interface RelicResultsTableProps {
   onRefreshItem?: (itemName: string) => void;
   showActionButtons?: boolean;
   lastRefreshTime?: Date | null;
+  onFilteredItemsChange?: (items: VoidRelic[]) => void;
 }
 
 interface RelicAnalysis {
@@ -36,7 +37,8 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   onRemoveItem,
   onRefreshItem,
   showActionButtons = false,
-  lastRefreshTime
+  lastRefreshTime,
+  onFilteredItemsChange
 }) => {
   const [sortField, setSortField] = useState<'totalValue' | 'bestValue' | 'name' | 'intact' | 'exceptional' | 'flawless' | 'radiant' | 'market' | 'refinement'>('totalValue');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -48,16 +50,16 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
 
   const sortDropdownRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
-  
+
   // Listen for focus-relic events from Prime Sets
   useEffect(() => {
     const handleFocusRelic = (event: Event) => {
       const customEvent = event as CustomEvent;
       const { name, expandDetails, scrollToSection } = customEvent.detail;
-      
+
       console.log('[RelicResultsTable] Received focus-relic event for:', name);
       console.log('[RelicResultsTable] Current results:', results.length, 'relics');
-      
+
       // Find the relic in our results
       const relicToFocus = results.find(relic => {
         // Remove refinement level AND "Relic" suffix
@@ -68,26 +70,26 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         console.log('[RelicResultsTable] Comparing:', relicBaseName.toLowerCase(), 'with', name.toLowerCase());
         return relicBaseName.toLowerCase() === name.toLowerCase();
       });
-      
+
       console.log('[RelicResultsTable] Found relic:', relicToFocus?.name, relicToFocus?.id);
-      
+
       if (relicToFocus) {
         // Expand the relic details
         if (expandDetails) {
           setExpandedRelics(prev => new Set([...prev, relicToFocus.id]));
         }
-        
+
         // Scroll to the relics section
         if (scrollToSection && sectionRef.current) {
           console.log('[RelicResultsTable] Scrolling to section');
           sectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          
+
           // After scrolling to section, scroll to the specific relic
           setTimeout(() => {
             const relicElement = document.getElementById(`relic-${relicToFocus.id}`);
             console.log('[RelicResultsTable] Looking for element with ID:', `relic-${relicToFocus.id}`);
             console.log('[RelicResultsTable] Found element:', relicElement);
-            
+
             if (relicElement) {
               relicElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
               // Add highlight effect
@@ -102,7 +104,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
         }
       }
     };
-    
+
     window.addEventListener('focus-relic', handleFocusRelic);
     return () => window.removeEventListener('focus-relic', handleFocusRelic);
   }, [results]);
@@ -274,57 +276,59 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
     });
   }
 
-  // Analyze and sort relics
-  const sortedRelics = filteredResults.map(analyzeRelic).sort((a, b) => {
-    let valueA: number;
-    let valueB: number;
+  // Analyze and sort relics (memoized to prevent infinite re-renders)
+  const sortedRelics = useMemo(() => {
+    return filteredResults.map(analyzeRelic).sort((a, b) => {
+      let valueA: number;
+      let valueB: number;
 
-    switch (sortField) {
-      case 'totalValue':
-        valueA = a.marketValue * (a.relic.quantity || 1);
-        valueB = b.marketValue * (b.relic.quantity || 1);
-        break;
-      case 'bestValue':
-        valueA = a.bestValue;
-        valueB = b.bestValue;
-        break;
-      case 'name':
-        return sortDirection === 'asc'
-          ? a.relic.name.localeCompare(b.relic.name)
-          : b.relic.name.localeCompare(a.relic.name);
-      case 'refinement':
-        // Sort by refinement level: intact < exceptional < flawless < radiant
-        const refinementOrder = ['intact', 'exceptional', 'flawless', 'radiant'];
-        const indexA = refinementOrder.indexOf(a.relic.rarity || 'intact');
-        const indexB = refinementOrder.indexOf(b.relic.rarity || 'intact');
-        return sortDirection === 'asc' ? indexA - indexB : indexB - indexA;
-      case 'intact':
-        valueA = a.intactValue;
-        valueB = b.intactValue;
-        break;
-      case 'exceptional':
-        valueA = a.exceptionalValue;
-        valueB = b.exceptionalValue;
-        break;
-      case 'flawless':
-        valueA = a.flawlessValue;
-        valueB = b.flawlessValue;
-        break;
-      case 'radiant':
-        valueA = a.radiantValue;
-        valueB = b.radiantValue;
-        break;
-      case 'market':
-        valueA = a.marketValue;
-        valueB = b.marketValue;
-        break;
-      default:
-        valueA = a.bestValue;
-        valueB = b.bestValue;
-    }
+      switch (sortField) {
+        case 'totalValue':
+          valueA = a.marketValue * (a.relic.quantity || 1);
+          valueB = b.marketValue * (b.relic.quantity || 1);
+          break;
+        case 'bestValue':
+          valueA = a.bestValue;
+          valueB = b.bestValue;
+          break;
+        case 'name':
+          return sortDirection === 'asc'
+            ? a.relic.name.localeCompare(b.relic.name)
+            : b.relic.name.localeCompare(a.relic.name);
+        case 'refinement':
+          // Sort by refinement level: intact < exceptional < flawless < radiant
+          const refinementOrder = ['intact', 'exceptional', 'flawless', 'radiant'];
+          const indexA = refinementOrder.indexOf(a.relic.rarity || 'intact');
+          const indexB = refinementOrder.indexOf(b.relic.rarity || 'intact');
+          return sortDirection === 'asc' ? indexA - indexB : indexB - indexA;
+        case 'intact':
+          valueA = a.intactValue;
+          valueB = b.intactValue;
+          break;
+        case 'exceptional':
+          valueA = a.exceptionalValue;
+          valueB = b.exceptionalValue;
+          break;
+        case 'flawless':
+          valueA = a.flawlessValue;
+          valueB = b.flawlessValue;
+          break;
+        case 'radiant':
+          valueA = a.radiantValue;
+          valueB = b.radiantValue;
+          break;
+        case 'market':
+          valueA = a.marketValue;
+          valueB = b.marketValue;
+          break;
+        default:
+          valueA = a.bestValue;
+          valueB = b.bestValue;
+      }
 
-    return sortDirection === 'asc' ? valueA - valueB : valueB - valueA;
-  });
+      return sortDirection === 'asc' ? valueA - valueB : valueB - valueA;
+    });
+  }, [filteredResults, sortField, sortDirection]);
 
   const handleSort = (field: typeof sortField) => {
     if (sortField === field) {
@@ -370,6 +374,13 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
   };
 
   const finalFilteredRelics = sortedRelics;
+
+  // Report filtered items to parent
+  useEffect(() => {
+    if (onFilteredItemsChange) {
+      onFilteredItemsChange(finalFilteredRelics);
+    }
+  }, [finalFilteredRelics, onFilteredItemsChange]);
 
   if (isLoading && filteredResults.length === 0) {
     return (
@@ -687,7 +698,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                           }`}
                           title="Refresh"
                         >
-                          <RefreshCw size={12} className={relic.status === 'loading' || !relic.relicDrops ? 'animate-spin' : ''} />
+                          <RefreshCw size={12} className={relic.status === 'loading' ? 'animate-spin' : ''} />
                         </button>
                       )}
                       {onRemoveItem && (
@@ -919,7 +930,7 @@ const RelicResultsTable: React.FC<RelicResultsTableProps> = ({
                             }`}
                             title="Refresh"
                           >
-                            <RefreshCw size={14} className={relic.status === 'loading' || !relic.relicDrops ? 'animate-spin' : ''} />
+                            <RefreshCw size={14} className={relic.status === 'loading' ? 'animate-spin' : ''} />
                           </button>
                         )}
                         {onRemoveItem && (

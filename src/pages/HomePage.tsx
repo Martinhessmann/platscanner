@@ -19,11 +19,10 @@ import {
   calculateRelicValueAnalysis,
   setLastRefreshTime,
   getLastRefreshTime,
-  updateInventoryWithStaticDucats,
-  InventoryItem
+  updateInventoryWithStaticDucats
 } from '../services/inventoryService';
 import { getPrimeSetsCache, setPrimeSetsCache, analyzeSetProgress } from '../services/primeSetService';
-import { ImageState, DetectedItem, ProcessingState, VoidRelic } from '../types';
+import { ImageState, DetectedItem, ProcessingState, VoidRelic, InventoryItem } from '../types';
 import InfoCard from '../components/InfoCard';
 import PrimeSetsSection from '../components/PrimeSetsSection';
 import { FileWithPath } from 'react-dropzone';
@@ -220,7 +219,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   }, []);
 
   // Handle mod duplicates refresh
-  const handleRefreshMods = useCallback(async () => {
+  const handleRefreshMods = useCallback(async (itemsToRefresh?: any[]) => {
     if (isRefreshingMods) {
       console.log('>>> [HomePage] Mod refresh already in progress, skipping <<<');
       return;
@@ -232,14 +231,15 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     try {
       const inventory = getCategorizedInventory();
-      const modItems = inventory.mods;
+      // Use provided items or fall back to all mods
+      const modItems = itemsToRefresh || inventory.mods;
 
       if (modItems.length === 0) {
         console.log('>>> [HomePage] No mods to refresh <<<');
         return;
       }
 
-      console.log(`>>> [HomePage] Found ${modItems.length} mods to refresh <<<`);
+      console.log(`>>> [HomePage] Found ${modItems.length} mods to refresh ${itemsToRefresh ? '(filtered)' : '(all)'} <<<`);
 
       // Import and use mod service to refresh prices
       const { refreshModPrices } = await import('../services/modService');
@@ -1180,8 +1180,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   }, [categorizedInventory, primeSetsData, primePartsFilter]);
 
   // Category-specific refresh handlers
-  const handleRefreshCategoryPrices = useCallback(async (category: 'prime_parts' | 'relics') => {
-    const items = categorizedInventory[category];
+  const handleRefreshCategoryPrices = useCallback(async (category: 'prime_parts' | 'relics', itemsToRefresh?: InventoryItem[]) => {
+    const items = itemsToRefresh || categorizedInventory[category];
     if (items.length === 0 || refreshingCategories.has(category)) {
       return;
     }

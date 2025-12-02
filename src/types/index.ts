@@ -86,7 +86,8 @@ export interface PrimeSetItem extends BaseItem {
   missingPartsToBuyCount?: number;
 }
 
-export interface Mod extends DetectedItem {
+export interface Mod extends BaseItem {
+  category: 'mods';
   rank?: number;
   drain?: number; // Mod capacity/drain cost
   rarity: string;
@@ -95,12 +96,16 @@ export interface Mod extends DetectedItem {
   recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD' | 'HOLD_FOR_LATER';
   reasoning?: string;
   platPerEndo?: number;
-  imgUrl?: string;
   hasHistoricalSales?: boolean;
-  average?: number; // Historical average price from market data
 }
 
 export type DetectedItem = PrimePart | VoidRelic | SyndicateReward | Mod | PrimeSetItem;
+
+export type InventoryItem = DetectedItem & {
+  addedAt: Date;
+  lastUpdated: Date;
+  scanSession?: string;
+};
 
 export interface ImageState {
   id: string;

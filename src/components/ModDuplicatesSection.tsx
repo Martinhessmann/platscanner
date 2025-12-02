@@ -19,7 +19,7 @@ import LastRefreshInfo from './LastRefreshInfo';
 
 interface ModDuplicatesSectionProps {
   isRefreshing: boolean;
-  onRefreshStart: () => void;
+  onRefreshStart: (itemsToRefresh?: ModItem[]) => void;
   onRefreshComplete: () => void;
   onCancel?: () => void;
   onClearAll: () => void;
@@ -256,7 +256,11 @@ const ModDuplicatesSection: React.FC<ModDuplicatesSectionProps> = ({
   }, [allMods]);
 
   const handleRefresh = async () => {
-    onRefreshStart();
+    // If filters are active, only refresh the filtered items
+    // Note: activeFilters always has at least one item (default 'sell_on_market')
+    // But we want to refresh "Visible" items.
+    const itemsToRefresh = filteredAndSortedMods;
+    onRefreshStart(itemsToRefresh);
   };
 
   const handleRefreshItem = async (itemName: string) => {
