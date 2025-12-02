@@ -141,7 +141,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     console.log('>>> [HomePage] Starting syndicate rewards refresh <<<');
     setIsRefreshingSyndicateRewards(true);
-    setShouldCancelSyndicateRefresh(false);
     cancelSyndicateRefreshRef.current = false;
 
     try {
@@ -821,7 +820,30 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           // After processing regular items, handle syndicate rewards if any
           if (hasSyndicateRewards && nextImage.syndicateRewards) {
             console.log(`>>> [Price Fetching] Processing ${nextImage.syndicateRewards.length} syndicate rewards <<<`);
-            // Syndicate rewards are already added to inventory and will be handled by SyndicateRewardsSection
+
+            // Small delay to avoid rate limiting after processing regular items
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            try {
+              const { fetchSyndicateRewardPrices } = await import('../services/syndicateService');
+
+              // Fetch prices for syndicate rewards
+              const updatedRewards = await fetchSyndicateRewardPrices(nextImage.syndicateRewards);
+
+              if (updatedRewards.length > 0) {
+                console.log(`>>> [Price Fetching] Fetched prices for ${updatedRewards.length} syndicate rewards <<<`);
+
+                // Update inventory with fetched prices
+                updateInventoryPrices(updatedRewards);
+
+                // Refresh local inventory state
+                const updatedInventory = getCategorizedInventory();
+                setCategorizedInventory(updatedInventory);
+                setInventoryRefreshTrigger(prev => prev + 1);
+              }
+            } catch (error) {
+              console.error(`>>> [Price Fetching] Error fetching prices for syndicate rewards:`, error);
+            }
           }
 
           // Mark as complete
@@ -1017,7 +1039,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     if (category === 'syndicate_rewards' && isRefreshingSyndicateRewards) {
       console.log('>>> [HomePage] Cancelling syndicate refresh before clearing inventory <<<');
       cancelSyndicateRefreshRef.current = true;
-      setShouldCancelSyndicateRefresh(true);
     }
 
     clearInventoryByCategory(category);
