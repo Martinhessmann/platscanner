@@ -1273,8 +1273,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   }, [categorizedInventory, refreshingCategories, shouldStopProcessing]);
 
   // Refresh displayed prime parts (all or blueprints based on toggle)
-  const handleRefreshPrimeParts = useCallback(async () => {
-    const items = displayedPrimeParts;
+  const handleRefreshPrimeParts = useCallback(async (itemsToRefresh?: InventoryItem[]) => {
+    const items = itemsToRefresh || displayedPrimeParts;
     if (items.length === 0 || refreshingCategories.has('prime_parts')) {
       return;
     }
