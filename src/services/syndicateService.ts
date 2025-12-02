@@ -82,31 +82,35 @@ export const getAllSyndicateRewards = (): SyndicateReward[] => {
   const syndicateItems = inventory.syndicate_rewards;
 
   // Convert InventoryItem to SyndicateReward format for compatibility
-  return syndicateItems.map(item => ({
-    id: item.id,
-    name: item.name,
-    category: 'syndicate_rewards' as const,
-    syndicate: item.syndicate || 'Unknown',
-    standingCost: item.standingCost || getEstimatedStandingCost(item.name),
-    masteryRank: item.masteryRank,
-    itemType: item.itemType || determineItemType(item.name),
-    platPerStanding: item.platPerStanding,
-    marketVolume: item.marketVolume,
-    availability: item.availability,
-    price: item.price,
-    volume: item.volume,
-    average: item.average,
-    status: item.status,
-    error: item.error,
-    quantity: item.quantity,
-    imgUrl: item.imgUrl,
-    ducats: item.ducats,
-    // Preserve buyer data to ensure we only show real buyer prices
-    hasBuyers: item.hasBuyers,
-    buyerUsername: item.buyerUsername,
-    buyerQuantity: item.buyerQuantity,
-    buyerCount: item.buyerCount
-  }));
+  return syndicateItems.map(item => {
+    const r = item as any;
+    return {
+      id: r.id,
+      name: r.name,
+      category: 'syndicate_rewards' as const,
+      syndicate: r.syndicate || 'Unknown',
+      standingCost: r.standingCost || getEstimatedStandingCost(r.name),
+      masteryRank: r.masteryRank,
+      itemType: r.itemType || determineItemType(r.name),
+      platPerStanding: r.platPerStanding,
+      marketVolume: r.marketVolume,
+      availability: r.availability,
+      price: r.price,
+      volume: r.volume,
+      average: r.average,
+      status: r.status,
+      error: r.error,
+      quantity: r.quantity,
+      imgUrl: r.imgUrl,
+      ducats: r.ducats,
+      // Preserve buyer data to ensure we only show real buyer prices
+      hasBuyers: r.hasBuyers,
+      buyerUsername: r.buyerUsername,
+      buyerQuantity: r.buyerQuantity,
+      buyerCount: r.buyerCount,
+      currency: r.currency || 'standing'
+    };
+  });
 };
 
 /**
@@ -163,14 +167,23 @@ export const fetchSyndicateRewardPrices = async (
       if (priceData && priceData.price) {
         // Calculate plat per 1000 standing (more readable than per-standing)
         const effectiveStandingCost = reward.standingCost || getEstimatedStandingCost(reward.name);
-        const platPer1000Standing = (priceData.price * 1000) / effectiveStandingCost;
+
+        // Calculate ratio based on currency
+        let platPerUnit = 0;
+        if (reward.currency === 'vitus_essence') {
+          // Plat per 1 Vitus Essence
+          platPerUnit = priceData.price / effectiveStandingCost;
+        } else {
+          // Plat per 1000 Standing
+          platPerUnit = (priceData.price * 1000) / effectiveStandingCost;
+        }
 
         updatedRewards.push({
           ...reward,
           price: priceData.price,
           volume: priceData.volume,
           average: priceData.average,
-          platPerStanding: platPer1000Standing, // Now represents plat per 1000 standing
+          platPerStanding: platPerUnit, // Stores Plat/Vitus or Plat/1k Standing
           marketVolume: priceData.volume,
           status: 'loaded' as const,
           standingCost: effectiveStandingCost, // Ensure we have a standing cost
@@ -178,7 +191,8 @@ export const fetchSyndicateRewardPrices = async (
           hasBuyers: priceData.hasBuyers,
           buyerUsername: priceData.buyerUsername,
           buyerQuantity: priceData.buyerQuantity,
-          buyerCount: priceData.buyerCount
+          buyerCount: priceData.buyerCount,
+          currency: reward.currency || 'standing'
         });
       } else {
         updatedRewards.push({

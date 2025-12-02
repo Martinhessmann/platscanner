@@ -362,16 +362,16 @@ const cropImageToBase64 = (file: File, box2d: number[]): Promise<string> => {
         reject(new Error('Failed to get canvas context'));
         return;
       }
-      
+
       // Add padding to ensure we don't cut off important parts (especially rank dots)
       const padding = 0.02; // 2% padding on each side
       const paddedBox = [
         Math.max(0, box2d[0] - padding * 1000),           // y0 - padding
-        Math.max(0, box2d[1] - padding * 1000),           // x0 - padding  
+        Math.max(0, box2d[1] - padding * 1000),           // x0 - padding
         Math.min(1000, box2d[2] + padding * 1000),        // y1 + padding
         Math.min(1000, box2d[3] + padding * 1000)         // x1 + padding
       ];
-      
+
       const y0 = Math.floor((paddedBox[0] / 1000) * img.height);
       const x0 = Math.floor((paddedBox[1] / 1000) * img.width);
       const y1 = Math.floor((paddedBox[2] / 1000) * img.height);
@@ -400,7 +400,7 @@ const segmentModCards = async (imageBase64: string, mimeType: string): Promise<A
 CRITICAL: Each mod card bounding box MUST include the COMPLETE mod card from top to bottom:
 - Include the mod name at the top
 - Include the TOP-LEFT corner (for copies icon)
-- Include the TOP-RIGHT corner (for drain/polarity icon)  
+- Include the TOP-RIGHT corner (for drain/polarity icon)
 - Include the BOTTOM edge with the rank dots (MOST IMPORTANT!)
 - Do NOT crop too tightly - ensure full mod card is captured
 
@@ -507,13 +507,13 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
     arr.forEach((m, i) => {
       if (!m || !m.name) return;
       const name = String(m.name).trim();
-      
+
       // Filter out invalid mod names from JSON parsing artifacts
       if (name.startsWith('```') || name === '[]' || name === '{}' || name.length < 2) {
         console.log(`>>> [AI Parsing] Skipping invalid mod name: "${name}" <<<`);
         return;
       }
-      
+
       const qty = Number(m.copies ?? m.quantity ?? 1) || 1;
       const rankCurrent = Number(m.rank?.current ?? m.rankCurrent ?? m.rank ?? 0);
       const drain = m.drain !== undefined ? Number(m.drain) : undefined;
@@ -592,7 +592,9 @@ const parseDetectedItems = (responseText: string, screenType?: string): Detected
         category: 'syndicate_rewards',
         syndicate: detectedSyndicate,
         standingCost: isNaN(standingCost) ? 0 : standingCost,
-        itemType: 'mod' // Most syndicate items are mods; will be refined by syndicateService
+        itemType: 'mod', // Most syndicate items are mods; will be refined by syndicateService
+        currency: detectedSyndicate.toLowerCase().includes('arbitration') ? 'vitus_essence' : 'standing',
+        status: 'loading'
       };
       detectedItems.push(reward);
       console.log(`>>> [AI Parsing] Added syndicate reward: "${name}" (${detectedSyndicate}) <<<`);
@@ -804,7 +806,7 @@ const determineScreenType = async (imageBase64: string, mimeType: string): Promi
   const screenTypePrompt = `Look at this Warframe screenshot and determine what type of screen this is.
 
 SIMPLE RULES:
-- If you see "Syndicate Offerings" or syndicate names like "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda" in the header/title area = SYNDICATE
+- If you see "Syndicate Offerings" or syndicate names like "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda", "Arbitration Honors" in the header/title area = SYNDICATE
 - If you see "Prime Parts" or items with "Prime" in their names = PRIME_PARTS
 - If you see "Void Relics" or items like "Lith A1", "Meso B2" = RELICS
 - If you see mod cards with polarity symbols (V, D, -) and capacity costs (numbers like 4, 6, 8, 10, 12, 14, 16) = MODS
@@ -838,7 +840,7 @@ IMPORTANT: If you see mod names but NO explicit syndicate header, classify as MO
     ]
   });
 
-  const text = result.text.trim().toUpperCase();
+  const text = (result.text || '').trim().toUpperCase();
 
   console.log(`>>> [Gemini Screen Type] Raw response: "${text}" <<<`);
 
@@ -885,7 +887,7 @@ If you cannot clearly see any Prime items, respond with "NONE_DETECTED".`;
     ]
   });
 
-  return result.text;
+  return result.text || '';
 };
 
 const analyzeRelics = async (imageBase64: string, mimeType: string): Promise<string> => {
@@ -942,7 +944,7 @@ If you cannot clearly see any owned relics, respond with "NONE_DETECTED".`;
     ]
   });
 
-  return result.text;
+  return result.text || '';
 };
 
 const analyzeSyndicate = async (imageBase64: string, mimeType: string): Promise<string> => {
@@ -951,8 +953,8 @@ const analyzeSyndicate = async (imageBase64: string, mimeType: string): Promise<
 CRITICAL: This MUST be a Syndicate Offerings screen with syndicate header visible!
 
 STRICT RULES:
-- MUST see syndicate name in header (e.g., "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda")
-- MUST see standing costs (numbers like 5,000, 25,000, 100,000) on items
+- MUST see syndicate name in header (e.g., "Arbiters of Hexis", "Steel Meridian", "Cephalon Suda", "Arbitration Honors")
+- MUST see standing costs (numbers like 5,000, 25,000, 100,000) on items OR small numbers (10, 15, 20) if "Arbitration Honors"
 - If you see mod names but NO syndicate header, respond with "NONE_DETECTED"
 - If you see mod names but NO standing costs, respond with "NONE_DETECTED"
 
@@ -986,13 +988,13 @@ If you cannot clearly see syndicate header, respond with "NONE_DETECTED"`;
     ]
   });
 
-  return result.text;
+  return result.text || '';
 };
 
 const analyzeMods = async (imageBase64: string, mimeType: string): Promise<string> => {
   const modsPrompt = `This is a cropped image of a single Warframe MOD CARD. Analyze this individual mod card carefully:
 1.  **Name:** Read the mod's name from the card.
-2.  **Copies:** Look at the TOP-LEFT corner for a COPIES ICON (looks like two stacked documents/papers). 
+2.  **Copies:** Look at the TOP-LEFT corner for a COPIES ICON (looks like two stacked documents/papers).
    - If you see this stacked papers icon with a number, that number is the copies count
    - If there is NO stacked papers icon, the copies count is 1 (single copy)
    - Do NOT confuse this with other numbers or icons on the card
@@ -1006,14 +1008,14 @@ const analyzeMods = async (imageBase64: string, mimeType: string): Promise<strin
     c. EMPTY dots appear as DARK/GREY outlines or are barely visible
     d. Count the BRIGHT BLUE filled dots = 'current' rank (0 to 10)
     e. Count ALL dots (bright + dark) = 'total' rank (must be 3, 5, or 10)
-    
+
     CRITICAL RULES:
     - EXAMINE EACH MOD INDIVIDUALLY - don't assume they're all the same rank
     - LOOK VERY CAREFULLY at the bottom dots - they are the most important part
     - BRIGHT/GLOWING dots = filled ranks (count these)
     - DARK/FADED dots = empty ranks (don't count these)
     - If ALL dots are bright blue = current equals total (e.g., 3/3, 5/5, 10/10)
-    - If NO dots are bright blue = current is 0 (e.g., 0/3, 0/5, 0/10)  
+    - If NO dots are bright blue = current is 0 (e.g., 0/3, 0/5, 0/10)
     - If SOME dots are bright = count only the bright ones (e.g., 3/5, 7/10)
     - Total must be exactly 3, 5, or 10 - never any other number
     - DOUBLE-CHECK your dot counting - this is the most error-prone part
@@ -1025,7 +1027,7 @@ CRITICAL VISUAL DISTINCTIONS:
 
 RANK EXAMPLES:
 - Mod with 3 bright blue dots + 0 dark dots = "current": 3, "total": 3
-- Mod with 0 bright dots + 5 dark dots = "current": 0, "total": 5  
+- Mod with 0 bright dots + 5 dark dots = "current": 0, "total": 5
 - Mod with 2 bright dots + 3 dark dots = "current": 2, "total": 5
 - Mod with 5 bright blue dots + 0 dark dots = "current": 5, "total": 5
 
@@ -1070,7 +1072,7 @@ Rules for JSON:
     ]
   });
 
-  return result.text;
+  return result.text || '';
 };
 
 

@@ -66,6 +66,7 @@ export interface SyndicateReward extends BaseItem {
   platPerStanding?: number;
   marketVolume?: number;
   availability?: 'always' | 'rotation' | 'limited';
+  currency?: 'standing' | 'vitus_essence';
 }
 
 export interface PrimeSetItem extends BaseItem {

@@ -141,7 +141,7 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
         let buyerMatch = true;
 
         if (hasBuyersFilter || noBuyersFilter) {
-          const hasBuyers = reward.hasBuyers && reward.price && reward.price > 0 && reward.buyerUsername;
+          const hasBuyers = !!(reward.hasBuyers && reward.price && reward.price > 0 && reward.buyerUsername);
           // OR logic: match if either hasBuyers filter is active and item has buyers,
           // OR noBuyers filter is active and item has no buyers
           buyerMatch = (hasBuyersFilter && hasBuyers) || (noBuyersFilter && !hasBuyers);
@@ -703,8 +703,11 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                     </div>
 
                     <div>
-                      <div className="text-xs text-gray-400 mb-1">Standing</div>
-                      <div className="text-purple-400 font-medium">{formatStanding(reward.standingCost)}</div>
+                      <div className="text-xs text-gray-400 mb-1">Cost</div>
+                      <div className="text-purple-400 font-medium">
+                        {formatStanding(reward.standingCost)}
+                        {reward.currency === 'vitus_essence' ? ' Vitus' : ''}
+                      </div>
                     </div>
                   </div>
 
@@ -721,7 +724,9 @@ const SyndicateRewardsSection: React.FC<SyndicateRewardsSectionProps> = ({
                   {/* Plat per standing - key metric */}
                   <div className="mt-3 pt-3 border-t border-gray-700/50">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Plat per 1k Standing</span>
+                      <span className="text-xs text-gray-400">
+                        {reward.currency === 'vitus_essence' ? 'Plat per Vitus' : 'Plat per 1k Standing'}
+                      </span>
                       {refreshingItems.has(reward.name) ? (
                         <div className="animate-pulse">
                           <div className="h-4 bg-gray-700 rounded w-16"></div>
