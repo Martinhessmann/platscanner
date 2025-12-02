@@ -56,6 +56,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const [lastPrimePartsRefresh, setLastPrimePartsRefresh] = useState<Date | null>(null);
   const [lastRelicsRefresh, setLastRelicsRefresh] = useState<Date | null>(null);
   const [lastModRefresh, setLastModRefresh] = useState<Date | null>(null);
+  const [lastSyndicateRewardsRefresh, setLastSyndicateRewardsRefresh] = useState<Date | null>(null);
   const [isRefreshingPrices, setIsRefreshingPrices] = useState(false);
   const [isRefreshingSyndicateRewards, setIsRefreshingSyndicateRewards] = useState(false);
   const [isRefreshingMods, setIsRefreshingMods] = useState(false);
@@ -1542,6 +1543,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             onRemoveItem={handleRemoveFromInventory}
             onRefreshItem={handleRefreshSingleSyndicateReward}
             refreshTrigger={inventoryRefreshTrigger}
+            lastRefreshTime={lastSyndicateRewardsRefresh}
           />
 
           {/* Mod Duplicates Section - Help with duplicate mod management */}
