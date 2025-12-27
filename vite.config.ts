@@ -24,7 +24,19 @@ export default defineConfig({
     __DEV_MODE__: JSON.stringify(process.env.NODE_ENV === 'development'),
   },
   optimizeDeps: {
-    exclude: ['lucide-react'],
+    exclude: ['lucide-react', 'tesseract.js'],
+  },
+  worker: {
+    format: 'es',
+    plugins: () => [react()],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Ensure worker files are properly handled
+        manualChunks: undefined,
+      },
+    },
   },
   server: {
     proxy: {

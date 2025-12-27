@@ -1,10 +1,10 @@
 # Prime Parts Scanner
 
-A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots to detect items and fetch their current market prices. Built with React, Tailwind CSS, and Google's Gemini Vision API.
+A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots to detect items and fetch their current market prices. Built with React, Tailwind CSS, and Tesseract.js OCR.
 
 ## ✨ Features
 
-- 🤖 **AI-Powered Detection**: Uses Google's Gemini Vision API for accurate item recognition
+- 🔍 **OCR-Based Detection**: Uses Tesseract.js for client-side text extraction and item recognition (no API key required)
 - 💰 **Real-time Pricing**: Fetches current market data from Warframe Market
 - 🎲 **Relic Value Analysis**: Smart OPEN/SELL/REFINE recommendations with expected value calculations
 - 📊 **Market Analytics**: Shows current prices, 24h averages, and trading volume
@@ -23,23 +23,18 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 
 ## 🚀 Quick Start
 
-### 1. Get Your API Key
-- Visit [Google AI Studio](https://aistudio.google.com/app/apikey) to get your free Gemini API key
-- Click the settings icon in Prime Parts Scanner
-- Enter your API key (stored securely in your browser)
-
-### 2. Start Scanning
+### 1. Start Scanning
 - Take screenshots of your Warframe Prime parts or Void relics inventory
 - Upload them to Prime Parts Scanner (drag & drop or click to browse)
 - Watch as items are automatically detected and priced
 - View market recommendations and trading opportunities
 
-### 3. Manage Your Inventory
+### 2. Manage Your Inventory
 - Use category-specific refresh buttons to update prices
 - Remove individual items or clear entire categories
 - Click item names to view detailed market listings on Warframe Market
 
-### 4. Syndicate Rewards Analysis
+### 3. Syndicate Rewards Analysis
 - View all syndicate rewards with current market prices
 - Sort by plat/standing ratio to find the best value items
 - Filter by syndicate, item type, price range, and standing cost
@@ -47,10 +42,10 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 - **Smart filtering**: Hide non-tradable items by default for cleaner interface
 - **Mobile-friendly design**: Card-based layout with touch-friendly controls
 
-### 5. Cloud Sync (Optional)
+### 4. Cloud Sync (Optional)
 - Enable cross-platform synchronization in Settings > Cloud Sync
 - Your inventory, build plans, and progress sync across all devices
-- Uses your Gemini API key as a secure unique identifier
+- Uses an optional user identifier for secure cross-device sync
 - Automatic conflict resolution when data differs between devices
 
 ## 🎯 Live App
@@ -61,7 +56,6 @@ A powerful AI-powered tool that scans Warframe Prime parts inventory screenshots
 
 ### Prerequisites
 - Node.js 18+
-- Google Gemini API key
 - Docker Desktop (for Supabase Edge Function deployment)
 - Supabase project (optional, for cloud sync)
 
@@ -74,11 +68,8 @@ cd platscanner
 # Install dependencies
 npm install
 
-# Create environment file
+# Create environment file (optional)
 cp .env.example .env
-
-# Add your API key to .env
-VITE_GEMINI_API_KEY=your_api_key_here
 
 # Optional: Add Supabase config for cloud sync
 VITE_SUPABASE_URL=your_supabase_project_url
@@ -195,7 +186,7 @@ MIT License - See [LICENSE](LICENSE) file for details
 
 - [Warframe Market](https://warframe.market) for market data API
 - [Digital Extremes](https://www.warframe.com) for Warframe
-- [Google AI](https://ai.google.dev/) for Gemini Vision API
+- [Tesseract.js](https://tesseract.projectnaptha.com/) for OCR text extraction
 - [Lucide](https://lucide.dev) for beautiful icons
 
 ## 📞 Support

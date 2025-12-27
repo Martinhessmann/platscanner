@@ -26,7 +26,7 @@ const InfoCard: React.FC<InfoCardProps> = ({ isConfigured = true, onOpenSettings
               <div>
                 <p className="text-sm text-gray-300 flex items-center gap-2">
                   <Key size={14} className="text-orokin-gold" />
-                  First, you need to add your Gemini API key
+                  OCR is ready to analyze your screenshots (no API key needed)
                   {onOpenSettings && (
                     <button
                       onClick={onOpenSettings}
@@ -66,7 +66,7 @@ const InfoCard: React.FC<InfoCardProps> = ({ isConfigured = true, onOpenSettings
           </div>
           <div>
             <p className="text-sm text-gray-300">
-              Our AI analyzes the image to identify Prime part names using Google Gemini
+              OCR extracts text from the image to identify Prime parts, Relics, Mods, and Syndicate rewards
             </p>
           </div>
         </div>

@@ -194,7 +194,7 @@ const CloudSyncSection: React.FC<CloudSyncSectionProps> = ({ onDataImported }) =
           <p>Cloud sync is not available. This feature requires Supabase configuration.</p>
           <div className="bg-gray-700 rounded p-3">
             <p className="text-xs text-gray-400">
-              Cloud sync allows you to synchronize your inventory across multiple devices and browsers using your Gemini API key as a unique identifier.
+              Cloud sync allows you to synchronize your inventory across multiple devices and browsers using an optional user identifier.
             </p>
           </div>
         </div>
@@ -210,7 +210,7 @@ const CloudSyncSection: React.FC<CloudSyncSectionProps> = ({ onDataImported }) =
       </h3>
 
       <p className="text-gray-300 text-sm mb-6">
-        Sync your inventory, build plans, and progress across all your devices using your Gemini API key as a secure identifier.
+        Sync your inventory, build plans, and progress across all your devices using an optional user identifier.
       </p>
 
       {/* Enable/Disable Toggle */}
@@ -452,8 +452,8 @@ const CloudSyncSection: React.FC<CloudSyncSectionProps> = ({ onDataImported }) =
           {/* Privacy Notice */}
           <div className="mt-6 bg-gray-700/50 rounded p-3">
             <p className="text-gray-300 text-xs">
-              <strong>Privacy:</strong> Your Gemini API key is hashed using SHA-256 before being used as a unique identifier.
-              The raw API key is never stored in the cloud. Only your inventory data, build plans, and mastery progress are synchronized.
+              <strong>Privacy:</strong> If an optional user identifier is provided, it is hashed using SHA-256 before being used.
+              Only your inventory data, build plans, and mastery progress are synchronized.
             </p>
           </div>
         </>

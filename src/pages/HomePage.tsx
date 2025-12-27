@@ -4,7 +4,7 @@ import ProcessingPanel from '../components/ProcessingPanel';
 import InventorySection from '../components/InventorySection';
 import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import ModDuplicatesSection from '../components/ModDuplicatesSection';
-import { analyzeImage, isGeminiConfigured } from '../services/geminiService';
+import { analyzeImage, isGeminiConfigured } from '../services/ocrService';
 import { fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
 import { cloudSyncService } from '../services/cloudSyncService';
 import { initializeStaticData } from '../services/staticDataService';
@@ -989,7 +989,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // Clear the cache for this image to force a fresh analysis
     try {
-      const { clearCachedAnalysis, generateImageHash, fileToBase64 } = await import('../services/geminiService');
+      const { clearCachedAnalysis, generateImageHash, fileToBase64 } = await import('../services/ocrService');
       const imageBase64 = await fileToBase64(image.file);
       const imageHash = await generateImageHash(imageBase64);
       clearCachedAnalysis(imageHash);
@@ -1412,13 +1412,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             </div>
           )}
 
-          {/* API Key Missing */}
+          {/* OCR Ready - No API Key Needed */}
           {!isConfigured && (
             <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
               <Key size={40} className="mx-auto text-orokin-gold mb-3" />
-              <h2 className="text-lg font-semibold mb-2">API Key Required</h2>
+              <h2 className="text-lg font-semibold mb-2">OCR Ready</h2>
               <p className="text-gray-400 mb-4 text-sm">
-                Please add your Gemini API key to start scanning your inventory.
+                OCR-based text extraction is ready. Upload screenshots to start scanning your inventory.
               </p>
               <button
                 onClick={onOpenSettings}

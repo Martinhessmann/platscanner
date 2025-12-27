@@ -1,5 +1,5 @@
 // Purpose: Cloud Sync Service - Sync user data across platforms using Supabase
-// Uses hashed Gemini API key as unique user identifier for cross-platform inventory sync
+// Uses optional user identifier (hashed API key or generated ID) for cross-platform inventory sync
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -59,12 +59,25 @@ class CloudSyncService {
   }
 
   /**
-   * Get current user ID from stored API key
+   * Get current user ID from stored API key or generate a persistent ID
    */
   private async getCurrentUserId(): Promise<string | null> {
+    // Try to use API key if available (for backward compatibility)
     const apiKey = localStorage.getItem('platscanner_gemini_api_key');
-    if (!apiKey) return null;
-    return await this.hashApiKey(apiKey);
+    if (apiKey) {
+      return await this.hashApiKey(apiKey);
+    }
+    
+    // Generate a persistent user ID if no API key exists
+    let userId = localStorage.getItem('platscanner_user_id');
+    if (!userId) {
+      // Generate a random ID and store it
+      userId = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+      localStorage.setItem('platscanner_user_id', userId);
+    }
+    return userId;
   }
 
   /**

@@ -59,7 +59,7 @@ const ProcessingAnimation: React.FC<ProcessingAnimationProps> = ({
       </h3>
 
       <p className="text-gray-400 text-center max-w-md">
-        {stage === 'analyzing' && "Gemini AI is scanning your inventory for Prime parts and Void relics..."}
+        {stage === 'analyzing' && "OCR is extracting text from your screenshot to identify Prime parts, Relics, Mods, and Syndicate rewards..."}
         {stage === 'analyzed' && "Items detected! Queued for market price fetching..."}
         {stage === 'fetching' && "Retrieving current market prices from Warframe Market..."}
         {stage === 'complete' && "Your results are ready to view!"}
