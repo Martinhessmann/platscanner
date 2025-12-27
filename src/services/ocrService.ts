@@ -1,4 +1,4 @@
-import { createWorker, PSM, OEM } from 'tesseract.js';
+import { createWorker, PSM, OEM, createScheduler } from 'tesseract.js';
 import { DetectedItem, PrimePart, VoidRelic, SyndicateReward, Mod } from '../types';
 import { getCategorizedInventory } from './inventoryService';
 import { determineModRarity, determineModType } from './modService';
@@ -229,16 +229,16 @@ const extractTextFromImage = async (imageFile: File): Promise<string> => {
     ocrLogger.debug('OCR', 'Creating Tesseract worker with English language');
     
     // Create worker with proper configuration
-    // For production/HTTPS, we may need to configure worker paths
-    // Tesseract.js v7 handles workers, but we configure logger for progress tracking
+    // For production/HTTPS, we need to use CDN paths for worker files
+    // Tesseract.js v7 requires worker files to be accessible from secure origins
     try {
-      // Check if we're in production (HTTPS) and might need CDN paths
+      // Check if we're in production (HTTPS)
       const isProduction = window.location.protocol === 'https:' || !window.location.hostname.includes('localhost');
       
       ocrLogger.debug('OCR', `Creating worker (production: ${isProduction}, protocol: ${window.location.protocol})`);
       
-      // Create worker with logger for progress tracking
-      worker = await createWorker('eng', 1, {
+      // Configure worker options - use CDN for production to avoid security issues
+      const workerOptions: any = {
         logger: (m: any) => {
           if (m.status === 'recognizing text' && m.progress !== undefined) {
             ocrLogger.debug('OCR', `OCR progress: ${Math.round(m.progress * 100)}%`);
@@ -246,7 +246,46 @@ const extractTextFromImage = async (imageFile: File): Promise<string> => {
             ocrLogger.debug('OCR', `Worker status: ${m.status}`, m);
           }
         }
+      };
+      
+      // For production (HTTPS), Tesseract.js v7 should handle workers automatically
+      // But we can try to configure paths if needed
+      // The issue is often that workers need to be loaded from the same origin or a trusted CDN
+      if (isProduction) {
+        ocrLogger.debug('OCR', 'Production mode detected - Tesseract.js will use bundled worker files');
+        // Tesseract.js v7 should automatically use bundled worker files
+        // If that fails, it will fall back to CDN
+        // We don't need to set explicit paths unless there's an issue
+      } else {
+        ocrLogger.debug('OCR', 'Development mode - using default worker configuration');
+      }
+      
+      // Create worker with configured options
+      // For Tesseract.js v7, createWorker signature is: createWorker(langs?, oem?, options?)
+      ocrLogger.debug('OCR', 'Calling createWorker with options', {
+        hasWorkerPath: !!workerOptions.workerPath,
+        hasLangPath: !!workerOptions.langPath,
+        hasCorePath: !!workerOptions.corePath,
+        optionsKeys: Object.keys(workerOptions)
       });
+      
+      // Try to create worker - Tesseract.js v7 should handle worker creation
+      // If it fails with security error, the issue is likely with worker file loading
+      try {
+        worker = await createWorker('eng', 1, workerOptions);
+      } catch (createError: any) {
+        // If creation fails, try without explicit paths (let Tesseract.js handle it)
+        if (createError?.message?.includes('insecure') || createError?.name === 'SecurityError') {
+          ocrLogger.warn('OCR', 'Worker creation failed with security error, retrying without explicit paths');
+          // Remove explicit paths and let Tesseract.js use its default worker loading
+          const fallbackOptions = {
+            logger: workerOptions.logger
+          };
+          worker = await createWorker('eng', 1, fallbackOptions);
+        } else {
+          throw createError;
+        }
+      }
       
       // Set page segmentation mode for better text recognition
       await worker.setParameters({

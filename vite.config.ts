@@ -28,6 +28,15 @@ export default defineConfig({
   },
   worker: {
     format: 'es',
+    plugins: () => [react()],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        // Ensure worker files are properly handled
+        manualChunks: undefined,
+      },
+    },
   },
   server: {
     proxy: {
