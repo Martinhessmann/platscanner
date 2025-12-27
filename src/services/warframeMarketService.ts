@@ -6,8 +6,8 @@ const isPrimePartTradeable = (_item: DetectedItem): boolean => {
   return true;
 };
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Netlify Function URL - automatically available in production
+const NETLIFY_FUNCTION_URL = '/.netlify/functions/warframe-market';
 
 /**
  * CRITICAL COMPONENT - DO NOT MODIFY WITHOUT REVIEW
@@ -19,18 +19,17 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
  * 3. Processing and formatting price data
  *
  * Key Dependencies:
- * - Supabase Edge Function for API proxying (when available)
- * - Netlify proxy as fallback for direct API calls
- * - Environment variables for API configuration
+ * - Netlify Function for API proxying (primary method)
+ * - Direct API calls as fallback for local development
  *
  * IMPORTANT: The 90-day median (average) price functionality requires
- * the Supabase Edge Function to be deployed. Without it, only current
+ * the Netlify Function to be deployed. Without it, only current
  * prices will be available, not historical averages.
  *
  * MOD RANK FILTERING:
  * - Mod names are normalized to remove rank information (e.g., "Serration (R8)" -> "serration")
  * - This ensures we only fetch unranked (rank 0) prices from the market
- * - The Supabase Edge Function also filters orders to exclude ranked mods
+ * - The Netlify Function also filters orders to exclude ranked mods
  * - This prevents accidentally showing prices for leveled mods that shouldn't be sold
  *
  * Rate Limiting:
@@ -97,23 +96,19 @@ const getRelicMarketNames = (relicName: string): string[] => {
 };
 
 /**
- * Fetches market data using Supabase Edge Function
+ * Fetches market data using Netlify Function
  */
-const fetchViaSupabase = async (normalizedName: string, isPrimeSet: boolean = false) => {
-  const url = new URL(`${SUPABASE_URL}/functions/v1/warframe-market`);
+const fetchViaNetlify = async (normalizedName: string, isPrimeSet: boolean = false) => {
+  const url = new URL(NETLIFY_FUNCTION_URL, window.location.origin);
   url.searchParams.set('item', normalizedName);
   if (isPrimeSet) {
     url.searchParams.set('prime_set', 'true');
   }
 
-  const response = await fetch(url.toString(), {
-    headers: {
-      'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-    }
-  });
+  const response = await fetch(url.toString());
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({ message: 'Failed to fetch market data' }));
     throw new Error(error.message || 'Failed to fetch market data');
   }
 
@@ -123,12 +118,12 @@ const fetchViaSupabase = async (normalizedName: string, isPrimeSet: boolean = fa
 /**
  * Smart relic market fetch: Try refined first, fallback to base relic
  */
-const fetchRelicViaSupabase = async (relicName: string) => {
+const fetchRelicViaNetlify = async (relicName: string) => {
   const marketNames = getRelicMarketNames(relicName);
 
   for (const marketName of marketNames) {
     try {
-      const data = await fetchViaSupabase(marketName);
+      const data = await fetchViaNetlify(marketName);
 
       // Check if the result has an error (but not a 500 server error)
       if (data.error) {
@@ -151,20 +146,16 @@ const fetchRelicViaSupabase = async (relicName: string) => {
 };
 
 /**
- * Fetches market data for multiple items in batch using Supabase Edge Function
+ * Fetches market data for multiple items in batch using Netlify Function
  */
-const fetchBatchViaSupabase = async (normalizedNames: string[]) => {
-  const response = await fetch(
-    `${SUPABASE_URL}/functions/v1/warframe-market?batch=${encodeURIComponent(JSON.stringify(normalizedNames))}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      }
-    }
-  );
+const fetchBatchViaNetlify = async (normalizedNames: string[]) => {
+  const url = new URL(NETLIFY_FUNCTION_URL, window.location.origin);
+  url.searchParams.set('batch', JSON.stringify(normalizedNames));
+
+  const response = await fetch(url.toString());
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({ message: 'Failed to fetch batch market data' }));
     throw new Error(error.message || 'Failed to fetch batch market data');
   }
 
@@ -301,16 +292,16 @@ const fetchViaDirect = async (normalizedName: string) => {
  * - Maintains rate limiting of 3 requests per second
  * - Returns partial results if some items fail
  * - Includes error handling for each item
- * - Uses Supabase Edge Function when available, fallback to direct API calls
+ * - Uses Netlify Function in production, fallback to direct API calls in development
  */
 export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<DetectedItem[]> => {
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   const RATE_LIMIT_DELAY = 334; // ~3 requests per second
 
   const updatedParts = [];
-  const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
+  const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
 
-  console.log(`Using ${useSupabase ? 'Supabase Edge Function' : 'Direct API calls'} for market data`);
+  console.log(`Using ${isProduction ? 'Netlify Function' : 'Direct API calls'} for market data`);
 
   for (const part of primeParts) {
     try {
@@ -318,8 +309,14 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
       console.log(`Fetching data for: ${part.name} (${normalizedName})`);
 
       let data;
-      if (useSupabase) {
-        data = await fetchViaSupabase(normalizedName);
+      if (isProduction) {
+        try {
+          data = await fetchViaNetlify(normalizedName);
+        } catch (error) {
+          // Fallback to direct API if Netlify Function fails
+          console.warn('Netlify Function failed, falling back to direct API:', error);
+          data = await fetchViaDirect(normalizedName);
+        }
       } else {
         data = await fetchViaDirect(normalizedName);
       }
@@ -371,18 +368,18 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
  * @returns Array of price data objects
  */
 export const fetchBatchPriceData = async (itemNames: string[]): Promise<any[]> => {
-  const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
   const isDevMode = __DEV_MODE__ === 'true';
+  const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
 
   // Only log in development mode to avoid console spam
   if (isDevMode) {
-    console.log(`>>> [Batch Request] ${itemNames.length} items - Supabase: ${useSupabase ? 'available' : 'not configured'}`);
+    console.log(`>>> [Batch Request] ${itemNames.length} items - Production: ${isProduction}`);
   }
 
   // In development mode, force direct API calls for easier debugging
-  if (!useSupabase || isDevMode) {
+  if (!isProduction || isDevMode) {
     if (isDevMode) {
-      console.log(`>>> [Batch Request] Using direct API calls (${isDevMode ? 'dev mode override' : 'no Supabase config'})`);
+      console.log(`>>> [Batch Request] Using direct API calls (${isDevMode ? 'dev mode override' : 'local development'})`);
     }
     const results = [];
     for (let i = 0; i < itemNames.length; i++) {
@@ -410,16 +407,33 @@ export const fetchBatchPriceData = async (itemNames: string[]): Promise<any[]> =
 
   try {
     if (isDevMode) {
-      console.log(`>>> [Batch Supabase] Fetching ${itemNames.length} items via Edge Function`);
+      console.log(`>>> [Batch Netlify] Fetching ${itemNames.length} items via Function`);
     }
-    const results = await fetchBatchViaSupabase(itemNames);
+    const results = await fetchBatchViaNetlify(itemNames);
     if (isDevMode) {
-      console.log(`>>> [Batch Supabase] Completed: ${results.length} items`);
+      console.log(`>>> [Batch Netlify] Completed: ${results.length} items`);
     }
     return results;
   } catch (error) {
-    console.error('>>> [Batch Supabase] Failed:', error);
-    throw error;
+    console.error('>>> [Batch Netlify] Failed, falling back to direct API:', error);
+    // Fallback to direct API calls
+    const results = [];
+    for (let i = 0; i < itemNames.length; i++) {
+      const itemName = itemNames[i];
+      try {
+        const data = await fetchViaDirect(itemName);
+        results.push(data);
+      } catch (err) {
+        console.error(`>>> [Batch Direct Fallback] Failed: ${itemName}:`, err);
+        results.push({
+          name: itemName,
+          price: 0,
+          error: err instanceof Error ? err.message : 'Failed to fetch'
+        });
+      }
+      await new Promise(resolve => setTimeout(resolve, 334));
+    }
+    return results;
   }
 };
 
@@ -433,7 +447,7 @@ export const fetchBatchPriceData = async (itemNames: string[]): Promise<any[]> =
  * @returns Updated PrimePart with new price data but preserved image
  */
 export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<DetectedItem> => {
-  const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
+  const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
 
   try {
     // Only log in development mode to avoid console spam
@@ -444,19 +458,31 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
     let data;
     let normalizedName: string;
 
-    if (useSupabase) {
-      // Use smart relic lookup for relics, mod-specific normalization for mods
-      if (primePart.name.includes('Relic')) {
-        data = await fetchRelicViaSupabase(primePart.name);
-      } else if (primePart.category === 'mods') {
-        // For mods, always fetch unranked (level 0) prices
-        const modItem = primePart as any;
-        normalizedName = normalizeModName(primePart.name, modItem.rank);
-        console.log(`>>> [Mod Price Fetch] Normalized mod name: "${primePart.name}" -> "${normalizedName}" (ensuring unranked prices) <<<`);
-        data = await fetchViaSupabase(normalizedName);
-      } else {
-        normalizedName = normalizeItemName(primePart.name);
-        data = await fetchViaSupabase(normalizedName);
+    if (isProduction) {
+      try {
+        // Use smart relic lookup for relics, mod-specific normalization for mods
+        if (primePart.name.includes('Relic')) {
+          data = await fetchRelicViaNetlify(primePart.name);
+        } else if (primePart.category === 'mods') {
+          // For mods, always fetch unranked (level 0) prices
+          const modItem = primePart as any;
+          normalizedName = normalizeModName(primePart.name, modItem.rank);
+          console.log(`>>> [Mod Price Fetch] Normalized mod name: "${primePart.name}" -> "${normalizedName}" (ensuring unranked prices) <<<`);
+          data = await fetchViaNetlify(normalizedName);
+        } else {
+          normalizedName = normalizeItemName(primePart.name);
+          data = await fetchViaNetlify(normalizedName);
+        }
+      } catch (error) {
+        // Fallback to direct API if Netlify Function fails
+        console.warn('Netlify Function failed, falling back to direct API:', error);
+        if (primePart.category === 'mods') {
+          const modItem = primePart as any;
+          normalizedName = normalizeModName(primePart.name, modItem.rank);
+        } else {
+          normalizedName = normalizeItemName(primePart.name);
+        }
+        data = await fetchViaDirect(normalizedName);
       }
     } else {
       if (primePart.category === 'mods') {
@@ -547,7 +573,7 @@ const determineItemType = (itemName: string): 'weapon' | 'mod' | 'cosmetic' | 'r
  * @returns Updated DetectedItem with market data
  */
 export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<DetectedItem> => {
-  const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
+  const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
 
   try {
     console.log(`Fetching data for: ${primePart.name}`);
@@ -555,19 +581,31 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
     let data;
     let normalizedName: string;
 
-    if (useSupabase) {
-      // Use smart relic lookup for relics, mod-specific normalization for mods
-      if (primePart.name.includes('Relic')) {
-        data = await fetchRelicViaSupabase(primePart.name);
-      } else if (primePart.category === 'mods') {
-        // For mods, always fetch unranked (level 0) prices
-        const modItem = primePart as any;
-        normalizedName = normalizeModName(primePart.name, modItem.rank);
-        console.log(`>>> [Mod Price Fetch] Normalized mod name: "${primePart.name}" -> "${normalizedName}" (ensuring unranked prices) <<<`);
-        data = await fetchViaSupabase(normalizedName);
-      } else {
-        normalizedName = normalizeItemName(primePart.name);
-        data = await fetchViaSupabase(normalizedName);
+    if (isProduction) {
+      try {
+        // Use smart relic lookup for relics, mod-specific normalization for mods
+        if (primePart.name.includes('Relic')) {
+          data = await fetchRelicViaNetlify(primePart.name);
+        } else if (primePart.category === 'mods') {
+          // For mods, always fetch unranked (level 0) prices
+          const modItem = primePart as any;
+          normalizedName = normalizeModName(primePart.name, modItem.rank);
+          console.log(`>>> [Mod Price Fetch] Normalized mod name: "${primePart.name}" -> "${normalizedName}" (ensuring unranked prices) <<<`);
+          data = await fetchViaNetlify(normalizedName);
+        } else {
+          normalizedName = normalizeItemName(primePart.name);
+          data = await fetchViaNetlify(normalizedName);
+        }
+      } catch (error) {
+        // Fallback to direct API if Netlify Function fails
+        console.warn('Netlify Function failed, falling back to direct API:', error);
+        if (primePart.category === 'mods') {
+          const modItem = primePart as any;
+          normalizedName = normalizeModName(primePart.name, modItem.rank);
+        } else {
+          normalizedName = normalizeItemName(primePart.name);
+        }
+        data = await fetchViaDirect(normalizedName);
       }
     } else {
       if (primePart.category === 'mods') {
@@ -642,7 +680,7 @@ export const fetchPrimeSetMarketData = async (setName: string): Promise<{
   buyerQuantity: number;
   error?: string;
 }> => {
-  const useSupabase = SUPABASE_URL && SUPABASE_ANON_KEY;
+  const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
 
   try {
     // Normalize set name to match Warframe Market format (e.g., "ash_prime_set")
@@ -650,9 +688,15 @@ export const fetchPrimeSetMarketData = async (setName: string): Promise<{
     console.log(`🎯 [Prime Set] Fetching market data for: ${setName} Set (${normalizedSetName})`);
 
     let data;
-    if (useSupabase) {
-      // Use the new Prime Set endpoint with prime_set=true parameter
-      data = await fetchViaSupabase(setName, true);
+    if (isProduction) {
+      try {
+        // Use the new Prime Set endpoint with prime_set=true parameter
+        data = await fetchViaNetlify(setName, true);
+      } catch (error) {
+        // Fallback to direct API if Netlify Function fails
+        console.warn('Netlify Function failed, falling back to direct API:', error);
+        data = await fetchViaDirect(normalizedSetName);
+      }
     } else {
       data = await fetchViaDirect(normalizedSetName);
     }

@@ -56,8 +56,8 @@ A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots 
 
 ### Prerequisites
 - Node.js 18+
-- Docker Desktop (for Supabase Edge Function deployment)
-- Supabase project (optional, for cloud sync)
+- Netlify account (for hosting and automatic function deployment)
+- Supabase project (optional, for cloud sync only)
 
 ### Installation
 ```bash
@@ -71,7 +71,7 @@ npm install
 # Create environment file (optional)
 cp .env.example .env
 
-# Optional: Add Supabase config for cloud sync
+# Optional: Add Supabase config for cloud sync (not required for market data)
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
@@ -123,32 +123,16 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 - **Database Features**: User inventories table, RLS security, automatic triggers
 - **Development**: Graceful degradation when cloud sync unavailable
 
-### Supabase Edge Function Deployment
+### Netlify Functions
 
-The app uses Supabase Edge Functions in production for improved performance and API rate limiting. To deploy:
+The app uses Netlify Functions for improved performance and API rate limiting. Functions are automatically deployed with your Netlify site:
 
-#### Option 1: GitHub Actions (Recommended)
-The repository includes automated deployment via GitHub Actions. Simply push changes to `supabase/functions/**` and the workflow will automatically deploy:
+- **warframe-market**: Batch API support, smart caching, CORS handling, rate limiting, fixed average calculation
+- **Location**: `netlify/functions/warframe-market.ts`
+- **Automatic Deployment**: Functions deploy automatically when you push to your main branch
+- **Fallback**: App falls back to direct API calls if Netlify Functions are unavailable (e.g., in local development)
 
-1. **Set up GitHub secrets**:
-   - `SUPABASE_PROJECT_REF`: Your project reference ID
-   - `SUPABASE_ACCESS_TOKEN`: Your CLI access token (starts with `sbp_`)
-
-2. **Automatic deployment**: Push changes to trigger deployment
-
-#### Option 2: Manual CLI Deployment
-```bash
-# 1. Install Supabase CLI
-brew install supabase/tap/supabase
-
-# 2. Deploy the Edge Function
-supabase functions deploy warframe-market --project-ref YOUR_PROJECT_REF
-```
-
-**✅ Verified Working**: Both GitHub Actions and CLI deployment successfully deploy the warframe-market function
-- **Current Status**: Active (Version 11)
-- **Function Features**: Batch API support, smart caching, CORS handling, rate limiting, fixed average calculation
-- **Development**: App works with direct API calls when Supabase is unavailable
+**Note**: Netlify Functions are simpler to manage than Supabase Edge Functions since they deploy with your site automatically. No separate deployment step needed!
 
 ## 📖 Documentation
 
