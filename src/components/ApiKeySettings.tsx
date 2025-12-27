@@ -27,6 +27,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
   const [logs, setLogs] = useState(ocrLogger.getRecentLogs(100));
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [verboseLogging, setVerboseLogging] = useState(ocrLogger.isVerboseLoggingEnabled());
 
   useEffect(() => {
     if (openSettings) {
@@ -44,6 +45,14 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
       return () => clearInterval(interval);
     }
   }, [activeTab, autoRefresh]);
+
+  // Update verbose logging state when tab changes
+  useEffect(() => {
+    if (activeTab === 'debug') {
+      setVerboseLogging(ocrLogger.isVerboseLoggingEnabled());
+      setLogs(ocrLogger.getRecentLogs(100));
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     try {
@@ -236,6 +245,21 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                       <label className="flex items-center gap-2 text-sm text-gray-300 whitespace-nowrap">
                         <input
                           type="checkbox"
+                          checked={verboseLogging}
+                          onChange={(e) => {
+                            const enabled = e.target.checked;
+                            setVerboseLogging(enabled);
+                            ocrLogger.setVerboseLogging(enabled);
+                            // Refresh logs to show/hide based on new setting
+                            setLogs(ocrLogger.getRecentLogs(100));
+                          }}
+                          className="rounded"
+                        />
+                        <span>Verbose logging {window.location.protocol === 'https:' && !window.location.hostname.includes('localhost') ? '(prod)' : '(dev)'}</span>
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-gray-300 whitespace-nowrap">
+                        <input
+                          type="checkbox"
                           checked={autoRefresh}
                           onChange={(e) => setAutoRefresh(e.target.checked)}
                           className="rounded"
@@ -305,11 +329,27 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                   </div>
 
                   <div className="bg-background-dark rounded-lg border border-gray-700 p-4 max-h-[60vh] overflow-y-auto">
-                    {logs.length === 0 ? (
-                      <p className="text-gray-500 text-center py-8">No logs yet. Upload an image to see OCR processing logs.</p>
-                    ) : (
-                      <div className="space-y-2 font-mono text-xs">
-                        {logs.map((log, index) => {
+                    {(() => {
+                      // Filter logs based on verbose setting
+                      const filteredLogs = verboseLogging 
+                        ? logs 
+                        : logs.filter(log => log.level === 'error' || log.level === 'warn');
+                      
+                      if (filteredLogs.length === 0) {
+                        return (
+                          <p className="text-gray-500 text-center py-8">
+                            {logs.length === 0 
+                              ? 'No logs yet. Upload an image to see OCR processing logs.'
+                              : verboseLogging 
+                                ? 'No logs to display.'
+                                : 'No errors or warnings. Enable verbose logging to see all logs.'}
+                          </p>
+                        );
+                      }
+                      
+                      return (
+                        <div className="space-y-2 font-mono text-xs">
+                          {filteredLogs.map((log, index) => {
                           const date = new Date(log.timestamp);
                           const levelColors = {
                             info: 'text-tenno-blue',
@@ -360,14 +400,27 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                               )}
                             </div>
                           );
-                        })}
-                      </div>
-                    )}
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="text-xs text-gray-500">
-                    <p>Total logs: {ocrLogger.getLogCount()} (showing last {logs.length})</p>
-                    <p className="mt-1">Logs are stored in localStorage and persist across sessions. Clear logs to free up space.</p>
+                    <p>
+                      Total logs: {ocrLogger.getLogCount()} 
+                      {!verboseLogging && logs.length > 0 && (
+                        <span> (showing {logs.filter(log => log.level === 'error' || log.level === 'warn').length} errors/warnings, enable verbose to see all)</span>
+                      )}
+                      {verboseLogging && logs.length > 0 && (
+                        <span> (showing last {logs.length})</span>
+                      )}
+                    </p>
+                    <p className="mt-1">
+                      {window.location.protocol === 'https:' && !window.location.hostname.includes('localhost') 
+                        ? 'Verbose logging is disabled by default in production. Enable it to see detailed debug information.'
+                        : 'Logs are stored in localStorage and persist across sessions. Clear logs to free up space.'}
+                    </p>
                   </div>
                 </div>
               )}
