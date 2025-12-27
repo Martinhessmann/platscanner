@@ -22,7 +22,7 @@ const AboutPage: React.FC = () => {
             What It Does
           </h2>
           <p className="text-gray-300 leading-relaxed">
-            Upload a screenshot of your inventory — Prime Parts Scanner will detect all recognizable items using advanced AI,
+            Upload a screenshot of your inventory — Prime Parts Scanner uses OCR (Optical Character Recognition) to extract text and detect all recognizable items,
             then fetch live platinum prices from the Warframe Market API.
           </p>
         </section>
@@ -35,7 +35,7 @@ const AboutPage: React.FC = () => {
           <ul className="list-none space-y-3 text-gray-300">
             <li className="flex items-center gap-2">
               <span className="text-orokin-gold">🔍</span>
-              <span><strong>AI-powered item detection</strong> via Google Gemini Vision API</span>
+              <span><strong>OCR-based text extraction</strong> using Tesseract.js for item detection</span>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-orokin-gold">📈</span>
@@ -76,7 +76,7 @@ const AboutPage: React.FC = () => {
             <ul className="list-disc list-inside space-y-2 text-gray-300">
               <li>React & TypeScript</li>
               <li>Tailwind CSS</li>
-              <li>Google Gemini Vision API</li>
+              <li>Tesseract.js OCR</li>
               <li>Warframe Market API</li>
             </ul>
           </div>

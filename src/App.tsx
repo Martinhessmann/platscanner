@@ -6,7 +6,7 @@ import HomePage from './pages/HomePage';
 import AboutPage from './pages/AboutPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
-import { isGeminiConfigured, setApiKey } from './services/geminiService';
+import { isGeminiConfigured, setApiKey } from './services/ocrService';
 import { preloadImageData } from './services/unifiedImageService';
 import { migrateInventoryToLocalImages, verifyLocalImageMigration } from './services/inventoryService';
 

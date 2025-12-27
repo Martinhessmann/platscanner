@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_GEMINI_API_KEY: string
+  // OCR doesn't require API keys - all processing happens client-side
 }
 
 interface ImportMeta {

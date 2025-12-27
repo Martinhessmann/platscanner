@@ -79,7 +79,7 @@ const ProcessingPanel: React.FC<ProcessingPanelProps> = ({
       case 'queued':
         return 'Waiting in queue...';
       case 'analyzing':
-        return image.wasCached ? 'Using cached analysis...' : 'Sending to Gemini AI...';
+        return image.wasCached ? 'Using cached analysis...' : 'Extracting text with OCR...';
       case 'analyzed':
         if (totalDetected === 0) {
           return image.wasCached ? 'No items detected (cached result)' : 'No items detected';

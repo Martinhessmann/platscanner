@@ -32,17 +32,17 @@ const PrivacyPage: React.FC = () => {
           </h2>
           <div className="space-y-6">
             <div>
-              <h3 className="font-medium mb-2">Gemini API Key</h3>
+              <h3 className="font-medium mb-2">OCR Processing</h3>
               <p className="leading-relaxed">
-                The key is provided by the user and stored only in the browser's session memory.
-                It is never transmitted or stored on our servers.
+                OCR processing happens entirely in your browser using Tesseract.js.
+                No API keys are required, and images are never sent to external servers.
               </p>
             </div>
             <div>
               <h3 className="font-medium mb-2">Image Uploads</h3>
               <p className="leading-relaxed">
-                Uploaded screenshots are sent to the Google Gemini Vision API for analysis.
-                Prime Parts Scanner does not store images.
+                Uploaded screenshots are processed locally in your browser using OCR.
+                Images are never sent to external servers, and Prime Parts Scanner does not store images.
               </p>
             </div>
             <div>

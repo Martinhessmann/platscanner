@@ -116,7 +116,7 @@ export interface ImageState {
   results: DetectedItem[];
   syndicateRewards?: SyndicateReward[]; // Track syndicate rewards for price fetching
   error?: string;
-  wasCached?: boolean; // Track if this image used cached Gemini results
+  wasCached?: boolean; // Track if this image used cached OCR results
   screenType?: 'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown'; // Track detected screen type
 }
 

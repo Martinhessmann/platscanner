@@ -136,7 +136,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                 <form onSubmit={handleSubmit}>
                   <div className="mb-4">
                     <label htmlFor="apiKey" className="block text-sm font-medium text-gray-300 mb-2">
-                      Gemini API Key
+                      API Key (Optional - Not Required for OCR)
                     </label>
                     <input
                       type="password"
@@ -153,14 +153,9 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                   </div>
 
                   <div className="text-sm text-gray-400 mb-4">
-                    <p className="mb-2">
-                      To get your API key:
+                    <p className="mb-2 text-gray-500">
+                      Note: OCR-based text extraction doesn't require an API key. This field is kept for backward compatibility.
                     </p>
-                    <ol className="list-decimal list-inside space-y-1">
-                      <li>Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-tenno-blue hover:underline">Google AI Studio</a></li>
-                      <li>Click "Create API Key" if you don't have one</li>
-                      <li>Copy your API key and paste it here</li>
-                    </ol>
                   </div>
 
                   <div className="flex justify-end gap-3">
