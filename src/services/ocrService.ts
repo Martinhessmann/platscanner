@@ -1,4 +1,4 @@
-import { createWorker } from 'tesseract.js';
+import { createWorker, PSM, OEM } from 'tesseract.js';
 import { DetectedItem, PrimePart, VoidRelic, SyndicateReward, Mod } from '../types';
 import { getCategorizedInventory } from './inventoryService';
 import { determineModRarity, determineModType } from './modService';
@@ -223,13 +223,77 @@ const base64ToImageData = (base64: string): Promise<ImageData> => {
 const extractTextFromImage = async (imageFile: File): Promise<string> => {
   ocrLogger.info('OCR', `Starting text extraction for file: ${imageFile.name} (${imageFile.size} bytes, type: ${imageFile.type})`);
   
+  let worker: any = null;
+  
   try {
     ocrLogger.debug('OCR', 'Creating Tesseract worker with English language');
-    const worker = await createWorker('eng');
-    ocrLogger.info('OCR', 'Tesseract worker created successfully');
+    
+    // Create worker with proper configuration
+    // For production/HTTPS, we may need to configure worker paths
+    // Tesseract.js v7 handles workers, but we configure logger for progress tracking
+    try {
+      // Check if we're in production (HTTPS) and might need CDN paths
+      const isProduction = window.location.protocol === 'https:' || !window.location.hostname.includes('localhost');
+      
+      ocrLogger.debug('OCR', `Creating worker (production: ${isProduction}, protocol: ${window.location.protocol})`);
+      
+      // Create worker with logger for progress tracking
+      worker = await createWorker('eng', 1, {
+        logger: (m: any) => {
+          if (m.status === 'recognizing text' && m.progress !== undefined) {
+            ocrLogger.debug('OCR', `OCR progress: ${Math.round(m.progress * 100)}%`);
+          } else if (m.status) {
+            ocrLogger.debug('OCR', `Worker status: ${m.status}`, m);
+          }
+        }
+      });
+      
+      // Set page segmentation mode for better text recognition
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.AUTO,
+      });
+      
+      ocrLogger.info('OCR', 'Tesseract worker created and configured successfully');
+    } catch (workerError: any) {
+      ocrLogger.error('OCR', 'Failed to create Tesseract worker', {
+        error: workerError instanceof Error ? workerError.message : String(workerError),
+        errorName: workerError instanceof Error ? workerError.name : typeof workerError,
+        protocol: window.location.protocol,
+        hostname: window.location.hostname,
+        stack: workerError instanceof Error ? workerError.stack : undefined
+      });
+      
+      // If the error is about insecure operation, provide helpful guidance
+      if (workerError?.message?.includes('insecure') || workerError?.name === 'SecurityError' || workerError?.code === 18) {
+        ocrLogger.error('OCR', 'SecurityError detected - Worker creation blocked', {
+          commonCauses: [
+            'App is served over HTTPS but trying to load workers from HTTP',
+            'CORS policy blocking worker script loading',
+            'Content Security Policy (CSP) restrictions',
+            'Worker files not accessible from current origin'
+          ],
+          suggestions: [
+            'Ensure app is served over HTTPS',
+            'Configure worker paths to use CDN or same origin',
+            'Check browser console for CORS/CSP errors',
+            'Verify Tesseract.js worker files are accessible'
+          ],
+          errorDetails: {
+            message: workerError.message,
+            name: workerError.name,
+            code: workerError.code
+          }
+        });
+      }
+      
+      throw workerError;
+    }
     
     ocrLogger.debug('OCR', 'Starting OCR recognition...');
     const startTime = Date.now();
+    
+    // Convert File to ImageData or use File directly
+    // Tesseract.js can work with File objects directly
     const { data: { text, words, lines, paragraphs } } = await worker.recognize(imageFile);
     const duration = Date.now() - startTime;
     
@@ -247,16 +311,31 @@ const extractTextFromImage = async (imageFile: File): Promise<string> => {
     
     ocrLogger.debug('OCR', 'Terminating Tesseract worker');
     await worker.terminate();
+    worker = null;
     
     return text;
   } catch (error) {
     ocrLogger.error('OCR', 'Failed to extract text from image', {
       error: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : typeof error,
       fileName: imageFile.name,
       fileSize: imageFile.size,
       fileType: imageFile.type,
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
+      isSecurityError: error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure'))
     });
+    
+    // Clean up worker if it was created
+    if (worker) {
+      try {
+        await worker.terminate();
+      } catch (terminateError) {
+        ocrLogger.warn('OCR', 'Failed to terminate worker during error cleanup', {
+          error: terminateError instanceof Error ? terminateError.message : String(terminateError)
+        });
+      }
+    }
+    
     throw error;
   }
 };
