@@ -220,112 +220,104 @@ const base64ToImageData = (base64: string): Promise<ImageData> => {
 };
 
 // Extract text from image using OCR
+// Uses Supabase Edge Function in production to avoid browser security restrictions
+// Falls back to client-side OCR for localhost development
 const extractTextFromImage = async (imageFile: File): Promise<string> => {
   ocrLogger.info('OCR', `Starting text extraction for file: ${imageFile.name} (${imageFile.size} bytes, type: ${imageFile.type})`);
   
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const isProduction = window.location.protocol === 'https:' || !window.location.hostname.includes('localhost');
+  const useEdgeFunction = isProduction && SUPABASE_URL && SUPABASE_ANON_KEY;
+  
+  // Use Edge Function in production to avoid browser security restrictions
+  if (useEdgeFunction) {
+    ocrLogger.info('OCR', 'Using Supabase Edge Function for server-side OCR processing');
+    try {
+      const imageBase64 = await fileToBase64(imageFile);
+      
+      ocrLogger.debug('OCR', 'Sending image to Edge Function', {
+        base64Length: imageBase64.length,
+        fileName: imageFile.name
+      });
+      
+      const startTime = Date.now();
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/ocr-process`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'apikey': SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          imageBase64,
+          fileName: imageFile.name,
+          fileType: imageFile.type,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || `Edge Function returned ${response.status}`);
+      }
+      
+      const result = await response.json();
+      const duration = Date.now() - startTime;
+      
+      ocrLogger.info('OCR', `Edge Function OCR completed in ${duration}ms`, {
+        textLength: result.text?.length || 0,
+        success: result.success
+      });
+      
+      if (!result.success || !result.text) {
+        throw new Error(result.error || 'Edge Function returned no text');
+      }
+      
+      ocrLogger.debug('OCR', 'Extracted text preview', {
+        preview: result.text.substring(0, 500),
+        fullLength: result.text.length
+      });
+      
+      return result.text;
+    } catch (error) {
+      ocrLogger.error('OCR', 'Edge Function OCR failed, falling back to client-side', {
+        error: error instanceof Error ? error.message : String(error),
+        willTryClientSide: true
+      });
+      // Fall through to client-side OCR
+    }
+  }
+  
+  // Client-side OCR (for localhost or if Edge Function fails)
+  ocrLogger.info('OCR', 'Using client-side OCR processing');
   let worker: any = null;
   
   try {
     ocrLogger.debug('OCR', 'Creating Tesseract worker with English language');
     
-    // Create worker with proper configuration
-    // For production/HTTPS, we need to use CDN paths for worker files
-    // Tesseract.js v7 requires worker files to be accessible from secure origins
-    try {
-      // Check if we're in production (HTTPS)
-      const isProduction = window.location.protocol === 'https:' || !window.location.hostname.includes('localhost');
-      
-      ocrLogger.debug('OCR', `Creating worker (production: ${isProduction}, protocol: ${window.location.protocol})`);
-      
-      // Configure worker options - MUST use CDN for production HTTPS to avoid security errors
-      // Tesseract.js v7 needs explicit CDN paths when served over HTTPS
-      const workerOptions: any = {
-        logger: (m: any) => {
-          if (m.status === 'recognizing text' && m.progress !== undefined) {
-            ocrLogger.debug('OCR', `OCR progress: ${Math.round(m.progress * 100)}%`);
-          } else if (m.status) {
-            ocrLogger.debug('OCR', `Worker status: ${m.status}`, m);
-          }
+    // Create worker - simpler config for localhost
+    const workerOptions: any = {
+      logger: (m: any) => {
+        if (m.status === 'recognizing text' && m.progress !== undefined) {
+          ocrLogger.debug('OCR', `OCR progress: ${Math.round(m.progress * 100)}%`);
+        } else if (m.status) {
+          ocrLogger.debug('OCR', `Worker status: ${m.status}`, m);
         }
-      };
-      
-      // For production (HTTPS), we MUST use CDN paths to avoid "The operation is insecure" error
-      // This is a browser security requirement - workers must be loaded from HTTPS sources
-      if (isProduction) {
-        ocrLogger.debug('OCR', 'Production HTTPS detected - configuring CDN paths for worker files');
-        // Use jsDelivr CDN (HTTPS) for Tesseract.js worker files
-        // These paths are required for Tesseract.js v7 to work in production
-        workerOptions.workerPath = 'https://cdn.jsdelivr.net/npm/tesseract.js@7/dist/worker.min.js';
-        workerOptions.langPath = 'https://tessdata.projectnaptha.com/4.0.0';
-        workerOptions.corePath = 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js';
-        
-        ocrLogger.debug('OCR', 'CDN paths configured', {
-          workerPath: workerOptions.workerPath,
-          langPath: workerOptions.langPath,
-          corePath: workerOptions.corePath
-        });
-      } else {
-        ocrLogger.debug('OCR', 'Development mode - using default worker configuration');
       }
-      
-      // Create worker with configured options
-      // For Tesseract.js v7, createWorker signature is: createWorker(langs?, oem?, options?)
-      ocrLogger.debug('OCR', 'Calling createWorker with options', {
-        hasWorkerPath: !!workerOptions.workerPath,
-        hasLangPath: !!workerOptions.langPath,
-        hasCorePath: !!workerOptions.corePath,
-        optionsKeys: Object.keys(workerOptions)
-      });
-      
-      // Create worker - in production this will use CDN paths to avoid security errors
-      worker = await createWorker('eng', 1, workerOptions);
-      
-      // Set page segmentation mode for better text recognition
-      await worker.setParameters({
-        tessedit_pageseg_mode: PSM.AUTO,
-      });
-      
-      ocrLogger.info('OCR', 'Tesseract worker created and configured successfully');
-    } catch (workerError: any) {
-      ocrLogger.error('OCR', 'Failed to create Tesseract worker', {
-        error: workerError instanceof Error ? workerError.message : String(workerError),
-        errorName: workerError instanceof Error ? workerError.name : typeof workerError,
-        protocol: window.location.protocol,
-        hostname: window.location.hostname,
-        stack: workerError instanceof Error ? workerError.stack : undefined
-      });
-      
-      // If the error is about insecure operation, provide helpful guidance
-      if (workerError?.message?.includes('insecure') || workerError?.name === 'SecurityError' || workerError?.code === 18) {
-        ocrLogger.error('OCR', 'SecurityError detected - Worker creation blocked', {
-          commonCauses: [
-            'App is served over HTTPS but trying to load workers from HTTP',
-            'CORS policy blocking worker script loading',
-            'Content Security Policy (CSP) restrictions',
-            'Worker files not accessible from current origin'
-          ],
-          suggestions: [
-            'Ensure app is served over HTTPS',
-            'Configure worker paths to use CDN or same origin',
-            'Check browser console for CORS/CSP errors',
-            'Verify Tesseract.js worker files are accessible'
-          ],
-          errorDetails: {
-            message: workerError.message,
-            name: workerError.name,
-            code: workerError.code
-          }
-        });
-      }
-      
-      throw workerError;
-    }
+    };
+    
+    worker = await createWorker('eng', 1, workerOptions);
+    
+    // Set page segmentation mode for better text recognition
+    await worker.setParameters({
+      tessedit_pageseg_mode: PSM.AUTO,
+    });
+    
+    ocrLogger.info('OCR', 'Tesseract worker created and configured successfully');
     
     ocrLogger.debug('OCR', 'Starting OCR recognition...');
     const startTime = Date.now();
     
-    // Convert File to ImageData or use File directly
-    // Tesseract.js can work with File objects directly
     const { data: { text, words, lines, paragraphs } } = await worker.recognize(imageFile);
     const duration = Date.now() - startTime;
     
