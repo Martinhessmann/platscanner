@@ -2,6 +2,7 @@ import { createWorker } from 'tesseract.js';
 import { DetectedItem, PrimePart, VoidRelic, SyndicateReward, Mod } from '../types';
 import { getCategorizedInventory } from './inventoryService';
 import { determineModRarity, determineModType } from './modService';
+import { ocrLogger } from './ocrLogger';
 
 const IMAGE_CACHE_KEY = 'platscanner_image_cache';
 const CACHE_EXPIRY_HOURS = 24; // Cache results for 24 hours
@@ -16,12 +17,20 @@ interface ImageCacheEntry {
 
 // Generate a simple hash from image data for caching
 export const generateImageHash = async (imageBase64: string): Promise<string> => {
-  const sample = imageBase64.substring(0, 1000);
-  const encoder = new TextEncoder();
-  const data = encoder.encode(sample);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+  try {
+    ocrLogger.debug('Hash', 'Generating image hash');
+    const sample = imageBase64.substring(0, 1000);
+    const encoder = new TextEncoder();
+    const data = encoder.encode(sample);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
+    ocrLogger.debug('Hash', `Generated hash: ${hash}`);
+    return hash;
+  } catch (error) {
+    ocrLogger.error('Hash', 'Failed to generate image hash', { error });
+    throw error;
+  }
 };
 
 // Get cached analysis result
@@ -142,6 +151,9 @@ export const clearImageCache = (): void => {
 };
 
 // Get cache statistics for debugging
+// Export logger for use in UI
+export { ocrLogger } from './ocrLogger';
+
 export const getCacheStats = (): { entries: number; oldestEntry?: Date; newestEntry?: Date } => {
   try {
     const cacheData = localStorage.getItem(IMAGE_CACHE_KEY);
@@ -160,18 +172,28 @@ export const getCacheStats = (): { entries: number; oldestEntry?: Date; newestEn
     console.error('Failed to get cache stats:', error);
     return { entries: 0 };
   }
-};
+  };
 
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
+    ocrLogger.debug('FileConversion', `Converting file to base64: ${file.name}`);
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => {
-      const result = reader.result as string;
-      const base64 = result.split(',')[1];
-      resolve(base64);
+      try {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        ocrLogger.debug('FileConversion', `File converted successfully, base64 length: ${base64.length}`);
+        resolve(base64);
+      } catch (error) {
+        ocrLogger.error('FileConversion', 'Failed to extract base64 from data URL', { error });
+        reject(error);
+      }
     };
-    reader.onerror = (error) => reject(error);
+    reader.onerror = (error) => {
+      ocrLogger.error('FileConversion', 'FileReader error', { error: error.toString() });
+      reject(error);
+    };
   });
 };
 
@@ -199,17 +221,53 @@ const base64ToImageData = (base64: string): Promise<ImageData> => {
 
 // Extract text from image using OCR
 const extractTextFromImage = async (imageFile: File): Promise<string> => {
-  const worker = await createWorker('eng');
+  ocrLogger.info('OCR', `Starting text extraction for file: ${imageFile.name} (${imageFile.size} bytes, type: ${imageFile.type})`);
+  
   try {
-    const { data: { text } } = await worker.recognize(imageFile);
-    return text;
-  } finally {
+    ocrLogger.debug('OCR', 'Creating Tesseract worker with English language');
+    const worker = await createWorker('eng');
+    ocrLogger.info('OCR', 'Tesseract worker created successfully');
+    
+    ocrLogger.debug('OCR', 'Starting OCR recognition...');
+    const startTime = Date.now();
+    const { data: { text, words, lines, paragraphs } } = await worker.recognize(imageFile);
+    const duration = Date.now() - startTime;
+    
+    ocrLogger.info('OCR', `OCR recognition completed in ${duration}ms`, {
+      textLength: text.length,
+      wordCount: words?.length || 0,
+      lineCount: lines?.length || 0,
+      paragraphCount: paragraphs?.length || 0
+    });
+    
+    ocrLogger.debug('OCR', 'Extracted text preview', {
+      preview: text.substring(0, 500),
+      fullLength: text.length
+    });
+    
+    ocrLogger.debug('OCR', 'Terminating Tesseract worker');
     await worker.terminate();
+    
+    return text;
+  } catch (error) {
+    ocrLogger.error('OCR', 'Failed to extract text from image', {
+      error: error instanceof Error ? error.message : String(error),
+      fileName: imageFile.name,
+      fileSize: imageFile.size,
+      fileType: imageFile.type,
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    throw error;
   }
 };
 
 // Determine screen type based on extracted text
 const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown' => {
+  ocrLogger.debug('ScreenType', 'Determining screen type from extracted text', {
+    textLength: text.length,
+    textPreview: text.substring(0, 200)
+  });
+  
   const lowerText = text.toLowerCase();
 
   // Check for syndicate indicators
@@ -223,6 +281,7 @@ const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicat
     lowerText.includes('new loka') ||
     lowerText.includes('arbitration honors')
   ) {
+    ocrLogger.info('ScreenType', 'Detected screen type: syndicate');
     return 'syndicate';
   }
 
@@ -232,6 +291,7 @@ const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicat
     lowerText.includes('relic') ||
     /\b(lith|meso|neo|axi)\s+[a-z]\d+/i.test(text)
   ) {
+    ocrLogger.info('ScreenType', 'Detected screen type: relics');
     return 'relics';
   }
 
@@ -242,21 +302,33 @@ const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicat
     /[vd\-]\s*\d+/i.test(text) || // Polarity symbols
     /\d+\s*\/\s*\d+\s*\(drain/i.test(text) // Rank format with drain
   ) {
+    ocrLogger.info('ScreenType', 'Detected screen type: mods');
     return 'mods';
   }
 
   // Check for prime parts
   if (lowerText.includes('prime') || lowerText.includes('blueprint')) {
+    ocrLogger.info('ScreenType', 'Detected screen type: prime_parts');
     return 'prime_parts';
   }
 
+  ocrLogger.warn('ScreenType', 'Could not determine screen type, defaulting to unknown', {
+    textPreview: text.substring(0, 500)
+  });
   return 'unknown';
 };
 
 // Parse detected items from OCR text
 const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] => {
+  ocrLogger.debug('Parsing', 'Starting item parsing', {
+    screenType,
+    textLength: text.length,
+    textPreview: text.substring(0, 300)
+  });
+  
   const detectedItems: DetectedItem[] = [];
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  ocrLogger.debug('Parsing', `Split text into ${lines.length} lines`);
   let detectedSyndicate = 'Unknown';
 
   lines.forEach((line, index) => {
@@ -435,64 +507,121 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
     }
   });
 
+  ocrLogger.info('Parsing', `Parsed ${detectedItems.length} items from ${lines.length} lines`, {
+    itemsByCategory: detectedItems.reduce((acc, item) => {
+      acc[item.category] = (acc[item.category] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>),
+    itemNames: detectedItems.map(item => item.name)
+  });
+  
   return detectedItems;
 };
 
 // Main analysis function
 export const analyzeImage = async (imageFile: File, forceRetry: boolean = false): Promise<{ items: DetectedItem[]; screenType: string }> => {
+  const analysisStartTime = Date.now();
+  ocrLogger.info('Analysis', `Starting image analysis`, {
+    fileName: imageFile.name,
+    fileSize: imageFile.size,
+    fileType: imageFile.type,
+    forceRetry
+  });
+
   try {
+    ocrLogger.debug('Analysis', 'Converting file to base64');
     let imageBase64 = await fileToBase64(imageFile);
+    ocrLogger.debug('Analysis', 'Generating image hash');
     const imageHash = await generateImageHash(imageBase64);
+    ocrLogger.info('Analysis', `Image hash: ${imageHash}`);
 
     // Check cache first
     if (!forceRetry) {
+      ocrLogger.debug('Analysis', 'Checking cache for existing results');
       const cachedResult = getCachedAnalysis(imageHash);
       if (cachedResult) {
+        ocrLogger.info('Analysis', `Found cached result with ${cachedResult.length} items`);
         const items = filterNewItems(cachedResult);
         if (items.length === 0) {
-          console.log(`>>> [OCR] Cached result had 0 items — bypassing cache and re-analyzing <<<`);
+          ocrLogger.warn('Analysis', 'Cached result had 0 items after filtering — bypassing cache and re-analyzing');
         } else {
-          console.log(`>>> [OCR] Using cached analysis result - avoiding OCR processing <<<`);
+          ocrLogger.info('Analysis', `Using cached analysis result - ${items.length} new items`);
           return { items, screenType: 'unknown' };
         }
+      } else {
+        ocrLogger.debug('Analysis', 'No cached result found');
       }
     } else {
-      console.log(`>>> [OCR] Force retry requested - bypassing cache for image hash ${imageHash} <<<`);
+      ocrLogger.info('Analysis', 'Force retry requested - bypassing cache');
       clearCachedAnalysis(imageHash);
     }
 
     // Step 1: Extract text using OCR
-    console.log(`>>> [OCR] Step 1: Extracting text from image <<<`);
+    ocrLogger.info('Analysis', 'Step 1: Extracting text from image using OCR');
     const extractedText = await extractTextFromImage(imageFile);
-    console.log(`>>> [OCR] Extracted text preview:`, extractedText.substring(0, 200) + (extractedText.length > 200 ? '...' : ''), ` <<<`);
+    ocrLogger.info('Analysis', `Extracted ${extractedText.length} characters of text`, {
+      preview: extractedText.substring(0, 500)
+    });
+
+    if (!extractedText || extractedText.trim().length === 0) {
+      ocrLogger.error('Analysis', 'OCR extracted no text from image', {
+        fileName: imageFile.name,
+        fileSize: imageFile.size
+      });
+      throw new Error('OCR extracted no text from image. Please ensure the image contains readable text.');
+    }
 
     // Step 2: Determine screen type
-    console.log(`>>> [OCR] Step 2: Determining screen type <<<`);
+    ocrLogger.info('Analysis', 'Step 2: Determining screen type');
     const screenType = determineScreenType(extractedText);
-    console.log(`>>> [OCR] Detected screen type: ${screenType} <<<`);
+    ocrLogger.info('Analysis', `Detected screen type: ${screenType}`);
 
     // Step 3: Parse detected items
+    ocrLogger.info('Analysis', 'Step 3: Parsing detected items');
     const detectedItems = parseDetectedItems(extractedText, screenType);
-    console.log(`>>> [OCR] Screen type: ${screenType} <<<`);
-    console.log(`>>> [OCR] Parsed ${detectedItems.length} items:`, detectedItems.map(item => `${item.name} (${item.category})`), ` <<<`);
-
+    
     const categoryCounts = detectedItems.reduce((acc, item) => {
       acc[item.category] = (acc[item.category] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    console.log(`>>> [OCR] Category distribution:`, categoryCounts, ` <<<`);
+    
+    ocrLogger.info('Analysis', `Parsed ${detectedItems.length} items`, {
+      categoryDistribution: categoryCounts,
+      items: detectedItems.map(item => ({ name: item.name, category: item.category }))
+    });
 
     // Cache the results
+    ocrLogger.debug('Analysis', 'Caching analysis results');
     setCachedAnalysis(imageHash, screenType, detectedItems);
 
     // Filter out items that already exist in inventory
+    ocrLogger.debug('Analysis', 'Filtering out duplicate items');
     const newItems = filterNewItems(detectedItems);
-    console.log(`>>> [OCR] ${newItems.length} new items after deduplication <<<`);
+    ocrLogger.info('Analysis', `Filtered to ${newItems.length} new items (${detectedItems.length - newItems.length} duplicates removed)`);
+
+    const duration = Date.now() - analysisStartTime;
+    ocrLogger.info('Analysis', `Analysis completed successfully in ${duration}ms`, {
+      screenType,
+      totalItems: detectedItems.length,
+      newItems: newItems.length,
+      duplicates: detectedItems.length - newItems.length
+    });
 
     return { items: newItems, screenType };
   } catch (error) {
-    console.error('Error analyzing image with OCR:', error);
-    throw new Error('Failed to analyze image. Please try again.');
+    const duration = Date.now() - analysisStartTime;
+    ocrLogger.error('Analysis', 'Image analysis failed', {
+      error: error instanceof Error ? error.message : String(error),
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      stack: error instanceof Error ? error.stack : undefined,
+      fileName: imageFile.name,
+      fileSize: imageFile.size,
+      fileType: imageFile.type,
+      duration
+    });
+    
+    const errorMessage = error instanceof Error ? error.message : 'Failed to analyze image. Please try again.';
+    throw new Error(errorMessage);
   }
 };
 
