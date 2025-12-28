@@ -1322,20 +1322,31 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 </div>
 
                 {/* Trading Recommendation - Prominent at top */}
-                {progress.recommendedStrategy && progress.profitDifference !== undefined && (
+                {progress.recommendedStrategy && (
                   <div className={`mt-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
-                    progress.profitDifference > 0
-                      ? 'bg-green-900/30 border-green-500/30 text-green-400'
-                      : progress.profitDifference < 0
-                      ? 'bg-red-900/30 border-red-500/30 text-red-400'
-                      : 'bg-gray-800/30 border-gray-600/30 text-gray-400'
+                    (() => {
+                      // Use expectedProfit from investmentAnalysis if available, otherwise fall back to profitDifference
+                      const profit = progress.investmentAnalysis?.expectedProfit ?? progress.profitDifference ?? 0;
+                      return profit > 0
+                        ? 'bg-green-900/30 border-green-500/30 text-green-400'
+                        : profit < 0
+                        ? 'bg-red-900/30 border-red-500/30 text-red-400'
+                        : 'bg-gray-800/30 border-gray-600/30 text-gray-400';
+                    })()
                   }`}>
                     💰 {progress.recommendedStrategy === 'SELL_PARTS' ? 'SELL PARTS' : progress.recommendedStrategy === 'SELL_SET' ? 'SELL SET' : progress.recommendedStrategy.replace(/_/g, ' ')}
-                    {progress.profitDifference !== 0 && (
-                      <span className="ml-1">
-                        ({progress.profitDifference > 0 ? '+' : ''}{progress.profitDifference}p profit)
-                      </span>
-                    )}
+                    {(() => {
+                      // Use expectedProfit (ROI) if available, otherwise profitDifference
+                      const profit = progress.investmentAnalysis?.expectedProfit ?? progress.profitDifference ?? 0;
+                      if (profit !== 0) {
+                        return (
+                          <span className="ml-1">
+                            ({profit > 0 ? '+' : ''}{profit.toFixed(1)}p {progress.investmentAnalysis ? 'ROI' : 'profit'})
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 )}
 
@@ -1355,7 +1366,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                     <div className="flex items-center gap-1 text-orange-400">
                       <ShoppingCart size={12} />
                       <span className="font-medium">
-                        {progress.missingCost !== undefined ? `${Math.round(progress.missingCost)}p` : '—'}
+                        {(() => {
+                          // Use buyInvestmentCost from investmentAnalysis if available, otherwise missingCost
+                          const investment = progress.investmentAnalysis?.buyInvestmentCost ?? progress.missingCost ?? 0;
+                          return investment > 0 ? `${Math.round(investment)}p` : '—';
+                        })()}
                       </span>
                     </div>
                   </div>

@@ -491,12 +491,32 @@ const calculateInvestmentAnalysis = (
   );
 
   // Calculate cost to buy missing parts from market using SELLER prices (what it costs to buy)
+  // First try to use fetched prices from missingPartsWithPrices if available
   let buyInvestmentCost = 0;
-  missingPartsToBuy.forEach(partName => {
-    // Use seller price (cost to buy) for investment calculations
-    const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
-    buyInvestmentCost += partPrice;
-  });
+  const fetchedPrices = (setProgress as any)._tempMissingPartsWithPrices as Array<{ name: string; price: number }> | undefined;
+  
+  if (fetchedPrices && fetchedPrices.length > 0) {
+    // Use fetched prices (more accurate)
+    missingPartsToBuy.forEach(partName => {
+      const fetchedPrice = fetchedPrices.find(p => 
+        p.name.toLowerCase() === partName.toLowerCase()
+      );
+      if (fetchedPrice && fetchedPrice.price > 0) {
+        buyInvestmentCost += fetchedPrice.price;
+      } else {
+        // Fallback to estimated price if fetched price not found
+        const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
+        buyInvestmentCost += partPrice;
+      }
+    });
+  } else {
+    // Use estimated prices if fetched prices not available
+    missingPartsToBuy.forEach(partName => {
+      // Use seller price (cost to buy) for investment calculations
+      const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
+      buyInvestmentCost += partPrice;
+    });
+  }
 
   // Calculate void trace cost for relic opening (estimated)
   // Assume average 75 void traces per missing part from relics
@@ -1070,11 +1090,19 @@ export const refreshIndividualSetMarketData = async (
           console.log(`💰 [Individual Set] ${setName}: All missing parts obtainable from relics, skipping price fetch`);
         }
 
+        // Store fetched prices temporarily so calculateInvestmentAnalysis can use them
+        if (missingPartsWithPrices.length > 0) {
+          (setProgress as any)._tempMissingPartsWithPrices = missingPartsWithPrices;
+        }
+        
         // Calculate investment analysis (now includes improved buy cost if available)
         const investmentAnalysis = calculateInvestmentAnalysis(setProgress, primePartsInventory, relicsInventory);
+        
         // Add the fetched prices to investment analysis
         if (investmentAnalysis && missingPartsWithPrices.length > 0) {
           investmentAnalysis.missingPartsWithPrices = missingPartsWithPrices;
+          // Clean up temp field
+          delete (setProgress as any)._tempMissingPartsWithPrices;
         }
         setProgress.investmentAnalysis = investmentAnalysis;
 
