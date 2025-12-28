@@ -73,7 +73,6 @@ const fetchSingleItemData = async (itemName: string) => {
   const basePrimeName = getBasePrimeName(itemName);
   const queryName = basePrimeName || itemName;
   
-  let actualItemName = itemName;
   let itemResponse: Response;
   let ordersResponse: Response;
   let statsResponse: Response;
@@ -88,24 +87,23 @@ const fetchSingleItemData = async (itemName: string) => {
 
     // If lookup failed, return error
     if (!itemResponse.ok || !ordersResponse.ok) {
-        const errorType = itemResponse.status === 404 || ordersResponse.status === 404 ? 'not_found' : 'api_error';
-        console.log(`>>> [Netlify] ${itemName}: ${errorType} (status: ${itemResponse.status}/${ordersResponse.status}) <<<`);
+      const errorType = itemResponse.status === 404 || ordersResponse.status === 404 ? 'not_found' : 'api_error';
+      console.log(`>>> [Netlify] ${itemName}: ${errorType} (status: ${itemResponse.status}/${ordersResponse.status}) <<<`);
 
-        return {
-          name: itemName,
-          thumb: '',
-          ducats: 0,
-          price: 0,
-          volume: 0,
-          average: 0,
-          error: errorType,
-          status: itemResponse.status || ordersResponse.status,
-          tags: [],
-          rarity: 'common',
-          mod_max_rank: 0,
-          trading_tax: 0
-        };
-      }
+      return {
+        name: itemName,
+        thumb: '',
+        ducats: 0,
+        price: 0,
+        volume: 0,
+        average: 0,
+        error: errorType,
+        status: itemResponse.status || ordersResponse.status,
+        tags: [],
+        rarity: 'common',
+        mod_max_rank: 0,
+        trading_tax: 0
+      };
     }
 
     const [itemData, ordersData, statsData] = await Promise.all([
@@ -136,7 +134,7 @@ const fetchSingleItemData = async (itemName: string) => {
     } else {
       // For non-warframe components, use original logic
       itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
-        item.url_name === actualItemName || item.url_name === itemName
+        item.url_name === itemName
       ) || itemData.payload.item.items_in_set[0];
     }
 
