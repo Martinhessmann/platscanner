@@ -131,6 +131,19 @@ const fetchSingleItemData = async (itemName: string) => {
       ordersResponse.ok ? ordersResponse.json() : Promise.resolve({ payload: { orders: [] }, error: null }),
       statsResponse.ok ? statsResponse.json() : Promise.resolve({ payload: { statistics_closed: { '90days': [] } }, error: null })
     ]);
+    
+    // Debug: Log raw orders response structure
+    if (ordersResponse.ok && ordersData.payload) {
+      console.log(`>>> [Netlify] ${itemName}: Orders response structure check - has payload: ${!!ordersData.payload}, has orders array: ${Array.isArray(ordersData.payload.orders)} <<<`);
+      if (Array.isArray(ordersData.payload.orders) && ordersData.payload.orders.length > 0) {
+        const firstOrder = ordersData.payload.orders[0];
+        console.log(`>>> [Netlify] ${itemName}: First order structure: ${JSON.stringify(Object.keys(firstOrder))} <<<`);
+        console.log(`>>> [Netlify] ${itemName}: First order user structure: ${JSON.stringify(firstOrder.user ? Object.keys(firstOrder.user) : 'no user')} <<<`);
+        if (firstOrder.user) {
+          console.log(`>>> [Netlify] ${itemName}: First order user.status value: "${firstOrder.user.status}" (type: ${typeof firstOrder.user.status}) <<<`);
+        }
+      }
+    }
 
     // V2 API structure: { apiVersion, data: { ... }, error }
     // Items are queried directly by slug, no items_in_set lookup needed
@@ -165,9 +178,16 @@ const fetchSingleItemData = async (itemName: string) => {
     let orders = [];
     if (ordersData.payload && Array.isArray(ordersData.payload.orders)) {
       orders = ordersData.payload.orders;
+      console.log(`>>> [Netlify] ${itemName}: Parsed ${orders.length} orders from payload.orders <<<`);
     } else if (Array.isArray(ordersData.data)) {
       // Fallback to v2 structure if it ever gets implemented
       orders = ordersData.data;
+      console.log(`>>> [Netlify] ${itemName}: Parsed ${orders.length} orders from data array (v2 fallback) <<<`);
+    } else {
+      console.log(`>>> [Netlify] ${itemName}: WARNING - No orders found in expected structure. Response keys: ${JSON.stringify(Object.keys(ordersData))} <<<`);
+      if (ordersData.payload) {
+        console.log(`>>> [Netlify] ${itemName}: Payload keys: ${JSON.stringify(Object.keys(ordersData.payload))} <<<`);
+      }
     }
     
     console.log(`>>> [Netlify] ${itemName}: Found ${orders.length} orders from V1 API <<<`);
