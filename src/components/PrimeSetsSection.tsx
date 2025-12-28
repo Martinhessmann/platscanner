@@ -683,9 +683,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         const builtFilter = activeFilters.has('built');
         const plannerFilter = activeFilters.has('planner');
         const priorityFilter = activeFilters.has('priority');
+        const notBuiltFilter = activeFilters.has('not_built');
         let statusMatch = true;
 
-        if (builtFilter || plannerFilter || priorityFilter) {
+        if (builtFilter || plannerFilter || priorityFilter || notBuiltFilter) {
           const isBuilt = masteredSets.includes(p.set.id);
           const isPriority = plannedSets.get(p.set.id)?.isPriority || false;
           const isPlanned = !isBuilt; // All non-built sets are "planned"
@@ -693,7 +694,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           // OR logic: match if any active status filter matches
           statusMatch = (builtFilter && isBuilt) ||
                        (plannerFilter && isPlanned) ||
-                       (priorityFilter && isPriority);
+                       (priorityFilter && isPriority) ||
+                       (notBuiltFilter && !isBuilt);
         }
 
         // If status filter doesn't match, skip this set
@@ -704,7 +706,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Check all other filters (combinable - AND logic)
         return Array.from(activeFilters).every(filter => {
           // Skip status filters (already handled above)
-          if (filter === 'built' || filter === 'planner' || filter === 'priority') {
+          if (filter === 'built' || filter === 'planner' || filter === 'priority' || filter === 'not_built') {
             return true;
           }
 
@@ -789,16 +791,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Remove "all" if selecting specific filters
         updated.delete('all');
 
-        // Special case: "Built", "Planned", and "Priority" are mutually exclusive
+        // Special case: "Built", "Planned", "Priority", and "Not Built" are mutually exclusive
         if (filter === 'built') {
           updated.delete('planner');
           updated.delete('priority');
+          updated.delete('not_built');
         } else if (filter === 'planner') {
           updated.delete('built');
           updated.delete('priority');
+          updated.delete('not_built');
         } else if (filter === 'priority') {
           updated.delete('built');
           updated.delete('planner');
+          updated.delete('not_built');
+        } else if (filter === 'not_built') {
+          updated.delete('built');
+          updated.delete('planner');
+          updated.delete('priority');
         }
 
         // Toggle the specific filter
@@ -1006,6 +1015,24 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
             activeFilters.has('built') ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
             {builtSets}
+          </span>
+        </button>
+
+        {/* Not Built (Yet) */}
+        <button
+          onClick={() => toggleFilter('not_built')}
+          className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+            activeFilters.has('not_built')
+              ? 'bg-gray-900/50 border-gray-500/50 text-gray-300 ring-1 ring-gray-500/30'
+              : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+          }`}
+        >
+          <Circle size={16} />
+          <span>Not Built (Yet)</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs ${
+            activeFilters.has('not_built') ? 'bg-gray-800/50 text-gray-300' : 'bg-gray-800/50 text-gray-400'
+          }`}>
+            {setProgress.length - builtSets}
           </span>
         </button>
 
