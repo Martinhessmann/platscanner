@@ -407,14 +407,14 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               onClick={() => toggleFilter('not_reserved')} 
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
                 activeFilters.has('not_reserved')
-                  ? 'bg-gray-900/50 border-gray-500/50 text-gray-300 ring-1 ring-gray-500/30'
+                  ? 'bg-purple-900/50 border-purple-500/50 text-purple-400 ring-1 ring-purple-500/30'
                   : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
               }`}
             >
               <Circle size={16} />
               <span>Not Reserved</span>
               <span className={`px-1.5 py-0.5 rounded text-xs ${
-                activeFilters.has('not_reserved') ? 'bg-gray-800/50 text-gray-300' : 'bg-gray-800/50 text-gray-400'
+                activeFilters.has('not_reserved') ? 'bg-purple-800/50 text-purple-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
                 {(results || []).filter(i => {
                   try {
