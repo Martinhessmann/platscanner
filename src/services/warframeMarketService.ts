@@ -1,5 +1,6 @@
 import { DetectedItem, VoidRelic } from '../types';
 import { getImageUrl } from './unifiedImageService';
+import { marketLogger } from './marketLogger';
 
 // Helper: Treat all detected prime parts as tradeable on Warframe Market
 const isPrimePartTradeable = (_item: DetectedItem): boolean => {
@@ -306,22 +307,30 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
   for (const part of primeParts) {
     try {
       const normalizedName = normalizeItemName(part.name);
-      console.log(`Fetching data for: ${part.name} (${normalizedName})`);
+      marketLogger.info('PriceFetch', `Fetching data for: ${part.name} (${normalizedName})`);
 
       let data;
       if (isProduction) {
         try {
           data = await fetchViaNetlify(normalizedName);
+          marketLogger.debug('PriceFetch', `Netlify Function response for ${part.name}`, { 
+            price: data.price, 
+            error: data.error,
+            status: data.status 
+          });
         } catch (error) {
-          // Fallback to direct API if Netlify Function fails
-          console.warn('Netlify Function failed, falling back to direct API:', error);
+          marketLogger.warn('PriceFetch', `Netlify Function failed for ${part.name}, falling back to direct API`, { error });
           data = await fetchViaDirect(normalizedName);
         }
       } else {
         data = await fetchViaDirect(normalizedName);
       }
 
-      console.log(`Raw data for ${part.name}:`, data);
+      if (data.error) {
+        marketLogger.warn('PriceFetch', `Failed to fetch price for ${part.name}`, { error: data.error, status: data.status });
+      } else {
+        marketLogger.info('PriceFetch', `Successfully fetched price for ${part.name}`, { price: data.price, volume: data.volume });
+      }
 
       // Use local images based on item name instead of external CDN
       const localImageUrl = await getImageUrl(part.name);

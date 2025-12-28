@@ -1222,6 +1222,8 @@
       }
     ]
   },
+  // TODO: This was manually added - should be automated via update-primesets.mjs script
+  // Run: node update-primesets.mjs to automatically fetch and add new primes from Warframe Market API v2
   {
     "name": "Harrow Prime",
     "image": "harrow-prime-8237c36a69.png",
