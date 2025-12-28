@@ -72,14 +72,10 @@ const fetchSingleItemData = async (itemName: string) => {
   // The API returns items_in_set with all components when querying the base name
   const basePrimeName = getBasePrimeName(itemName);
   const queryName = basePrimeName || itemName;
-  
-  let itemResponse: Response;
-  let ordersResponse: Response;
-  let statsResponse: Response;
 
   try {
     // Query using base name for warframe components, or original name for others
-    [itemResponse, ordersResponse, statsResponse] = await Promise.all([
+    const [itemResponse, ordersResponse, statsResponse] = await Promise.all([
       fetch(`${WARFRAME_MARKET_API}/items/${queryName}`, { headers: apiHeaders }),
       fetch(`${WARFRAME_MARKET_API}/items/${queryName}/orders`, { headers: apiHeaders }),
       fetch(`${WARFRAME_MARKET_API}/items/${queryName}/statistics`, { headers: apiHeaders })
