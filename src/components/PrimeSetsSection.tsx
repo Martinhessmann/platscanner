@@ -683,17 +683,20 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         const builtFilter = activeFilters.has('built');
         const plannerFilter = activeFilters.has('planner');
         const priorityFilter = activeFilters.has('priority');
+        const nonPriorityFilter = activeFilters.has('non_priority');
         let statusMatch = true;
 
-        if (builtFilter || plannerFilter || priorityFilter) {
+        if (builtFilter || plannerFilter || priorityFilter || nonPriorityFilter) {
           const isBuilt = masteredSets.includes(p.set.id);
           const isPriority = plannedSets.get(p.set.id)?.isPriority || false;
           const isPlanned = !isBuilt; // All non-built sets are "planned"
+          const isNonPriority = !isBuilt && !isPriority; // Not built and not priority
 
           // OR logic: match if any active status filter matches
           statusMatch = (builtFilter && isBuilt) ||
                        (plannerFilter && isPlanned) ||
-                       (priorityFilter && isPriority);
+                       (priorityFilter && isPriority) ||
+                       (nonPriorityFilter && isNonPriority);
         }
 
         // If status filter doesn't match, skip this set
@@ -704,7 +707,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Check all other filters (combinable - AND logic)
         return Array.from(activeFilters).every(filter => {
           // Skip status filters (already handled above)
-          if (filter === 'built' || filter === 'planner' || filter === 'priority') {
+          if (filter === 'built' || filter === 'planner' || filter === 'priority' || filter === 'non_priority') {
             return true;
           }
 
@@ -789,16 +792,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Remove "all" if selecting specific filters
         updated.delete('all');
 
-        // Special case: "Built", "Not Built", and "Priority" are mutually exclusive
+        // Special case: "Built", "Not Built", "Priority", and "Non-Priority" are mutually exclusive
         if (filter === 'built') {
           updated.delete('planner');
           updated.delete('priority');
+          updated.delete('non_priority');
         } else if (filter === 'planner') {
           updated.delete('built');
           updated.delete('priority');
+          updated.delete('non_priority');
         } else if (filter === 'priority') {
           updated.delete('built');
           updated.delete('planner');
+          updated.delete('non_priority');
+        } else if (filter === 'non_priority') {
+          updated.delete('built');
+          updated.delete('planner');
+          updated.delete('priority');
         }
 
         // Toggle the specific filter
@@ -988,6 +998,28 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
             activeFilters.has('priority') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
             {prioritySets}
+          </span>
+        </button>
+
+        {/* Non-Priority Sets */}
+        <button
+          onClick={() => toggleFilter('non_priority')}
+          className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+            activeFilters.has('non_priority')
+              ? 'bg-slate-900/50 border-slate-500/50 text-slate-300 ring-1 ring-slate-500/30'
+              : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+          }`}
+        >
+          <Circle size={16} />
+          <span>Non-Priority</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs ${
+            activeFilters.has('non_priority') ? 'bg-slate-800/50 text-slate-300' : 'bg-gray-800/50 text-gray-400'
+          }`}>
+            {setProgress.filter(p => {
+              const isBuilt = masteredSets.includes(p.set.id);
+              const isPriority = plannedSets.get(p.set.id)?.isPriority || false;
+              return !isBuilt && !isPriority;
+            }).length}
           </span>
         </button>
 
