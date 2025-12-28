@@ -1338,4 +1338,10 @@ export const initializeGemini = (apiKey: string): boolean => {
   return true;
 };
 
+// LLMWhisperer exports for UI configuration
+export { 
+  isLLMWhispererConfigured,
+  setLLMWhispererApiKey 
+} from './llmWhispererService';
+
 // Helper functions are already defined above, no need to re-export

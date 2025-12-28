@@ -4,7 +4,8 @@
  * Designed specifically for extracting text from images for LLM consumption
  */
 
-const LLMWHISPERER_API_URL = 'https://llmwhisperer-api.us-central.unstract.com/api/v2';
+// EU-West endpoint (matches the API key region)
+const LLMWHISPERER_API_URL = 'https://llmwhisperer-api.eu-west.unstract.com/api/v2';
 
 // Get API key from localStorage
 const getApiKey = (): string | null => {
@@ -52,19 +53,19 @@ export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<stri
     throw new Error('LLMWhisperer API key not configured');
   }
 
-  console.log('[LLMWhisperer] Starting OCR for:', imageFile.name);
+  console.log('[LLMWhisperer] Starting OCR for:', imageFile.name, `(${imageFile.size} bytes)`);
 
-  // Convert image to base64
-  const base64Image = await fileToBase64(imageFile);
+  // Get file as ArrayBuffer
+  const arrayBuffer = await imageFile.arrayBuffer();
   
-  // Call LLMWhisperer API
-  const response = await fetch(`${LLMWHISPERER_API_URL}/whisper`, {
+  // Call LLMWhisperer API with output_mode=text for cleaner parsing
+  const response = await fetch(`${LLMWHISPERER_API_URL}/whisper?mode=high_quality&output_mode=text`, {
     method: 'POST',
     headers: {
       'unstract-key': apiKey,
       'Content-Type': 'application/octet-stream',
     },
-    body: Uint8Array.from(atob(base64Image), c => c.charCodeAt(0)),
+    body: arrayBuffer,
   });
 
   if (!response.ok) {
@@ -75,8 +76,8 @@ export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<stri
 
   const result = await response.json();
   
-  if (result.status === 'processing') {
-    // Need to poll for result
+  if (result.status === 'processing' || result.whisper_hash) {
+    // Need to poll for result (async processing)
     console.log('[LLMWhisperer] Processing, whisper hash:', result.whisper_hash);
     return await pollForResult(apiKey, result.whisper_hash);
   }
@@ -101,10 +102,11 @@ const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 
     }
 
     const result = await response.json();
+    console.log(`[LLMWhisperer] Poll ${attempt + 1}: ${result.status}`);
     
     if (result.status === 'processed') {
-      // Fetch the result
-      const textResponse = await fetch(`${LLMWHISPERER_API_URL}/whisper-retrieve?whisper_hash=${whisperHash}`, {
+      // Fetch the result (text_only=true returns raw text)
+      const textResponse = await fetch(`${LLMWHISPERER_API_URL}/whisper-retrieve?whisper_hash=${whisperHash}&text_only=true`, {
         headers: {
           'unstract-key': apiKey,
         },
@@ -114,15 +116,15 @@ const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 
         throw new Error(`Failed to retrieve result: ${textResponse.status}`);
       }
       
-      const textResult = await textResponse.json();
-      return textResult.extracted_text || '';
+      // text_only=true returns raw text, not JSON
+      const extractedText = await textResponse.text();
+      console.log(`[LLMWhisperer] Extracted ${extractedText.length} characters`);
+      return extractedText;
     }
     
     if (result.status === 'error') {
       throw new Error('LLMWhisperer processing failed');
     }
-    
-    console.log(`[LLMWhisperer] Still processing... (attempt ${attempt + 1}/${maxAttempts})`);
   }
   
   throw new Error('LLMWhisperer processing timeout');
