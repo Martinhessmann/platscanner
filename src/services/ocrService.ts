@@ -232,8 +232,11 @@ const extractTextFromImage = async (imageFile: File): Promise<string> => {
   try {
     ocrLogger.debug('OCR', 'Creating Tesseract worker with English language');
     
-    // Create worker - simpler config for localhost
+    // Create worker with workerBlobURL: false to avoid blob: origin CORS issues
+    // When workerBlobURL is true (default), the worker runs in a blob: context with null origin
+    // which prevents it from fetching resources from CDN. Setting to false uses the CDN URL directly.
     const workerOptions: any = {
+      workerBlobURL: false,
       logger: (m: any) => {
         if (m.status === 'recognizing text' && m.progress !== undefined) {
           ocrLogger.debug('OCR', `OCR progress: ${Math.round(m.progress * 100)}%`);
