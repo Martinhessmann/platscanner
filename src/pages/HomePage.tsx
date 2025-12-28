@@ -25,6 +25,7 @@ import { getPrimeSetsCache, setPrimeSetsCache, analyzeSetProgress } from '../ser
 import { ImageState, DetectedItem, ProcessingState, VoidRelic, InventoryItem } from '../types';
 import InfoCard from '../components/InfoCard';
 import PrimeSetsSection from '../components/PrimeSetsSection';
+import MarketDebugOverlay from '../components/MarketDebugOverlay';
 import { FileWithPath } from 'react-dropzone';
 import { Package, Zap, Key } from 'lucide-react';
 
@@ -1573,6 +1574,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           <InfoCard isConfigured={isConfigured} onOpenSettings={onOpenSettings} />
         </div>
       </div>
+      
+      {/* Market Debug Overlay */}
+      <MarketDebugOverlay />
     </main>
   );
 };

@@ -874,14 +874,13 @@ export const analyzeSetProgressWithMarketData = async (
         console.log(`🎯 [Market Analysis] ${progress.set.name}: Parts=${individualPartsValue}p, Set=${completeSetPrice}p`);
       });
 
-      // Fetch missing part prices for sets that are near completion (50%+)
-      // This provides accurate investment costs without overwhelming the API
+      // Fetch missing part prices for ALL sets with owned parts (not just 50%+)
+      // This provides accurate investment costs and display prices
       // Fetch prices for ALL missing parts (both market-only and relic-obtainable) for display
-      const nearCompleteSets = setsNeedingMarketData.filter(p => p.completionPercentage >= 50);
-      if (nearCompleteSets.length > 0) {
-        console.log(`💰 [Batch Refresh] Fetching missing part prices for ${nearCompleteSets.length} near-complete sets`);
+      if (setsNeedingMarketData.length > 0) {
+        console.log(`💰 [Batch Refresh] Fetching missing part prices for ${setsNeedingMarketData.length} sets`);
 
-        for (const progress of nearCompleteSets) {
+        for (const progress of setsNeedingMarketData) {
           // Fetch prices for ALL missing parts (for display purposes)
           // But only use market-only parts for investment cost calculation
           const allMissingParts = progress.missingParts;

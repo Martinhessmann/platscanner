@@ -1522,7 +1522,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-xs mb-1">
                           <span className="text-gray-400/70">Part</span>
-                          <span className="text-gray-400/70">Source</span>
+                          <div className="flex items-center gap-4">
+                            <span className="text-gray-400/70">Price</span>
+                            <span className="text-gray-400/70">Source</span>
+                          </div>
                         </div>
                         {[...progress.set.requiredParts]
                           .sort((a, b) => {
@@ -1614,8 +1617,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                   <span className="text-xs text-blue-400">x{part.itemCount}</span>
                                 )}
                               </div>
-                              <div className="flex flex-col items-end gap-1 text-right">
-                                <span className={`${textColor} text-xs`}>
+                              <div className="flex items-center gap-4">
+                                {/* Price Column */}
+                                <div className="flex flex-col items-end gap-1 text-right min-w-[80px]">
+                                  <span className={`${textColor} text-xs`}>
                                   {isOwned ? (() => {
                                     // For warframes, ONLY blueprints count as owned (built parts are NOT tradeable)
                                     let inventoryItem: DetectedItem | undefined;
@@ -1733,15 +1738,22 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                       (() => {
                                         // Find price for this missing part (seller price - what it costs to buy)
                                         // Try multiple name variations to find the price
+                                        const partName = part.name.toLowerCase();
+                                        const setBaseName = progress.set.name.toLowerCase();
+                                        
                                         const priceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
                                           p => {
                                             const pName = p.name.toLowerCase();
-                                            const partName = part.name.toLowerCase();
-                                            return pName === partName || 
-                                                   pName === `${partName} blueprint` ||
-                                                   pName === `${partName.replace(/\s+/g, '_')}_blueprint` ||
-                                                   // Also try matching just the part type (e.g., "Blueprint" matches "Wisp Prime Blueprint")
-                                                   (part.partType === 'Blueprint' && pName.includes('blueprint') && pName.includes(partName.split(' ')[0]));
+                                            // Try exact match first
+                                            if (pName === partName) return true;
+                                            // Try with blueprint suffix
+                                            if (pName === `${partName} blueprint` || pName === `${partName.replace(/\s+/g, '_')}_blueprint`) return true;
+                                            // Try matching by part type and set name (e.g., "Xaku Prime Blueprint" matches part "Blueprint")
+                                            if (part.partType === 'Blueprint' && pName.includes('blueprint') && pName.includes(setBaseName.split(' ')[0])) return true;
+                                            // Try matching other part types (e.g., "Xaku Prime Chassis" matches part "Chassis")
+                                            const partTypeLower = part.partType.toLowerCase();
+                                            if (pName.includes(partTypeLower) && pName.includes(setBaseName.split(' ')[0])) return true;
+                                            return false;
                                           }
                                         );
                                         
@@ -1790,51 +1802,65 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                       })()
                                     )
                                   )}
-                                </span>
-                                {!isOwned && isObtainableFromRelics && rec && (
-                                  <div className="flex items-center gap-1 justify-end">
-                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[rec.target]}`} title={`Recommended refinement`}>
-                                      <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[rec.target]}`} />
-                                      <span className="capitalize">{rec.target}</span>
-                                    </span>
-                                  </div>
-                                )}
-                                {isObtainableFromRelics && !isOwned && relicBaseCounts.length > 0 && (
-                                  <div className="flex items-end gap-2 flex-col">
-                                    <div className="flex items-start gap-2 flex-col text-right">
-                                      {relicBaseCounts.map(({ base, total }) => (
-                                        <button
-                                          key={base}
-                                          onClick={() => {
-                                            console.log('[PrimeSets] Button clicked for relic:', base);
-
-                                            // First expand the relics section
-                                            console.log('[PrimeSets] Dispatching expand-section event');
-                                            window.dispatchEvent(new CustomEvent('expand-section', {
-                                              detail: { section: 'relics' }
-                                            }));
-
-                                            // Then navigate to the specific relic
-                                            setTimeout(() => {
-                                              console.log('[PrimeSets] Dispatching focus-relic event for:', base);
-                                              window.dispatchEvent(new CustomEvent('focus-relic', {
-                                                detail: {
-                                                  name: base,
-                                                  expandDetails: true,
-                                                  scrollToSection: true
-                                                }
-                                              }));
-                                            }, 300); // Increased timeout to ensure section is expanded
-                                          }}
-                                          className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2 transition-colors"
-                                          title={`Focus ${base} in Relics section`}
-                                        >
-                                          {base}{total > 1 ? ` x${total}` : ''}
-                                        </button>
-                                      ))}
+                                  </span>
+                                </div>
+                                
+                                {/* Source Column */}
+                                <div className="flex flex-col items-end gap-1 text-right min-w-[100px]">
+                                    {!isOwned && isObtainableFromRelics && rec && (
+                                    <div className="flex items-center gap-1 justify-end">
+                                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[rec.target]}`} title={`Recommended refinement`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[rec.target]}`} />
+                                        <span className="capitalize">{rec.target}</span>
+                                      </span>
                                     </div>
-                                  </div>
-                                )}
+                                  )}
+                                  {isObtainableFromRelics && !isOwned && relicBaseCounts.length > 0 && (
+                                    <div className="flex items-end gap-2 flex-col">
+                                      <div className="flex items-start gap-2 flex-col text-right">
+                                        {relicBaseCounts.map(({ base, total }) => (
+                                          <button
+                                            key={base}
+                                            onClick={() => {
+                                              console.log('[PrimeSets] Button clicked for relic:', base);
+
+                                              // First expand the relics section
+                                              console.log('[PrimeSets] Dispatching expand-section event');
+                                              window.dispatchEvent(new CustomEvent('expand-section', {
+                                                detail: { section: 'relics' }
+                                              }));
+
+                                              // Then navigate to the specific relic
+                                              setTimeout(() => {
+                                                console.log('[PrimeSets] Dispatching focus-relic event for:', base);
+                                                window.dispatchEvent(new CustomEvent('focus-relic', {
+                                                  detail: {
+                                                    name: base,
+                                                    expandDetails: true,
+                                                    scrollToSection: true
+                                                  }
+                                                }));
+                                              }, 300); // Increased timeout to ensure section is expanded
+                                            }}
+                                            className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2 transition-colors"
+                                            title={`Focus ${base} in Relics section`}
+                                          >
+                                            {base}{total > 1 ? ` x${total}` : ''}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {!isOwned && !isObtainableFromRelics && !hasBuiltPart && (
+                                    <span className="text-gray-400 text-xs">Market only</span>
+                                  )}
+                                  {hasBuiltPart && (
+                                    <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
+                                  )}
+                                  {isOwned && (
+                                    <span className="text-green-400 text-xs">In Inventory</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );
