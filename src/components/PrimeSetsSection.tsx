@@ -1622,68 +1622,41 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                 <div className="flex flex-col items-end gap-1 text-right min-w-[80px]">
                                   <span className={`${textColor} text-xs`}>
                                   {isOwned ? (() => {
-                                    // For warframes, ONLY blueprints count as owned (built parts are NOT tradeable)
-                                    let inventoryItem: DetectedItem | undefined;
-                                    let builtItem: DetectedItem | undefined;
+                                    // Find the inventory item that matches this owned part
+                                    // Part name is like "Xaku Prime Blueprint" (from set definition)
+                                    const lowerPartName = part.name.toLowerCase();
                                     
-                                    if (progress.set.type === 'Warframe') {
-                                      // Only look for blueprint (tradeable)
-                                      const blueprintItem = primePartsInventory.find(item => {
-                                        const lowerItemName = item.name.toLowerCase();
-                                        const lowerPartName = part.name.toLowerCase();
-                                        return lowerItemName === `${lowerPartName} blueprint` || 
-                                               lowerItemName === `${lowerPartName.replace(/\s+/g, '_')}_blueprint`;
-                                      });
+                                    // Try multiple matching strategies
+                                    const inventoryItem = primePartsInventory.find(item => {
+                                      const lowerItemName = item.name.toLowerCase();
                                       
-                                      // Also check for built part (for display purposes only - not counted as owned)
-                                      const builtPartItem = primePartsInventory.find(item => {
-                                        const lowerItemName = item.name.toLowerCase();
-                                        const lowerPartName = part.name.toLowerCase();
-                                        return (lowerItemName === lowerPartName || lowerItemName === lowerPartName.replace(/\s+/g, '_')) &&
-                                               !lowerItemName.includes('blueprint') &&
-                                               ['chassis', 'systems', 'neuroptics'].some(comp => 
-                                                 lowerItemName.includes(comp)
-                                               );
-                                      });
+                                      // Exact match
+                                      if (lowerItemName === lowerPartName) return true;
                                       
-                                      inventoryItem = blueprintItem;
-                                      builtItem = builtPartItem;
-                                    } else {
-                                      // For weapons, find any matching item
-                                      inventoryItem = primePartsInventory.find(item => {
-                                        const lowerItemName = item.name.toLowerCase();
-                                        const lowerPartName = part.name.toLowerCase();
-                                        return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
-                                      });
-                                    }
-                                    
-                                    // If we have a built warframe part but no blueprint, show it as not tradeable
-                                    // This should only happen if the part is marked as "owned" but it's actually a built part
-                                    // (which shouldn't happen with the fixed logic, but handle it gracefully)
-                                    if (builtItem && !inventoryItem && progress.set.type === 'Warframe') {
-                                      // Try to find blueprint price from market data
-                                      const blueprintName = `${part.name} Blueprint`;
-                                      const blueprintPriceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
-                                        p => {
-                                          const pName = p.name.toLowerCase();
-                                          return pName === blueprintName.toLowerCase() ||
-                                                 (pName.includes('blueprint') && pName.includes(part.name.split(' ')[0].toLowerCase()));
-                                        }
-                                      );
+                                      // Underscore format match
+                                      if (lowerItemName === lowerPartName.replace(/\s+/g, '_')) return true;
                                       
-                                      return (
-                                        <span className="flex flex-col items-end">
-                                          <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
-                                          {blueprintPriceData && blueprintPriceData.price > 0 && (
-                                            <span className="text-[10px] text-gray-500">
-                                              BP: {blueprintPriceData.price}p
-                                            </span>
-                                          )}
-                                        </span>
-                                      );
-                                    }
+                                      // Try matching without "blueprint" suffix variations
+                                      const partWithoutBlueprint = lowerPartName.replace(/\s+blueprint\s*$/, '').replace(/_blueprint$/, '');
+                                      const itemWithoutBlueprint = lowerItemName.replace(/\s+blueprint\s*$/, '').replace(/_blueprint$/, '');
+                                      if (partWithoutBlueprint === itemWithoutBlueprint && 
+                                          (lowerPartName.includes('blueprint') === lowerItemName.includes('blueprint'))) {
+                                        return true;
+                                      }
+                                      
+                                      return false;
+                                    });
                                     
                                     if (!inventoryItem) {
+                                      // Log for debugging - show what we're looking for vs what's available
+                                      const matchingItems = primePartsInventory.filter(i => 
+                                        i.name.toLowerCase().includes(progress.set.name.toLowerCase().split(' ')[0])
+                                      );
+                                      console.warn(`[UI] Owned part "${part.name}" not found in inventory.`, {
+                                        lookingFor: part.name,
+                                        availableItems: matchingItems.map(i => i.name),
+                                        totalInventory: primePartsInventory.length
+                                      });
                                       return <span className="text-gray-500">Not found</span>;
                                     }
                                     

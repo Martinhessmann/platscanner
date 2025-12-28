@@ -630,21 +630,15 @@ const calculateInvestmentAnalysis = (
           console.warn(`💰 [Investment] ${partName}: No seller price in fetched data (using 0)`);
         }
       } else {
-        // Fallback to estimated seller price if fetched price not found
-        const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
-        buyInvestmentCost += partPrice;
-        console.warn(`💰 [Investment] ${partName}: Not found in fetched prices, using estimated ${partPrice}p`);
+        // NO FALLBACK ESTIMATES - if price not found, use 0
+        console.warn(`💰 [Investment] ${partName}: Not found in fetched prices, using 0 (no fallback estimate)`);
+        // Don't add anything to buyInvestmentCost - price is 0
       }
     });
   } else {
-    console.warn(`💰 [Investment] No fetched prices available, using estimated prices`);
-    // Use estimated seller prices if fetched prices not available
-    missingPartsToBuy.forEach(partName => {
-      // Use seller price (cost to buy) for investment calculations
-      const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
-      buyInvestmentCost += partPrice;
-      console.log(`💰 [Investment] ${partName}: ${partPrice}p (estimated)`);
-    });
+    console.warn(`💰 [Investment] No fetched prices available - all missing parts cost = 0p (no fallback estimates)`);
+    // NO FALLBACK ESTIMATES - if no fetched prices, cost is 0
+    buyInvestmentCost = 0;
   }
   
   console.log(`💰 [Investment] Total buyInvestmentCost: ${buyInvestmentCost}p`);
@@ -692,59 +686,8 @@ const calculateInvestmentAnalysis = (
   };
 };
 
-// NEW: Get estimated price for a part (from existing inventory data)
-// useSellerPrice: true = use seller price (cost to buy), false = use buyer price (what you can sell for)
-const getEstimatedPartPrice = (
-  partName: string,
-  primePartsInventory: DetectedItem[],
-  useSellerPrice: boolean = false
-): number => {
-  // Try to find exact match first
-  const exactMatch = primePartsInventory.find(item => {
-    const lowerItemName = item.name.toLowerCase();
-    const lowerPartName = partName.toLowerCase();
-    return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
-  });
-
-  if (exactMatch) {
-    // Use sellerPrice for investment cost (what it costs to buy), price (buyer) for current value
-    if (useSellerPrice) {
-      // For investment calculations: use seller price (cost to buy), fallback to average if no sellers
-      const marketPrice = (exactMatch.sellerPrice && exactMatch.sellerPrice > 0)
-        ? exactMatch.sellerPrice
-        : (exactMatch.average && exactMatch.average > 0 ? exactMatch.average : 0);
-      return marketPrice;
-    } else {
-      // For current value: use buyer price (what you can sell for)
-      return (exactMatch.price && exactMatch.price > 0) ? exactMatch.price : 0;
-    }
-  }
-
-  // If no exact match, try to estimate based on part type
-  const partType = partName.split(' ').pop()?.toLowerCase();
-  const similarParts = primePartsInventory.filter(item => {
-    const hasPartType = item.name.toLowerCase().includes(partType || '');
-    const hasPrice = useSellerPrice
-      ? (item.sellerPrice && item.sellerPrice > 0)
-      : (item.price && item.price > 0);
-    return hasPartType && hasPrice;
-  });
-
-  if (similarParts.length > 0) {
-    // Return average price of similar parts
-    const avgPrice = similarParts.reduce((sum, item) => {
-      const priceValue = useSellerPrice ? (item.sellerPrice || 0) : (item.price || 0);
-      return sum + priceValue;
-    }, 0) / similarParts.length;
-    return Math.round(avgPrice);
-  }
-
-  // CRITICAL: Don't use high fallback prices - if we can't find a price, return 0
-  // This prevents inflated investment costs when prices aren't available
-  // The UI will show "Market only" and users can manually check prices
-  console.warn(`💰 [Estimate] No price data found for "${partName}", returning 0 (not using fallback estimate)`);
-  return 0; // Return 0 instead of fallback estimate
-};
+// REMOVED: getEstimatedPartPrice - NO FALLBACK ESTIMATES ALLOWED
+// If we can't get a real price from the market or inventory, use 0
 
 // NEW: Enhanced strategy determination with investment analysis
 const determineOptimalStrategyWithInvestment = (
