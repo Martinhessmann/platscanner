@@ -5,6 +5,116 @@ import { determineModRarity, determineModType } from './modService';
 import { ocrLogger } from './ocrLogger';
 import { getPrimeSetsCache } from './staticDataService';
 
+// Grid layout configuration for Warframe inventory
+// Based on analysis of actual screenshots
+const INVENTORY_GRID_CONFIG = {
+  // Percentages of image dimensions
+  headerHeight: 0.14,      // Top 14% is header (INVENTORY/SELL, PRIME PARTS, SEARCH)
+  sidebarWidth: 0.22,      // Right 22% is sidebar (TOTAL, SELL ITEMS)
+  bottomHeight: 0.05,      // Bottom 5% is footer (ONLY SELLABLE, EXIT)
+  leftPadding: 0.01,       // Left 1% padding
+  columns: 7,              // Number of item columns
+};
+
+// Crop image to a specific region using canvas
+const cropImageRegion = async (
+  imageFile: File,
+  xPercent: number,
+  yPercent: number,
+  widthPercent: number,
+  heightPercent: number
+): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      
+      const x = Math.floor(img.width * xPercent);
+      const y = Math.floor(img.height * yPercent);
+      const width = Math.floor(img.width * widthPercent);
+      const height = Math.floor(img.height * heightPercent);
+      
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
+      
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('Failed to create blob from canvas'));
+      }, 'image/png');
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(imageFile);
+  });
+};
+
+// Extract text from each column of a grid inventory
+const extractTextByColumns = async (imageFile: File): Promise<string[]> => {
+  const config = INVENTORY_GRID_CONFIG;
+  const columnTexts: string[] = [];
+  
+  // Calculate the grid area (excluding header, sidebar, bottom)
+  const gridX = config.leftPadding;
+  const gridY = config.headerHeight;
+  const gridWidth = 1 - config.leftPadding - config.sidebarWidth;
+  const gridHeight = 1 - config.headerHeight - config.bottomHeight;
+  
+  const columnWidth = gridWidth / config.columns;
+  
+  ocrLogger.info('GridOCR', `Extracting text from ${config.columns} columns`);
+  
+  // Create a worker for OCR
+  const workerPath = `${window.location.origin}/tesseract/worker.min.js`;
+  const corePath = `${window.location.origin}/tesseract`;
+  
+  const worker = await createWorker('eng', 1, {
+    workerPath,
+    corePath,
+    workerBlobURL: false,
+  });
+  
+  await worker.setParameters({
+    tessedit_pageseg_mode: PSM.SINGLE_COLUMN,  // Each column is read top-to-bottom
+  });
+  
+  try {
+    for (let col = 0; col < config.columns; col++) {
+      const colX = gridX + (col * columnWidth);
+      
+      ocrLogger.debug('GridOCR', `Processing column ${col + 1}/${config.columns}`, {
+        x: colX, y: gridY, width: columnWidth, height: gridHeight
+      });
+      
+      // Crop this column
+      const columnBlob = await cropImageRegion(
+        imageFile,
+        colX,
+        gridY,
+        columnWidth,
+        gridHeight
+      );
+      
+      // OCR the column
+      const columnFile = new File([columnBlob], `column-${col}.png`, { type: 'image/png' });
+      const { data: { text } } = await worker.recognize(columnFile);
+      
+      columnTexts.push(text);
+      ocrLogger.debug('GridOCR', `Column ${col + 1} text (${text.length} chars)`, {
+        preview: text.substring(0, 200)
+      });
+    }
+  } finally {
+    await worker.terminate();
+  }
+  
+  return columnTexts;
+};
+
 // Cache for valid prime item names (built from primesets.json)
 let validPrimeItemsCache: Set<string> | null = null;
 
@@ -914,9 +1024,25 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     const screenType = determineScreenType(extractedText);
     ocrLogger.info('Analysis', `Detected screen type: ${screenType}`);
 
+    // Step 2b: For prime_parts, try grid-based extraction for better results
+    let finalText = extractedText;
+    if (screenType === 'prime_parts') {
+      ocrLogger.info('Analysis', 'Step 2b: Using grid-based column extraction for prime parts');
+      try {
+        const columnTexts = await extractTextByColumns(imageFile);
+        // Join column texts with newlines - each column is read top-to-bottom
+        finalText = columnTexts.join('\n\n');
+        ocrLogger.info('Analysis', `Grid extraction produced ${finalText.length} chars from ${columnTexts.length} columns`);
+      } catch (gridError) {
+        ocrLogger.warn('Analysis', 'Grid extraction failed, using standard OCR text', {
+          error: gridError instanceof Error ? gridError.message : String(gridError)
+        });
+      }
+    }
+
     // Step 3: Parse detected items
     ocrLogger.info('Analysis', 'Step 3: Parsing detected items');
-    const detectedItems = parseDetectedItems(extractedText, screenType);
+    const detectedItems = parseDetectedItems(finalText, screenType);
     
     const categoryCounts = detectedItems.reduce((acc, item) => {
       acc[item.category] = (acc[item.category] || 0) + 1;
