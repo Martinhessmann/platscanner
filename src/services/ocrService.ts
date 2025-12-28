@@ -355,9 +355,11 @@ const extractTextFromImage = async (imageFile: File): Promise<string> => {
     
     worker = await createWorker('eng', 1, workerOptions);
     
-    // Set page segmentation mode for better text recognition
+    // Set page segmentation mode for grid-based inventory layouts
+    // PSM.SPARSE_TEXT (11) finds text without assuming reading order
+    // This helps with Warframe's multi-column grid layout
     await worker.setParameters({
-      tessedit_pageseg_mode: PSM.AUTO,
+      tessedit_pageseg_mode: PSM.SPARSE_TEXT,
     });
     
     ocrLogger.info('OCR', 'Tesseract worker created and configured successfully');
