@@ -28,7 +28,9 @@ export const setLLMWhispererApiKey = (apiKey: string): void => {
 // Check if LLMWhisperer is configured
 export const isLLMWhispererConfigured = (): boolean => {
   const key = getApiKey();
-  return !!key && key.length > 10;
+  const isConfigured = !!key && key.length > 10;
+  console.log('[LLMWhisperer] isConfigured check:', { hasKey: !!key, keyLength: key?.length || 0, isConfigured });
+  return isConfigured;
 };
 
 // Convert File to base64
@@ -48,8 +50,10 @@ const fileToBase64 = (file: File): Promise<string> => {
 
 // Extract text from image using LLMWhisperer
 export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<string> => {
+  console.log('[LLMWhisperer] extractTextWithLLMWhisperer called');
   const apiKey = getApiKey();
   if (!apiKey) {
+    console.error('[LLMWhisperer] No API key found!');
     throw new Error('LLMWhisperer API key not configured');
   }
 
