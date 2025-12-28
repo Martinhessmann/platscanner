@@ -206,20 +206,19 @@ const ProcessingDetails: React.FC<ProcessingDetailsProps> = ({
           </div>
         );
       })}
-    </div>
 
-    {/* Image Modal */}
-    {modalImage && (
-      <ImageModal
-        isOpen={!!modalImage}
-        onClose={() => setModalImage(null)}
-        imageSrc={modalImage.src}
-        fileName={modalImage.fileName}
-        detectedItems={modalImage.items}
-        screenType={modalImage.screenType}
-      />
-    )}
-  </div>
+      {/* Image Modal */}
+      {modalImage && (
+        <ImageModal
+          isOpen={!!modalImage}
+          onClose={() => setModalImage(null)}
+          imageSrc={modalImage.src}
+          fileName={modalImage.fileName}
+          detectedItems={modalImage.items}
+          screenType={modalImage.screenType}
+        />
+      )}
+    </div>
   );
 };
 

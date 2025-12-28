@@ -1,10 +1,13 @@
 # Prime Parts Scanner
 
-A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots to detect items and fetch their current market prices. Built with React, Tailwind CSS, and Tesseract.js OCR.
+A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots to detect items and fetch their current market prices. Built with React, Tailwind CSS, and AI-powered OCR.
 
 ## ✨ Features
 
-- 🔍 **OCR-Based Detection**: Uses Tesseract.js for client-side text extraction and item recognition (no API key required)
+- 🔍 **AI-Powered OCR**: Uses LLMWhisperer for high-accuracy text extraction from game screenshots
+  - Works with Warframe's stylized fonts that traditional OCR struggles with
+  - Get a free API key from [unstract.com](https://unstract.com)
+  - Falls back to Tesseract.js if LLMWhisperer is not configured
 - 💰 **Real-time Pricing**: Fetches current market data from Warframe Market
 - 🎲 **Relic Value Analysis**: Smart OPEN/SELL/REFINE recommendations with expected value calculations
 - 📊 **Market Analytics**: Shows current prices, 24h averages, and trading volume
@@ -22,6 +25,12 @@ A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots 
 - 🚀 **Production Ready**: Deployed with enterprise-grade security and performance
 
 ## 🚀 Quick Start
+
+### 0. Configure OCR (Recommended)
+- Go to Settings → API → LLMWhisperer OCR
+- Get a free API key from [unstract.com](https://unstract.com)
+- Paste your key and click Save
+- This enables AI-powered OCR with much better accuracy
 
 ### 1. Start Scanning
 - Take screenshots of your Warframe Prime parts or Void relics inventory
@@ -125,12 +134,14 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ### Netlify Functions
 
-The app uses Netlify Functions for improved performance and API rate limiting. Functions are automatically deployed with your Netlify site:
+The app uses Netlify Functions for improved performance and API handling. Functions are automatically deployed with your Netlify site:
 
-- **warframe-market**: Batch API support, smart caching, CORS handling, rate limiting, fixed average calculation
-- **Location**: `netlify/functions/warframe-market.ts`
+- **warframe-market**: Batch API support, smart caching, CORS handling, rate limiting
+  - Location: `netlify/functions/warframe-market.ts`
+- **llmwhisperer**: Proxy for LLMWhisperer OCR API (handles CORS restrictions)
+  - Location: `netlify/functions/llmwhisperer.ts`
 - **Automatic Deployment**: Functions deploy automatically when you push to your main branch
-- **Fallback**: App falls back to direct API calls if Netlify Functions are unavailable (e.g., in local development)
+- **Fallback**: App falls back to direct API calls if Netlify Functions are unavailable
 
 **Note**: Netlify Functions are simpler to manage than Supabase Edge Functions since they deploy with your site automatically. No separate deployment step needed!
 
@@ -170,7 +181,8 @@ MIT License - See [LICENSE](LICENSE) file for details
 
 - [Warframe Market](https://warframe.market) for market data API
 - [Digital Extremes](https://www.warframe.com) for Warframe
-- [Tesseract.js](https://tesseract.projectnaptha.com/) for OCR text extraction
+- [Unstract LLMWhisperer](https://unstract.com) for AI-powered OCR
+- [Tesseract.js](https://tesseract.projectnaptha.com/) for fallback OCR text extraction
 - [Lucide](https://lucide.dev) for beautiful icons
 
 ## 📞 Support
