@@ -739,26 +739,11 @@ const getEstimatedPartPrice = (
     return Math.round(avgPrice);
   }
 
-  // Fallback to estimated prices based on rarity
-  const fallbackPrices: Record<string, number> = {
-    'blueprint': 15,
-    'systems': 25,
-    'chassis': 25,
-    'neuroptics': 45,
-    'barrel': 25,
-    'receiver': 45,
-    'stock': 20,
-    'string': 20,
-    'grip': 20,
-    'blade': 20,
-    'handle': 20,
-    'link': 10,
-    'gauntlet': 25,
-    'carapace': 25,
-    'cerebrum': 25
-  };
-
-  return fallbackPrices[partType || ''] || 20; // Default 20p
+  // CRITICAL: Don't use high fallback prices - if we can't find a price, return 0
+  // This prevents inflated investment costs when prices aren't available
+  // The UI will show "Market only" and users can manually check prices
+  console.warn(`💰 [Estimate] No price data found for "${partName}", returning 0 (not using fallback estimate)`);
+  return 0; // Return 0 instead of fallback estimate
 };
 
 // NEW: Enhanced strategy determination with investment analysis
@@ -1190,40 +1175,48 @@ export const refreshIndividualSetMarketData = async (
 
             // Store individual SELLER prices for ALL missing parts (for display)
             // CRITICAL: Must use sellerPrice (lowest sell order), not average or buyer price
+            // IMPORTANT: Store prices using the ORIGINAL part name from missingParts, not the API response name
+            // This ensures matching works correctly in the UI
             missingPartsWithPrices = priced
               .map((p, i) => {
-                const itemName = missingPartItems[i].name;
+                const originalPartName = missingPartItems[i].name; // e.g., "Xaku Prime Chassis"
+                const apiItemName = p?.name || originalPartName; // API might return different format
                 const sellerPrice = p?.sellerPrice || 0;
-                console.log(`💰 [Price Fetch] ${itemName}: sellerPrice=${sellerPrice}, price=${p?.price || 0}, average=${p?.average || 0}`);
+                
+                console.log(`💰 [Price Fetch] Original: "${originalPartName}" → API: "${apiItemName}" → sellerPrice=${sellerPrice}, buyerPrice=${p?.price || 0}`);
+                
+                // CRITICAL: Always use the original part name for storage, not the API response name
+                // This ensures the UI matching logic works correctly
                 return {
-                  name: itemName,
+                  name: originalPartName, // Use original name for consistent matching
                   price: sellerPrice, // Use seller price ONLY (lowest sell order)
                   avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
                 };
               })
               // Keep all prices, even if 0, so we can debug matching issues
-              // Log when price is 0
               .map(p => {
                 if (p.price === 0) {
-                  console.warn(`💰 [Price Fetch] No seller price found for ${p.name} (might not be available on market or no sellers)`);
+                  console.warn(`💰 [Price Fetch] No seller price found for "${p.name}" (might not be available on market or no sellers)`);
+                } else {
+                  console.log(`💰 [Price Fetch] ✓ Stored price for "${p.name}": ${p.price}p`);
                 }
                 return p;
               });
 
             // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
-            const missingCost = priced
-              .filter((p, i) => partsToBuy.includes(missingPartItems[i].name))
-              .reduce((sum, p, i) => {
-                const itemName = missingPartItems[i].name;
-                const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
+            // Use the stored prices from missingPartsWithPrices (which uses original names) instead of priced array
+            const missingCost = missingPartsWithPrices
+              .filter(p => partsToBuy.includes(p.name))
+              .reduce((sum, p) => {
+                const cost = p.price > 0 ? p.price : 0;
                 if (cost > 0) {
-                  console.log(`💰 [Cost Calc] ${itemName}: ${cost}p`);
+                  console.log(`💰 [Cost Calc] ${p.name}: ${cost}p`);
                 } else {
-                  console.warn(`💰 [Cost Calc] ${itemName}: No seller price (using 0)`);
+                  console.warn(`💰 [Cost Calc] ${p.name}: No seller price (using 0, not fallback estimate)`);
                 }
                 return sum + cost;
               }, 0);
-            console.log(`💰 [Cost Calc] Total missing cost for ${setName}: ${missingCost}p (from ${partsToBuy.length} parts)`);
+            console.log(`💰 [Cost Calc] Total missing cost for ${setName}: ${missingCost}p (from ${partsToBuy.length} parts, ${missingPartsWithPrices.filter(p => p.price > 0).length} with prices)`);
             setProgress.missingCost = missingCost;
           } catch (_err) {
             // Keep existing estimated missingCost on failure
