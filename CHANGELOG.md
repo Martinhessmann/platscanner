@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.1] - 2025-12-28
+
+### Changed
+- **Warframe Market API v2 Migration**: Updated to use Warframe Market API v2 for item data
+  - Uses v2 API (`/v2/items/{slug}`) for item information (better structure, includes i18n support)
+  - Uses v1 API (`/v1/items/{slug}/orders` and `/v1/items/{slug}/statistics`) for orders and statistics (v2 doesn't have these endpoints yet)
+  - Hybrid approach ensures compatibility while benefiting from v2's improved item data structure
+  - Market prices and statistics now working correctly again
+
+### Fixed
+- Market price fetching restored after API migration issues
+- LLM Whisperer prime parts detection working correctly again
+
+### Removed
+- Removed broken `add-new-primes.mjs` and `update-primesets.mjs` scripts (didn't work correctly)
+
 ## [1.17.0] - 2025-12-28
 
 ### Added
