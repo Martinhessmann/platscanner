@@ -32,7 +32,8 @@ const INVENTORY_GRID_CONFIG = {
 };
 
 // Preprocess image to enhance text visibility for OCR
-// Warframe uses gold/white text on dark backgrounds
+// Warframe uses gold/cream text on dark backgrounds
+// Gold color range: RGB(180-255, 140-220, 50-150)
 const preprocessImageForOCR = (
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -47,13 +48,22 @@ const preprocessImageForOCR = (
     const g = data[i + 1];
     const b = data[i + 2];
     
-    // Calculate luminance
+    // Calculate luminance (weighted average)
     const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
     
-    // Detect gold/yellow text (high R+G, lower B) or white text (high RGB)
-    const isGoldText = r > 150 && g > 120 && b < 150 && r > b * 1.2;
-    const isWhiteText = r > 180 && g > 180 && b > 180;
-    const isBrightText = luminance > 140;
+    // Warframe gold/cream text detection:
+    // - R channel is highest (180+)
+    // - G channel is medium-high (130+)
+    // - B channel is lower than R and G
+    // - R > B by significant margin
+    const isGoldText = r > 180 && g > 130 && b < 180 && 
+                       r > g * 0.8 && r > b * 1.3 && (r + g) > 350;
+    
+    // White/cream text (all channels high)
+    const isWhiteText = r > 200 && g > 200 && b > 180;
+    
+    // Bright text fallback (high luminance)
+    const isBrightText = luminance > 160;
     
     if (isGoldText || isWhiteText || isBrightText) {
       // Make text black
@@ -115,7 +125,7 @@ const cropImageRegion = async (
 };
 
 // Extract text from each column of a grid inventory
-const extractTextByColumns = async (imageFile: File): Promise<string[]> => {
+const extractTextByColumns = async (imageFile: File, usePreprocessing: boolean = true): Promise<string[]> => {
   const config = INVENTORY_GRID_CONFIG;
   const columnTexts: string[] = [];
   
@@ -130,7 +140,7 @@ const extractTextByColumns = async (imageFile: File): Promise<string[]> => {
   const baseColumnWidth = gridWidth / config.columns;
   const columnWidth = baseColumnWidth + overlapPercent;
   
-  ocrLogger.info('GridOCR', `Extracting text from ${config.columns} columns with preprocessing`);
+  ocrLogger.info('GridOCR', `Extracting text from ${config.columns} columns (preprocessing: ${usePreprocessing})`);
   
   // Create a worker for OCR
   const workerPath = `${window.location.origin}/tesseract/worker.min.js`;
@@ -156,14 +166,14 @@ const extractTextByColumns = async (imageFile: File): Promise<string[]> => {
         x: colX, y: gridY, width: columnWidth, height: gridHeight
       });
       
-      // Crop this column with preprocessing enabled
+      // Crop this column (with optional preprocessing)
       const columnBlob = await cropImageRegion(
         imageFile,
         colX,
         gridY,
         columnWidth,
         gridHeight,
-        true  // Enable preprocessing
+        usePreprocessing
       );
       
       // Debug: download preprocessed column images
@@ -253,7 +263,8 @@ const levenshteinDistance = (s1: string, s2: string): number => {
 };
 
 // Find best matching valid prime item
-const findBestPrimeMatch = (ocrText: string, threshold: number = 0.7): string | null => {
+// Higher threshold (0.85) to prevent false positives like "Gedo" → "Bronco"
+const findBestPrimeMatch = (ocrText: string, threshold: number = 0.85): string | null => {
   const validItems = buildValidPrimeItems();
   const normalizedOcr = ocrText.toLowerCase().trim();
   
@@ -765,7 +776,7 @@ const extractPrimeItemsFromText = (text: string): string[] => {
     const fullName = `${setName} Prime ${component}`;
     
     // Validate against known items
-    const matchedItem = findBestPrimeMatch(fullName, 0.65);
+    const matchedItem = findBestPrimeMatch(fullName, 0.85);
     if (matchedItem && !seenItems.has(matchedItem.toLowerCase())) {
       foundItems.push(matchedItem);
       seenItems.add(matchedItem.toLowerCase());
@@ -807,7 +818,7 @@ const extractPrimeItemsFromText = (text: string): string[] => {
         const setName = (nearbyMatch[1] || nearbyMatch[2] || '').trim();
         if (setName) {
           const fullName = `${setName} Prime ${compType}`;
-          const matchedItem = findBestPrimeMatch(fullName, 0.65);
+          const matchedItem = findBestPrimeMatch(fullName, 0.85);
           if (matchedItem && !seenItems.has(matchedItem.toLowerCase())) {
             foundItems.push(matchedItem);
             seenItems.add(matchedItem.toLowerCase());
@@ -1136,10 +1147,26 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     if (screenType === 'prime_parts') {
       ocrLogger.info('Analysis', 'Step 2b: Using grid-based column extraction for prime parts');
       try {
-        const columnTexts = await extractTextByColumns(imageFile);
-        // Join column texts with newlines - each column is read top-to-bottom
-        finalText = columnTexts.join('\n\n');
-        ocrLogger.info('Analysis', `Grid extraction produced ${finalText.length} chars from ${columnTexts.length} columns`);
+        // Try with preprocessing first
+        const columnTextsPreprocessed = await extractTextByColumns(imageFile, true);
+        const textPreprocessed = columnTextsPreprocessed.join('\n\n');
+        const itemsPreprocessed = parseDetectedItems(textPreprocessed, screenType);
+        
+        // Also try without preprocessing for comparison
+        const columnTextsRaw = await extractTextByColumns(imageFile, false);
+        const textRaw = columnTextsRaw.join('\n\n');
+        const itemsRaw = parseDetectedItems(textRaw, screenType);
+        
+        ocrLogger.info('Analysis', `Preprocessing: ${itemsPreprocessed.length} items, Raw: ${itemsRaw.length} items`);
+        
+        // Use whichever approach found more items
+        if (itemsRaw.length > itemsPreprocessed.length) {
+          ocrLogger.info('Analysis', 'Using raw OCR (found more items)');
+          finalText = textRaw;
+        } else {
+          ocrLogger.info('Analysis', 'Using preprocessed OCR');
+          finalText = textPreprocessed;
+        }
       } catch (gridError) {
         ocrLogger.warn('Analysis', 'Grid extraction failed, using standard OCR text', {
           error: gridError instanceof Error ? gridError.message : String(gridError)
