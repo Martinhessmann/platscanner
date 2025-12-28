@@ -517,6 +517,91 @@ const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicat
   return 'unknown';
 };
 
+// Known component types for Prime items
+const PRIME_COMPONENT_TYPES = [
+  'Blueprint', 'Chassis', 'Neuroptics', 'Systems',
+  'Barrel', 'Receiver', 'Stock', 'Blade', 'Handle', 'Link',
+  'Grip', 'String', 'Lower Limb', 'Upper Limb',
+  'Gauntlet', 'Boot', 'Ornament', 'Head', 'Pouch',
+  'Carapace', 'Cerebrum', 'Guard', 'Hilt', 'Blades'
+];
+
+// Extract prime items using pattern matching across the entire text
+const extractPrimeItemsFromText = (text: string): string[] => {
+  const validItems = buildValidPrimeItems();
+  const foundItems: string[] = [];
+  const seenItems = new Set<string>();
+  
+  // Normalize text - replace newlines with spaces for cross-line matching
+  const normalizedText = text.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+  
+  // Pattern 1: "X Prime Component" (e.g., "Corvas Prime Receiver")
+  // This regex finds "Word Prime Word" patterns
+  const primePattern = /([A-Z][a-zA-Z&\s]*?)\s*Prime\s+([A-Za-z]+(?:\s+Blueprint)?)/gi;
+  let match;
+  
+  while ((match = primePattern.exec(normalizedText)) !== null) {
+    const setName = match[1].trim();
+    const component = match[2].trim();
+    const fullName = `${setName} Prime ${component}`;
+    
+    // Validate against known items
+    const matchedItem = findBestPrimeMatch(fullName, 0.65);
+    if (matchedItem && !seenItems.has(matchedItem.toLowerCase())) {
+      foundItems.push(matchedItem);
+      seenItems.add(matchedItem.toLowerCase());
+      ocrLogger.debug('Parsing', `Pattern matched: "${fullName}" → "${matchedItem}"`);
+    }
+  }
+  
+  // Pattern 2: Just "X Prime" without component (for set-level matches)
+  const primeOnlyPattern = /([A-Z][a-zA-Z&\s]*?)\s*Prime(?!\s+[A-Z])/gi;
+  while ((match = primeOnlyPattern.exec(normalizedText)) !== null) {
+    const fullName = `${match[1].trim()} Prime`;
+    const matchedItem = findBestPrimeMatch(fullName, 0.7);
+    if (matchedItem && !seenItems.has(matchedItem.toLowerCase())) {
+      // Only add set names if they're valid and we haven't found components
+      const hasComponents = foundItems.some(item => 
+        item.toLowerCase().startsWith(matchedItem.toLowerCase())
+      );
+      if (!hasComponents) {
+        foundItems.push(matchedItem);
+        seenItems.add(matchedItem.toLowerCase());
+      }
+    }
+  }
+  
+  // Pattern 3: Try to find components that were on separate lines
+  // Look for orphaned component names and try to match with recent Prime names
+  PRIME_COMPONENT_TYPES.forEach(compType => {
+    const compRegex = new RegExp(`\\b${compType}\\b`, 'gi');
+    const compMatches = normalizedText.match(compRegex) || [];
+    
+    compMatches.forEach(() => {
+      // For each component, look for nearby Prime names
+      const searchPattern = new RegExp(
+        `([A-Z][a-zA-Z&\\s]*?)\\s*Prime[\\s\\S]{0,50}?${compType}|${compType}[\\s\\S]{0,50}?([A-Z][a-zA-Z&\\s]*?)\\s*Prime`,
+        'gi'
+      );
+      const nearbyMatch = searchPattern.exec(normalizedText);
+      if (nearbyMatch) {
+        const setName = (nearbyMatch[1] || nearbyMatch[2] || '').trim();
+        if (setName) {
+          const fullName = `${setName} Prime ${compType}`;
+          const matchedItem = findBestPrimeMatch(fullName, 0.65);
+          if (matchedItem && !seenItems.has(matchedItem.toLowerCase())) {
+            foundItems.push(matchedItem);
+            seenItems.add(matchedItem.toLowerCase());
+            ocrLogger.debug('Parsing', `Nearby match: "${fullName}" → "${matchedItem}"`);
+          }
+        }
+      }
+    });
+  });
+  
+  return foundItems;
+};
+
 // Parse detected items from OCR text
 const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] => {
   ocrLogger.debug('Parsing', 'Starting item parsing', {
@@ -526,6 +611,31 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
   });
   
   const detectedItems: DetectedItem[] = [];
+  
+  // For prime_parts, use the smarter pattern-based extraction
+  if (screenType === 'prime_parts') {
+    const primeItems = extractPrimeItemsFromText(text);
+    ocrLogger.info('Parsing', `Pattern extraction found ${primeItems.length} prime items`);
+    
+    primeItems.forEach((itemName, index) => {
+      const primeItem: PrimePart = {
+        id: `prime-${Date.now()}-${index}`,
+        name: itemName,
+        category: 'prime_parts',
+        quantity: 1,
+        status: 'loading'
+      };
+      detectedItems.push(primeItem);
+    });
+    
+    ocrLogger.info('Parsing', `Parsed ${detectedItems.length} prime parts`, {
+      itemNames: detectedItems.map(item => item.name)
+    });
+    
+    return detectedItems;
+  }
+  
+  // Fallback to line-by-line parsing for other screen types
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   ocrLogger.debug('Parsing', `Split text into ${lines.length} lines`);
   let detectedSyndicate = 'Unknown';
