@@ -62,10 +62,16 @@ class CloudSyncService {
    * Get current user ID from stored API key or generate a persistent ID
    */
   private async getCurrentUserId(): Promise<string | null> {
-    // Try to use API key if available (for backward compatibility)
-    const apiKey = localStorage.getItem('platscanner_gemini_api_key');
-    if (apiKey) {
-      return await this.hashApiKey(apiKey);
+    // Try to use Gemini API key if available (for backward compatibility)
+    const geminiKey = localStorage.getItem('platscanner_gemini_api_key');
+    if (geminiKey) {
+      return await this.hashApiKey(geminiKey);
+    }
+    
+    // Try to use LLMWhisperer API key as alternative
+    const llmWhispererKey = localStorage.getItem('platscanner_llmwhisperer_api_key');
+    if (llmWhispererKey) {
+      return await this.hashApiKey(llmWhispererKey);
     }
     
     // Generate a persistent user ID if no API key exists

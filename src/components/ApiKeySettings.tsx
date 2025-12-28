@@ -49,7 +49,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
     }
   }, [activeTab, autoRefresh]);
 
-  // Update verbose logging state when tab changes
+  // Update logging state when tab changes
   useEffect(() => {
     if (activeTab === 'debug') {
       setVerboseLogging(ocrLogger.isVerboseLoggingEnabled());
@@ -301,7 +301,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                           }}
                           className="rounded"
                         />
-                        <span>Verbose logging {window.location.protocol === 'https:' && !window.location.hostname.includes('localhost') ? '(prod)' : '(dev)'}</span>
+                        <span>Enable logging</span>
                       </label>
                       <label className="flex items-center gap-2 text-sm text-gray-300 whitespace-nowrap">
                         <input
@@ -388,7 +388,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                               ? 'No logs yet. Upload an image to see OCR processing logs.'
                               : verboseLogging 
                                 ? 'No logs to display.'
-                                : 'No errors or warnings. Enable verbose logging to see all logs.'}
+                                : 'Logging is disabled. Enable logging to see OCR activity.'}
                           </p>
                         );
                       }
@@ -463,9 +463,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                       )}
                     </p>
                     <p className="mt-1">
-                      {window.location.protocol === 'https:' && !window.location.hostname.includes('localhost') 
-                        ? 'Verbose logging is disabled by default in production. Enable it to see detailed debug information.'
-                        : 'Logs are stored in localStorage and persist across sessions. Clear logs to free up space.'}
+                      {'Logs are stored locally and persist across sessions. Disable logging for better performance.'}
                     </p>
                   </div>
                 </div>
