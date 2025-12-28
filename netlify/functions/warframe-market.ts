@@ -13,7 +13,7 @@ const corsHeaders = {
 const cache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const WARFRAME_MARKET_API = 'https://api.warframe.market/v1';
+const WARFRAME_MARKET_API = 'https://api.warframe.market/v2';
 
 /**
  * Normalizes item names to match Warframe Market URL format
@@ -80,33 +80,19 @@ const fetchSingleItemData = async (itemName: string) => {
     'User-Agent': 'PlatScanner/1.8.0'
   };
 
-  // For prime components, try direct query first, then fall back to base name
-  // Some items might exist directly, others need to be queried via base name
-  const basePrimeName = getBasePrimeName(itemName);
-  
+  // V2 API works directly with item slugs - no need for base name lookup
   try {
-    // First, try querying the item directly
-    let [itemResponse, ordersResponse, statsResponse] = await Promise.all([
+    // Query the item directly by slug
+    const [itemResponse, ordersResponse, statsResponse] = await Promise.all([
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}`, { headers: apiHeaders }),
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, { headers: apiHeaders }),
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}/statistics`, { headers: apiHeaders })
     ]);
 
-    // If direct query failed and we have a base name, try querying the base name
-    if ((!itemResponse.ok || !ordersResponse.ok) && basePrimeName) {
-      console.log(`>>> [Netlify] ${itemName}: Direct query failed, trying base name ${basePrimeName} <<<`);
-      [itemResponse, ordersResponse, statsResponse] = await Promise.all([
-        fetch(`${WARFRAME_MARKET_API}/items/${basePrimeName}`, { headers: apiHeaders }),
-        fetch(`${WARFRAME_MARKET_API}/items/${basePrimeName}/orders`, { headers: apiHeaders }),
-        fetch(`${WARFRAME_MARKET_API}/items/${basePrimeName}/statistics`, { headers: apiHeaders })
-      ]);
-    }
-
     // If lookup failed, return error
     if (!itemResponse.ok || !ordersResponse.ok) {
       const errorType = itemResponse.status === 404 || ordersResponse.status === 404 ? 'not_found' : 'api_error';
-      const attemptedQuery = basePrimeName && itemResponse.url.includes(basePrimeName) ? basePrimeName : itemName;
-      console.log(`>>> [Netlify] ${itemName}: ${errorType} (queried as ${attemptedQuery}, status: ${itemResponse.status}/${ordersResponse.status}) <<<`);
+      console.log(`>>> [Netlify] ${itemName}: ${errorType} (status: ${itemResponse.status}/${ordersResponse.status}) <<<`);
 
       return {
         name: itemName,
@@ -127,54 +113,22 @@ const fetchSingleItemData = async (itemName: string) => {
     const [itemData, ordersData, statsData] = await Promise.all([
       itemResponse.json(),
       ordersResponse.json(),
-      statsResponse.ok ? statsResponse.json() : Promise.resolve({ payload: { statistics_closed: { '90days': [] } } })
+      statsResponse.ok ? statsResponse.json() : Promise.resolve({ data: { statistics_closed: { '90days': [] } } })
     ]);
 
-    // Find the item details
-    // If we queried by base name, we need to find the specific component in items_in_set
-    // Otherwise, use the direct match
-    let itemDetails;
-    const queriedByBaseName = basePrimeName && itemResponse.url.includes(basePrimeName);
-    
-    if (queriedByBaseName) {
-      // Log available items for debugging
-      const availableItems = itemData.payload.item.items_in_set.map((item: any) => item.url_name);
-      console.log(`>>> [Netlify] ${itemName}: Looking for component in set, available items: ${availableItems.join(', ')} <<<`);
-      
-      // For prime components (warframe or weapon), find the specific component in the set
-      itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
-        item.url_name === itemName // Original component name (e.g., "garuda_prime_blueprint" or "ninkondi_prime_blueprint")
-      );
-      if (!itemDetails) {
-        // Fallback: try to find by matching the component type
-        const componentType = itemName.replace(basePrimeName + '_', '');
-        console.log(`>>> [Netlify] ${itemName}: Exact match not found, trying component type: ${componentType} <<<`);
-        itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
-          item.url_name.includes(componentType)
-        );
-      }
-      if (!itemDetails) {
-        // Last resort: use first item
-        console.log(`>>> [Netlify] ${itemName}: Component not found in set, using first item <<<`);
-        itemDetails = itemData.payload.item.items_in_set[0];
-      }
-      
-      if (!itemDetails) {
-        // If items_in_set is empty, the base name query might have failed
-        throw new Error('items_in_set is empty after base name query');
-      }
-    } else {
-      // Direct query - find exact match or use first item
-      itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
-        item.url_name === itemName
-      ) || itemData.payload.item.items_in_set[0];
+    // V2 API structure: { apiVersion, data: { ... }, error }
+    // Items are queried directly by slug, no items_in_set lookup needed
+    if (itemData.error) {
+      throw new Error(`API error: ${itemData.error}`);
     }
+    
+    const itemDetails = itemData.data;
 
-    // Extract averages from statistics
+    // Extract averages from statistics (V2 API structure)
     let historicalAverage = 0;
     let recentAverage48h = 0;
-    if (statsData.payload && statsData.payload.statistics_closed) {
-      const closedStats = statsData.payload.statistics_closed;
+    if (statsData.data && statsData.data.statistics_closed) {
+      const closedStats = statsData.data.statistics_closed;
       if (closedStats['90days'] && closedStats['90days'].length > 0) {
         const latest90 = closedStats['90days'][closedStats['90days'].length - 1];
         historicalAverage = latest90.avg_price || 0;
@@ -186,8 +140,9 @@ const fetchSingleItemData = async (itemName: string) => {
       console.log(`>>> [Netlify] ${itemName}: avg90=${historicalAverage}p, avg48h=${recentAverage48h}p <<<`);
     }
 
-    // Process orders
-    const buyOrders = ordersData.payload.orders.filter((order: any) =>
+    // Process orders (V2 API structure: orders are in data array)
+    const orders = ordersData.data || [];
+    const buyOrders = orders.filter((order: any) =>
       order.order_type === 'buy' &&
       ['online', 'ingame'].includes(order.user.status) &&
       !order.user.banned &&
@@ -201,7 +156,7 @@ const fetchSingleItemData = async (itemName: string) => {
         )
       : null;
 
-    const allValidBuyOrders = ordersData.payload.orders.filter((order: any) =>
+    const allValidBuyOrders = orders.filter((order: any) =>
       order.order_type === 'buy' &&
       ['online', 'ingame'].includes(order.user.status) &&
       !order.user.banned &&
@@ -210,13 +165,13 @@ const fetchSingleItemData = async (itemName: string) => {
     );
 
     if (itemDetails.mod_max_rank !== undefined) {
-      const totalOrders = ordersData.payload.orders.length;
+      const totalOrders = orders.length;
       const unrankedBuyOrders = allValidBuyOrders.length;
       const rankedOrders = totalOrders - unrankedBuyOrders;
       console.log(`>>> [Netlify] ${itemName}: Mod rank filtering - Total: ${totalOrders}, Unranked Buy Orders: ${unrankedBuyOrders}, Ranked: ${rankedOrders} <<<`);
     }
 
-    const sellerOrders = ordersData.payload.orders.filter((order: any) =>
+    const sellerOrders = orders.filter((order: any) =>
       order.order_type === 'sell' &&
       ['online', 'ingame'].includes(order.user.status) &&
       !order.user.banned &&
@@ -230,8 +185,8 @@ const fetchSingleItemData = async (itemName: string) => {
       : null;
 
     const result = {
-      name: itemDetails.en.item_name,
-      thumb: itemDetails.thumb ? itemDetails.thumb.replace('https://warframe.market/static/assets/', '') : '',
+      name: itemDetails.i18n?.en?.name || itemName,
+      thumb: itemDetails.i18n?.en?.thumb || '',
       ducats: itemDetails.ducats || 0,
       price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
       volume: allValidBuyOrders.length,
@@ -248,17 +203,12 @@ const fetchSingleItemData = async (itemName: string) => {
       tags: itemDetails.tags || [],
       rarity: itemDetails.rarity || 'common',
       mod_max_rank: itemDetails.mod_max_rank || 0,
-      trading_tax: itemDetails.trading_tax || 0
+      trading_tax: itemDetails.tradingTax || 0
     };
 
     // Cache the result
     cache.set(itemName, { data: result, timestamp: Date.now() });
-    if (basePrimeName && basePrimeName !== itemName) {
-      // Also cache with base name for faster lookups of other components
-      cache.set(basePrimeName, { data: result, timestamp: Date.now() });
-    }
-    const queryMethod = queriedByBaseName ? ` (queried as ${basePrimeName})` : '';
-    console.log(`>>> [Netlify] ${itemName}${queryMethod}: Success (${result.price}p) <<<`);
+    console.log(`>>> [Netlify] ${itemName}: Success (${result.price}p) <<<`);
     return result;
   } catch (error: any) {
     console.error(`>>> [Netlify] ${itemName}: Exception -`, error);
