@@ -1672,20 +1672,19 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                       // Built warframe part (not tradeable) - try to show blueprint price if available
                                       (() => {
                                         // Try to find blueprint price for this built part
-                                        const blueprintName = `${part.name} Blueprint`;
+                                        // CRITICAL: missingPartsWithPrices stores prices with ORIGINAL part name (e.g., "Protea Prime Neuroptics")
+                                        // not the blueprint name, because we fetch prices for missing parts using the original name
                                         const partName = part.name.toLowerCase();
                                         const setBaseName = progress.set.name.toLowerCase();
                                         
-                                        // Try to find blueprint price in missingPartsWithPrices
+                                        // Try to find price in missingPartsWithPrices using the original part name
                                         const blueprintPriceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
                                           p => {
                                             const pName = p.name.toLowerCase();
-                                            // Match the blueprint name (e.g., "Protea Prime Systems Blueprint")
-                                            return pName === `${partName} blueprint` || 
-                                                   pName === `${partName.replace(/\s+/g, '_')}_blueprint` ||
-                                                   // Or match by component type
-                                                   (pName.includes('blueprint') && 
-                                                    ['chassis', 'systems', 'neuroptics'].some(comp => 
+                                            // Match the original part name directly (e.g., "Protea Prime Neuroptics")
+                                            return pName === partName ||
+                                                   // Or match by component type and set name
+                                                   (['chassis', 'systems', 'neuroptics'].some(comp => 
                                                       partName.includes(comp) && pName.includes(comp)
                                                     ) &&
                                                     pName.includes(setBaseName.split(' ')[0]));
@@ -1693,6 +1692,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                         );
                                         
                                         // Also check inventory for blueprint
+                                        const blueprintName = `${part.name} Blueprint`;
                                         const blueprintInInventory = primePartsInventory.find(item => {
                                           const lowerItemName = item.name.toLowerCase();
                                           const lowerBlueprintName = blueprintName.toLowerCase();
@@ -1709,6 +1709,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                             <span className="text-gray-400">
                                               <span className="flex flex-col items-end">
                                                 <span>{blueprintPrice}p</span>
+                                                {blueprintPriceData?.avg48h && blueprintPriceData.avg48h !== blueprintPrice && (
+                                                  <span className="text-[10px] text-gray-600">48h: {blueprintPriceData.avg48h}p</span>
+                                                )}
                                                 <span className="text-[10px] text-gray-500">(blueprint)</span>
                                               </span>
                                             </span>
