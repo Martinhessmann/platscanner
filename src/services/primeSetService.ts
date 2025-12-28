@@ -444,10 +444,62 @@ const calculateMissingCost = (missingParts: string[]): number => {
   return missingParts.length * 50; // Placeholder: 50p per missing part
 };
 
+// Helper: Check if a part is a built (non-blueprint) warframe component
+// Warframe parts: Only blueprints are tradeable (built chassis/systems/neuroptics cannot be sold)
+// Weapon parts: Built parts CAN be traded
+const isBuiltWarframePart = (partName: string, setType: PrimeSet['type']): boolean => {
+  // Only applies to Warframes
+  if (setType !== 'Warframe') {
+    return false;
+  }
+  
+  // Check if it's a built component (not a blueprint)
+  const lowerName = partName.toLowerCase();
+  const isBlueprint = lowerName.includes('blueprint');
+  
+  // If it's a blueprint, it's tradeable
+  if (isBlueprint) {
+    return false;
+  }
+  
+  // Check if it's a warframe component (chassis, systems, neuroptics)
+  const warframeComponents = ['chassis', 'systems', 'neuroptics'];
+  const isWarframeComponent = warframeComponents.some(component => lowerName.includes(component));
+  
+  // If it's a built warframe component, it's not tradeable
+  return isWarframeComponent;
+};
+
+// Helper: Check if an inventory item is a built (non-blueprint) warframe component
+const isBuiltWarframeInventoryItem = (itemName: string, setType: PrimeSet['type']): boolean => {
+  // Only applies to Warframes
+  if (setType !== 'Warframe') {
+    return false;
+  }
+  
+  // Check if it's a built component (not a blueprint)
+  const lowerName = itemName.toLowerCase();
+  const isBlueprint = lowerName.includes('blueprint');
+  
+  // If it's a blueprint, it's tradeable
+  if (isBlueprint) {
+    return false;
+  }
+  
+  // Check if it's a warframe component (chassis, systems, neuroptics)
+  const warframeComponents = ['chassis', 'systems', 'neuroptics'];
+  const isWarframeComponent = warframeComponents.some(component => lowerName.includes(component));
+  
+  // If it's a built warframe component, it's not tradeable
+  return isWarframeComponent;
+};
+
 // NEW: Calculate the total market value of owned individual parts
+// Excludes built warframe parts (non-blueprint chassis/systems/neuroptics) as they cannot be traded
 const calculateIndividualPartsValue = (
   ownedParts: string[],
-  primePartsInventory: DetectedItem[]
+  primePartsInventory: DetectedItem[],
+  setType?: PrimeSet['type']
 ): number => {
   let totalValue = 0;
 
@@ -457,6 +509,11 @@ const calculateIndividualPartsValue = (
       const lowerPartName = partName.toLowerCase();
       return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
     });
+
+    // Skip built warframe parts - check the ACTUAL inventory item name, not the part name
+    if (inventoryItem && setType && isBuiltWarframeInventoryItem(inventoryItem.name, setType)) {
+      return; // Built warframe component cannot be traded
+    }
 
     if (inventoryItem && inventoryItem.price && inventoryItem.price > 0) {
       const quantity = inventoryItem.quantity || 1;
@@ -491,12 +548,32 @@ const calculateInvestmentAnalysis = (
   );
 
   // Calculate cost to buy missing parts from market using SELLER prices (what it costs to buy)
+  // First try to use fetched prices from missingPartsWithPrices if available
   let buyInvestmentCost = 0;
-  missingPartsToBuy.forEach(partName => {
-    // Use seller price (cost to buy) for investment calculations
-    const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
-    buyInvestmentCost += partPrice;
-  });
+  const fetchedPrices = (setProgress as any)._tempMissingPartsWithPrices as Array<{ name: string; price: number }> | undefined;
+  
+  if (fetchedPrices && fetchedPrices.length > 0) {
+    // Use fetched prices (more accurate)
+    missingPartsToBuy.forEach(partName => {
+      const fetchedPrice = fetchedPrices.find(p => 
+        p.name.toLowerCase() === partName.toLowerCase()
+      );
+      if (fetchedPrice && fetchedPrice.price > 0) {
+        buyInvestmentCost += fetchedPrice.price;
+      } else {
+        // Fallback to estimated price if fetched price not found
+        const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
+        buyInvestmentCost += partPrice;
+      }
+    });
+  } else {
+    // Use estimated prices if fetched prices not available
+    missingPartsToBuy.forEach(partName => {
+      // Use seller price (cost to buy) for investment calculations
+      const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
+      buyInvestmentCost += partPrice;
+    });
+  }
 
   // Calculate void trace cost for relic opening (estimated)
   // Assume average 75 void traces per missing part from relics
@@ -748,7 +825,7 @@ export const analyzeSetProgressWithMarketData = async (
       // Enhance progress with market data
       setsNeedingMarketData.forEach((progress, index) => {
         const setMarketData = marketData[index];
-        const individualPartsValue = calculateIndividualPartsValue(progress.ownedParts, primePartsInventory);
+        const individualPartsValue = calculateIndividualPartsValue(progress.ownedParts, primePartsInventory, progress.set.type);
         const completeSetPrice = setMarketData.price;
         const profitDifference = completeSetPrice - individualPartsValue;
 
@@ -1013,7 +1090,7 @@ export const refreshIndividualSetMarketData = async (
       console.log(`🔄 [Prime Set] Fetching market data for ${setName}...`);
       try {
         const setMarketData = await fetchPrimeSetMarketData(setName);
-        const individualPartsValue = calculateIndividualPartsValue(ownedParts, primePartsInventory);
+        const individualPartsValue = calculateIndividualPartsValue(ownedParts, primePartsInventory, targetSet.type);
         const completeSetPrice = setMarketData.price;
         const profitDifference = completeSetPrice - individualPartsValue;
 
@@ -1070,11 +1147,19 @@ export const refreshIndividualSetMarketData = async (
           console.log(`💰 [Individual Set] ${setName}: All missing parts obtainable from relics, skipping price fetch`);
         }
 
+        // Store fetched prices temporarily so calculateInvestmentAnalysis can use them
+        if (missingPartsWithPrices.length > 0) {
+          (setProgress as any)._tempMissingPartsWithPrices = missingPartsWithPrices;
+        }
+        
         // Calculate investment analysis (now includes improved buy cost if available)
         const investmentAnalysis = calculateInvestmentAnalysis(setProgress, primePartsInventory, relicsInventory);
+        
         // Add the fetched prices to investment analysis
         if (investmentAnalysis && missingPartsWithPrices.length > 0) {
           investmentAnalysis.missingPartsWithPrices = missingPartsWithPrices;
+          // Clean up temp field
+          delete (setProgress as any)._tempMissingPartsWithPrices;
         }
         setProgress.investmentAnalysis = investmentAnalysis;
 

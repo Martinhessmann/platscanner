@@ -683,17 +683,20 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         const builtFilter = activeFilters.has('built');
         const plannerFilter = activeFilters.has('planner');
         const priorityFilter = activeFilters.has('priority');
+        const nonPriorityFilter = activeFilters.has('non_priority');
         let statusMatch = true;
 
-        if (builtFilter || plannerFilter || priorityFilter) {
+        if (builtFilter || plannerFilter || priorityFilter || nonPriorityFilter) {
           const isBuilt = masteredSets.includes(p.set.id);
           const isPriority = plannedSets.get(p.set.id)?.isPriority || false;
           const isPlanned = !isBuilt; // All non-built sets are "planned"
+          const isNonPriority = !isBuilt && !isPriority; // Not built and not priority
 
           // OR logic: match if any active status filter matches
           statusMatch = (builtFilter && isBuilt) ||
                        (plannerFilter && isPlanned) ||
-                       (priorityFilter && isPriority);
+                       (priorityFilter && isPriority) ||
+                       (nonPriorityFilter && isNonPriority);
         }
 
         // If status filter doesn't match, skip this set
@@ -704,7 +707,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Check all other filters (combinable - AND logic)
         return Array.from(activeFilters).every(filter => {
           // Skip status filters (already handled above)
-          if (filter === 'built' || filter === 'planner' || filter === 'priority') {
+          if (filter === 'built' || filter === 'planner' || filter === 'priority' || filter === 'non_priority') {
             return true;
           }
 
@@ -789,16 +792,23 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Remove "all" if selecting specific filters
         updated.delete('all');
 
-        // Special case: "Built", "Planned", and "Priority" are mutually exclusive
+        // Special case: "Built", "Not Built", "Priority", and "Non-Priority" are mutually exclusive
         if (filter === 'built') {
           updated.delete('planner');
           updated.delete('priority');
+          updated.delete('non_priority');
         } else if (filter === 'planner') {
           updated.delete('built');
           updated.delete('priority');
+          updated.delete('non_priority');
         } else if (filter === 'priority') {
           updated.delete('built');
           updated.delete('planner');
+          updated.delete('non_priority');
+        } else if (filter === 'non_priority') {
+          updated.delete('built');
+          updated.delete('planner');
+          updated.delete('priority');
         }
 
         // Toggle the specific filter
@@ -954,7 +964,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         </button>
 
 
-        {/* Planned Sets (not built) */}
+        {/* Not Built Sets */}
         <button
           onClick={() => toggleFilter('planner')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
@@ -964,7 +974,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           }`}
         >
           <Target size={16} />
-          <span>Planned</span>
+          <span>Not Built</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
             activeFilters.has('planner') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
@@ -988,6 +998,28 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
             activeFilters.has('priority') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
           }`}>
             {prioritySets}
+          </span>
+        </button>
+
+        {/* Non-Priority Sets */}
+        <button
+          onClick={() => toggleFilter('non_priority')}
+          className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+            activeFilters.has('non_priority')
+              ? 'bg-slate-900/50 border-slate-500/50 text-slate-300 ring-1 ring-slate-500/30'
+              : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+          }`}
+        >
+          <Circle size={16} />
+          <span>Non-Priority</span>
+          <span className={`px-1.5 py-0.5 rounded text-xs ${
+            activeFilters.has('non_priority') ? 'bg-slate-800/50 text-slate-300' : 'bg-gray-800/50 text-gray-400'
+          }`}>
+            {setProgress.filter(p => {
+              const isBuilt = masteredSets.includes(p.set.id);
+              const isPriority = plannedSets.get(p.set.id)?.isPriority || false;
+              return !isBuilt && !isPriority;
+            }).length}
           </span>
         </button>
 
@@ -1295,20 +1327,31 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 </div>
 
                 {/* Trading Recommendation - Prominent at top */}
-                {progress.recommendedStrategy && progress.profitDifference !== undefined && (
+                {progress.recommendedStrategy && (
                   <div className={`mt-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
-                    progress.profitDifference > 0
-                      ? 'bg-green-900/30 border-green-500/30 text-green-400'
-                      : progress.profitDifference < 0
-                      ? 'bg-red-900/30 border-red-500/30 text-red-400'
-                      : 'bg-gray-800/30 border-gray-600/30 text-gray-400'
+                    (() => {
+                      // Use expectedProfit from investmentAnalysis if available, otherwise fall back to profitDifference
+                      const profit = progress.investmentAnalysis?.expectedProfit ?? progress.profitDifference ?? 0;
+                      return profit > 0
+                        ? 'bg-green-900/30 border-green-500/30 text-green-400'
+                        : profit < 0
+                        ? 'bg-red-900/30 border-red-500/30 text-red-400'
+                        : 'bg-gray-800/30 border-gray-600/30 text-gray-400';
+                    })()
                   }`}>
                     💰 {progress.recommendedStrategy === 'SELL_PARTS' ? 'SELL PARTS' : progress.recommendedStrategy === 'SELL_SET' ? 'SELL SET' : progress.recommendedStrategy.replace(/_/g, ' ')}
-                    {progress.profitDifference !== 0 && (
-                      <span className="ml-1">
-                        ({progress.profitDifference > 0 ? '+' : ''}{progress.profitDifference}p profit)
-                      </span>
-                    )}
+                    {(() => {
+                      // Use expectedProfit (ROI) if available, otherwise profitDifference
+                      const profit = progress.investmentAnalysis?.expectedProfit ?? progress.profitDifference ?? 0;
+                      if (profit !== 0) {
+                        return (
+                          <span className="ml-1">
+                            ({profit > 0 ? '+' : ''}{profit.toFixed(1)}p {progress.investmentAnalysis ? 'ROI' : 'profit'})
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
                 )}
 
@@ -1328,7 +1371,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                     <div className="flex items-center gap-1 text-orange-400">
                       <ShoppingCart size={12} />
                       <span className="font-medium">
-                        {progress.missingCost !== undefined ? `${Math.round(progress.missingCost)}p` : '—'}
+                        {(() => {
+                          // Use buyInvestmentCost from investmentAnalysis if available, otherwise missingCost
+                          const investment = progress.investmentAnalysis?.buyInvestmentCost ?? progress.missingCost ?? 0;
+                          return investment > 0 ? `${Math.round(investment)}p` : '—';
+                        })()}
                       </span>
                     </div>
                   </div>
@@ -1525,7 +1572,49 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                               </div>
                               <div className="flex flex-col items-end gap-1 text-right">
                                 <span className={`${textColor} text-xs`}>
-                                  {isOwned ? 'In Inventory' : (
+                                  {isOwned ? (() => {
+                                    // Find price for this owned part from inventory
+                                    const inventoryItem = primePartsInventory.find(item => {
+                                      const lowerItemName = item.name.toLowerCase();
+                                      const lowerPartName = part.name.toLowerCase();
+                                      return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+                                    });
+                                    
+                                    if (!inventoryItem) {
+                                      return <span className="text-gray-500">Not found</span>;
+                                    }
+                                    
+                                    // Check if it's a built warframe part (not tradeable)
+                                    const isBuiltWarframe = progress.set.type === 'Warframe' && 
+                                      !inventoryItem.name.toLowerCase().includes('blueprint') &&
+                                      ['chassis', 'systems', 'neuroptics'].some(comp => 
+                                        inventoryItem.name.toLowerCase().includes(comp)
+                                      );
+                                    
+                                    if (isBuiltWarframe) {
+                                      // Built warframe component - show special indicator
+                                      return (
+                                        <span className="flex flex-col items-end">
+                                          <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
+                                        </span>
+                                      );
+                                    }
+                                    
+                                    // Check if it's a blueprint
+                                    const isBlueprint = inventoryItem.name.toLowerCase().includes('blueprint');
+                                    
+                                    if (inventoryItem.price && inventoryItem.price > 0) {
+                                      return (
+                                        <span className="flex flex-col items-end">
+                                          <span>{inventoryItem.price}p {isBlueprint && <span className="text-[10px] text-blue-400">(BP)</span>}</span>
+                                          {inventoryItem.average && inventoryItem.average !== inventoryItem.price && (
+                                            <span className="text-[10px] text-gray-600">48h: {inventoryItem.average}p</span>
+                                          )}
+                                        </span>
+                                      );
+                                    }
+                                    return <span className="text-gray-500">No buyers {isBlueprint && <span className="text-[10px] text-blue-400">(BP)</span>}</span>;
+                                  })() : (
                                     isObtainableFromRelics ? (
                                       <span className="text-gray-400"></span>
                                     ) : (

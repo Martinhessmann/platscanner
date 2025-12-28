@@ -10,7 +10,12 @@ import {
   Check,
   AlertCircle,
   Shield,
-  ExternalLink
+  ExternalLink,
+  Package,
+  Star,
+  Circle,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 import { isItemReserved } from '../services/buildPlanService';
 import { getImageUrlSync } from '../services/unifiedImageService';
@@ -107,6 +112,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
         if (filterId === 'components') newFilters.delete('blueprints');
         if (filterId === 'above_average') newFilters.delete('below_average');
         if (filterId === 'below_average') newFilters.delete('above_average');
+        if (filterId === 'reserved') newFilters.delete('not_reserved');
+        if (filterId === 'not_reserved') newFilters.delete('reserved');
         if (newFilters.has(filterId)) {
           newFilters.delete(filterId);
         } else {
@@ -131,6 +138,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
           case 'blueprints': return item.name.includes('Blueprint');
           case 'components': return !item.name.includes('Blueprint');
           case 'reserved': return isItemReserved(item.name, 'prime_parts').reserved;
+          case 'not_reserved': return !isItemReserved(item.name, 'prime_parts').reserved;
           case 'above_average': return (item.price || 0) > (item.average || 0);
           case 'below_average': return (item.price || 0) < (item.average || 0);
           case 'prime_junk': {
@@ -309,32 +317,169 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
         {/* Smart Filter Tags */}
         <div className="px-3 py-2 bg-gray-900/30 border-t border-gray-700/50">
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => toggleFilter('all')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('all') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
-              🔷 All Parts <span className="ml-1 opacity-75">({results.length})</span>
+            <button 
+              onClick={() => toggleFilter('all')} 
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('all')
+                  ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Shield size={16} />
+              <span>All Parts</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('all') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {results?.length || 0}
+              </span>
             </button>
-            <button onClick={() => toggleFilter('has_buyers')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('has_buyers') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
-              💰 Has Buyers <span className="ml-1 opacity-75">({results.filter(i => (i.price || 0) > 0).length})</span>
+            <button 
+              onClick={() => toggleFilter('has_buyers')} 
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('has_buyers')
+                  ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Zap size={16} />
+              <span>Has Buyers</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('has_buyers') ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {(results || []).filter(i => i && (i.price || 0) > 0).length}
+              </span>
             </button>
-            <button onClick={() => toggleFilter('blueprints')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('blueprints') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
-              📦 Blueprints <span className="ml-1 opacity-75">({results.filter(i => i.name.includes('Blueprint')).length})</span>
+            <button 
+              onClick={() => toggleFilter('blueprints')} 
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('blueprints')
+                  ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Package size={16} />
+              <span>Blueprints</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('blueprints') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {(results || []).filter(i => i && i.name && i.name.includes('Blueprint')).length}
+              </span>
             </button>
-            <button onClick={() => toggleFilter('components')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('components') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
-              🔧 Components <span className="ml-1 opacity-75">({results.filter(i => !i.name.includes('Blueprint')).length})</span>
+            <button 
+              onClick={() => toggleFilter('components')} 
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('components')
+                  ? 'bg-cyan-900/50 border-cyan-500/50 text-cyan-400 ring-1 ring-cyan-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Shield size={16} />
+              <span>Components</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('components') ? 'bg-cyan-800/50 text-cyan-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {(results || []).filter(i => i && i.name && !i.name.includes('Blueprint')).length}
+              </span>
             </button>
-            <button onClick={() => toggleFilter('reserved')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('reserved') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
-              ⭐ Reserved <span className="ml-1 opacity-75">({results.filter(i => isItemReserved(i.name, 'prime_parts').reserved).length})</span>
+            <button 
+              onClick={() => toggleFilter('reserved')} 
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('reserved')
+                  ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Star size={16} />
+              <span>Reserved</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('reserved') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {(results || []).filter(i => {
+                  try {
+                    return i && i.name && isItemReserved(i.name, 'prime_parts').reserved;
+                  } catch {
+                    return false;
+                  }
+                }).length}
+              </span>
             </button>
-            <button onClick={() => toggleFilter('above_average')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('above_average') ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
-              📈 Above Avg <span className="ml-1 opacity-75">({results.filter(i => (i.price || 0) > (i.average || 0)).length})</span>
+            <button 
+              onClick={() => toggleFilter('not_reserved')} 
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('not_reserved')
+                  ? 'bg-purple-900/50 border-purple-500/50 text-purple-400 ring-1 ring-purple-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Circle size={16} />
+              <span>Not Reserved</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('not_reserved') ? 'bg-purple-800/50 text-purple-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {(results || []).filter(i => {
+                  try {
+                    return i && i.name && !isItemReserved(i.name, 'prime_parts').reserved;
+                  } catch {
+                    return false;
+                  }
+                }).length}
+              </span>
             </button>
-            <button onClick={() => toggleFilter('below_average')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('below_average') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
-              📉 Below Avg <span className="ml-1 opacity-75">({results.filter(i => (i.price || 0) < (i.average || 0)).length})</span>
+            <button 
+              onClick={() => toggleFilter('above_average')} 
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('above_average')
+                  ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <TrendingUp size={16} />
+              <span>Above Avg</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('above_average') ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {(results || []).filter(i => i && (i.price || 0) > (i.average || 0)).length}
+              </span>
             </button>
-            <button onClick={() => toggleFilter('prime_junk')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${activeFilters.has('prime_junk') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'}`}>
-              🗑️ Prime Junk <span className="ml-1 opacity-75">({results.filter(i => {
-                const ratio = calculateRatio(i);
-                return ratio < 1.0 && (i.ducats || 0) > 0;
-              }).length})</span>
+            <button 
+              onClick={() => toggleFilter('below_average')} 
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('below_average')
+                  ? 'bg-red-900/50 border-red-500/50 text-red-400 ring-1 ring-red-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <TrendingDown size={16} />
+              <span>Below Avg</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('below_average') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {(results || []).filter(i => i && (i.price || 0) < (i.average || 0)).length}
+              </span>
+            </button>
+            <button 
+              onClick={() => toggleFilter('prime_junk')} 
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('prime_junk')
+                  ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Trash2 size={16} />
+              <span>Prime Junk</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('prime_junk') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {(results || []).filter(i => {
+                  try {
+                    if (!i) return false;
+                    const ratio = calculateRatio(i);
+                    return ratio < 1.0 && (i.ducats || 0) > 0;
+                  } catch {
+                    return false;
+                  }
+                }).length}
+              </span>
             </button>
           </div>
         </div>
