@@ -327,7 +327,7 @@ const levenshteinDistance = (s1: string, s2: string): number => {
 
 // Find best matching valid prime item
 // Higher threshold (0.85) to prevent false positives like "Gedo" → "Bronco"
-const findBestPrimeMatch = (ocrText: string, threshold: number = 0.85): string | null => {
+export const findBestPrimeMatch = (ocrText: string, threshold: number = 0.85): string | null => {
   const validItems = buildValidPrimeItems();
   const normalizedOcr = ocrText.toLowerCase().trim();
   

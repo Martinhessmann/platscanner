@@ -126,27 +126,46 @@ const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 
 };
 
 // Parse prime items from extracted text
+import { findBestPrimeMatch } from './ocrService';
+
 export const parsePrimeItemsFromText = (text: string): string[] => {
   const items: string[] = [];
   const seenItems = new Set<string>();
   
   // Pattern: "Something Prime ComponentName" or "Something Prime ComponentName Blueprint"
-  const primePattern = /([A-Z][a-zA-Z'&]+)\s+Prime\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/gi;
+  // Updated to handle more variations and be more flexible
+  const primePattern = /([A-Z][a-zA-Z'&\s]*?)\s+Prime\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/gi;
+  
+  // Normalize text - replace newlines with spaces for cross-line matching
+  const normalizedText = text.replace(/\n/g, ' ').replace(/\s+/g, ' ');
   
   let match;
-  while ((match = primePattern.exec(text)) !== null) {
+  while ((match = primePattern.exec(normalizedText)) !== null) {
     const setName = match[1].trim();
     const component = match[2].trim();
     const fullName = `${setName} Prime ${component}`;
     
-    // Skip if too short or already seen
+    // Skip if too short
     if (fullName.length < 10) continue;
     
-    const normalized = fullName.toLowerCase();
+    // Validate against known items from primesets.json
+    const matchedItem = findBestPrimeMatch(fullName, 0.75); // Lower threshold for LLM Whisperer (more accurate OCR)
+    if (!matchedItem) {
+      // Try without component name (just "X Prime")
+      const setNameOnly = `${setName} Prime`;
+      const setNameMatch = findBestPrimeMatch(setNameOnly, 0.7);
+      if (setNameMatch && !seenItems.has(setNameMatch.toLowerCase())) {
+        seenItems.add(setNameMatch.toLowerCase());
+        items.push(setNameMatch);
+      }
+      continue; // Skip if not a valid item
+    }
+    
+    const normalized = matchedItem.toLowerCase();
     if (seenItems.has(normalized)) continue;
     
     seenItems.add(normalized);
-    items.push(fullName);
+    items.push(matchedItem); // Use validated/corrected name
   }
   
   return items;
