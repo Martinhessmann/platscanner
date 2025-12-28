@@ -444,14 +444,47 @@ const calculateMissingCost = (missingParts: string[]): number => {
   return missingParts.length * 50; // Placeholder: 50p per missing part
 };
 
+// Helper: Check if a part is a built (non-blueprint) warframe component
+// Warframe parts: Only blueprints are tradeable (built chassis/systems/neuroptics cannot be sold)
+// Weapon parts: Built parts CAN be traded
+const isBuiltWarframePart = (partName: string, setType: PrimeSet['type']): boolean => {
+  // Only applies to Warframes
+  if (setType !== 'Warframe') {
+    return false;
+  }
+  
+  // Check if it's a built component (not a blueprint)
+  const lowerName = partName.toLowerCase();
+  const isBlueprint = lowerName.includes('blueprint');
+  
+  // If it's a blueprint, it's tradeable
+  if (isBlueprint) {
+    return false;
+  }
+  
+  // Check if it's a warframe component (chassis, systems, neuroptics)
+  const warframeComponents = ['chassis', 'systems', 'neuroptics'];
+  const isWarframeComponent = warframeComponents.some(component => lowerName.includes(component));
+  
+  // If it's a built warframe component, it's not tradeable
+  return isWarframeComponent;
+};
+
 // NEW: Calculate the total market value of owned individual parts
+// Excludes built warframe parts (non-blueprint chassis/systems/neuroptics) as they cannot be traded
 const calculateIndividualPartsValue = (
   ownedParts: string[],
-  primePartsInventory: DetectedItem[]
+  primePartsInventory: DetectedItem[],
+  setType?: PrimeSet['type']
 ): number => {
   let totalValue = 0;
 
   ownedParts.forEach(partName => {
+    // Skip built warframe parts - they cannot be traded
+    if (setType && isBuiltWarframePart(partName, setType)) {
+      return;
+    }
+    
     const inventoryItem = primePartsInventory.find(item => {
       const lowerItemName = item.name.toLowerCase();
       const lowerPartName = partName.toLowerCase();
@@ -768,7 +801,7 @@ export const analyzeSetProgressWithMarketData = async (
       // Enhance progress with market data
       setsNeedingMarketData.forEach((progress, index) => {
         const setMarketData = marketData[index];
-        const individualPartsValue = calculateIndividualPartsValue(progress.ownedParts, primePartsInventory);
+        const individualPartsValue = calculateIndividualPartsValue(progress.ownedParts, primePartsInventory, progress.set.type);
         const completeSetPrice = setMarketData.price;
         const profitDifference = completeSetPrice - individualPartsValue;
 
@@ -1033,7 +1066,7 @@ export const refreshIndividualSetMarketData = async (
       console.log(`🔄 [Prime Set] Fetching market data for ${setName}...`);
       try {
         const setMarketData = await fetchPrimeSetMarketData(setName);
-        const individualPartsValue = calculateIndividualPartsValue(ownedParts, primePartsInventory);
+        const individualPartsValue = calculateIndividualPartsValue(ownedParts, primePartsInventory, targetSet.type);
         const completeSetPrice = setMarketData.price;
         const profitDifference = completeSetPrice - individualPartsValue;
 

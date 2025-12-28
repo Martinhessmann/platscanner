@@ -1572,7 +1572,26 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                               </div>
                               <div className="flex flex-col items-end gap-1 text-right">
                                 <span className={`${textColor} text-xs`}>
-                                  {isOwned ? 'In Inventory' : (
+                                  {isOwned ? (() => {
+                                    // Find price for this owned part from inventory
+                                    const inventoryItem = primePartsInventory.find(item => {
+                                      const lowerItemName = item.name.toLowerCase();
+                                      const lowerPartName = part.name.toLowerCase();
+                                      return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+                                    });
+                                    
+                                    if (inventoryItem && inventoryItem.price && inventoryItem.price > 0) {
+                                      return (
+                                        <span className="flex flex-col items-end">
+                                          <span>{inventoryItem.price}p</span>
+                                          {inventoryItem.average && inventoryItem.average !== inventoryItem.price && (
+                                            <span className="text-[10px] text-gray-600">48h: {inventoryItem.average}p</span>
+                                          )}
+                                        </span>
+                                      );
+                                    }
+                                    return <span className="text-gray-500">No buyers</span>;
+                                  })() : (
                                     isObtainableFromRelics ? (
                                       <span className="text-gray-400"></span>
                                     ) : (

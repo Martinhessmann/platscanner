@@ -5,10 +5,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Important Warframe Trading Rules
 
 ### Prime Parts Trading Restrictions
-- **Only BLUEPRINTS are tradeable** - Built/crafted parts cannot be traded
-- Example: `Acceltra Prime Blueprint` ✅ tradeable vs `Acceltra Prime Receiver` ❌ not tradeable (built part)
-- The Prime Parts inventory section only tracks tradeable blueprints for market value
+
+#### Warframe Parts (Special Rule)
+- **Only BLUEPRINTS are tradeable** - Built/crafted warframe components CANNOT be traded
+- Example: `Harrow Prime Chassis Blueprint` ✅ tradeable vs `Harrow Prime Chassis` ❌ not tradeable (built component)
+- Built warframe parts (Chassis, Systems, Neuroptics) cannot be sold and are excluded from set value calculations
 - Built parts still count toward Prime Set completion but have no market value
+
+#### Weapon Parts (Different Rule)
+- **Built parts CAN be traded** - Both blueprints and built components are tradeable
+- Example: `Acceltra Prime Blueprint` ✅ tradeable AND `Acceltra Prime Receiver` ✅ also tradeable
+- All weapon parts (blueprints and built components) are included in set value calculations
+
+#### Summary
+- **Warframes**: Only blueprints count toward sellable set value
+- **Weapons**: All parts (blueprints + built) count toward sellable set value
+- The Prime Parts inventory section tracks tradeable items for market value
+- Built warframe parts are excluded from "Owned Parts" value calculations in Prime Sets
 
 ## Development Commands
 
