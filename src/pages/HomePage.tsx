@@ -1480,27 +1480,27 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           )}
 
           {/* Story #8: Categorized Inventory Sections */}
-          {(categorizedInventory.prime_parts.length > 0 || categorizedInventory.relics.length > 0 || categorizedInventory.syndicate_rewards.length > 0) && (
-            <div className="space-y-2">
+          {/* Always show Prime Parts section (even when empty) so users can upload items */}
+          <div className="space-y-2">
+            {/* Prime Parts Section - Always visible */}
+            <InventorySection
+              category="prime_parts"
+              title="Prime Parts"
+              icon={<Package size={20} className="text-orokin-gold" />}
+              items={displayedPrimeParts}
+              totalValue={displayedPrimePartsTotals.value}
+              totalDucats={displayedPrimePartsTotals.ducats}
+              isRefreshing={refreshingCategories.has('prime_parts')}
+              progress={categoryProgress?.category === 'prime_parts' ? categoryProgress : undefined}
+              lastRefreshTime={lastPrimePartsRefresh}
+              onRefreshAll={handleRefreshPrimeParts}
+              onClearAll={handleClearPrimeParts}
+              onRefreshItem={handleRefreshSingleItem}
+              onRemoveItem={handleRemoveFromInventory}
+            />
 
-              {/* Prime Parts Section */}
-              <InventorySection
-                category="prime_parts"
-                title="Prime Parts"
-                icon={<Package size={20} className="text-orokin-gold" />}
-                items={displayedPrimeParts}
-                totalValue={displayedPrimePartsTotals.value}
-                totalDucats={displayedPrimePartsTotals.ducats}
-                isRefreshing={refreshingCategories.has('prime_parts')}
-                progress={categoryProgress?.category === 'prime_parts' ? categoryProgress : undefined}
-                lastRefreshTime={lastPrimePartsRefresh}
-                onRefreshAll={handleRefreshPrimeParts}
-                onClearAll={handleClearPrimeParts}
-                onRefreshItem={handleRefreshSingleItem}
-                onRemoveItem={handleRemoveFromInventory}
-              />
-
-              {/* Void Relics Section */}
+            {/* Void Relics Section - Only show when there are relics */}
+            {categorizedInventory.relics.length > 0 && (
               <InventorySection
                 category="relics"
                 title="Void Relics"
@@ -1516,22 +1516,22 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 onRefreshItem={handleRefreshSingleItem}
                 onRemoveItem={handleRemoveFromInventory}
               />
+            )}
 
-              {/* Prime Sets Section - Always visible as a collection tracker */}
-              <PrimeSetsSection
-                  primePartsInventory={categorizedInventory.prime_parts.filter(item =>
-                    // Only include valid prime parts - filter out corrupted/fake data
-                    item.category === 'prime_parts' &&
-                    item.name &&
-                    item.name.length > 5 &&
-                    !item.name.toLowerCase().includes('here are the') &&
-                    !item.name.toLowerCase().includes('visible in the screenshot') &&
-                    !item.name.toLowerCase().includes('items detected')
-                  )}
-                  relicsInventory={categorizedInventory.relics as VoidRelic[]}
-                />
-            </div>
-          )}
+            {/* Prime Sets Section - Always visible as a collection tracker */}
+            <PrimeSetsSection
+              primePartsInventory={categorizedInventory.prime_parts.filter(item =>
+                // Only include valid prime parts - filter out corrupted/fake data
+                item.category === 'prime_parts' &&
+                item.name &&
+                item.name.length > 5 &&
+                !item.name.toLowerCase().includes('here are the') &&
+                !item.name.toLowerCase().includes('visible in the screenshot') &&
+                !item.name.toLowerCase().includes('items detected')
+              )}
+              relicsInventory={categorizedInventory.relics as VoidRelic[]}
+            />
+          </div>
 
           {/* Syndicate Rewards Section - Always show for market analysis */}
           <SyndicateRewardsSection

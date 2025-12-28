@@ -221,13 +221,13 @@ const InventorySection: React.FC<InventorySectionProps> = ({
           {items.length === 0 ? (
             <div className="p-6 text-center">
               <p className="text-gray-400 mb-2">
-                {category === 'prime_parts' && primePartsFilter === 'buyers'
-                  ? 'No items with active buyers found'
-                  : 'No items found'
-                }
+                No items found
               </p>
               <p className="text-sm text-gray-500">
-                Try switching to a different filter or upload more screenshots.
+                {category === 'prime_parts' 
+                  ? 'Try switching to a different filter or upload more screenshots.'
+                  : 'Upload screenshots to add items to your inventory.'
+                }
               </p>
             </div>
           ) : category === 'relics' ? (
