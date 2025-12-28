@@ -126,46 +126,27 @@ const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 
 };
 
 // Parse prime items from extracted text
-import { findBestPrimeMatch } from './primeItemValidator';
-
 export const parsePrimeItemsFromText = (text: string): string[] => {
   const items: string[] = [];
   const seenItems = new Set<string>();
   
   // Pattern: "Something Prime ComponentName" or "Something Prime ComponentName Blueprint"
-  // Updated to handle more variations and be more flexible
-  const primePattern = /([A-Z][a-zA-Z'&\s]*?)\s+Prime\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/gi;
-  
-  // Normalize text - replace newlines with spaces for cross-line matching
-  const normalizedText = text.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+  const primePattern = /([A-Z][a-zA-Z'&]+)\s+Prime\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/gi;
   
   let match;
-  while ((match = primePattern.exec(normalizedText)) !== null) {
+  while ((match = primePattern.exec(text)) !== null) {
     const setName = match[1].trim();
     const component = match[2].trim();
     const fullName = `${setName} Prime ${component}`;
     
-    // Skip if too short
+    // Skip if too short or already seen
     if (fullName.length < 10) continue;
     
-    // Validate against known items from primesets.json
-    const matchedItem = findBestPrimeMatch(fullName, 0.75); // Lower threshold for LLM Whisperer (more accurate OCR)
-    if (!matchedItem) {
-      // Try without component name (just "X Prime")
-      const setNameOnly = `${setName} Prime`;
-      const setNameMatch = findBestPrimeMatch(setNameOnly, 0.7);
-      if (setNameMatch && !seenItems.has(setNameMatch.toLowerCase())) {
-        seenItems.add(setNameMatch.toLowerCase());
-        items.push(setNameMatch);
-      }
-      continue; // Skip if not a valid item
-    }
-    
-    const normalized = matchedItem.toLowerCase();
+    const normalized = fullName.toLowerCase();
     if (seenItems.has(normalized)) continue;
     
     seenItems.add(normalized);
-    items.push(matchedItem); // Use validated/corrected name
+    items.push(fullName);
   }
   
   return items;
