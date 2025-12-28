@@ -171,13 +171,32 @@ const fetchSingleItemData = async (itemName: string) => {
     }
     
     console.log(`>>> [Netlify] ${itemName}: Found ${orders.length} orders from V1 API <<<`);
-    const buyOrders = orders.filter((order: any) =>
-      order.order_type === 'buy' &&
-      ['online', 'ingame'].includes(order.user.status) &&
-      !order.user.banned &&
-      order.visible &&
-      (itemDetails.mod_max_rank === undefined || order.mod_rank === 0 || order.mod_rank === undefined)
-    );
+    
+    // Debug: Log all sell orders and their statuses
+    const allSellOrders = orders.filter((order: any) => order.order_type === 'sell');
+    console.log(`>>> [Netlify] ${itemName}: Total sell orders: ${allSellOrders.length} <<<`);
+    if (allSellOrders.length > 0) {
+      const statusCounts: Record<string, number> = {};
+      allSellOrders.forEach((order: any) => {
+        const status = order.user?.status || 'unknown';
+        statusCounts[status] = (statusCounts[status] || 0) + 1;
+      });
+      console.log(`>>> [Netlify] ${itemName}: Sell order statuses: ${JSON.stringify(statusCounts)} <<<`);
+      
+      // Log first few sell orders for debugging
+      allSellOrders.slice(0, 5).forEach((order: any, idx: number) => {
+        console.log(`>>> [Netlify] ${itemName}: Sell order ${idx + 1}: platinum=${order.platinum}, status=${order.user?.status}, banned=${order.user?.banned}, visible=${order.visible} <<<`);
+      });
+    }
+    
+    const buyOrders = orders.filter((order: any) => {
+      if (order.order_type !== 'buy') return false;
+      const userStatus = order.user?.status?.toLowerCase?.() || order.user?.status || '';
+      return ['online', 'ingame', 'in_game'].includes(userStatus) &&
+             !order.user.banned &&
+             order.visible !== false &&
+             (itemDetails.mod_max_rank === undefined || order.mod_rank === 0 || order.mod_rank === undefined);
+    });
 
     const highestBidder = buyOrders.length > 0
       ? buyOrders.reduce((highest: any, current: any) =>
@@ -185,13 +204,14 @@ const fetchSingleItemData = async (itemName: string) => {
         )
       : null;
 
-    const allValidBuyOrders = orders.filter((order: any) =>
-      order.order_type === 'buy' &&
-      ['online', 'ingame'].includes(order.user.status) &&
-      !order.user.banned &&
-      order.visible &&
-      (itemDetails.mod_max_rank === undefined || order.mod_rank === 0 || order.mod_rank === undefined)
-    );
+    const allValidBuyOrders = orders.filter((order: any) => {
+      if (order.order_type !== 'buy') return false;
+      const userStatus = order.user?.status?.toLowerCase?.() || order.user?.status || '';
+      return ['online', 'ingame', 'in_game'].includes(userStatus) &&
+             !order.user.banned &&
+             order.visible !== false &&
+             (itemDetails.mod_max_rank === undefined || order.mod_rank === 0 || order.mod_rank === undefined);
+    });
 
     if (itemDetails.mod_max_rank !== undefined) {
       const totalOrders = orders.length;
@@ -200,18 +220,41 @@ const fetchSingleItemData = async (itemName: string) => {
       console.log(`>>> [Netlify] ${itemName}: Mod rank filtering - Total: ${totalOrders}, Unranked Buy Orders: ${unrankedBuyOrders}, Ranked: ${rankedOrders} <<<`);
     }
 
-    const sellerOrders = orders.filter((order: any) =>
-      order.order_type === 'sell' &&
-      ['online', 'ingame'].includes(order.user.status) &&
-      !order.user.banned &&
-      order.visible
-    );
+    // Filter seller orders with detailed logging
+    // CRITICAL: Check status case-insensitively and handle variations
+    const sellerOrders = orders.filter((order: any) => {
+      const isSell = order.order_type === 'sell';
+      if (!isSell) return false;
+      
+      const userStatus = order.user?.status?.toLowerCase?.() || order.user?.status || '';
+      const hasValidStatus = ['online', 'ingame', 'in_game'].includes(userStatus);
+      const notBanned = !order.user?.banned;
+      const isVisible = order.visible !== false; // Default to true if undefined
+      
+      if (!hasValidStatus && isSell) {
+        console.log(`>>> [Netlify] ${itemName}: Rejected sell order - invalid status: "${order.user?.status}" (normalized: "${userStatus}") <<<`);
+      }
+      if (!notBanned && isSell) {
+        console.log(`>>> [Netlify] ${itemName}: Rejected sell order - banned user <<<`);
+      }
+      if (!isVisible && isSell) {
+        console.log(`>>> [Netlify] ${itemName}: Rejected sell order - not visible (value: ${order.visible}) <<<`);
+      }
+      
+      return hasValidStatus && notBanned && isVisible;
+    });
+
+    console.log(`>>> [Netlify] ${itemName}: Filtered seller orders: ${sellerOrders.length} (from ${allSellOrders.length} total) <<<`);
 
     const lowestSeller = sellerOrders.length > 0
       ? sellerOrders.reduce((lowest: any, current: any) =>
           current.platinum < lowest.platinum ? current : lowest
         )
       : null;
+    
+    if (lowestSeller) {
+      console.log(`>>> [Netlify] ${itemName}: Lowest seller: ${lowestSeller.platinum}p (${lowestSeller.user?.ingame_name}) <<<`);
+    }
 
     // Use statistics average as fallback if no orders available
     const priceFromOrders = buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0;
