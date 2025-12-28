@@ -963,7 +963,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         </button>
 
 
-        {/* Planned Sets (not built) */}
+        {/* Not Built Yet Sets */}
         <button
           onClick={() => toggleFilter('planner')}
           className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
@@ -973,7 +973,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           }`}
         >
           <Target size={16} />
-          <span>Planned</span>
+          <span>Not Built Yet</span>
           <span className={`px-1.5 py-0.5 rounded text-xs ${
             activeFilters.has('planner') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
           }`}>

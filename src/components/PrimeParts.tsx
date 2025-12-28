@@ -330,7 +330,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('all') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {results.length}
+                {results?.length || 0}
               </span>
             </button>
             <button 
@@ -346,7 +346,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('has_buyers') ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {results.filter(i => (i.price || 0) > 0).length}
+                {(results || []).filter(i => i && (i.price || 0) > 0).length}
               </span>
             </button>
             <button 
@@ -362,7 +362,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('blueprints') ? 'bg-blue-800/50 text-blue-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {results.filter(i => i.name.includes('Blueprint')).length}
+                {(results || []).filter(i => i && i.name && i.name.includes('Blueprint')).length}
               </span>
             </button>
             <button 
@@ -378,7 +378,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('components') ? 'bg-cyan-800/50 text-cyan-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {results.filter(i => !i.name.includes('Blueprint')).length}
+                {(results || []).filter(i => i && i.name && !i.name.includes('Blueprint')).length}
               </span>
             </button>
             <button 
@@ -394,7 +394,13 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('reserved') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {results.filter(i => isItemReserved(i.name, 'prime_parts').reserved).length}
+                {(results || []).filter(i => {
+                  try {
+                    return i && i.name && isItemReserved(i.name, 'prime_parts').reserved;
+                  } catch {
+                    return false;
+                  }
+                }).length}
               </span>
             </button>
             <button 
@@ -410,7 +416,13 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('not_reserved') ? 'bg-gray-800/50 text-gray-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {results.filter(i => !isItemReserved(i.name, 'prime_parts').reserved).length}
+                {(results || []).filter(i => {
+                  try {
+                    return i && i.name && !isItemReserved(i.name, 'prime_parts').reserved;
+                  } catch {
+                    return false;
+                  }
+                }).length}
               </span>
             </button>
             <button 
@@ -426,7 +438,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('above_average') ? 'bg-green-800/50 text-green-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {results.filter(i => (i.price || 0) > (i.average || 0)).length}
+                {(results || []).filter(i => i && (i.price || 0) > (i.average || 0)).length}
               </span>
             </button>
             <button 
@@ -442,7 +454,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('below_average') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {results.filter(i => (i.price || 0) < (i.average || 0)).length}
+                {(results || []).filter(i => i && (i.price || 0) < (i.average || 0)).length}
               </span>
             </button>
             <button 
@@ -458,9 +470,14 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               <span className={`px-1.5 py-0.5 rounded text-xs ${
                 activeFilters.has('prime_junk') ? 'bg-yellow-800/50 text-yellow-300' : 'bg-gray-800/50 text-gray-400'
               }`}>
-                {results.filter(i => {
-                  const ratio = calculateRatio(i);
-                  return ratio < 1.0 && (i.ducats || 0) > 0;
+                {(results || []).filter(i => {
+                  try {
+                    if (!i) return false;
+                    const ratio = calculateRatio(i);
+                    return ratio < 1.0 && (i.ducats || 0) > 0;
+                  } catch {
+                    return false;
+                  }
                 }).length}
               </span>
             </button>
