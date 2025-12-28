@@ -6,14 +6,14 @@ import { ocrLogger } from './ocrLogger';
 import { getPrimeSetsCache } from './staticDataService';
 
 // Grid layout configuration for Warframe inventory
-// Based on analysis of actual screenshots
+// Based on analysis of IMG_0318.png (2532 x 1170 px)
 const INVENTORY_GRID_CONFIG = {
   // Percentages of image dimensions
-  headerHeight: 0.14,      // Top 14% is header (INVENTORY/SELL, PRIME PARTS, SEARCH)
-  sidebarWidth: 0.22,      // Right 22% is sidebar (TOTAL, SELL ITEMS)
-  bottomHeight: 0.05,      // Bottom 5% is footer (ONLY SELLABLE, EXIT)
-  leftPadding: 0.01,       // Left 1% padding
-  columns: 7,              // Number of item columns
+  headerHeight: 0.13,      // Top 13% is header (INVENTORY/SELL, PRIME PARTS, SEARCH) ~155px
+  sidebarWidth: 0.23,      // Right 23% is sidebar (TAP ON ITEMS, TOTAL, SELL ITEMS) ~580px
+  bottomHeight: 0.08,      // Bottom 8% is footer (ONLY SELLABLE, EXIT) ~90px
+  leftPadding: 0.02,       // Left 2% padding ~50px
+  columns: 7,              // Number of item columns in grid
 };
 
 // Crop image to a specific region using canvas
@@ -64,7 +64,10 @@ const extractTextByColumns = async (imageFile: File): Promise<string[]> => {
   const gridWidth = 1 - config.leftPadding - config.sidebarWidth;
   const gridHeight = 1 - config.headerHeight - config.bottomHeight;
   
-  const columnWidth = gridWidth / config.columns;
+  // Add 5% overlap between columns to avoid cutting items at boundaries
+  const overlapPercent = 0.02;
+  const baseColumnWidth = gridWidth / config.columns;
+  const columnWidth = baseColumnWidth + overlapPercent;
   
   ocrLogger.info('GridOCR', `Extracting text from ${config.columns} columns`);
   
