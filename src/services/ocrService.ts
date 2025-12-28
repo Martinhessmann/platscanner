@@ -3,6 +3,104 @@ import { DetectedItem, PrimePart, VoidRelic, SyndicateReward, Mod } from '../typ
 import { getCategorizedInventory } from './inventoryService';
 import { determineModRarity, determineModType } from './modService';
 import { ocrLogger } from './ocrLogger';
+import { getPrimeSetsCache } from './staticDataService';
+
+// Cache for valid prime item names (built from primesets.json)
+let validPrimeItemsCache: Set<string> | null = null;
+
+// Build list of valid prime item names for validation
+const buildValidPrimeItems = (): Set<string> => {
+  if (validPrimeItemsCache) return validPrimeItemsCache;
+  
+  const primeSets = getPrimeSetsCache();
+  const validItems = new Set<string>();
+  
+  if (primeSets && primeSets.length > 0) {
+    primeSets.forEach((set: any) => {
+      const setName = set.name; // e.g., "Acceltra Prime"
+      validItems.add(setName.toLowerCase());
+      
+      // Add all component variations
+      if (set.components) {
+        set.components.forEach((comp: any) => {
+          const compName = comp.name; // e.g., "Barrel", "Blueprint"
+          // Full item name: "Acceltra Prime Barrel"
+          validItems.add(`${setName} ${compName}`.toLowerCase());
+          // With Blueprint suffix for warframe parts
+          if (['Chassis', 'Neuroptics', 'Systems'].includes(compName)) {
+            validItems.add(`${setName} ${compName} Blueprint`.toLowerCase());
+          }
+        });
+      }
+    });
+  }
+  
+  validPrimeItemsCache = validItems;
+  ocrLogger.debug('Validation', `Built valid prime items cache with ${validItems.size} items`);
+  return validItems;
+};
+
+// Simple string similarity (Levenshtein-based)
+const stringSimilarity = (s1: string, s2: string): number => {
+  const longer = s1.length > s2.length ? s1 : s2;
+  const shorter = s1.length > s2.length ? s2 : s1;
+  
+  if (longer.length === 0) return 1.0;
+  
+  const editDistance = levenshteinDistance(longer, shorter);
+  return (longer.length - editDistance) / longer.length;
+};
+
+const levenshteinDistance = (s1: string, s2: string): number => {
+  const costs: number[] = [];
+  for (let i = 0; i <= s1.length; i++) {
+    let lastValue = i;
+    for (let j = 0; j <= s2.length; j++) {
+      if (i === 0) {
+        costs[j] = j;
+      } else if (j > 0) {
+        let newValue = costs[j - 1];
+        if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
+          newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+        }
+        costs[j - 1] = lastValue;
+        lastValue = newValue;
+      }
+    }
+    if (i > 0) costs[s2.length] = lastValue;
+  }
+  return costs[s2.length];
+};
+
+// Find best matching valid prime item
+const findBestPrimeMatch = (ocrText: string, threshold: number = 0.7): string | null => {
+  const validItems = buildValidPrimeItems();
+  const normalizedOcr = ocrText.toLowerCase().trim();
+  
+  // Direct match first
+  if (validItems.has(normalizedOcr)) {
+    return ocrText;
+  }
+  
+  // Try to find fuzzy match
+  let bestMatch: string | null = null;
+  let bestScore = 0;
+  
+  validItems.forEach(validItem => {
+    const score = stringSimilarity(normalizedOcr, validItem);
+    if (score > bestScore && score >= threshold) {
+      bestScore = score;
+      // Capitalize properly
+      bestMatch = validItem.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    }
+  });
+  
+  if (bestMatch) {
+    ocrLogger.debug('Validation', `Fuzzy matched "${ocrText}" → "${bestMatch}" (score: ${bestScore.toFixed(2)})`);
+  }
+  
+  return bestMatch;
+};
 
 const IMAGE_CACHE_KEY = 'platscanner_image_cache';
 const CACHE_EXPIRY_HOURS = 24; // Cache results for 24 hours
@@ -433,6 +531,12 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
   let detectedSyndicate = 'Unknown';
 
   lines.forEach((line, index) => {
+    // Skip UI noise and garbage text
+    if (isUINoiseText(line)) {
+      ocrLogger.debug('Parsing', `Skipping noise: "${line}"`);
+      return;
+    }
+
     // Check for syndicate name
     const syndicateMatch = line.match(/^SYNDICATE:\s*(.+)$/i);
     if (syndicateMatch) {
@@ -479,11 +583,32 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
       return;
     }
 
-    // Check if it's a Prime part
+    // For prime_parts screen type, use fuzzy matching against known items
+    if (screenType === 'prime_parts') {
+      // Try to find a valid prime item match
+      const matchedItem = findBestPrimeMatch(cleanLine, 0.65);
+      if (matchedItem) {
+        const primeItem: PrimePart = {
+          id: `prime-${Date.now()}-${index}`,
+          name: matchedItem,
+          category: 'prime_parts',
+          quantity,
+          status: 'loading'
+        };
+        detectedItems.push(primeItem);
+        return;
+      }
+      // No match found - skip this line for prime parts
+      return;
+    }
+
+    // Legacy check for Prime part (for non-prime_parts screen types)
     if (cleanLine.includes('Prime') || cleanLine.includes('Blueprint')) {
+      // Still try fuzzy match first
+      const matchedItem = findBestPrimeMatch(cleanLine, 0.65);
       const primeItem: PrimePart = {
         id: `prime-${Date.now()}-${index}`,
-        name: cleanLine,
+        name: matchedItem || cleanLine,
         category: 'prime_parts',
         quantity,
         status: 'loading'
