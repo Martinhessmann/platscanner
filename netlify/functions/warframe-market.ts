@@ -30,6 +30,112 @@ const normalizeItemName = (name: string): string => {
 };
 
 /**
+ * Searches for an item using Warframe Market search API to find the correct URL name
+ */
+const searchItemUrlName = async (itemName: string, apiHeaders: any): Promise<string | null> => {
+  try {
+    // Try searching with the normalized name (with underscores replaced by spaces for search)
+    const searchTerm = itemName.replace(/_/g, ' ');
+    const searchResponse = await fetch(`${WARFRAME_MARKET_API}/items?search=${encodeURIComponent(searchTerm)}`, { headers: apiHeaders });
+    
+    if (!searchResponse.ok) {
+      return null;
+    }
+
+    const searchData = await searchResponse.json();
+    
+    if (searchData?.payload?.items && searchData.payload.items.length > 0) {
+      // Find the best match - prefer exact match, then partial match
+      const normalizedSearch = itemName.toLowerCase();
+      const searchTermLower = searchTerm.toLowerCase();
+      
+      // Score each item to find the best match
+      let bestMatch: { url_name: string; score: number } | null = null;
+      
+      for (const item of searchData.payload.items) {
+        const itemUrlName = item.url_name;
+        const itemUrlLower = itemUrlName.toLowerCase();
+        let score = 0;
+        
+        // Exact match gets highest score
+        if (itemUrlName === itemName) {
+          score = 100;
+        }
+        // Check if URL name contains our search term or vice versa
+        else if (itemUrlLower.includes(normalizedSearch) || normalizedSearch.includes(itemUrlLower)) {
+          score = 80;
+        }
+        // Check if the display name matches
+        else if (item.item_name && item.item_name.toLowerCase().includes(searchTermLower)) {
+          score = 60;
+        }
+        // Partial match
+        else if (itemUrlLower.replace(/_/g, '').includes(normalizedSearch.replace(/_/g, ''))) {
+          score = 40;
+        }
+        
+        if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+          bestMatch = { url_name: itemUrlName, score };
+        }
+      }
+      
+      if (bestMatch && bestMatch.score >= 40) {
+        console.log(`>>> [Netlify] Search found: ${itemName} -> ${bestMatch.url_name} (score: ${bestMatch.score}) <<<`);
+        return bestMatch.url_name;
+      }
+      
+      // If no good match, return the first result as fallback
+      const firstItem = searchData.payload.items[0];
+      console.log(`>>> [Netlify] Search fallback: ${itemName} -> ${firstItem.url_name} <<<`);
+      return firstItem.url_name;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`>>> [Netlify] Search error for ${itemName}:`, error);
+    return null;
+  }
+};
+
+/**
+ * Generates alternative name formats to try when direct lookup fails
+ */
+const generateAlternativeNames = (itemName: string): string[] => {
+  const alternatives: string[] = [];
+  
+  // For warframe blueprints, try without "_blueprint" suffix first
+  // Warframe Market API often stores warframe blueprints as just "warframe_prime"
+  if (itemName.endsWith('_blueprint')) {
+    const withoutBlueprint = itemName.replace(/_blueprint$/, '');
+    alternatives.push(withoutBlueprint);
+    
+    // Also try adding "_set" suffix (some items might be stored as sets)
+    alternatives.push(`${withoutBlueprint}_set`);
+  }
+  
+  // For warframe components (chassis, neuroptics, systems), try base name
+  // e.g., "garuda_prime_chassis" -> "garuda_prime"
+  if (itemName.match(/_prime_(chassis|neuroptics|systems)$/)) {
+    const baseName = itemName.replace(/_(chassis|neuroptics|systems)$/, '');
+    alternatives.push(baseName);
+    // Also try with "_blueprint" suffix
+    alternatives.push(`${baseName}_blueprint`);
+  }
+  
+  // For weapon/equipment components, try base name
+  // e.g., "acceltra_prime_barrel" -> "acceltra_prime"
+  const componentMatch = itemName.match(/^(.+_prime)_(barrel|receiver|stock|blade|handle|link|grip|string|lower_limb|upper_limb|gauntlet|boot|ornament|head|pouch|carapace|cerebrum|guard|hilt|blades)$/);
+  if (componentMatch) {
+    const baseName = componentMatch[1];
+    alternatives.push(baseName);
+    // Also try with "_blueprint" suffix
+    alternatives.push(`${baseName}_blueprint`);
+  }
+  
+  return alternatives;
+};
+
+/**
  * Fetches price data for a single item
  */
 const fetchSingleItemData = async (itemName: string) => {
@@ -47,31 +153,84 @@ const fetchSingleItemData = async (itemName: string) => {
     'User-Agent': 'PlatScanner/1.8.0'
   };
 
+  // Try direct lookup first
+  let actualItemName = itemName;
+  let itemResponse: Response;
+  let ordersResponse: Response;
+  let statsResponse: Response;
+
   try {
-    const [itemResponse, ordersResponse, statsResponse] = await Promise.all([
+    [itemResponse, ordersResponse, statsResponse] = await Promise.all([
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}`, { headers: apiHeaders }),
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, { headers: apiHeaders }),
       fetch(`${WARFRAME_MARKET_API}/items/${itemName}/statistics`, { headers: apiHeaders })
     ]);
 
+    // If direct lookup failed, try alternatives
     if (!itemResponse.ok || !ordersResponse.ok) {
-      const errorType = itemResponse.status === 404 || ordersResponse.status === 404 ? 'not_found' : 'api_error';
-      console.log(`>>> [Netlify] ${itemName}: ${errorType} (status: ${itemResponse.status}/${ordersResponse.status}) <<<`);
+      const alternatives = generateAlternativeNames(itemName);
+      let found = false;
+      
+      // Try each alternative
+      for (const altName of alternatives) {
+        console.log(`>>> [Netlify] Trying alternative: ${itemName} -> ${altName} <<<`);
+        const [altItemRes, altOrdersRes, altStatsRes] = await Promise.all([
+          fetch(`${WARFRAME_MARKET_API}/items/${altName}`, { headers: apiHeaders }),
+          fetch(`${WARFRAME_MARKET_API}/items/${altName}/orders`, { headers: apiHeaders }),
+          fetch(`${WARFRAME_MARKET_API}/items/${altName}/statistics`, { headers: apiHeaders })
+        ]);
+        
+        if (altItemRes.ok && altOrdersRes.ok) {
+          actualItemName = altName;
+          itemResponse = altItemRes;
+          ordersResponse = altOrdersRes;
+          statsResponse = altStatsRes;
+          found = true;
+          console.log(`>>> [Netlify] Alternative worked: ${itemName} -> ${altName} <<<`);
+          break;
+        }
+      }
+      
+      // If alternatives didn't work, try search API
+      if (!found) {
+        console.log(`>>> [Netlify] Trying search API for: ${itemName} <<<`);
+        const searchedUrlName = await searchItemUrlName(itemName, apiHeaders);
+        
+        if (searchedUrlName && searchedUrlName !== itemName) {
+          actualItemName = searchedUrlName;
+          [itemResponse, ordersResponse, statsResponse] = await Promise.all([
+            fetch(`${WARFRAME_MARKET_API}/items/${searchedUrlName}`, { headers: apiHeaders }),
+            fetch(`${WARFRAME_MARKET_API}/items/${searchedUrlName}/orders`, { headers: apiHeaders }),
+            fetch(`${WARFRAME_MARKET_API}/items/${searchedUrlName}/statistics`, { headers: apiHeaders })
+          ]);
+          
+          if (itemResponse.ok && ordersResponse.ok) {
+            found = true;
+            console.log(`>>> [Netlify] Search API found: ${itemName} -> ${searchedUrlName} <<<`);
+          }
+        }
+      }
+      
+      // If still not found, return error
+      if (!found || !itemResponse.ok || !ordersResponse.ok) {
+        const errorType = itemResponse.status === 404 || ordersResponse.status === 404 ? 'not_found' : 'api_error';
+        console.log(`>>> [Netlify] ${itemName}: ${errorType} (status: ${itemResponse.status}/${ordersResponse.status}) <<<`);
 
-      return {
-        name: itemName,
-        thumb: '',
-        ducats: 0,
-        price: 0,
-        volume: 0,
-        average: 0,
-        error: errorType,
-        status: itemResponse.status || ordersResponse.status,
-        tags: [],
-        rarity: 'common',
-        mod_max_rank: 0,
-        trading_tax: 0
-      };
+        return {
+          name: itemName,
+          thumb: '',
+          ducats: 0,
+          price: 0,
+          volume: 0,
+          average: 0,
+          error: errorType,
+          status: itemResponse.status || ordersResponse.status,
+          tags: [],
+          rarity: 'common',
+          mod_max_rank: 0,
+          trading_tax: 0
+        };
+      }
     }
 
     const [itemData, ordersData, statsData] = await Promise.all([
@@ -80,8 +239,9 @@ const fetchSingleItemData = async (itemName: string) => {
       statsResponse.ok ? statsResponse.json() : Promise.resolve({ payload: { statistics_closed: { '90days': [] } } })
     ]);
 
+    // Find the item details - prefer exact match, fallback to first item
     const itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
-      item.url_name === itemName
+      item.url_name === actualItemName || item.url_name === itemName
     ) || itemData.payload.item.items_in_set[0];
 
     // Extract averages from statistics
@@ -165,8 +325,12 @@ const fetchSingleItemData = async (itemName: string) => {
       trading_tax: itemDetails.trading_tax || 0
     };
 
+    // Cache with both the original name and the actual name for future lookups
     cache.set(itemName, { data: result, timestamp: Date.now() });
-    console.log(`>>> [Netlify] ${itemName}: Success (${result.price}p) <<<`);
+    if (actualItemName !== itemName) {
+      cache.set(actualItemName, { data: result, timestamp: Date.now() });
+    }
+    console.log(`>>> [Netlify] ${itemName}${actualItemName !== itemName ? ` (${actualItemName})` : ''}: Success (${result.price}p) <<<`);
     return result;
   } catch (error: any) {
     console.error(`>>> [Netlify] ${itemName}: Exception -`, error);
