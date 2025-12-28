@@ -365,9 +365,9 @@ const hasItemInInventory = (itemName: string, requiredCount: number, inventory: 
   // Convert "Acceltra Prime Barrel" to "acceltra_prime_barrel" format
   const underscoreFormat = lowerItemName.replace(/\s+/g, '_');
 
-  // For warframes, prefer blueprint if both exist
+  // For warframes, ONLY count blueprints as owned (built parts are NOT tradeable)
   if (setType === 'Warframe') {
-    // First try to find blueprint (tradeable)
+    // Only look for blueprint (tradeable) - built parts don't count toward set completion
     const blueprintItem = validInventory.find(item => {
       const lowerInventoryItemName = item.name.toLowerCase();
       const blueprintMatch = lowerInventoryItemName === `${lowerItemName} blueprint`;
@@ -375,21 +375,8 @@ const hasItemInInventory = (itemName: string, requiredCount: number, inventory: 
       return blueprintMatch || underscoreBlueprintMatch;
     });
 
-    if (blueprintItem) {
-      return (blueprintItem.quantity || 1) >= requiredCount;
-    }
-
-    // Fallback to built part (but it's not tradeable, so we still count it as owned for completion)
-    const builtItem = validInventory.find(item => {
-      const lowerInventoryItemName = item.name.toLowerCase();
-      const exactMatch = lowerInventoryItemName === lowerItemName;
-      const underscoreMatch = lowerInventoryItemName === underscoreFormat;
-      // Exclude blueprints from this check
-      const isNotBlueprint = !lowerInventoryItemName.includes('blueprint');
-      return (exactMatch || underscoreMatch) && isNotBlueprint;
-    });
-
-    return builtItem ? (builtItem.quantity || 1) >= requiredCount : false;
+    // Only return true if blueprint exists - built parts are NOT counted
+    return blueprintItem ? (blueprintItem.quantity || 1) >= requiredCount : false;
   }
 
   // For weapons, find any matching item

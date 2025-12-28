@@ -1544,6 +1544,22 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           .map((part, index) => {
                           const isOwned = progress.ownedParts.includes(part.name);
                           const isObtainableFromRelics = progress.obtainableFromRelics.includes(part.name);
+                          
+                          // Check if there's a built warframe part (not tradeable, shouldn't count as owned)
+                          let hasBuiltPart = false;
+                          if (progress.set.type === 'Warframe' && !isOwned) {
+                            const builtPartItem = primePartsInventory.find(item => {
+                              const lowerItemName = item.name.toLowerCase();
+                              const lowerPartName = part.name.toLowerCase();
+                              return (lowerItemName === lowerPartName || lowerItemName === lowerPartName.replace(/\s+/g, '_')) &&
+                                     !lowerItemName.includes('blueprint') &&
+                                     ['chassis', 'systems', 'neuroptics'].some(comp => 
+                                       lowerItemName.includes(comp)
+                                     );
+                            });
+                            hasBuiltPart = !!builtPartItem;
+                          }
+                          
                           let iconColor = 'text-gray-500';
                           let textColor = 'text-gray-500';
                           let icon = <Circle size={12} />;
@@ -1551,6 +1567,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           if (isOwned) {
                             iconColor = 'text-green-400';
                             textColor = 'text-green-400';
+                            icon = <Package size={12} />;
+                          } else if (hasBuiltPart) {
+                            // Built warframe part (not tradeable, not counted as owned)
+                            iconColor = 'text-orange-400';
+                            textColor = 'text-orange-400';
                             icon = <Package size={12} />;
                           } else if (isObtainableFromRelics) {
                             iconColor = 'text-yellow-400';
@@ -1576,12 +1597,12 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                               <div className="flex flex-col items-end gap-1 text-right">
                                 <span className={`${textColor} text-xs`}>
                                   {isOwned ? (() => {
-                                    // For warframes, prefer blueprint if both exist
+                                    // For warframes, ONLY blueprints count as owned (built parts are NOT tradeable)
                                     let inventoryItem: DetectedItem | undefined;
                                     let builtItem: DetectedItem | undefined;
                                     
                                     if (progress.set.type === 'Warframe') {
-                                      // First try to find blueprint (tradeable)
+                                      // Only look for blueprint (tradeable)
                                       const blueprintItem = primePartsInventory.find(item => {
                                         const lowerItemName = item.name.toLowerCase();
                                         const lowerPartName = part.name.toLowerCase();
@@ -1589,7 +1610,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                                lowerItemName === `${lowerPartName.replace(/\s+/g, '_')}_blueprint`;
                                       });
                                       
-                                      // Also check for built part
+                                      // Also check for built part (for display purposes only - not counted as owned)
                                       const builtPartItem = primePartsInventory.find(item => {
                                         const lowerItemName = item.name.toLowerCase();
                                         const lowerPartName = part.name.toLowerCase();
@@ -1611,23 +1632,24 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                       });
                                     }
                                     
-                                    if (!inventoryItem && !builtItem) {
-                                      return <span className="text-gray-500">Not found</span>;
-                                    }
-                                    
                                     // If we have a built warframe part but no blueprint, show it as not tradeable
-                                    // but also show the blueprint price if we can fetch it
+                                    // This should only happen if the part is marked as "owned" but it's actually a built part
+                                    // (which shouldn't happen with the fixed logic, but handle it gracefully)
                                     if (builtItem && !inventoryItem && progress.set.type === 'Warframe') {
                                       // Try to find blueprint price from market data
                                       const blueprintName = `${part.name} Blueprint`;
                                       const blueprintPriceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
-                                        p => p.name.toLowerCase() === blueprintName.toLowerCase()
+                                        p => {
+                                          const pName = p.name.toLowerCase();
+                                          return pName === blueprintName.toLowerCase() ||
+                                                 (pName.includes('blueprint') && pName.includes(part.name.split(' ')[0].toLowerCase()));
+                                        }
                                       );
                                       
                                       return (
                                         <span className="flex flex-col items-end">
                                           <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
-                                          {blueprintPriceData && (
+                                          {blueprintPriceData && blueprintPriceData.price > 0 && (
                                             <span className="text-[10px] text-gray-500">
                                               BP: {blueprintPriceData.price}p
                                             </span>
@@ -1636,10 +1658,14 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                       );
                                     }
                                     
-                                    // Check if it's a blueprint
-                                    const isBlueprint = inventoryItem?.name.toLowerCase().includes('blueprint') || false;
+                                    if (!inventoryItem) {
+                                      return <span className="text-gray-500">Not found</span>;
+                                    }
                                     
-                                    if (inventoryItem && inventoryItem.price && inventoryItem.price > 0) {
+                                    // Check if it's a blueprint
+                                    const isBlueprint = inventoryItem.name.toLowerCase().includes('blueprint');
+                                    
+                                    if (inventoryItem.price && inventoryItem.price > 0) {
                                       return (
                                         <span className="flex flex-col items-end">
                                           <span>{inventoryItem.price}p {isBlueprint && <span className="text-[10px] text-blue-400">(BP)</span>}</span>
@@ -1657,16 +1683,49 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                       </span>
                                     );
                                   })() : (
-                                    isObtainableFromRelics ? (
+                                    hasBuiltPart ? (
+                                      // Built warframe part (not tradeable)
+                                      (() => {
+                                        // Try to find blueprint price from market data
+                                        const blueprintName = `${part.name} Blueprint`;
+                                        const blueprintPriceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
+                                          p => {
+                                            const pName = p.name.toLowerCase();
+                                            return pName === blueprintName.toLowerCase() ||
+                                                   (pName.includes('blueprint') && pName.includes(part.name.split(' ')[0].toLowerCase()));
+                                          }
+                                        );
+                                        
+                                        return (
+                                          <span className="flex flex-col items-end">
+                                            <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
+                                            {blueprintPriceData && blueprintPriceData.price > 0 && (
+                                              <span className="text-[10px] text-gray-500">
+                                                BP: {blueprintPriceData.price}p
+                                              </span>
+                                            )}
+                                          </span>
+                                        );
+                                      })()
+                                    ) : isObtainableFromRelics ? (
                                       <span className="text-gray-400"></span>
                                     ) : (
                                       (() => {
                                         // Find price for this missing part (seller price - what it costs to buy)
+                                        // Try multiple name variations to find the price
                                         const priceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
-                                          p => p.name.toLowerCase() === part.name.toLowerCase()
+                                          p => {
+                                            const pName = p.name.toLowerCase();
+                                            const partName = part.name.toLowerCase();
+                                            return pName === partName || 
+                                                   pName === `${partName} blueprint` ||
+                                                   pName === `${partName.replace(/\s+/g, '_')}_blueprint` ||
+                                                   // Also try matching just the part type (e.g., "Blueprint" matches "Wisp Prime Blueprint")
+                                                   (part.partType === 'Blueprint' && pName.includes('blueprint') && pName.includes(partName.split(' ')[0]));
+                                          }
                                         );
                                         
-                                        // If no price data, try to fetch it from the part name
+                                        // If no price data from investment analysis, try to find in inventory
                                         if (!priceData) {
                                           // Try to find in inventory to get seller price
                                           const inventoryItem = primePartsInventory.find(item => {
@@ -1674,7 +1733,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                             const lowerPartName = part.name.toLowerCase();
                                             return lowerItemName === lowerPartName || 
                                                    lowerItemName === `${lowerPartName} blueprint` ||
-                                                   lowerItemName === `${lowerPartName.replace(/\s+/g, '_')}_blueprint`;
+                                                   lowerItemName === `${lowerPartName.replace(/\s+/g, '_')}_blueprint` ||
+                                                   // Also try matching blueprint by part type
+                                                   (part.partType === 'Blueprint' && lowerItemName.includes('blueprint') && lowerItemName.includes(partName.split(' ')[0]));
                                           });
                                           
                                           if (inventoryItem && inventoryItem.sellerPrice && inventoryItem.sellerPrice > 0) {
@@ -1691,9 +1752,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                           }
                                         }
                                         
+                                        // Show price if found, otherwise show "Market only"
                                         return (
                                           <span className="text-gray-500">
-                                            {priceData ? (
+                                            {priceData && priceData.price > 0 ? (
                                               <span className="flex flex-col items-end">
                                                 <span>{priceData.price}p</span>
                                                 {priceData.avg48h && priceData.avg48h !== priceData.price && (
