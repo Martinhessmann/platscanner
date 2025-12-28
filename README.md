@@ -152,6 +152,7 @@ For detailed technical information, see:
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and deployment details
 - [CLAUDE.md](CLAUDE.md) - Project architecture, services, and recent updates
 - [FUTURE_IDEAS.md](FUTURE_IDEAS.md) - Planned features and roadmap
+- [TODO.md](TODO.md) - Open issues and follow-up tasks
 
 ### Recent Improvements (2025-10-14)
 - **Optimized Static Data Loading**: Eliminated duplicate `primesets.json` loading across services
