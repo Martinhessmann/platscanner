@@ -8,7 +8,7 @@ A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots 
   - Works with Warframe's stylized fonts that traditional OCR struggles with
   - Get a free API key from [unstract.com](https://unstract.com)
   - Falls back to Tesseract.js if LLMWhisperer is not configured
-- 💰 **Real-time Pricing**: Fetches current market data from Warframe Market
+- 💰 **Real-time Pricing**: Fetches current market data from Warframe Market API v2 (with v1 fallback for orders/stats)
 - 🎲 **Relic Value Analysis**: Smart OPEN/SELL/REFINE recommendations with expected value calculations
 - 📊 **Market Analytics**: Shows current prices, 24h averages, and trading volume
 - 🎯 **Ducat Values**: Compare platinum prices with ducat trading potential
@@ -138,6 +138,7 @@ The app uses Netlify Functions for improved performance and API handling. Functi
 
 - **warframe-market**: Batch API support, smart caching, CORS handling, rate limiting
   - Location: `netlify/functions/warframe-market.ts`
+  - Uses Warframe Market API v2 for item data, v1 for orders/statistics (hybrid approach)
 - **llmwhisperer**: Proxy for LLMWhisperer OCR API (handles CORS restrictions)
   - Location: `netlify/functions/llmwhisperer.ts`
 - **Automatic Deployment**: Functions deploy automatically when you push to your main branch
