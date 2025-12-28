@@ -1327,11 +1327,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 </div>
 
                 {/* Trading Recommendation - Prominent at top */}
-                {progress.recommendedStrategy && (
+                {progress.recommendedStrategy && progress.recommendedStrategy !== 'INSUFFICIENT_DATA' && (
                   <div className={`mt-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
                     (() => {
-                      // Use expectedProfit from investmentAnalysis if available, otherwise fall back to profitDifference
-                      const profit = progress.investmentAnalysis?.expectedProfit ?? progress.profitDifference ?? 0;
+                      // Use expectedProfit (ROI) from investmentAnalysis
+                      const profit = progress.investmentAnalysis?.expectedProfit ?? 0;
                       return profit > 0
                         ? 'bg-green-900/30 border-green-500/30 text-green-400'
                         : profit < 0
@@ -1339,14 +1339,14 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         : 'bg-gray-800/30 border-gray-600/30 text-gray-400';
                     })()
                   }`}>
-                    💰 {progress.recommendedStrategy === 'SELL_PARTS' ? 'SELL PARTS' : progress.recommendedStrategy === 'SELL_SET' ? 'SELL SET' : progress.recommendedStrategy.replace(/_/g, ' ')}
+                    💰 {progress.recommendedStrategy === 'SELL_PARTS' ? 'SELL PARTS' : progress.recommendedStrategy === 'BUY_MISSING' ? 'BUY MISSING PARTS TO COMPLETE SET' : progress.recommendedStrategy.replace(/_/g, ' ')}
                     {(() => {
-                      // Use expectedProfit (ROI) if available, otherwise profitDifference
-                      const profit = progress.investmentAnalysis?.expectedProfit ?? progress.profitDifference ?? 0;
+                      // Show ROI if available from investment analysis
+                      const profit = progress.investmentAnalysis?.expectedProfit ?? 0;
                       if (profit !== 0) {
                         return (
                           <span className="ml-1">
-                            ({profit > 0 ? '+' : ''}{profit.toFixed(1)}p {progress.investmentAnalysis ? 'ROI' : 'profit'})
+                            ({profit > 0 ? '+' : ''}{profit.toFixed(1)}p ROI)
                           </span>
                         );
                       }
@@ -1358,16 +1358,17 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 {/* Value summary with clearer labels */}
                 <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <div className="text-xs text-gray-400">Owned Parts</div>
+                    <div className="text-xs text-gray-400">Owned Parts Value</div>
                     <div className="flex items-center gap-1 text-blue-400">
                       <Zap size={12} />
                       <span className="font-medium">
                         {Math.round(progress.individualPartsValue ?? 0)}p
                       </span>
                     </div>
+                    <div className="text-[10px] text-gray-500">(buyer prices)</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-400">Investment</div>
+                    <div className="text-xs text-gray-400">Missing Parts Cost</div>
                     <div className="flex items-center gap-1 text-orange-400">
                       <ShoppingCart size={12} />
                       <span className="font-medium">
@@ -1378,6 +1379,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         })()}
                       </span>
                     </div>
+                    <div className="text-[10px] text-gray-500">(seller prices)</div>
                   </div>
                 </div>
 
@@ -1390,6 +1392,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         {Math.round(progress.completeSetPrice ?? 0)}p
                       </span>
                     </div>
+                    <div className="text-[10px] text-gray-500">(buyer price)</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-400">48h Average</div>
@@ -1519,7 +1522,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-xs mb-1">
                           <span className="text-gray-400/70">Part</span>
-                          <span className="text-gray-400/70">Source</span>
+                          <div className="flex items-center gap-4">
+                            <span className="text-gray-400/70">Price</span>
+                            <span className="text-gray-400/70">Source</span>
+                          </div>
                         </div>
                         {[...progress.set.requiredParts]
                           .sort((a, b) => {
@@ -1541,6 +1547,29 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           .map((part, index) => {
                           const isOwned = progress.ownedParts.includes(part.name);
                           const isObtainableFromRelics = progress.obtainableFromRelics.includes(part.name);
+                          
+                          // Check if there's a built warframe part in inventory (for display purposes only)
+                          // Built parts are NOT tradeable and don't count as owned, but we show them separately
+                          let hasBuiltPart = false;
+                          if (progress.set.type === 'Warframe' && !isOwned) {
+                            const lowerPartName = part.name.toLowerCase();
+                            // For warframe components, check if there's a built version (without blueprint)
+                            // e.g., "Protea Prime Systems" -> look for "Protea Prime Systems" (built, no blueprint)
+                            const builtPartItem = primePartsInventory.find(item => {
+                              const lowerItemName = item.name.toLowerCase();
+                              // Match the component name exactly (e.g., "Protea Prime Systems")
+                              // But exclude blueprints
+                              const matchesPartName = lowerItemName === lowerPartName || 
+                                                      lowerItemName === lowerPartName.replace(/\s+/g, '_');
+                              return matchesPartName &&
+                                     !lowerItemName.includes('blueprint') &&
+                                     ['chassis', 'systems', 'neuroptics'].some(comp => 
+                                       lowerItemName.includes(comp)
+                                     );
+                            });
+                            hasBuiltPart = !!builtPartItem;
+                          }
+                          
                           let iconColor = 'text-gray-500';
                           let textColor = 'text-gray-500';
                           let icon = <Circle size={12} />;
@@ -1548,6 +1577,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           if (isOwned) {
                             iconColor = 'text-green-400';
                             textColor = 'text-green-400';
+                            icon = <Package size={12} />;
+                          } else if (hasBuiltPart) {
+                            // Built warframe part (not tradeable, not counted as owned)
+                            iconColor = 'text-orange-400';
+                            textColor = 'text-orange-400';
                             icon = <Package size={12} />;
                           } else if (isObtainableFromRelics) {
                             iconColor = 'text-yellow-400';
@@ -1570,34 +1604,47 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                   <span className="text-xs text-blue-400">x{part.itemCount}</span>
                                 )}
                               </div>
-                              <div className="flex flex-col items-end gap-1 text-right">
-                                <span className={`${textColor} text-xs`}>
+                              <div className="flex items-center gap-4">
+                                {/* Price Column */}
+                                <div className="flex flex-col items-end gap-1 text-right min-w-[80px]">
+                                  <span className={`${textColor} text-xs`}>
                                   {isOwned ? (() => {
-                                    // Find price for this owned part from inventory
+                                    // Find the inventory item that matches this owned part
+                                    // Part name is like "Xaku Prime Blueprint" (from set definition)
+                                    const lowerPartName = part.name.toLowerCase();
+                                    
+                                    // Try multiple matching strategies
                                     const inventoryItem = primePartsInventory.find(item => {
                                       const lowerItemName = item.name.toLowerCase();
-                                      const lowerPartName = part.name.toLowerCase();
-                                      return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+                                      
+                                      // Exact match
+                                      if (lowerItemName === lowerPartName) return true;
+                                      
+                                      // Underscore format match
+                                      if (lowerItemName === lowerPartName.replace(/\s+/g, '_')) return true;
+                                      
+                                      // Try matching without "blueprint" suffix variations
+                                      const partWithoutBlueprint = lowerPartName.replace(/\s+blueprint\s*$/, '').replace(/_blueprint$/, '');
+                                      const itemWithoutBlueprint = lowerItemName.replace(/\s+blueprint\s*$/, '').replace(/_blueprint$/, '');
+                                      if (partWithoutBlueprint === itemWithoutBlueprint && 
+                                          (lowerPartName.includes('blueprint') === lowerItemName.includes('blueprint'))) {
+                                        return true;
+                                      }
+                                      
+                                      return false;
                                     });
                                     
                                     if (!inventoryItem) {
+                                      // Log for debugging - show what we're looking for vs what's available
+                                      const matchingItems = primePartsInventory.filter(i => 
+                                        i.name.toLowerCase().includes(progress.set.name.toLowerCase().split(' ')[0])
+                                      );
+                                      console.warn(`[UI] Owned part "${part.name}" not found in inventory.`, {
+                                        lookingFor: part.name,
+                                        availableItems: matchingItems.map(i => i.name),
+                                        totalInventory: primePartsInventory.length
+                                      });
                                       return <span className="text-gray-500">Not found</span>;
-                                    }
-                                    
-                                    // Check if it's a built warframe part (not tradeable)
-                                    const isBuiltWarframe = progress.set.type === 'Warframe' && 
-                                      !inventoryItem.name.toLowerCase().includes('blueprint') &&
-                                      ['chassis', 'systems', 'neuroptics'].some(comp => 
-                                        inventoryItem.name.toLowerCase().includes(comp)
-                                      );
-                                    
-                                    if (isBuiltWarframe) {
-                                      // Built warframe component - show special indicator
-                                      return (
-                                        <span className="flex flex-col items-end">
-                                          <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
-                                        </span>
-                                      );
                                     }
                                     
                                     // Check if it's a blueprint
@@ -1613,76 +1660,209 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                         </span>
                                       );
                                     }
-                                    return <span className="text-gray-500">No buyers {isBlueprint && <span className="text-[10px] text-blue-400">(BP)</span>}</span>;
+                                    
+                                    // Show blueprint indicator even if no buyers
+                                    return (
+                                      <span className="text-gray-500">
+                                        No buyers {isBlueprint && <span className="text-[10px] text-blue-400">(BP)</span>}
+                                      </span>
+                                    );
                                   })() : (
-                                    isObtainableFromRelics ? (
-                                      <span className="text-gray-400"></span>
+                                    hasBuiltPart ? (
+                                      // Built warframe part (not tradeable) - try to show blueprint price if available
+                                      (() => {
+                                        // Try to find blueprint price for this built part
+                                        // CRITICAL: missingPartsWithPrices stores prices with ORIGINAL part name (e.g., "Protea Prime Neuroptics")
+                                        // not the blueprint name, because we fetch prices for missing parts using the original name
+                                        const partName = part.name.toLowerCase();
+                                        const setBaseName = progress.set.name.toLowerCase();
+                                        
+                                        // Try to find price in missingPartsWithPrices using the original part name
+                                        const blueprintPriceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
+                                          p => {
+                                            const pName = p.name.toLowerCase();
+                                            // Match the original part name directly (e.g., "Protea Prime Neuroptics")
+                                            return pName === partName ||
+                                                   // Or match by component type and set name
+                                                   (['chassis', 'systems', 'neuroptics'].some(comp => 
+                                                      partName.includes(comp) && pName.includes(comp)
+                                                    ) &&
+                                                    pName.includes(setBaseName.split(' ')[0]));
+                                          }
+                                        );
+                                        
+                                        // Also check inventory for blueprint
+                                        const blueprintName = `${part.name} Blueprint`;
+                                        const blueprintInInventory = primePartsInventory.find(item => {
+                                          const lowerItemName = item.name.toLowerCase();
+                                          const lowerBlueprintName = blueprintName.toLowerCase();
+                                          return lowerItemName === lowerBlueprintName || 
+                                                 lowerItemName === lowerBlueprintName.replace(/\s+/g, '_');
+                                        });
+                                        
+                                        const blueprintBuyerPrice = blueprintPriceData?.buyerPrice || blueprintInInventory?.price || 0;
+                                        const blueprintSellerPrice = blueprintPriceData?.price || blueprintInInventory?.sellerPrice || 0;
+                                        const blueprintPrice = blueprintSellerPrice > 0 ? blueprintSellerPrice : blueprintBuyerPrice;
+                                        
+                                        if (blueprintPrice > 0) {
+                                          return (
+                                            <span className="text-gray-400">
+                                              <span className="flex flex-col items-end">
+                                                <span>{blueprintPrice}p</span>
+                                                {blueprintPriceData?.avg48h && blueprintPriceData.avg48h !== blueprintPrice && (
+                                                  <span className="text-[10px] text-gray-600">48h: {blueprintPriceData.avg48h}p</span>
+                                                )}
+                                                <span className="text-[10px] text-gray-500">(blueprint)</span>
+                                              </span>
+                                            </span>
+                                          );
+                                        }
+                                        
+                                        return <span className="text-gray-500">—</span>;
+                                      })()
                                     ) : (
                                       (() => {
-                                        // Find price for this missing part
+                                        // Find price for this missing part (seller price - what it costs to buy)
+                                        // Try multiple name variations to find the price
+                                        const partName = part.name.toLowerCase();
+                                        const setBaseName = progress.set.name.toLowerCase();
+                                        
                                         const priceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
-                                          p => p.name.toLowerCase() === part.name.toLowerCase()
+                                          p => {
+                                            const pName = p.name.toLowerCase();
+                                            // Try exact match first
+                                            if (pName === partName) return true;
+                                            // Try with blueprint suffix
+                                            if (pName === `${partName} blueprint` || pName === `${partName.replace(/\s+/g, '_')}_blueprint`) return true;
+                                            // Try matching by part type and set name (e.g., "Xaku Prime Blueprint" matches part "Blueprint")
+                                            if (part.partType === 'Blueprint' && pName.includes('blueprint') && pName.includes(setBaseName.split(' ')[0])) return true;
+                                            // Try matching other part types (e.g., "Xaku Prime Chassis" matches part "Chassis")
+                                            const partTypeLower = part.partType.toLowerCase();
+                                            if (pName.includes(partTypeLower) && pName.includes(setBaseName.split(' ')[0])) return true;
+                                            return false;
+                                          }
                                         );
+                                        
+                                        // If no price data from investment analysis, try to find in inventory
+                                        if (!priceData) {
+                                          // Try to find in inventory to get seller price
+                                          const inventoryItem = primePartsInventory.find(item => {
+                                            const lowerItemName = item.name.toLowerCase();
+                                            const lowerPartName = part.name.toLowerCase();
+                                            return lowerItemName === lowerPartName || 
+                                                   lowerItemName === `${lowerPartName} blueprint` ||
+                                                   lowerItemName === `${lowerPartName.replace(/\s+/g, '_')}_blueprint` ||
+                                                   // Also try matching blueprint by part type
+                                                   (part.partType === 'Blueprint' && lowerItemName.includes('blueprint') && lowerItemName.includes(partName.split(' ')[0]));
+                                          });
+                                          
+                                          if (inventoryItem && inventoryItem.sellerPrice && inventoryItem.sellerPrice > 0) {
+                                            return (
+                                              <span className="text-gray-500">
+                                                <span className="flex flex-col items-end">
+                                                  <span>{inventoryItem.sellerPrice}p</span>
+                                                  {inventoryItem.average && inventoryItem.average !== inventoryItem.sellerPrice && (
+                                                    <span className="text-[10px] text-gray-600">48h: {inventoryItem.average}p</span>
+                                                  )}
+                                                </span>
+                                              </span>
+                                            );
+                                          }
+                                        }
+                                        
+                                        // Show seller price if available, otherwise show buyer price as reference, or "—"
                                         return (
                                           <span className="text-gray-500">
                                             {priceData ? (
-                                              <span className="flex flex-col items-end">
-                                                <span>{priceData.price}p</span>
-                                                {priceData.avg48h && priceData.avg48h !== priceData.price && (
-                                                  <span className="text-[10px] text-gray-600">48h: {priceData.avg48h}p</span>
-                                                )}
-                                              </span>
-                                            ) : 'Market only'}
+                                              priceData.price > 0 ? (
+                                                // Has seller price (what it costs to buy)
+                                                <span className="flex flex-col items-end">
+                                                  <span>{priceData.price}p</span>
+                                                  {priceData.avg48h && priceData.avg48h !== priceData.price && (
+                                                    <span className="text-[10px] text-gray-600">48h: {priceData.avg48h}p</span>
+                                                  )}
+                                                </span>
+                                              ) : (priceData as any).buyerPrice > 0 ? (
+                                                // No sellers, but has buyer price (show as reference with note)
+                                                <span className="flex flex-col items-end">
+                                                  <span className="text-gray-400">{(priceData as any).buyerPrice}p</span>
+                                                  <span className="text-[10px] text-gray-500">(buyer, no sellers)</span>
+                                                </span>
+                                              ) : (
+                                                // No price data at all
+                                                <span className="text-gray-500">—</span>
+                                              )
+                                            ) : (
+                                              <span className="text-gray-500">—</span>
+                                            )}
                                           </span>
                                         );
                                       })()
                                     )
                                   )}
-                                </span>
-                                {!isOwned && isObtainableFromRelics && rec && (
-                                  <div className="flex items-center gap-1 justify-end">
-                                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[rec.target]}`} title={`Recommended refinement`}>
-                                      <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[rec.target]}`} />
-                                      <span className="capitalize">{rec.target}</span>
-                                    </span>
-                                  </div>
-                                )}
-                                {isObtainableFromRelics && !isOwned && relicBaseCounts.length > 0 && (
-                                  <div className="flex items-end gap-2 flex-col">
-                                    <div className="flex items-start gap-2 flex-col text-right">
-                                      {relicBaseCounts.map(({ base, total }) => (
-                                        <button
-                                          key={base}
-                                          onClick={() => {
-                                            console.log('[PrimeSets] Button clicked for relic:', base);
+                                  </span>
+                                </div>
+                                
+                                {/* Source Column */}
+                                <div className="flex flex-col items-end gap-1 text-right min-w-[100px]">
+                                  {isOwned ? (
+                                    <span className="text-green-400 text-xs">In Inventory</span>
+                                  ) : hasBuiltPart ? (
+                                    <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
+                                  ) : isObtainableFromRelics ? (
+                                    <>
+                                      {rec && (
+                                        <div className="flex items-center gap-1 justify-end">
+                                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[rec.target]}`} title={`Recommended refinement`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[rec.target]}`} />
+                                            <span className="capitalize">{rec.target}</span>
+                                          </span>
+                                        </div>
+                                      )}
+                                      {relicBaseCounts.length > 0 && (
+                                        <div className="flex items-end gap-2 flex-col">
+                                          <div className="flex items-start gap-2 flex-col text-right">
+                                            {relicBaseCounts.map(({ base, total }) => (
+                                              <button
+                                                key={base}
+                                                onClick={() => {
+                                                  console.log('[PrimeSets] Button clicked for relic:', base);
 
-                                            // First expand the relics section
-                                            console.log('[PrimeSets] Dispatching expand-section event');
-                                            window.dispatchEvent(new CustomEvent('expand-section', {
-                                              detail: { section: 'relics' }
-                                            }));
+                                                  // First expand the relics section
+                                                  console.log('[PrimeSets] Dispatching expand-section event');
+                                                  window.dispatchEvent(new CustomEvent('expand-section', {
+                                                    detail: { section: 'relics' }
+                                                  }));
 
-                                            // Then navigate to the specific relic
-                                            setTimeout(() => {
-                                              console.log('[PrimeSets] Dispatching focus-relic event for:', base);
-                                              window.dispatchEvent(new CustomEvent('focus-relic', {
-                                                detail: {
-                                                  name: base,
-                                                  expandDetails: true,
-                                                  scrollToSection: true
-                                                }
-                                              }));
-                                            }, 300); // Increased timeout to ensure section is expanded
-                                          }}
-                                          className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2 transition-colors"
-                                          title={`Focus ${base} in Relics section`}
-                                        >
-                                          {base}{total > 1 ? ` x${total}` : ''}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
+                                                  // Then navigate to the specific relic
+                                                  setTimeout(() => {
+                                                    console.log('[PrimeSets] Dispatching focus-relic event for:', base);
+                                                    window.dispatchEvent(new CustomEvent('focus-relic', {
+                                                      detail: {
+                                                        name: base,
+                                                        expandDetails: true,
+                                                        scrollToSection: true
+                                                      }
+                                                    }));
+                                                  }, 300); // Increased timeout to ensure section is expanded
+                                                }}
+                                                className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2 transition-colors"
+                                                title={`Focus ${base} in Relics section`}
+                                              >
+                                                {base}{total > 1 ? ` x${total}` : ''}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {!rec && relicBaseCounts.length === 0 && (
+                                        <span className="text-yellow-400 text-xs">From Relics</span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">Market only</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );

@@ -3,6 +3,7 @@ import { Settings, X, Key, HardDrive, Cloud, Bug, Copy, Check, Eye, Wand2 } from
 import DataBackupSection from './DataBackupSection';
 import CloudSyncSection from './CloudSyncSection';
 import { ocrLogger } from '../services/ocrLogger';
+import { marketLogger } from '../services/marketLogger';
 import { isLLMWhispererConfigured, setLLMWhispererApiKey } from '../services/llmWhispererService';
 
 interface ApiKeySettingsProps {
@@ -27,10 +28,13 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
   const [llmWhispererConfigured, setLlmWhispererConfigured] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [logs, setLogs] = useState(ocrLogger.getRecentLogs(100));
+  const [logType, setLogType] = useState<'ocr' | 'market'>('ocr');
+  const [ocrLogs, setOcrLogs] = useState(ocrLogger.getRecentLogs(100));
+  const [marketLogs, setMarketLogs] = useState(marketLogger.getRecentLogs(100));
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [copied, setCopied] = useState(false);
   const [verboseLogging, setVerboseLogging] = useState(ocrLogger.isVerboseLoggingEnabled());
+  const [verboseMarketLogging, setVerboseMarketLogging] = useState(marketLogger.isVerboseLoggingEnabled());
 
   useEffect(() => {
     if (openSettings) {
@@ -43,7 +47,8 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
   useEffect(() => {
     if (activeTab === 'debug' && autoRefresh) {
       const interval = setInterval(() => {
-        setLogs(ocrLogger.getRecentLogs(100));
+        setOcrLogs(ocrLogger.getRecentLogs(100));
+        setMarketLogs(marketLogger.getRecentLogs(100));
       }, 1000); // Refresh every second
       return () => clearInterval(interval);
     }
@@ -53,7 +58,9 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
   useEffect(() => {
     if (activeTab === 'debug') {
       setVerboseLogging(ocrLogger.isVerboseLoggingEnabled());
-      setLogs(ocrLogger.getRecentLogs(100));
+      setVerboseMarketLogging(marketLogger.isVerboseLoggingEnabled());
+      setOcrLogs(ocrLogger.getRecentLogs(100));
+      setMarketLogs(marketLogger.getRecentLogs(100));
     }
   }, [activeTab]);
 
@@ -167,7 +174,8 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
               <button
                 onClick={() => {
                   setActiveTab('debug');
-                  setLogs(ocrLogger.getRecentLogs(100));
+                  setOcrLogs(ocrLogger.getRecentLogs(100));
+                  setMarketLogs(marketLogger.getRecentLogs(100));
                 }}
                 className={`flex items-center gap-2 px-4 sm:px-6 py-3 font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'debug'
@@ -178,9 +186,9 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                 <Bug size={16} />
                 <span className="hidden sm:inline">Debug/Logs</span>
                 <span className="sm:hidden">Logs</span>
-                {ocrLogger.getLogCount() > 0 && (
+                {(ocrLogger.getLogCount() > 0 || marketLogger.getLogCount() > 0) && (
                   <span className="ml-1 px-1.5 py-0.5 bg-tenno-blue/20 text-tenno-blue text-xs rounded">
-                    {ocrLogger.getLogCount()}
+                    {ocrLogger.getLogCount() + marketLogger.getLogCount()}
                   </span>
                 )}
               </button>
@@ -282,27 +290,58 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                 <div className="space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
-                      <h3 className="text-lg font-semibold text-white mb-1">OCR Debug Logs</h3>
+                      <h3 className="text-lg font-semibold text-white mb-1">Debug Logs</h3>
                       <p className="text-sm text-gray-400">
-                        View detailed logs from OCR processing to debug image analysis failures
+                        View detailed logs from OCR processing and market fetch operations
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                      {/* Log Type Selector */}
+                      <div className="flex items-center gap-2 bg-gray-800 rounded p-1">
+                        <button
+                          onClick={() => setLogType('ocr')}
+                          className={`px-3 py-1 rounded text-xs transition-colors ${
+                            logType === 'ocr'
+                              ? 'bg-tenno-blue text-white'
+                              : 'text-gray-400 hover:text-gray-300'
+                          }`}
+                        >
+                          OCR ({ocrLogger.getLogCount()})
+                        </button>
+                        <button
+                          onClick={() => setLogType('market')}
+                          className={`px-3 py-1 rounded text-xs transition-colors ${
+                            logType === 'market'
+                              ? 'bg-tenno-blue text-white'
+                              : 'text-gray-400 hover:text-gray-300'
+                          }`}
+                        >
+                          Market ({marketLogger.getLogCount()})
+                        </button>
+                      </div>
+                      
+                      {/* Verbose Logging Toggle */}
                       <label className="flex items-center gap-2 text-sm text-gray-300 whitespace-nowrap">
                         <input
                           type="checkbox"
-                          checked={verboseLogging}
+                          checked={logType === 'ocr' ? verboseLogging : verboseMarketLogging}
                           onChange={(e) => {
                             const enabled = e.target.checked;
-                            setVerboseLogging(enabled);
-                            ocrLogger.setVerboseLogging(enabled);
-                            // Refresh logs to show/hide based on new setting
-                            setLogs(ocrLogger.getRecentLogs(100));
+                            if (logType === 'ocr') {
+                              setVerboseLogging(enabled);
+                              ocrLogger.setVerboseLogging(enabled);
+                              setOcrLogs(ocrLogger.getRecentLogs(100));
+                            } else {
+                              setVerboseMarketLogging(enabled);
+                              marketLogger.setVerboseLogging(enabled);
+                              setMarketLogs(marketLogger.getRecentLogs(100));
+                            }
                           }}
                           className="rounded"
                         />
-                        <span>Enable logging</span>
+                        <span>Verbose</span>
                       </label>
+                      
                       <label className="flex items-center gap-2 text-sm text-gray-300 whitespace-nowrap">
                         <input
                           type="checkbox"
@@ -315,10 +354,12 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                       <button
                         onClick={async () => {
                           try {
-                            const logsText = logs.map(log => {
+                            const currentLogs = logType === 'ocr' ? ocrLogs : marketLogs;
+                            const logsText = currentLogs.map(log => {
                               const date = new Date(log.timestamp);
                               const dataStr = log.data ? '\n' + JSON.stringify(log.data, null, 2) : '';
-                              return `[${log.level.toUpperCase()}] ${date.toLocaleString()} [${log.category}]\n${log.message}${dataStr}`;
+                              const category = (log as any).category || 'market';
+                              return `[${log.level.toUpperCase()}] ${date.toLocaleString()} [${category}]\n${log.message}${dataStr}`;
                             }).join('\n\n');
                             
                             await navigator.clipboard.writeText(logsText);
@@ -326,12 +367,13 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                             setTimeout(() => setCopied(false), 2000);
                           } catch (error) {
                             console.error('Failed to copy logs:', error);
-                            // Fallback: create textarea and copy
+                            const currentLogs = logType === 'ocr' ? ocrLogs : marketLogs;
                             const textarea = document.createElement('textarea');
-                            const logsText = logs.map(log => {
+                            const logsText = currentLogs.map(log => {
                               const date = new Date(log.timestamp);
                               const dataStr = log.data ? '\n' + JSON.stringify(log.data, null, 2) : '';
-                              return `[${log.level.toUpperCase()}] ${date.toLocaleString()} [${log.category}]\n${log.message}${dataStr}`;
+                              const category = (log as any).category || 'market';
+                              return `[${log.level.toUpperCase()}] ${date.toLocaleString()} [${category}]\n${log.message}${dataStr}`;
                             }).join('\n\n');
                             textarea.value = logsText;
                             document.body.appendChild(textarea);
@@ -358,15 +400,26 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                       </button>
                       <button
                         onClick={() => {
-                          ocrLogger.clearLogs();
-                          setLogs([]);
+                          if (logType === 'ocr') {
+                            ocrLogger.clearLogs();
+                            setOcrLogs([]);
+                          } else {
+                            marketLogger.clearLogs();
+                            setMarketLogs([]);
+                          }
                         }}
                         className="px-3 py-1.5 bg-grineer-red/20 hover:bg-grineer-red/30 border border-grineer-red/50 text-grineer-red rounded text-sm transition-colors whitespace-nowrap"
                       >
                         Clear Logs
                       </button>
                       <button
-                        onClick={() => setLogs(ocrLogger.getRecentLogs(100))}
+                        onClick={() => {
+                          if (logType === 'ocr') {
+                            setOcrLogs(ocrLogger.getRecentLogs(100));
+                          } else {
+                            setMarketLogs(marketLogger.getRecentLogs(100));
+                          }
+                        }}
                         className="px-3 py-1.5 bg-tenno-blue/20 hover:bg-tenno-blue/30 border border-tenno-blue/50 text-tenno-blue rounded text-sm transition-colors whitespace-nowrap"
                       >
                         Refresh
@@ -376,19 +429,23 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
 
                   <div className="bg-background-dark rounded-lg border border-gray-700 p-4 max-h-[60vh] overflow-y-auto">
                     {(() => {
+                      const currentLogs = logType === 'ocr' ? ocrLogs : marketLogs;
+                      const currentVerbose = logType === 'ocr' ? verboseLogging : verboseMarketLogging;
+                      const logger = logType === 'ocr' ? ocrLogger : marketLogger;
+                      
                       // Filter logs based on verbose setting
-                      const filteredLogs = verboseLogging 
-                        ? logs 
-                        : logs.filter(log => log.level === 'error' || log.level === 'warn');
+                      const filteredLogs = currentVerbose 
+                        ? currentLogs 
+                        : currentLogs.filter(log => log.level === 'error' || log.level === 'warn');
                       
                       if (filteredLogs.length === 0) {
                         return (
                           <p className="text-gray-500 text-center py-8">
-                            {logs.length === 0 
-                              ? 'No logs yet. Upload an image to see OCR processing logs.'
-                              : verboseLogging 
+                            {currentLogs.length === 0 
+                              ? `No ${logType} logs yet. ${logType === 'ocr' ? 'Upload an image to see OCR processing logs.' : 'Refresh prime sets to see market fetch logs.'}`
+                              : currentVerbose 
                                 ? 'No logs to display.'
-                                : 'Logging is disabled. Enable logging to see OCR activity.'}
+                                : `Verbose logging is disabled. Enable verbose to see all ${logType} activity.`}
                           </p>
                         );
                       }
@@ -409,6 +466,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                             error: 'bg-grineer-red/10',
                             debug: 'bg-gray-500/10'
                           };
+                          const category = (log as any).category || (logType === 'market' ? 'market' : 'ocr');
 
                           return (
                             <div
@@ -428,10 +486,10 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                                   {date.toLocaleTimeString()}
                                 </span>
                                 <span className="text-orokin-gold font-semibold">
-                                  [{log.category}]
+                                  [{category}]
                                 </span>
                               </div>
-                              <div className="mt-1 text-gray-300">
+                              <div className="mt-1 text-gray-300 break-words">
                                 {log.message}
                               </div>
                               {log.data && (
@@ -454,16 +512,30 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
 
                   <div className="text-xs text-gray-500">
                     <p>
-                      Total logs: {ocrLogger.getLogCount()} 
-                      {!verboseLogging && logs.length > 0 && (
-                        <span> (showing {logs.filter(log => log.level === 'error' || log.level === 'warn').length} errors/warnings, enable verbose to see all)</span>
-                      )}
-                      {verboseLogging && logs.length > 0 && (
-                        <span> (showing last {logs.length})</span>
+                      {logType === 'ocr' ? (
+                        <>
+                          OCR logs: {ocrLogger.getLogCount()} 
+                          {!verboseLogging && ocrLogs.length > 0 && (
+                            <span> (showing {ocrLogs.filter(log => log.level === 'error' || log.level === 'warn').length} errors/warnings, enable verbose to see all)</span>
+                          )}
+                          {verboseLogging && ocrLogs.length > 0 && (
+                            <span> (showing last {ocrLogs.length})</span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          Market logs: {marketLogger.getLogCount()} 
+                          {!verboseMarketLogging && marketLogs.length > 0 && (
+                            <span> (showing {marketLogs.filter(log => log.level === 'error' || log.level === 'warn').length} errors/warnings, enable verbose to see all)</span>
+                          )}
+                          {verboseMarketLogging && marketLogs.length > 0 && (
+                            <span> (showing last {marketLogs.length})</span>
+                          )}
+                        </>
                       )}
                     </p>
                     <p className="mt-1">
-                      {'Logs are stored locally and persist across sessions. Disable logging for better performance.'}
+                      Logs are stored locally and persist across sessions. Disable verbose logging for better performance.
                     </p>
                   </div>
                 </div>

@@ -83,18 +83,14 @@ const fetchSingleItemData = async (itemName: string) => {
 
   // V2 API works directly with item slugs - no need for base name lookup
   try {
-    // Query item data from v2 API, but use v1 API for orders/statistics (v2 doesn't have these endpoints yet)
-    let itemResponse, ordersResponse, statsResponse;
+    // Query item data and orders from v2 API
+    let itemResponse, ordersResponse;
     try {
-      [itemResponse, ordersResponse, statsResponse] = await Promise.all([
+      [itemResponse, ordersResponse] = await Promise.all([
         fetch(`${WARFRAME_MARKET_API_V2}/items/${itemName}`, { headers: apiHeaders }),
-        fetch(`${WARFRAME_MARKET_API_V1}/items/${itemName}/orders`, { headers: apiHeaders }).catch((err) => {
-          console.log(`>>> [Netlify] ${itemName}: V1 Orders endpoint failed <<<`);
-          return { ok: false, status: 404, json: () => Promise.resolve({ payload: { orders: [] }, error: null }) };
-        }),
-        fetch(`${WARFRAME_MARKET_API_V1}/items/${itemName}/statistics`, { headers: apiHeaders }).catch((err) => {
-          console.log(`>>> [Netlify] ${itemName}: V1 Statistics endpoint failed <<<`);
-          return { ok: false, status: 404, json: () => Promise.resolve({ payload: { statistics_closed: { '90days': [] } }, error: null }) };
+        fetch(`${WARFRAME_MARKET_API_V2}/orders/item/${itemName}/top`, { headers: apiHeaders }).catch((err) => {
+          console.log(`>>> [Netlify] ${itemName}: V2 Orders endpoint failed <<<`);
+          return { ok: false, status: 404, json: () => Promise.resolve({ data: { buy: [], sell: [] }, error: null }) };
         })
       ]);
     } catch (error) {
@@ -103,7 +99,7 @@ const fetchSingleItemData = async (itemName: string) => {
     }
 
     // Log API responses for debugging
-    console.log(`>>> [Netlify] ${itemName}: Item=${itemResponse.status}, Orders=${ordersResponse.status}, Stats=${statsResponse.status} <<<`);
+    console.log(`>>> [Netlify] ${itemName}: Item=${itemResponse.status}, Orders=${ordersResponse.status} <<<`);
 
     // If item lookup failed, return error
     if (!itemResponse.ok) {
@@ -126,11 +122,24 @@ const fetchSingleItemData = async (itemName: string) => {
       };
     }
 
-    const [itemData, ordersData, statsData] = await Promise.all([
+    const [itemData, ordersData] = await Promise.all([
       itemResponse.json(),
-      ordersResponse.ok ? ordersResponse.json() : Promise.resolve({ payload: { orders: [] }, error: null }),
-      statsResponse.ok ? statsResponse.json() : Promise.resolve({ payload: { statistics_closed: { '90days': [] } }, error: null })
+      ordersResponse.ok ? ordersResponse.json() : Promise.resolve({ data: { buy: [], sell: [] }, error: null })
     ]);
+    
+    // V2 API structure: { apiVersion, data: { buy: [], sell: [] }, error }
+    if (ordersData.error) {
+      console.log(`>>> [Netlify] ${itemName}: V2 Orders API error: ${JSON.stringify(ordersData.error)} <<<`);
+    }
+    
+    // Debug: Log orders response structure
+    if (ordersResponse.ok && ordersData.data) {
+      console.log(`>>> [Netlify] ${itemName}: V2 Orders - Buy orders: ${ordersData.data.buy?.length || 0}, Sell orders: ${ordersData.data.sell?.length || 0} <<<`);
+      if (ordersData.data.sell && ordersData.data.sell.length > 0) {
+        const firstSellOrder = ordersData.data.sell[0];
+        console.log(`>>> [Netlify] ${itemName}: First sell order: platinum=${firstSellOrder.platinum}, user=${firstSellOrder.user?.ingame_name || 'unknown'} <<<`);
+      }
+    }
 
     // V2 API structure: { apiVersion, data: { ... }, error }
     // Items are queried directly by slug, no items_in_set lookup needed
@@ -140,100 +149,60 @@ const fetchSingleItemData = async (itemName: string) => {
     
     const itemDetails = itemData.data;
     
-    // Log if orders endpoint failed
-    if (!ordersResponse.ok) {
-      console.log(`>>> [Netlify] ${itemName}: V1 Orders endpoint returned ${ordersResponse.status}, using empty orders array <<<`);
-    }
-
-    // Extract averages from statistics (V1 API structure: payload.statistics_closed)
-    let historicalAverage = 0;
-    let recentAverage48h = 0;
-    if (statsData.payload && statsData.payload.statistics_closed) {
-      const closedStats = statsData.payload.statistics_closed;
-      if (closedStats['90days'] && closedStats['90days'].length > 0) {
-        const latest90 = closedStats['90days'][closedStats['90days'].length - 1];
-        historicalAverage = latest90.avg_price || 0;
-      }
-      if (closedStats['48hours'] && closedStats['48hours'].length > 0) {
-        const latest48 = closedStats['48hours'][closedStats['48hours'].length - 1];
-        recentAverage48h = latest48.avg_price || 0;
-      }
-      console.log(`>>> [Netlify] ${itemName}: avg90=${historicalAverage}p, avg48h=${recentAverage48h}p <<<`);
-    }
-
-    // Process orders (V1 API structure: payload.orders)
-    let orders = [];
-    if (ordersData.payload && Array.isArray(ordersData.payload.orders)) {
-      orders = ordersData.payload.orders;
-    } else if (Array.isArray(ordersData.data)) {
-      // Fallback to v2 structure if it ever gets implemented
-      orders = ordersData.data;
-    }
+    // Process V2 orders structure: { data: { buy: [], sell: [] } }
+    // V2 /top endpoint already filters to online users only and sorts by price
+    const buyOrders = ordersData.data?.buy || [];
+    const sellOrders = ordersData.data?.sell || [];
     
-    console.log(`>>> [Netlify] ${itemName}: Found ${orders.length} orders from V1 API <<<`);
-    const buyOrders = orders.filter((order: any) =>
-      order.order_type === 'buy' &&
-      ['online', 'ingame'].includes(order.user.status) &&
-      !order.user.banned &&
-      order.visible &&
-      (itemDetails.mod_max_rank === undefined || order.mod_rank === 0 || order.mod_rank === undefined)
-    );
-
+    console.log(`>>> [Netlify] ${itemName}: V2 Orders - Buy: ${buyOrders.length}, Sell: ${sellOrders.length} <<<`);
+    
+    // V2 already filters to online users, so we can use them directly
     const highestBidder = buyOrders.length > 0
       ? buyOrders.reduce((highest: any, current: any) =>
           current.platinum > highest.platinum ? current : highest
         )
       : null;
 
-    const allValidBuyOrders = orders.filter((order: any) =>
-      order.order_type === 'buy' &&
-      ['online', 'ingame'].includes(order.user.status) &&
-      !order.user.banned &&
-      order.visible &&
-      (itemDetails.mod_max_rank === undefined || order.mod_rank === 0 || order.mod_rank === undefined)
-    );
-
-    if (itemDetails.mod_max_rank !== undefined) {
-      const totalOrders = orders.length;
-      const unrankedBuyOrders = allValidBuyOrders.length;
-      const rankedOrders = totalOrders - unrankedBuyOrders;
-      console.log(`>>> [Netlify] ${itemName}: Mod rank filtering - Total: ${totalOrders}, Unranked Buy Orders: ${unrankedBuyOrders}, Ranked: ${rankedOrders} <<<`);
-    }
-
-    const sellerOrders = orders.filter((order: any) =>
-      order.order_type === 'sell' &&
-      ['online', 'ingame'].includes(order.user.status) &&
-      !order.user.banned &&
-      order.visible
-    );
-
-    const lowestSeller = sellerOrders.length > 0
-      ? sellerOrders.reduce((lowest: any, current: any) =>
+    const lowestSeller = sellOrders.length > 0
+      ? sellOrders.reduce((lowest: any, current: any) =>
           current.platinum < lowest.platinum ? current : lowest
         )
       : null;
-
-    // Use statistics average as fallback if no orders available
-    const priceFromOrders = buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0;
-    const priceFromStats = recentAverage48h > 0 ? recentAverage48h : (historicalAverage > 0 ? historicalAverage : 0);
-    const finalPrice = priceFromOrders > 0 ? priceFromOrders : priceFromStats;
     
-    console.log(`>>> [Netlify] ${itemName}: Price calculation - Orders: ${priceFromOrders}p, Stats: ${priceFromStats}p, Final: ${finalPrice}p <<<`);
+    if (lowestSeller) {
+      console.log(`>>> [Netlify] ${itemName}: Lowest seller: ${lowestSeller.platinum}p (${lowestSeller.user?.ingame_name}) <<<`);
+    }
+    
+    // Calculate average from all orders (buy + sell) for display
+    const allOrders = [...buyOrders, ...sellOrders];
+    let historicalAverage = 0;
+    let recentAverage48h = 0;
+    
+    if (allOrders.length > 0) {
+      const totalPlat = allOrders.reduce((sum: number, o: any) => sum + o.platinum, 0);
+      historicalAverage = Math.round(totalPlat / allOrders.length);
+      recentAverage48h = historicalAverage;
+    }
+
+    // Calculate buyer price from orders (highest buy order)
+    const priceFromOrders = buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0;
+    
+    console.log(`>>> [Netlify] ${itemName}: Price calculation - Buyer: ${priceFromOrders}p, Average: ${historicalAverage}p (from ${allOrders.length} orders) <<<`);
 
     const result = {
       name: itemDetails.i18n?.en?.name || itemName,
       thumb: itemDetails.i18n?.en?.thumb || '',
       ducats: itemDetails.ducats || 0,
-      price: finalPrice,
-      volume: allValidBuyOrders.length,
-      average: historicalAverage,
-      recentAverage48h: recentAverage48h,
+      price: priceFromOrders, // Highest buy order (what user can sell for)
+      volume: allOrders.length, // Total orders
+      average: historicalAverage, // Average from current orders
+      recentAverage48h: recentAverage48h, // Same as average (no historical data)
       buyerUsername: highestBidder?.user?.ingame_name || null,
       buyerQuantity: highestBidder?.quantity || 0,
       hasBuyers: buyOrders.length > 0,
       buyerCount: buyOrders.length,
-      sellerCount: sellerOrders.length,
-      sellerPrice: sellerOrders.length > 0 ? Math.min(...sellerOrders.map((o: any) => o.platinum)) : 0,
+      sellerCount: sellOrders.length,
+      sellerPrice: sellOrders.length > 0 ? Math.min(...sellOrders.map((o: any) => o.platinum)) : 0, // Lowest sell order (what it costs to buy)
       sellerUsername: lowestSeller?.user?.ingame_name || null,
       sellerQuantity: lowestSeller?.quantity || 0,
       tags: itemDetails.tags || [],

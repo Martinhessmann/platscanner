@@ -54,7 +54,7 @@ export interface SetProgress {
     potentialValue: number;
     missingPartsFromRelics: string[];
     missingPartsToBuy: string[];
-    missingPartsWithPrices?: Array<{ name: string; price: number; avg48h?: number }>; // Individual prices for missing parts
+    missingPartsWithPrices?: Array<{ name: string; price: number; buyerPrice?: number; avg48h?: number }>; // Individual prices for missing parts (price=seller, buyerPrice=buyer)
     relicInvestmentCost: number; // void traces equivalent in platinum
     buyInvestmentCost: number; // platinum cost to buy missing parts
     totalInvestmentCost: number;
@@ -343,7 +343,8 @@ export const toggleSetMastery = (setId: string): void => {
 // REMOVED: ownsItem function - using hasItemInInventory directly for completion
 
 // Check if item exists in inventory (regardless of owned status)
-const hasItemInInventory = (itemName: string, requiredCount: number, inventory: DetectedItem[]): boolean => {
+// For warframes, prefers blueprint over built part if both exist
+const hasItemInInventory = (itemName: string, requiredCount: number, inventory: DetectedItem[], setType?: PrimeSet['type']): boolean => {
   // Filter out invalid items (Gemini response text, etc.)
   const validInventory = inventory.filter(item => {
     // Must be prime_parts category
@@ -361,10 +362,36 @@ const hasItemInInventory = (itemName: string, requiredCount: number, inventory: 
 
   const lowerItemName = itemName.toLowerCase();
 
-
   // Convert "Acceltra Prime Barrel" to "acceltra_prime_barrel" format
   const underscoreFormat = lowerItemName.replace(/\s+/g, '_');
 
+  // For warframes, ONLY count blueprints as owned (built parts are NOT tradeable)
+  if (setType === 'Warframe') {
+    // Check if the part name already includes "Blueprint" (e.g., "Wisp Prime Blueprint")
+    const partNameIsBlueprint = lowerItemName.includes('blueprint');
+    
+    // Only look for blueprint (tradeable) - built parts don't count toward set completion
+    const blueprintItem = validInventory.find(item => {
+      const lowerInventoryItemName = item.name.toLowerCase();
+      
+      // If part name already includes "Blueprint", match it directly
+      if (partNameIsBlueprint) {
+        const exactMatch = lowerInventoryItemName === lowerItemName;
+        const underscoreMatch = lowerInventoryItemName === underscoreFormat;
+        return exactMatch || underscoreMatch;
+      }
+      
+      // Otherwise, try adding "Blueprint" suffix
+      const blueprintMatch = lowerInventoryItemName === `${lowerItemName} blueprint`;
+      const underscoreBlueprintMatch = lowerInventoryItemName === `${underscoreFormat}_blueprint`;
+      return blueprintMatch || underscoreBlueprintMatch;
+    });
+
+    // Only return true if blueprint exists - built parts are NOT counted
+    return blueprintItem ? (blueprintItem.quantity || 1) >= requiredCount : false;
+  }
+
+  // For weapons, find any matching item
   const inventoryItem = validInventory.find(item => {
     const lowerInventoryItemName = item.name.toLowerCase();
 
@@ -496,6 +523,7 @@ const isBuiltWarframeInventoryItem = (itemName: string, setType: PrimeSet['type'
 
 // NEW: Calculate the total market value of owned individual parts
 // Excludes built warframe parts (non-blueprint chassis/systems/neuroptics) as they cannot be traded
+// If both built part and blueprint exist, prefer blueprint (tradeable)
 const calculateIndividualPartsValue = (
   ownedParts: string[],
   primePartsInventory: DetectedItem[],
@@ -504,11 +532,36 @@ const calculateIndividualPartsValue = (
   let totalValue = 0;
 
   ownedParts.forEach(partName => {
-    const inventoryItem = primePartsInventory.find(item => {
-      const lowerItemName = item.name.toLowerCase();
-      const lowerPartName = partName.toLowerCase();
-      return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
-    });
+    // For warframes, prefer blueprint if both exist
+    let inventoryItem: DetectedItem | undefined;
+    
+    if (setType === 'Warframe') {
+      // First try to find blueprint (tradeable)
+      const blueprintItem = primePartsInventory.find(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName === `${lowerPartName} blueprint` || 
+               lowerItemName === `${lowerPartName.replace(/\s+/g, '_')}_blueprint`;
+      });
+      
+      if (blueprintItem) {
+        inventoryItem = blueprintItem;
+      } else {
+        // Fallback to built part (but it's not tradeable, so value is 0)
+        inventoryItem = primePartsInventory.find(item => {
+          const lowerItemName = item.name.toLowerCase();
+          const lowerPartName = partName.toLowerCase();
+          return lowerItemName === lowerPartName || lowerItemName === lowerPartName.replace(/\s+/g, '_');
+        });
+      }
+    } else {
+      // For weapons, find any matching item
+      inventoryItem = primePartsInventory.find(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+      });
+    }
 
     // Skip built warframe parts - check the ACTUAL inventory item name, not the part name
     if (inventoryItem && setType && isBuiltWarframeInventoryItem(inventoryItem.name, setType)) {
@@ -531,7 +584,7 @@ const calculateInvestmentAnalysis = (
   relicsInventory: VoidRelic[]
 ): SetProgress['investmentAnalysis'] => {
   const currentValue = setProgress.individualPartsValue || 0;
-  const potentialValue = setProgress.completeSetPrice || 0;
+  const potentialValue = setProgress.completeSetPrice || 0; // Buyer price (highest buy order)
 
   // If no complete set price available, can't do investment analysis
   if (potentialValue === 0) {
@@ -547,33 +600,48 @@ const calculateInvestmentAnalysis = (
     !setProgress.obtainableFromRelics.includes(part)
   );
 
-  // Calculate cost to buy missing parts from market using SELLER prices (what it costs to buy)
+  // Calculate cost to buy missing parts from market using SELLER prices (lowest sell orders - what it costs to buy)
   // First try to use fetched prices from missingPartsWithPrices if available
   let buyInvestmentCost = 0;
   const fetchedPrices = (setProgress as any)._tempMissingPartsWithPrices as Array<{ name: string; price: number }> | undefined;
   
   if (fetchedPrices && fetchedPrices.length > 0) {
-    // Use fetched prices (more accurate)
+    console.log(`💰 [Investment] Using fetched prices for ${missingPartsToBuy.length} parts to buy`);
+    // Use fetched prices (more accurate) - these should be seller prices
     missingPartsToBuy.forEach(partName => {
-      const fetchedPrice = fetchedPrices.find(p => 
-        p.name.toLowerCase() === partName.toLowerCase()
-      );
-      if (fetchedPrice && fetchedPrice.price > 0) {
-        buyInvestmentCost += fetchedPrice.price;
+      const fetchedPrice = fetchedPrices.find(p => {
+        const pName = p.name.toLowerCase();
+        const partNameLower = partName.toLowerCase();
+        // Try exact match first
+        if (pName === partNameLower) return true;
+        // Try with/without blueprint suffix
+        if (pName === `${partNameLower} blueprint` || partNameLower === `${pName} blueprint`) return true;
+        // Try underscore format
+        const pNameUnderscore = pName.replace(/\s+/g, '_');
+        const partNameUnderscore = partNameLower.replace(/\s+/g, '_');
+        if (pNameUnderscore === partNameUnderscore) return true;
+        return false;
+      });
+      if (fetchedPrice) {
+        if (fetchedPrice.price > 0) {
+          buyInvestmentCost += fetchedPrice.price;
+          console.log(`💰 [Investment] ${partName}: ${fetchedPrice.price}p (from fetched price)`);
+        } else {
+          console.warn(`💰 [Investment] ${partName}: No seller price in fetched data (using 0)`);
+        }
       } else {
-        // Fallback to estimated price if fetched price not found
-        const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
-        buyInvestmentCost += partPrice;
+        // NO FALLBACK ESTIMATES - if price not found, use 0
+        console.warn(`💰 [Investment] ${partName}: Not found in fetched prices, using 0 (no fallback estimate)`);
+        // Don't add anything to buyInvestmentCost - price is 0
       }
     });
   } else {
-    // Use estimated prices if fetched prices not available
-    missingPartsToBuy.forEach(partName => {
-      // Use seller price (cost to buy) for investment calculations
-      const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
-      buyInvestmentCost += partPrice;
-    });
+    console.warn(`💰 [Investment] No fetched prices available - all missing parts cost = 0p (no fallback estimates)`);
+    // NO FALLBACK ESTIMATES - if no fetched prices, cost is 0
+    buyInvestmentCost = 0;
   }
+  
+  console.log(`💰 [Investment] Total buyInvestmentCost: ${buyInvestmentCost}p`);
 
   // Calculate void trace cost for relic opening (estimated)
   // Assume average 75 void traces per missing part from relics
@@ -583,7 +651,10 @@ const calculateInvestmentAnalysis = (
   const relicInvestmentCost = missingPartsFromRelics.length * avgVoidTracesPerPart * voidTraceToplatinumRatio;
 
   const totalInvestmentCost = buyInvestmentCost + relicInvestmentCost;
-  const expectedProfit = potentialValue - currentValue - totalInvestmentCost;
+  
+  // FIXED ROI: Complete set buyer price - sum of missing parts seller prices
+  // This represents the actual profit if you buy missing parts and sell the complete set
+  const expectedProfit = potentialValue - totalInvestmentCost;
   const roiPercentage = totalInvestmentCost > 0 ? (expectedProfit / totalInvestmentCost) * 100 : 0;
 
   // Determine recommended action
@@ -615,74 +686,8 @@ const calculateInvestmentAnalysis = (
   };
 };
 
-// NEW: Get estimated price for a part (from existing inventory data)
-// useSellerPrice: true = use seller price (cost to buy), false = use buyer price (what you can sell for)
-const getEstimatedPartPrice = (
-  partName: string,
-  primePartsInventory: DetectedItem[],
-  useSellerPrice: boolean = false
-): number => {
-  // Try to find exact match first
-  const exactMatch = primePartsInventory.find(item => {
-    const lowerItemName = item.name.toLowerCase();
-    const lowerPartName = partName.toLowerCase();
-    return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
-  });
-
-  if (exactMatch) {
-    // Use sellerPrice for investment cost (what it costs to buy), price (buyer) for current value
-    if (useSellerPrice) {
-      // For investment calculations: use seller price (cost to buy), fallback to average if no sellers
-      const marketPrice = (exactMatch.sellerPrice && exactMatch.sellerPrice > 0)
-        ? exactMatch.sellerPrice
-        : (exactMatch.average && exactMatch.average > 0 ? exactMatch.average : 0);
-      return marketPrice;
-    } else {
-      // For current value: use buyer price (what you can sell for)
-      return (exactMatch.price && exactMatch.price > 0) ? exactMatch.price : 0;
-    }
-  }
-
-  // If no exact match, try to estimate based on part type
-  const partType = partName.split(' ').pop()?.toLowerCase();
-  const similarParts = primePartsInventory.filter(item => {
-    const hasPartType = item.name.toLowerCase().includes(partType || '');
-    const hasPrice = useSellerPrice
-      ? (item.sellerPrice && item.sellerPrice > 0)
-      : (item.price && item.price > 0);
-    return hasPartType && hasPrice;
-  });
-
-  if (similarParts.length > 0) {
-    // Return average price of similar parts
-    const avgPrice = similarParts.reduce((sum, item) => {
-      const priceValue = useSellerPrice ? (item.sellerPrice || 0) : (item.price || 0);
-      return sum + priceValue;
-    }, 0) / similarParts.length;
-    return Math.round(avgPrice);
-  }
-
-  // Fallback to estimated prices based on rarity
-  const fallbackPrices: Record<string, number> = {
-    'blueprint': 15,
-    'systems': 25,
-    'chassis': 25,
-    'neuroptics': 45,
-    'barrel': 25,
-    'receiver': 45,
-    'stock': 20,
-    'string': 20,
-    'grip': 20,
-    'blade': 20,
-    'handle': 20,
-    'link': 10,
-    'gauntlet': 25,
-    'carapace': 25,
-    'cerebrum': 25
-  };
-
-  return fallbackPrices[partType || ''] || 20; // Default 20p
-};
+// REMOVED: getEstimatedPartPrice - NO FALLBACK ESTIMATES ALLOWED
+// If we can't get a real price from the market or inventory, use 0
 
 // NEW: Enhanced strategy determination with investment analysis
 const determineOptimalStrategyWithInvestment = (
@@ -691,51 +696,26 @@ const determineOptimalStrategyWithInvestment = (
   completeSetPrice: number,
   investmentAnalysis?: SetProgress['investmentAnalysis']
 ): SetProgress['recommendedStrategy'] => {
-  // If set is already mastered, no recommendation needed
-  if (setProgress.ismastered) {
-    return 'KEEP_FOR_MASTERY';
-  }
-
   // If no market data available, can't make recommendation
   if (completeSetPrice === 0 && individualPartsValue === 0) {
     return 'INSUFFICIENT_DATA';
   }
 
-  // If we have investment analysis and it shows good ROI
-  if (investmentAnalysis && investmentAnalysis.expectedProfit > 10) {
-    switch (investmentAnalysis.recommendedAction) {
-      case 'open_relics':
-        return 'OPEN_RELICS';
-      case 'buy_parts':
-        return 'BUY_MISSING';
-      case 'hybrid':
-        return 'HYBRID_STRATEGY';
+  // If we have investment analysis and it shows good ROI (buy missing parts to complete set)
+  if (investmentAnalysis && investmentAnalysis.expectedProfit > 5) {
+    // Only recommend buying if there are missing parts to buy
+    if (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0) {
+      return 'BUY_MISSING';
     }
   }
 
-  // Fall back to original logic for immediate actions
-  if (!setProgress.canBuild) {
-    return individualPartsValue > 0 ? 'SELL_PARTS' : 'INSUFFICIENT_DATA';
-  }
-
-  if (completeSetPrice === 0) {
+  // Default: sell individual parts (if you have parts but completing the set isn't profitable)
+  if (individualPartsValue > 0) {
     return 'SELL_PARTS';
   }
-  if (individualPartsValue === 0) {
-    return 'BUILD_AND_SELL';
-  }
 
-  // Compare profit potential (with 5% threshold to account for market volatility)
-  const profitDifference = completeSetPrice - individualPartsValue;
-  const threshold = Math.max(individualPartsValue * 0.05, 5);
-
-  if (profitDifference > threshold) {
-    return 'BUILD_AND_SELL';
-  } else if (profitDifference < -threshold) {
-    return 'SELL_PARTS';
-  } else {
-    return 'SELL_PARTS';
-  }
+  // If no parts owned, can't sell anything
+  return 'INSUFFICIENT_DATA';
 };
 
 // NEW: Enhanced analyze function with complete set market data
@@ -770,7 +750,7 @@ export const analyzeSetProgressWithMarketData = async (
     // Check each required part
     set.requiredParts.forEach(part => {
       const requiredCount = part.itemCount || 1;
-      if (hasItemInInventory(part.name, requiredCount, primePartsInventory)) {
+      if (hasItemInInventory(part.name, requiredCount, primePartsInventory, set.type)) {
         ownedParts.push(part.name);
       } else {
         missingParts.push(part.name);
@@ -843,48 +823,79 @@ export const analyzeSetProgressWithMarketData = async (
         console.log(`🎯 [Market Analysis] ${progress.set.name}: Parts=${individualPartsValue}p, Set=${completeSetPrice}p`);
       });
 
-      // Fetch missing part prices for sets that are near completion (50%+)
-      // This provides accurate investment costs without overwhelming the API
-      // OPTIMIZATION: Only fetch prices for parts that must be BOUGHT (not obtainable from relics)
-      const nearCompleteSets = setsNeedingMarketData.filter(p => p.completionPercentage >= 50);
-      if (nearCompleteSets.length > 0) {
-        console.log(`💰 [Batch Refresh] Fetching missing part prices for ${nearCompleteSets.length} near-complete sets`);
+      // Fetch missing part prices for ALL sets with owned parts (not just 50%+)
+      // This provides accurate investment costs and display prices
+      // Fetch prices for ALL missing parts (both market-only and relic-obtainable) for display
+      if (setsNeedingMarketData.length > 0) {
+        console.log(`💰 [Batch Refresh] Fetching missing part prices for ${setsNeedingMarketData.length} sets`);
 
-        for (const progress of nearCompleteSets) {
-          // FILTER: Only fetch for parts that must be bought (not obtainable from relics)
+        for (const progress of setsNeedingMarketData) {
+          // Fetch prices for ALL missing parts (for display purposes)
+          // But only use market-only parts for investment cost calculation
+          const allMissingParts = progress.missingParts;
           const partsToBuy = progress.missingParts.filter(part =>
             !progress.obtainableFromRelics.includes(part)
           );
 
-          if (partsToBuy.length > 0) {
+          if (allMissingParts.length > 0) {
             try {
-              console.log(`💰 [Batch Refresh] ${progress.set.name}: Fetching ${partsToBuy.length} parts to buy (skipping ${progress.obtainableFromRelics.length} relic-obtainable parts)`);
+              console.log(`💰 [Batch Refresh] ${progress.set.name}: Fetching ${allMissingParts.length} missing parts (${partsToBuy.length} to buy, ${progress.obtainableFromRelics.length} from relics)`);
 
-              const missingPartItems: DetectedItem[] = partsToBuy.map(name => ({
-                id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
-                name,
-                category: 'prime_parts',
-                status: 'loading'
-              } as any));
+              // CRITICAL: For warframes, parts need "Blueprint" suffix for market lookup
+              const missingPartItems: DetectedItem[] = allMissingParts.map(name => {
+                // For warframe parts, add "Blueprint" suffix if not already present
+                let marketName = name;
+                if (progress.set.type === 'Warframe') {
+                  const lowerName = name.toLowerCase();
+                  const isComponent = ['chassis', 'systems', 'neuroptics'].some(comp => 
+                    lowerName.includes(comp) && !lowerName.includes('blueprint')
+                  );
+                  if (isComponent) {
+                    marketName = `${name} Blueprint`;
+                  }
+                }
+                
+                return {
+                  id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
+                  name: marketName, // Use market name for API lookup
+                  originalName: name, // Keep original for storage
+                  category: 'prime_parts',
+                  status: 'loading'
+                } as any;
+              });
 
               const priced = await Promise.all(
                 missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
               );
 
-              // Store individual SELLER prices for display (cost to buy)
+              // Store individual SELLER prices for ALL missing parts (for display)
+              // CRITICAL: Must use sellerPrice (lowest sell order), not average or buyer price
+              // IMPORTANT: Use original part name for storage, not market lookup name
               const missingPartsWithPrices = priced
-                .map((p, i) => ({
-                  name: missingPartItems[i].name,
-                  price: p?.sellerPrice || p?.average || 0, // Use seller price for investment cost
-                  avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
-                }))
-                .filter(p => p.price > 0);
+                .map((p, i) => {
+                  const originalPartName = (missingPartItems[i] as any).originalName || missingPartItems[i].name;
+                  return {
+                    name: originalPartName, // Use original name (e.g., "Protea Prime Systems") for consistent matching
+                    price: p?.sellerPrice || 0, // Use seller price ONLY (lowest sell order) - 0 if no sellers
+                    buyerPrice: p?.price || 0, // Also store buyer price for display reference
+                    avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
+                  };
+                })
+                // Keep all entries, even with 0 price, for debugging
+                .map(p => {
+                  if (p.price === 0) {
+                    console.warn(`💰 [Batch] No seller price for "${p.name}" (buyerPrice=${p.buyerPrice || 0})`);
+                  }
+                  return p;
+                });
 
-              // Calculate cost using SELLER prices (what it costs to buy)
-              const missingCost = priced.reduce((sum, p) => {
-                const cost = (p && p.sellerPrice) ? p.sellerPrice : (p && p.average) ? p.average : 0;
-                return sum + cost;
-              }, 0);
+              // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
+              const missingCost = priced
+                .filter((p, i) => partsToBuy.includes(missingPartItems[i].name))
+                .reduce((sum, p) => {
+                  const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
+                  return sum + cost;
+                }, 0);
               progress.missingCost = missingCost;
 
               // Store the prices temporarily - will be added to investmentAnalysis later
@@ -893,7 +904,7 @@ export const analyzeSetProgressWithMarketData = async (
               console.warn(`Failed to fetch missing part prices for ${progress.set.name}:`, err);
             }
           } else {
-            console.log(`💰 [Batch Refresh] ${progress.set.name}: All missing parts obtainable from relics, skipping price fetch`);
+            console.log(`💰 [Batch Refresh] ${progress.set.name}: No missing parts, skipping price fetch`);
           }
         }
       }
@@ -1054,7 +1065,7 @@ export const refreshIndividualSetMarketData = async (
 
     targetSet.requiredParts.forEach(part => {
       const requiredCount = part.itemCount || 1;
-      if (hasItemInInventory(part.name, requiredCount, primePartsInventory)) {
+      if (hasItemInInventory(part.name, requiredCount, primePartsInventory, targetSet.type)) {
         ownedParts.push(part.name);
       } else {
         missingParts.push(part.name);
@@ -1104,47 +1115,108 @@ export const refreshIndividualSetMarketData = async (
         setProgress.profitDifference = profitDifference;
 
         // NEW: Fetch real market prices for missing parts to compute accurate missingCost
-        // OPTIMIZATION: Only fetch for parts that must be BOUGHT (not obtainable from relics)
-        let missingPartsWithPrices: Array<{ name: string; price: number }> = [];
+        // Fetch prices for ALL missing parts (for display), but only use market-only parts for investment cost
+        let missingPartsWithPrices: Array<{ name: string; price: number; avg48h?: number }> = [];
+        const allMissingParts = setProgress.missingParts;
         const partsToBuy = setProgress.missingParts.filter(part =>
           !setProgress.obtainableFromRelics.includes(part)
         );
 
-        if (partsToBuy.length > 0) {
+        if (allMissingParts.length > 0) {
           try {
-            console.log(`💰 [Individual Set] ${setName}: Fetching ${partsToBuy.length} parts to buy (skipping ${setProgress.obtainableFromRelics.length} relic-obtainable parts)`);
+            console.log(`💰 [Individual Set] ${setName}: Fetching ${allMissingParts.length} missing parts (${partsToBuy.length} to buy, ${setProgress.obtainableFromRelics.length} from relics)`);
 
-            const missingPartItems: DetectedItem[] = partsToBuy.map(name => ({
-              id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
-              name,
-              category: 'prime_parts',
-              status: 'loading'
-            } as any));
+            // CRITICAL: For warframes, parts need "Blueprint" suffix for market lookup
+            // e.g., "Protea Prime Systems" → "Protea Prime Systems Blueprint"
+            const missingPartItems: DetectedItem[] = allMissingParts.map(name => {
+              // For warframe parts, add "Blueprint" suffix if not already present
+              let marketName = name;
+              if (setProgress.set.type === 'Warframe') {
+                const lowerName = name.toLowerCase();
+                // Check if it's a component that needs blueprint (not already a blueprint)
+                const isComponent = ['chassis', 'systems', 'neuroptics'].some(comp => 
+                  lowerName.includes(comp) && !lowerName.includes('blueprint')
+                );
+                if (isComponent) {
+                  marketName = `${name} Blueprint`;
+                  console.log(`💰 [Price Fetch] Warframe part "${name}" → market lookup: "${marketName}"`);
+                }
+              }
+              
+              return {
+                id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
+                name: marketName, // Use market name for API lookup
+                originalName: name, // Keep original for storage
+                category: 'prime_parts',
+                status: 'loading'
+              } as any;
+            });
 
             const priced = await Promise.all(
-              missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
+              missingPartItems.map(item => {
+                const originalName = (item as any).originalName || item.name;
+                console.log(`💰 [Price Fetch] Fetching price for: ${originalName} (market: ${item.name})`);
+                return fetchSinglePriceData(item).catch((err) => {
+                  console.warn(`💰 [Price Fetch] Failed to fetch price for ${originalName}:`, err);
+                  return null;
+                });
+              })
             );
 
-            // Store individual SELLER prices for display (cost to buy)
+            // Store individual SELLER prices for ALL missing parts (for display)
+            // CRITICAL: Must use sellerPrice (lowest sell order), not average or buyer price
+            // IMPORTANT: Store prices using the ORIGINAL part name from missingParts, not the market lookup name
+            // This ensures matching works correctly in the UI
             missingPartsWithPrices = priced
-              .map((p, i) => ({
-                name: missingPartItems[i].name,
-                price: p?.sellerPrice || p?.average || 0, // Use seller price for investment cost
-                avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
-              }))
-              .filter(p => p.price > 0);
+              .map((p, i) => {
+                const originalPartName = (missingPartItems[i] as any).originalName || missingPartItems[i].name; // Original: "Protea Prime Systems"
+                const marketLookupName = missingPartItems[i].name; // Market: "Protea Prime Systems Blueprint"
+                const apiItemName = p?.name || marketLookupName; // API response name
+                const sellerPrice = p?.sellerPrice || 0;
+                
+                console.log(`💰 [Price Fetch] Original: "${originalPartName}" → Market lookup: "${marketLookupName}" → API: "${apiItemName}" → sellerPrice=${sellerPrice}, buyerPrice=${p?.price || 0}`);
+                
+                // CRITICAL: Always use the original part name for storage, not the market lookup or API response name
+                // This ensures the UI matching logic works correctly
+                // If sellerPrice is 0 but buyerPrice exists, we might want to show buyerPrice as reference
+                // But for investment cost, we ONLY use sellerPrice (what it costs to buy)
+                return {
+                  name: originalPartName, // Use original name (e.g., "Protea Prime Systems") for consistent matching
+                  price: sellerPrice, // Use seller price ONLY (lowest sell order) - 0 if no sellers
+                  buyerPrice: p?.price || 0, // Also store buyer price for display reference
+                  avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
+                };
+              })
+              // Keep all prices, even if 0, so we can debug matching issues
+              .map(p => {
+                if (p.price === 0) {
+                  console.warn(`💰 [Price Fetch] No seller price found for "${p.name}" (might not be available on market or no sellers)`);
+                } else {
+                  console.log(`💰 [Price Fetch] ✓ Stored price for "${p.name}": ${p.price}p`);
+                }
+                return p;
+              });
 
-            // Calculate cost using SELLER prices (what it costs to buy)
-            const missingCost = priced.reduce((sum, p) => {
-              const cost = (p && p.sellerPrice) ? p.sellerPrice : (p && p.average) ? p.average : 0;
-              return sum + cost;
-            }, 0);
+            // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
+            // Use the stored prices from missingPartsWithPrices (which uses original names) instead of priced array
+            const missingCost = missingPartsWithPrices
+              .filter(p => partsToBuy.includes(p.name))
+              .reduce((sum, p) => {
+                const cost = p.price > 0 ? p.price : 0;
+                if (cost > 0) {
+                  console.log(`💰 [Cost Calc] ${p.name}: ${cost}p`);
+                } else {
+                  console.warn(`💰 [Cost Calc] ${p.name}: No seller price (using 0, not fallback estimate)`);
+                }
+                return sum + cost;
+              }, 0);
+            console.log(`💰 [Cost Calc] Total missing cost for ${setName}: ${missingCost}p (from ${partsToBuy.length} parts, ${missingPartsWithPrices.filter(p => p.price > 0).length} with prices)`);
             setProgress.missingCost = missingCost;
           } catch (_err) {
             // Keep existing estimated missingCost on failure
           }
         } else {
-          console.log(`💰 [Individual Set] ${setName}: All missing parts obtainable from relics, skipping price fetch`);
+          console.log(`💰 [Individual Set] ${setName}: No missing parts, skipping price fetch`);
         }
 
         // Store fetched prices temporarily so calculateInvestmentAnalysis can use them

@@ -1,128 +1,131 @@
-// Market Logger - Stores logs for debugging Warframe Market API calls
+// Market Logger Service - Similar to ocrLogger but for market fetch operations
 
-export interface MarketLogEntry {
+interface MarketLogEntry {
   timestamp: number;
   level: 'info' | 'warn' | 'error' | 'debug';
-  category: string;
   message: string;
   data?: any;
 }
 
-const MAX_LOGS = 500;
-const LOG_STORAGE_KEY = 'platscanner_market_logs';
-const LOGGING_ENABLED_KEY = 'platscanner_market_logging_enabled';
-
 class MarketLogger {
   private logs: MarketLogEntry[] = [];
+  private maxLogs = 500;
+  private verboseLogging = false;
 
-  constructor() {
-    this.loadLogs();
-  }
-
-  private loadLogs(): void {
-    try {
-      const stored = localStorage.getItem(LOG_STORAGE_KEY);
-      if (stored) {
-        this.logs = JSON.parse(stored);
-      }
-    } catch (error) {
-      console.error('Failed to load market logs:', error);
-      this.logs = [];
-    }
-  }
-
-  private saveLogs(): void {
-    try {
-      if (this.logs.length > MAX_LOGS) {
-        this.logs = this.logs.slice(-MAX_LOGS);
-      }
-      localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(this.logs));
-    } catch (error) {
-      console.error('Failed to save market logs:', error);
-    }
-  }
-
-  private isLoggingEnabled(): boolean {
-    try {
-      const enabled = localStorage.getItem(LOGGING_ENABLED_KEY);
-      return enabled !== 'false';
-    } catch {
-      return true;
-    }
-  }
-
-  private addLog(level: MarketLogEntry['level'], category: string, message: string, data?: any): void {
-    if (!this.isLoggingEnabled()) {
+  log(level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: any) {
+    // Only log market-related messages
+    if (!this.verboseLogging && level === 'debug') {
       return;
     }
 
     const entry: MarketLogEntry = {
       timestamp: Date.now(),
       level,
-      category,
       message,
-      data: data !== undefined ? (typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : data) : undefined
+      data
     };
 
     this.logs.push(entry);
-    this.saveLogs();
-
-    const consoleMethod = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'log';
-    const prefix = `[Market ${category}]`;
-    if (data !== undefined) {
-      console[consoleMethod](prefix, message, data);
-    } else {
-      console[consoleMethod](prefix, message);
+    
+    // Keep only the last maxLogs entries
+    if (this.logs.length > this.maxLogs) {
+      this.logs = this.logs.slice(-this.maxLogs);
     }
   }
 
-  info(category: string, message: string, data?: any): void {
-    this.addLog('info', category, message, data);
+  info(message: string, data?: any) {
+    this.log('info', message, data);
   }
 
-  warn(category: string, message: string, data?: any): void {
-    this.addLog('warn', category, message, data);
+  warn(message: string, data?: any) {
+    this.log('warn', message, data);
   }
 
-  error(category: string, message: string, data?: any): void {
-    this.addLog('error', category, message, data);
+  error(message: string, data?: any) {
+    this.log('error', message, data);
   }
 
-  debug(category: string, message: string, data?: any): void {
-    this.addLog('debug', category, message, data);
-  }
-
-  getLogs(limit?: number): MarketLogEntry[] {
-    if (limit) {
-      return this.logs.slice(-limit);
-    }
-    return [...this.logs];
+  debug(message: string, data?: any) {
+    this.log('debug', message, data);
   }
 
   getRecentLogs(count: number = 100): MarketLogEntry[] {
     return this.logs.slice(-count);
   }
 
-  clearLogs(): void {
-    this.logs = [];
-    this.saveLogs();
-  }
-
   getLogCount(): number {
     return this.logs.length;
   }
 
-  isVerboseLoggingEnabled(): boolean {
-    return this.isLoggingEnabled();
+  clearLogs() {
+    this.logs = [];
   }
 
-  setVerboseLogging(enabled: boolean): void {
-    try {
-      localStorage.setItem(LOGGING_ENABLED_KEY, enabled ? 'true' : 'false');
-    } catch (error) {
-      console.error('Failed to save market logging preference:', error);
+  isVerboseLoggingEnabled(): boolean {
+    return this.verboseLogging;
+  }
+
+  setVerboseLogging(enabled: boolean) {
+    this.verboseLogging = enabled;
+    localStorage.setItem('market_debug_verbose', String(enabled));
+  }
+
+  // Initialize from localStorage
+  init() {
+    const stored = localStorage.getItem('market_debug_verbose');
+    if (stored !== null) {
+      this.verboseLogging = stored === 'true';
     }
   }
 }
 
 export const marketLogger = new MarketLogger();
+marketLogger.init();
+
+// Intercept console logs for market-related operations
+const originalConsoleLog = console.log;
+const originalConsoleWarn = console.warn;
+const originalConsoleError = console.error;
+
+console.log = (...args: any[]) => {
+  originalConsoleLog(...args);
+  const message = args.map(arg => 
+    typeof arg === 'string' ? arg : JSON.stringify(arg, null, 2)
+  ).join(' ');
+  
+  // Only capture market-related logs
+  if (message.includes('💰') || message.includes('🎯') || message.includes('Market') || 
+      message.includes('Price') || message.includes('fetch') || message.includes('Batch') ||
+      message.includes('[Prime Set]') || message.includes('[Batch Refresh]') ||
+      message.includes('[Market Analysis]') || message.includes('[Individual Set]')) {
+    marketLogger.info(message, args.length > 1 ? args.slice(1) : undefined);
+  }
+};
+
+console.warn = (...args: any[]) => {
+  originalConsoleWarn(...args);
+  const message = args.map(arg => 
+    typeof arg === 'string' ? arg : JSON.stringify(arg, null, 2)
+  ).join(' ');
+  
+  if (message.includes('💰') || message.includes('🎯') || message.includes('Market') || 
+      message.includes('Price') || message.includes('fetch') || message.includes('Batch') ||
+      message.includes('[Prime Set]') || message.includes('[Batch Refresh]') ||
+      message.includes('[Market Analysis]') || message.includes('[Individual Set]')) {
+    marketLogger.warn(message, args.length > 1 ? args.slice(1) : undefined);
+  }
+};
+
+console.error = (...args: any[]) => {
+  originalConsoleError(...args);
+  const message = args.map(arg => 
+    typeof arg === 'string' ? arg : JSON.stringify(arg, null, 2)
+  ).join(' ');
+  
+  if (message.includes('💰') || message.includes('🎯') || message.includes('Market') || 
+      message.includes('Price') || message.includes('fetch') || message.includes('Batch') ||
+      message.includes('[Prime Set]') || message.includes('[Batch Refresh]') ||
+      message.includes('[Market Analysis]') || message.includes('[Individual Set]')) {
+    marketLogger.error(message, args.length > 1 ? args.slice(1) : undefined);
+  }
+};
