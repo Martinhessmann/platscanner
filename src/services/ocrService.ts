@@ -5,6 +5,20 @@ import { determineModRarity, determineModType } from './modService';
 import { ocrLogger } from './ocrLogger';
 import { getPrimeSetsCache } from './staticDataService';
 
+// Debug mode: set to true to download preprocessed images
+const OCR_DEBUG_MODE = false;
+
+// Download blob as file for debugging
+const downloadDebugImage = (blob: Blob, filename: string): void => {
+  if (!OCR_DEBUG_MODE) return;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
 // Grid layout configuration for Warframe inventory
 // Based on analysis of IMG_0318.png (2532 x 1170 px)
 const INVENTORY_GRID_CONFIG = {
@@ -16,13 +30,54 @@ const INVENTORY_GRID_CONFIG = {
   columns: 7,              // Number of item columns in grid
 };
 
-// Crop image to a specific region using canvas
+// Preprocess image to enhance text visibility for OCR
+// Warframe uses gold/white text on dark backgrounds
+const preprocessImageForOCR = (
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number
+): void => {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  
+  // Process each pixel
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    
+    // Calculate luminance
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    
+    // Detect gold/yellow text (high R+G, lower B) or white text (high RGB)
+    const isGoldText = r > 150 && g > 120 && b < 150 && r > b * 1.2;
+    const isWhiteText = r > 180 && g > 180 && b > 180;
+    const isBrightText = luminance > 140;
+    
+    if (isGoldText || isWhiteText || isBrightText) {
+      // Make text black
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 0;
+    } else {
+      // Make background white
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+    }
+  }
+  
+  ctx.putImageData(imageData, 0, 0);
+};
+
+// Crop image to a specific region using canvas with preprocessing
 const cropImageRegion = async (
   imageFile: File,
   xPercent: number,
   yPercent: number,
   widthPercent: number,
-  heightPercent: number
+  heightPercent: number,
+  preprocess: boolean = true
 ): Promise<Blob> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -42,6 +97,11 @@ const cropImageRegion = async (
       canvas.width = width;
       canvas.height = height;
       ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
+      
+      // Apply preprocessing to enhance text
+      if (preprocess) {
+        preprocessImageForOCR(ctx, width, height);
+      }
       
       canvas.toBlob((blob) => {
         if (blob) resolve(blob);
@@ -64,12 +124,12 @@ const extractTextByColumns = async (imageFile: File): Promise<string[]> => {
   const gridWidth = 1 - config.leftPadding - config.sidebarWidth;
   const gridHeight = 1 - config.headerHeight - config.bottomHeight;
   
-  // Add 5% overlap between columns to avoid cutting items at boundaries
+  // Add overlap between columns to avoid cutting items at boundaries
   const overlapPercent = 0.02;
   const baseColumnWidth = gridWidth / config.columns;
   const columnWidth = baseColumnWidth + overlapPercent;
   
-  ocrLogger.info('GridOCR', `Extracting text from ${config.columns} columns`);
+  ocrLogger.info('GridOCR', `Extracting text from ${config.columns} columns with preprocessing`);
   
   // Create a worker for OCR
   const workerPath = `${window.location.origin}/tesseract/worker.min.js`;
@@ -81,26 +141,32 @@ const extractTextByColumns = async (imageFile: File): Promise<string[]> => {
     workerBlobURL: false,
   });
   
+  // Configure for single column reading with character whitelist
   await worker.setParameters({
     tessedit_pageseg_mode: PSM.SINGLE_COLUMN,  // Each column is read top-to-bottom
+    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -\'',
   });
   
   try {
     for (let col = 0; col < config.columns; col++) {
-      const colX = gridX + (col * columnWidth);
+      const colX = gridX + (col * baseColumnWidth);  // Use base width for positioning
       
       ocrLogger.debug('GridOCR', `Processing column ${col + 1}/${config.columns}`, {
         x: colX, y: gridY, width: columnWidth, height: gridHeight
       });
       
-      // Crop this column
+      // Crop this column with preprocessing enabled
       const columnBlob = await cropImageRegion(
         imageFile,
         colX,
         gridY,
         columnWidth,
-        gridHeight
+        gridHeight,
+        true  // Enable preprocessing
       );
+      
+      // Debug: download preprocessed column images
+      downloadDebugImage(columnBlob, `ocr-debug-column-${col}.png`);
       
       // OCR the column
       const columnFile = new File([columnBlob], `column-${col}.png`, { type: 'image/png' });
@@ -433,7 +499,36 @@ const base64ToImageData = (base64: string): Promise<ImageData> => {
 // Extract text from image using OCR
 // Uses client-side Tesseract.js for OCR processing
 // Note: Supabase Edge Function for OCR was deprecated - using client-side only
-const extractTextFromImage = async (imageFile: File): Promise<string> => {
+// Preprocess entire image for OCR (used for non-grid extraction)
+const preprocessFullImage = async (imageFile: File): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      
+      // Apply preprocessing
+      preprocessImageForOCR(ctx, img.width, img.height);
+      
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('Failed to create blob from canvas'));
+      }, 'image/png');
+    };
+    img.onerror = () => reject(new Error('Failed to load image for preprocessing'));
+    img.src = URL.createObjectURL(imageFile);
+  });
+};
+
+const extractTextFromImage = async (imageFile: File, psmMode: number = PSM.SPARSE_TEXT, preprocess: boolean = true): Promise<string> => {
   ocrLogger.info('OCR', `Starting text extraction for file: ${imageFile.name} (${imageFile.size} bytes, type: ${imageFile.type})`);
   
   // Client-side OCR using Tesseract.js
@@ -441,6 +536,14 @@ const extractTextFromImage = async (imageFile: File): Promise<string> => {
   let worker: any = null;
   
   try {
+    // Preprocess image if enabled
+    let imageToProcess: File | Blob = imageFile;
+    if (preprocess) {
+      ocrLogger.debug('OCR', 'Preprocessing image for enhanced text detection...');
+      imageToProcess = await preprocessFullImage(imageFile);
+      ocrLogger.debug('OCR', 'Image preprocessing complete');
+    }
+    
     // Create worker with local files to avoid cross-origin issues
     // All Tesseract files are hosted locally at /tesseract/ (same origin)
     const workerPath = `${window.location.origin}/tesseract/worker.min.js`;
@@ -468,19 +571,19 @@ const extractTextFromImage = async (imageFile: File): Promise<string> => {
     
     worker = await createWorker('eng', 1, workerOptions);
     
-    // Set page segmentation mode for grid-based inventory layouts
-    // PSM.SPARSE_TEXT (11) finds text without assuming reading order
-    // This helps with Warframe's multi-column grid layout
+    // Set page segmentation mode and character whitelist
     await worker.setParameters({
-      tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+      tessedit_pageseg_mode: psmMode,
+      // Only allow alphanumeric characters plus common punctuation
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -\'',
     });
     
-    ocrLogger.info('OCR', 'Tesseract worker created and configured successfully');
+    ocrLogger.info('OCR', `Tesseract worker created with PSM mode ${psmMode}`);
     
     ocrLogger.debug('OCR', 'Starting OCR recognition...');
     const startTime = Date.now();
     
-    const { data: { text, words, lines, paragraphs } } = await worker.recognize(imageFile);
+    const { data: { text, words, lines, paragraphs } } = await worker.recognize(imageToProcess);
     const duration = Date.now() - startTime;
     
     ocrLogger.info('OCR', `OCR recognition completed in ${duration}ms`, {
