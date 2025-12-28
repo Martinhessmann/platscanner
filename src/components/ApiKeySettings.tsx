@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, X, Key, HardDrive, Cloud, Bug, Copy, Check } from 'lucide-react';
+import { Settings, X, Key, HardDrive, Cloud, Bug, Copy, Check, Eye, Wand2 } from 'lucide-react';
 import DataBackupSection from './DataBackupSection';
 import CloudSyncSection from './CloudSyncSection';
 import { ocrLogger } from '../services/ocrLogger';
+import { isLLMWhispererConfigured, setLLMWhispererApiKey } from '../services/llmWhispererService';
 
 interface ApiKeySettingsProps {
   onApiKeyChange: (key: string) => Promise<void>;
@@ -22,6 +23,8 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'api' | 'backup' | 'sync' | 'debug'>('api');
   const [apiKey, setApiKey] = useState('');
+  const [llmWhispererKey, setLlmWhispererKey] = useState('');
+  const [llmWhispererConfigured, setLlmWhispererConfigured] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [logs, setLogs] = useState(ocrLogger.getRecentLogs(100));
@@ -65,6 +68,13 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
           setApiKey('');
         });
       }
+      
+      // Load LLMWhisperer key
+      const storedLlmKey = localStorage.getItem('platscanner_llmwhisperer_api_key');
+      if (storedLlmKey) {
+        setLlmWhispererKey(storedLlmKey);
+      }
+      setLlmWhispererConfigured(isLLMWhispererConfigured());
     } catch (error) {
       console.error('Failed to load API key:', error);
       setError('Failed to load stored API key');
@@ -179,49 +189,85 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
             {/* Tab Content */}
             <div className="p-4 overflow-y-auto flex-1">
               {activeTab === 'api' && (
-                <form onSubmit={handleSubmit}>
-                  <div className="mb-4">
-                    <label htmlFor="apiKey" className="block text-sm font-medium text-gray-300 mb-2">
-                      API Key (Optional - Not Required for OCR)
-                    </label>
-                    <input
-                      type="password"
-                      id="apiKey"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder={isConfigured ? '••••••••••••••••' : 'Enter your API key'}
-                      className="w-full px-3 py-2 bg-background-dark border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-tenno-blue focus:border-transparent"
-                      disabled={isSubmitting}
-                    />
-                    {error && (
-                      <p className="mt-2 text-sm text-grineer-red">{error}</p>
+                <div className="space-y-6">
+                  {/* LLMWhisperer API Key - Primary OCR */}
+                  <div className="p-4 bg-background-dark rounded-lg border border-orokin-gold/30">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Wand2 size={18} className="text-orokin-gold" />
+                      <h3 className="text-lg font-semibold text-white">LLMWhisperer OCR</h3>
+                      {llmWhispererConfigured && (
+                        <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">Configured</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-400 mb-3">
+                      High-accuracy AI-powered OCR for game screenshots. Get a free API key from{' '}
+                      <a href="https://unstract.com" target="_blank" rel="noopener noreferrer" className="text-tenno-blue hover:underline">
+                        unstract.com
+                      </a>
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={llmWhispererKey}
+                        onChange={(e) => setLlmWhispererKey(e.target.value)}
+                        placeholder={llmWhispererConfigured ? '••••••••••••••••' : 'Enter LLMWhisperer API key'}
+                        className="flex-1 px-3 py-2 bg-background-card border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orokin-gold focus:border-transparent"
+                      />
+                      <button
+                        onClick={() => {
+                          if (llmWhispererKey.trim()) {
+                            setLLMWhispererApiKey(llmWhispererKey.trim());
+                            setLlmWhispererConfigured(true);
+                            setError(null);
+                          }
+                        }}
+                        className="px-4 py-2 bg-orokin-gold text-black rounded hover:bg-orokin-light transition-colors font-medium"
+                      >
+                        Save
+                      </button>
+                    </div>
+                    {llmWhispererConfigured && (
+                      <p className="mt-2 text-xs text-green-400">
+                        ✓ LLMWhisperer will be used for OCR (much better accuracy than Tesseract)
+                      </p>
                     )}
                   </div>
 
-                  <div className="text-sm text-gray-400 mb-4">
-                    <p className="mb-2 text-gray-500">
-                      Note: OCR-based text extraction doesn't require an API key. This field is kept for backward compatibility.
-                    </p>
-                  </div>
-
-                  <div className="flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setIsOpen(false)}
-                      className="px-4 py-2 text-gray-300 hover:text-white transition-colors"
-                      disabled={isSubmitting}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-tenno-blue text-white rounded hover:bg-tenno-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                </form>
+                  {/* Legacy Gemini API Key */}
+                  <form onSubmit={handleSubmit}>
+                    <div className="p-4 bg-background-dark rounded-lg border border-gray-700">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Eye size={18} className="text-gray-400" />
+                        <h3 className="text-lg font-semibold text-white">Legacy API Key</h3>
+                        <span className="px-2 py-0.5 bg-gray-500/20 text-gray-400 text-xs rounded">Optional</span>
+                      </div>
+                      <p className="text-sm text-gray-500 mb-3">
+                        For backward compatibility. Not required when LLMWhisperer is configured.
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          type="password"
+                          id="apiKey"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder={isConfigured ? '••••••••••••••••' : 'Enter API key'}
+                          className="flex-1 px-3 py-2 bg-background-card border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-tenno-blue focus:border-transparent"
+                          disabled={isSubmitting}
+                        />
+                        <button
+                          type="submit"
+                          className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors disabled:opacity-50"
+                          disabled={isSubmitting}
+                        >
+                          {isSubmitting ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                      {error && (
+                        <p className="mt-2 text-sm text-grineer-red">{error}</p>
+                      )}
+                    </div>
+                  </form>
+                </div>
               )}
 
               {activeTab === 'sync' && (
