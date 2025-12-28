@@ -313,6 +313,32 @@ const extractTextFromImage = async (imageFile: File): Promise<string> => {
   }
 };
 
+// UI text patterns to filter out (noise from Warframe UI)
+const UI_NOISE_PATTERNS = [
+  /^(inventory|sell|search|exit|total|tap|hold|select|info|price|items?)$/i,
+  /inventory\/sell/i,
+  /sell\s*(price|items)/i,
+  /tap\s*(on|and)/i,
+  /more\s*info/i,
+  /only\s*sellable/i,
+  /search\.\.\./i,
+  /^\s*[@#$%^&*|\\[\]{}]+\s*$/,  // Lines with only special characters
+  /^\s*\d+\s*$/,  // Lines with only numbers
+  /^\s*[ivxlcdm]+\s*$/i,  // Roman numerals only
+];
+
+// Check if a line is UI noise
+const isUINoiseText = (line: string): boolean => {
+  const trimmed = line.trim();
+  // Too short (likely OCR noise)
+  if (trimmed.length < 3) return true;
+  // Too many special characters relative to alphanumeric
+  const alphaNum = trimmed.replace(/[^a-zA-Z0-9]/g, '').length;
+  if (alphaNum < trimmed.length * 0.4) return true;
+  // Matches known UI patterns
+  return UI_NOISE_PATTERNS.some(pattern => pattern.test(trimmed));
+};
+
 // Determine screen type based on extracted text
 const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown' => {
   ocrLogger.debug('ScreenType', 'Determining screen type from extracted text', {
@@ -347,18 +373,41 @@ const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicat
     return 'relics';
   }
 
-  // Check for mod indicators (polarity symbols, drain costs)
+  // Check for prime parts BEFORE mods (more specific patterns first)
+  // "PRIME PARTS" header or multiple Prime item names
   if (
-    lowerText.includes('mod') ||
+    lowerText.includes('prime parts') ||
+    (lowerText.includes('prime') && (
+      lowerText.includes('blueprint') ||
+      lowerText.includes('chassis') ||
+      lowerText.includes('neuroptics') ||
+      lowerText.includes('systems') ||
+      lowerText.includes('barrel') ||
+      lowerText.includes('receiver') ||
+      lowerText.includes('stock') ||
+      lowerText.includes('blade') ||
+      lowerText.includes('handle') ||
+      lowerText.includes('link') ||
+      lowerText.includes('boot') ||
+      lowerText.includes('gauntlet')
+    ))
+  ) {
+    ocrLogger.info('ScreenType', 'Detected screen type: prime_parts');
+    return 'prime_parts';
+  }
+
+  // Check for mod indicators (polarity symbols, drain costs)
+  // Be more specific to avoid false positives from OCR noise
+  if (
+    /\bmods?\b/i.test(text) ||
     /\b(drain|capacity)\s*:?\s*\d+/i.test(text) ||
-    /[vd\-]\s*\d+/i.test(text) || // Polarity symbols
     /\d+\s*\/\s*\d+\s*\(drain/i.test(text) // Rank format with drain
   ) {
     ocrLogger.info('ScreenType', 'Detected screen type: mods');
     return 'mods';
   }
 
-  // Check for prime parts
+  // Fallback check for prime parts (less specific)
   if (lowerText.includes('prime') || lowerText.includes('blueprint')) {
     ocrLogger.info('ScreenType', 'Detected screen type: prime_parts');
     return 'prime_parts';
