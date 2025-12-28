@@ -232,12 +232,14 @@ const extractTextFromImage = async (imageFile: File): Promise<string> => {
   try {
     ocrLogger.debug('OCR', 'Creating Tesseract worker with English language');
     
-    // Create worker with local worker file to avoid cross-origin issues
-    // The worker file is hosted at /tesseract/worker.min.js (same origin)
-    // workerBlobURL: false means we create the worker directly from the URL
-    // which gives it the page's origin, allowing it to fetch CDN resources
+    // Create worker with local files to avoid cross-origin issues
+    // All Tesseract files are hosted locally at /tesseract/ (same origin)
+    // - workerPath: local worker script
+    // - corePath: local WASM core files directory
+    // - workerBlobURL: false creates worker directly from URL (not blob)
     const workerOptions: any = {
       workerPath: '/tesseract/worker.min.js',
+      corePath: '/tesseract',
       workerBlobURL: false,
       logger: (m: any) => {
         if (m.status === 'recognizing text' && m.progress !== undefined) {
