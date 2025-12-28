@@ -606,27 +606,48 @@ const calculateInvestmentAnalysis = (
   const fetchedPrices = (setProgress as any)._tempMissingPartsWithPrices as Array<{ name: string; price: number }> | undefined;
   
   if (fetchedPrices && fetchedPrices.length > 0) {
+    console.log(`💰 [Investment] Using fetched prices for ${missingPartsToBuy.length} parts to buy`);
     // Use fetched prices (more accurate) - these should be seller prices
     missingPartsToBuy.forEach(partName => {
-      const fetchedPrice = fetchedPrices.find(p => 
-        p.name.toLowerCase() === partName.toLowerCase()
-      );
-      if (fetchedPrice && fetchedPrice.price > 0) {
-        buyInvestmentCost += fetchedPrice.price;
+      const fetchedPrice = fetchedPrices.find(p => {
+        const pName = p.name.toLowerCase();
+        const partNameLower = partName.toLowerCase();
+        // Try exact match first
+        if (pName === partNameLower) return true;
+        // Try with/without blueprint suffix
+        if (pName === `${partNameLower} blueprint` || partNameLower === `${pName} blueprint`) return true;
+        // Try underscore format
+        const pNameUnderscore = pName.replace(/\s+/g, '_');
+        const partNameUnderscore = partNameLower.replace(/\s+/g, '_');
+        if (pNameUnderscore === partNameUnderscore) return true;
+        return false;
+      });
+      if (fetchedPrice) {
+        if (fetchedPrice.price > 0) {
+          buyInvestmentCost += fetchedPrice.price;
+          console.log(`💰 [Investment] ${partName}: ${fetchedPrice.price}p (from fetched price)`);
+        } else {
+          console.warn(`💰 [Investment] ${partName}: No seller price in fetched data (using 0)`);
+        }
       } else {
         // Fallback to estimated seller price if fetched price not found
         const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
         buyInvestmentCost += partPrice;
+        console.warn(`💰 [Investment] ${partName}: Not found in fetched prices, using estimated ${partPrice}p`);
       }
     });
   } else {
+    console.warn(`💰 [Investment] No fetched prices available, using estimated prices`);
     // Use estimated seller prices if fetched prices not available
     missingPartsToBuy.forEach(partName => {
       // Use seller price (cost to buy) for investment calculations
       const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
       buyInvestmentCost += partPrice;
+      console.log(`💰 [Investment] ${partName}: ${partPrice}p (estimated)`);
     });
   }
+  
+  console.log(`💰 [Investment] Total buyInvestmentCost: ${buyInvestmentCost}p`);
 
   // Calculate void trace cost for relic opening (estimated)
   // Assume average 75 void traces per missing part from relics
@@ -1158,26 +1179,51 @@ export const refreshIndividualSetMarketData = async (
             } as any));
 
             const priced = await Promise.all(
-              missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
+              missingPartItems.map(item => {
+                console.log(`💰 [Price Fetch] Fetching price for: ${item.name}`);
+                return fetchSinglePriceData(item).catch((err) => {
+                  console.warn(`💰 [Price Fetch] Failed to fetch price for ${item.name}:`, err);
+                  return null;
+                });
+              })
             );
 
             // Store individual SELLER prices for ALL missing parts (for display)
             // CRITICAL: Must use sellerPrice (lowest sell order), not average or buyer price
             missingPartsWithPrices = priced
-              .map((p, i) => ({
-                name: missingPartItems[i].name,
-                price: p?.sellerPrice || 0, // Use seller price ONLY (lowest sell order)
-                avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
-              }))
-              .filter(p => p.price > 0);
+              .map((p, i) => {
+                const itemName = missingPartItems[i].name;
+                const sellerPrice = p?.sellerPrice || 0;
+                console.log(`💰 [Price Fetch] ${itemName}: sellerPrice=${sellerPrice}, price=${p?.price || 0}, average=${p?.average || 0}`);
+                return {
+                  name: itemName,
+                  price: sellerPrice, // Use seller price ONLY (lowest sell order)
+                  avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
+                };
+              })
+              // Keep all prices, even if 0, so we can debug matching issues
+              // Log when price is 0
+              .map(p => {
+                if (p.price === 0) {
+                  console.warn(`💰 [Price Fetch] No seller price found for ${p.name} (might not be available on market or no sellers)`);
+                }
+                return p;
+              });
 
             // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
             const missingCost = priced
               .filter((p, i) => partsToBuy.includes(missingPartItems[i].name))
-              .reduce((sum, p) => {
+              .reduce((sum, p, i) => {
+                const itemName = missingPartItems[i].name;
                 const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
+                if (cost > 0) {
+                  console.log(`💰 [Cost Calc] ${itemName}: ${cost}p`);
+                } else {
+                  console.warn(`💰 [Cost Calc] ${itemName}: No seller price (using 0)`);
+                }
                 return sum + cost;
               }, 0);
+            console.log(`💰 [Cost Calc] Total missing cost for ${setName}: ${missingCost}p (from ${partsToBuy.length} parts)`);
             setProgress.missingCost = missingCost;
           } catch (_err) {
             // Keep existing estimated missingCost on failure

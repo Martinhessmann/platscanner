@@ -1784,7 +1784,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                           }
                                         }
                                         
-                                        // Show price if found, otherwise show "Market only"
+                                        // Show price if found, otherwise show "—" (not "Market only" - that goes in Source column)
                                         return (
                                           <span className="text-gray-500">
                                             {priceData && priceData.price > 0 ? (
@@ -1795,7 +1795,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                                 )}
                                               </span>
                                             ) : (
-                                              <span className="text-gray-400">Market only</span>
+                                              <span className="text-gray-500">—</span>
                                             )}
                                           </span>
                                         );
@@ -1807,58 +1807,62 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                 
                                 {/* Source Column */}
                                 <div className="flex flex-col items-end gap-1 text-right min-w-[100px]">
-                                    {!isOwned && isObtainableFromRelics && rec && (
-                                    <div className="flex items-center gap-1 justify-end">
-                                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[rec.target]}`} title={`Recommended refinement`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[rec.target]}`} />
-                                        <span className="capitalize">{rec.target}</span>
-                                      </span>
-                                    </div>
-                                  )}
-                                  {isObtainableFromRelics && !isOwned && relicBaseCounts.length > 0 && (
-                                    <div className="flex items-end gap-2 flex-col">
-                                      <div className="flex items-start gap-2 flex-col text-right">
-                                        {relicBaseCounts.map(({ base, total }) => (
-                                          <button
-                                            key={base}
-                                            onClick={() => {
-                                              console.log('[PrimeSets] Button clicked for relic:', base);
-
-                                              // First expand the relics section
-                                              console.log('[PrimeSets] Dispatching expand-section event');
-                                              window.dispatchEvent(new CustomEvent('expand-section', {
-                                                detail: { section: 'relics' }
-                                              }));
-
-                                              // Then navigate to the specific relic
-                                              setTimeout(() => {
-                                                console.log('[PrimeSets] Dispatching focus-relic event for:', base);
-                                                window.dispatchEvent(new CustomEvent('focus-relic', {
-                                                  detail: {
-                                                    name: base,
-                                                    expandDetails: true,
-                                                    scrollToSection: true
-                                                  }
-                                                }));
-                                              }, 300); // Increased timeout to ensure section is expanded
-                                            }}
-                                            className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2 transition-colors"
-                                            title={`Focus ${base} in Relics section`}
-                                          >
-                                            {base}{total > 1 ? ` x${total}` : ''}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {!isOwned && !isObtainableFromRelics && !hasBuiltPart && (
-                                    <span className="text-gray-400 text-xs">Market only</span>
-                                  )}
-                                  {hasBuiltPart && (
-                                    <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
-                                  )}
-                                  {isOwned && (
+                                  {isOwned ? (
                                     <span className="text-green-400 text-xs">In Inventory</span>
+                                  ) : hasBuiltPart ? (
+                                    <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
+                                  ) : isObtainableFromRelics ? (
+                                    <>
+                                      {rec && (
+                                        <div className="flex items-center gap-1 justify-end">
+                                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border ${refinementChipClasses[rec.target]}`} title={`Recommended refinement`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${refinementDotClasses[rec.target]}`} />
+                                            <span className="capitalize">{rec.target}</span>
+                                          </span>
+                                        </div>
+                                      )}
+                                      {relicBaseCounts.length > 0 && (
+                                        <div className="flex items-end gap-2 flex-col">
+                                          <div className="flex items-start gap-2 flex-col text-right">
+                                            {relicBaseCounts.map(({ base, total }) => (
+                                              <button
+                                                key={base}
+                                                onClick={() => {
+                                                  console.log('[PrimeSets] Button clicked for relic:', base);
+
+                                                  // First expand the relics section
+                                                  console.log('[PrimeSets] Dispatching expand-section event');
+                                                  window.dispatchEvent(new CustomEvent('expand-section', {
+                                                    detail: { section: 'relics' }
+                                                  }));
+
+                                                  // Then navigate to the specific relic
+                                                  setTimeout(() => {
+                                                    console.log('[PrimeSets] Dispatching focus-relic event for:', base);
+                                                    window.dispatchEvent(new CustomEvent('focus-relic', {
+                                                      detail: {
+                                                        name: base,
+                                                        expandDetails: true,
+                                                        scrollToSection: true
+                                                      }
+                                                    }));
+                                                  }, 300); // Increased timeout to ensure section is expanded
+                                                }}
+                                                className="text-[11px] text-gray-300 hover:text-white underline decoration-dotted underline-offset-2 transition-colors"
+                                                title={`Focus ${base} in Relics section`}
+                                              >
+                                                {base}{total > 1 ? ` x${total}` : ''}
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                      {!rec && relicBaseCounts.length === 0 && (
+                                        <span className="text-yellow-400 text-xs">From Relics</span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-gray-400 text-xs">Market only</span>
                                   )}
                                 </div>
                               </div>
