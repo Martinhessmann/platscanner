@@ -6,7 +6,8 @@ import { ocrLogger } from './ocrLogger';
 import { getPrimeSetsCache } from './staticDataService';
 
 // Debug mode: set to true to download preprocessed images
-const OCR_DEBUG_MODE = false;
+// Enable via console: window.OCR_DEBUG_MODE = true
+const OCR_DEBUG_MODE = (typeof window !== 'undefined' && (window as any).OCR_DEBUG_MODE) || false;
 
 // Download blob as file for debugging
 const downloadDebugImage = (blob: Blob, filename: string): void => {
