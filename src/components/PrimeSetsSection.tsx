@@ -1682,29 +1682,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                     );
                                   })() : (
                                     hasBuiltPart ? (
-                                      // Built warframe part (not tradeable)
-                                      (() => {
-                                        // Try to find blueprint price from market data
-                                        const blueprintName = `${part.name} Blueprint`;
-                                        const blueprintPriceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
-                                          p => {
-                                            const pName = p.name.toLowerCase();
-                                            return pName === blueprintName.toLowerCase() ||
-                                                   (pName.includes('blueprint') && pName.includes(part.name.split(' ')[0].toLowerCase()));
-                                          }
-                                        );
-                                        
-                                        return (
-                                          <span className="flex flex-col items-end">
-                                            <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
-                                            {blueprintPriceData && blueprintPriceData.price > 0 && (
-                                              <span className="text-[10px] text-gray-500">
-                                                BP: {blueprintPriceData.price}p
-                                              </span>
-                                            )}
-                                          </span>
-                                        );
-                                      })()
+                                      // Built warframe part (not tradeable) - show "—" for price, "Built (Not Tradeable)" in Source column
+                                      <span className="text-gray-500">—</span>
                                     ) : isObtainableFromRelics ? (
                                       <span className="text-gray-400"></span>
                                     ) : (

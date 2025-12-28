@@ -841,12 +841,28 @@ export const analyzeSetProgressWithMarketData = async (
             try {
               console.log(`💰 [Batch Refresh] ${progress.set.name}: Fetching ${allMissingParts.length} missing parts (${partsToBuy.length} to buy, ${progress.obtainableFromRelics.length} from relics)`);
 
-              const missingPartItems: DetectedItem[] = allMissingParts.map(name => ({
-                id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
-                name,
-                category: 'prime_parts',
-                status: 'loading'
-              } as any));
+              // CRITICAL: For warframes, parts need "Blueprint" suffix for market lookup
+              const missingPartItems: DetectedItem[] = allMissingParts.map(name => {
+                // For warframe parts, add "Blueprint" suffix if not already present
+                let marketName = name;
+                if (progress.set.type === 'Warframe') {
+                  const lowerName = name.toLowerCase();
+                  const isComponent = ['chassis', 'systems', 'neuroptics'].some(comp => 
+                    lowerName.includes(comp) && !lowerName.includes('blueprint')
+                  );
+                  if (isComponent) {
+                    marketName = `${name} Blueprint`;
+                  }
+                }
+                
+                return {
+                  id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
+                  name: marketName, // Use market name for API lookup
+                  originalName: name, // Keep original for storage
+                  category: 'prime_parts',
+                  status: 'loading'
+                } as any;
+              });
 
               const priced = await Promise.all(
                 missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
@@ -854,13 +870,23 @@ export const analyzeSetProgressWithMarketData = async (
 
               // Store individual SELLER prices for ALL missing parts (for display)
               // CRITICAL: Must use sellerPrice (lowest sell order), not average or buyer price
+              // IMPORTANT: Use original part name for storage, not market lookup name
               const missingPartsWithPrices = priced
-                .map((p, i) => ({
-                  name: missingPartItems[i].name,
-                  price: p?.sellerPrice || 0, // Use seller price ONLY (lowest sell order)
-                  avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
-                }))
-                .filter(p => p.price > 0);
+                .map((p, i) => {
+                  const originalPartName = (missingPartItems[i] as any).originalName || missingPartItems[i].name;
+                  return {
+                    name: originalPartName, // Use original name (e.g., "Protea Prime Systems") for consistent matching
+                    price: p?.sellerPrice || 0, // Use seller price ONLY (lowest sell order)
+                    avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
+                  };
+                })
+                // Keep all entries, even with 0 price, for debugging
+                .map(p => {
+                  if (p.price === 0) {
+                    console.warn(`💰 [Batch] No seller price for "${p.name}"`);
+                  }
+                  return p;
+                });
 
               // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
               const missingCost = priced
@@ -1099,18 +1125,38 @@ export const refreshIndividualSetMarketData = async (
           try {
             console.log(`💰 [Individual Set] ${setName}: Fetching ${allMissingParts.length} missing parts (${partsToBuy.length} to buy, ${setProgress.obtainableFromRelics.length} from relics)`);
 
-            const missingPartItems: DetectedItem[] = allMissingParts.map(name => ({
-              id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
-              name,
-              category: 'prime_parts',
-              status: 'loading'
-            } as any));
+            // CRITICAL: For warframes, parts need "Blueprint" suffix for market lookup
+            // e.g., "Protea Prime Systems" → "Protea Prime Systems Blueprint"
+            const missingPartItems: DetectedItem[] = allMissingParts.map(name => {
+              // For warframe parts, add "Blueprint" suffix if not already present
+              let marketName = name;
+              if (setProgress.set.type === 'Warframe') {
+                const lowerName = name.toLowerCase();
+                // Check if it's a component that needs blueprint (not already a blueprint)
+                const isComponent = ['chassis', 'systems', 'neuroptics'].some(comp => 
+                  lowerName.includes(comp) && !lowerName.includes('blueprint')
+                );
+                if (isComponent) {
+                  marketName = `${name} Blueprint`;
+                  console.log(`💰 [Price Fetch] Warframe part "${name}" → market lookup: "${marketName}"`);
+                }
+              }
+              
+              return {
+                id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
+                name: marketName, // Use market name for API lookup
+                originalName: name, // Keep original for storage
+                category: 'prime_parts',
+                status: 'loading'
+              } as any;
+            });
 
             const priced = await Promise.all(
               missingPartItems.map(item => {
-                console.log(`💰 [Price Fetch] Fetching price for: ${item.name}`);
+                const originalName = (item as any).originalName || item.name;
+                console.log(`💰 [Price Fetch] Fetching price for: ${originalName} (market: ${item.name})`);
                 return fetchSinglePriceData(item).catch((err) => {
-                  console.warn(`💰 [Price Fetch] Failed to fetch price for ${item.name}:`, err);
+                  console.warn(`💰 [Price Fetch] Failed to fetch price for ${originalName}:`, err);
                   return null;
                 });
               })
@@ -1118,20 +1164,21 @@ export const refreshIndividualSetMarketData = async (
 
             // Store individual SELLER prices for ALL missing parts (for display)
             // CRITICAL: Must use sellerPrice (lowest sell order), not average or buyer price
-            // IMPORTANT: Store prices using the ORIGINAL part name from missingParts, not the API response name
+            // IMPORTANT: Store prices using the ORIGINAL part name from missingParts, not the market lookup name
             // This ensures matching works correctly in the UI
             missingPartsWithPrices = priced
               .map((p, i) => {
-                const originalPartName = missingPartItems[i].name; // e.g., "Xaku Prime Chassis"
-                const apiItemName = p?.name || originalPartName; // API might return different format
+                const originalPartName = (missingPartItems[i] as any).originalName || missingPartItems[i].name; // Original: "Protea Prime Systems"
+                const marketLookupName = missingPartItems[i].name; // Market: "Protea Prime Systems Blueprint"
+                const apiItemName = p?.name || marketLookupName; // API response name
                 const sellerPrice = p?.sellerPrice || 0;
                 
-                console.log(`💰 [Price Fetch] Original: "${originalPartName}" → API: "${apiItemName}" → sellerPrice=${sellerPrice}, buyerPrice=${p?.price || 0}`);
+                console.log(`💰 [Price Fetch] Original: "${originalPartName}" → Market lookup: "${marketLookupName}" → API: "${apiItemName}" → sellerPrice=${sellerPrice}, buyerPrice=${p?.price || 0}`);
                 
-                // CRITICAL: Always use the original part name for storage, not the API response name
+                // CRITICAL: Always use the original part name for storage, not the market lookup or API response name
                 // This ensures the UI matching logic works correctly
                 return {
-                  name: originalPartName, // Use original name for consistent matching
+                  name: originalPartName, // Use original name (e.g., "Protea Prime Systems") for consistent matching
                   price: sellerPrice, // Use seller price ONLY (lowest sell order)
                   avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
                 };
