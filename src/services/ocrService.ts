@@ -4,6 +4,11 @@ import { getCategorizedInventory } from './inventoryService';
 import { determineModRarity, determineModType } from './modService';
 import { ocrLogger } from './ocrLogger';
 import { getPrimeSetsCache } from './staticDataService';
+import { 
+  isLLMWhispererConfigured, 
+  extractTextWithLLMWhisperer,
+  setLLMWhispererApiKey 
+} from './llmWhispererService';
 
 // Debug mode: set to true to download preprocessed images
 // Enable via console: window.OCR_DEBUG_MODE = true
@@ -1181,9 +1186,30 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     }
 
     // Step 1: Extract text using OCR
-    ocrLogger.info('Analysis', 'Step 1: Extracting text from image using OCR');
-    const extractedText = await extractTextFromImage(imageFile);
-    ocrLogger.info('Analysis', `Extracted ${extractedText.length} characters of text`, {
+    // Try LLMWhisperer first (if configured), then fall back to Tesseract
+    let extractedText = '';
+    let ocrMethod = 'tesseract';
+    
+    if (isLLMWhispererConfigured()) {
+      ocrLogger.info('Analysis', 'Step 1: Extracting text using LLMWhisperer');
+      try {
+        extractedText = await extractTextWithLLMWhisperer(imageFile);
+        ocrMethod = 'llmwhisperer';
+        ocrLogger.info('Analysis', `LLMWhisperer extracted ${extractedText.length} characters`);
+      } catch (llmError) {
+        ocrLogger.warn('Analysis', 'LLMWhisperer failed, falling back to Tesseract', {
+          error: llmError instanceof Error ? llmError.message : String(llmError)
+        });
+      }
+    }
+    
+    // Fall back to Tesseract if LLMWhisperer not configured or failed
+    if (!extractedText) {
+      ocrLogger.info('Analysis', 'Step 1: Extracting text from image using Tesseract OCR');
+      extractedText = await extractTextFromImage(imageFile);
+    }
+    
+    ocrLogger.info('Analysis', `Extracted ${extractedText.length} characters of text (method: ${ocrMethod})`, {
       preview: extractedText.substring(0, 500)
     });
 
