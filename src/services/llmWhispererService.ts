@@ -1,11 +1,11 @@
 /**
  * LLMWhisperer OCR Service
  * Uses Unstract's LLMWhisperer API for high-quality OCR
- * Designed specifically for extracting text from images for LLM consumption
+ * Proxied through Netlify function to avoid CORS issues
  */
 
-// EU-West endpoint (matches the API key region)
-const LLMWHISPERER_API_URL = 'https://llmwhisperer-api.eu-west.unstract.com/api/v2';
+// Netlify function proxy endpoint
+const PROXY_URL = '/.netlify/functions/llmwhisperer';
 
 // Get API key from localStorage
 const getApiKey = (): string | null => {
@@ -30,7 +30,6 @@ export const isLLMWhispererConfigured = (): boolean => {
   try {
     const key = getApiKey();
     const isConfigured = !!key && key.length > 10;
-    // Log for debugging - this will show in browser console
     console.log('[LLMWhisperer] isConfigured check:', { hasKey: !!key, keyLength: key?.length || 0, isConfigured });
     return isConfigured;
   } catch (error) {
@@ -39,22 +38,7 @@ export const isLLMWhispererConfigured = (): boolean => {
   }
 };
 
-// Convert File to base64
-const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Remove data URL prefix (e.g., "data:image/png;base64,")
-      const base64 = result.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};
-
-// Extract text from image using LLMWhisperer
+// Extract text from image using LLMWhisperer (via Netlify proxy)
 export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<string> => {
   console.log('[LLMWhisperer] extractTextWithLLMWhisperer called');
   const apiKey = getApiKey();
@@ -68,20 +52,20 @@ export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<stri
   // Get file as ArrayBuffer
   const arrayBuffer = await imageFile.arrayBuffer();
   
-  // Call LLMWhisperer API with output_mode=text for cleaner parsing
-  const response = await fetch(`${LLMWHISPERER_API_URL}/whisper?mode=high_quality&output_mode=text`, {
+  // Call LLMWhisperer via Netlify proxy
+  const response = await fetch(`${PROXY_URL}?action=whisper`, {
     method: 'POST',
     headers: {
-      'unstract-key': apiKey,
+      'X-LLMWhisperer-Key': apiKey,
       'Content-Type': 'application/octet-stream',
     },
     body: arrayBuffer,
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error('[LLMWhisperer] API error:', response.status, errorText);
-    throw new Error(`LLMWhisperer API error: ${response.status}`);
+    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    console.error('[LLMWhisperer] API error:', response.status, errorData);
+    throw new Error(`LLMWhisperer API error: ${response.status} - ${errorData.error || errorData.details || 'Unknown'}`);
   }
 
   const result = await response.json();
@@ -96,29 +80,30 @@ export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<stri
   return result.extracted_text || '';
 };
 
-// Poll for async result
+// Poll for async result (via Netlify proxy)
 const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 30): Promise<string> => {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
     
-    const response = await fetch(`${LLMWHISPERER_API_URL}/whisper-status?whisper_hash=${whisperHash}`, {
+    // Check status via proxy
+    const statusResponse = await fetch(`${PROXY_URL}?action=status&whisper_hash=${whisperHash}`, {
       headers: {
-        'unstract-key': apiKey,
+        'X-LLMWhisperer-Key': apiKey,
       },
     });
 
-    if (!response.ok) {
-      throw new Error(`Failed to check status: ${response.status}`);
+    if (!statusResponse.ok) {
+      throw new Error(`Failed to check status: ${statusResponse.status}`);
     }
 
-    const result = await response.json();
+    const result = await statusResponse.json();
     console.log(`[LLMWhisperer] Poll ${attempt + 1}: ${result.status}`);
     
     if (result.status === 'processed') {
-      // Fetch the result (text_only=true returns raw text)
-      const textResponse = await fetch(`${LLMWHISPERER_API_URL}/whisper-retrieve?whisper_hash=${whisperHash}&text_only=true`, {
+      // Retrieve the result via proxy
+      const textResponse = await fetch(`${PROXY_URL}?action=retrieve&whisper_hash=${whisperHash}`, {
         headers: {
-          'unstract-key': apiKey,
+          'X-LLMWhisperer-Key': apiKey,
         },
       });
       
@@ -126,8 +111,8 @@ const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 
         throw new Error(`Failed to retrieve result: ${textResponse.status}`);
       }
       
-      // text_only=true returns raw text, not JSON
-      const extractedText = await textResponse.text();
+      const textResult = await textResponse.json();
+      const extractedText = textResult.text || '';
       console.log(`[LLMWhisperer] Extracted ${extractedText.length} characters`);
       return extractedText;
     }
