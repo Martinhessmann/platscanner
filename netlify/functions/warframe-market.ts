@@ -13,7 +13,8 @@ const corsHeaders = {
 const cache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-const WARFRAME_MARKET_API = 'https://api.warframe.market/v2';
+const WARFRAME_MARKET_API_V2 = 'https://api.warframe.market/v2';
+const WARFRAME_MARKET_API_V1 = 'https://api.warframe.market/v1';
 
 /**
  * Normalizes item names to match Warframe Market URL format
@@ -82,19 +83,18 @@ const fetchSingleItemData = async (itemName: string) => {
 
   // V2 API works directly with item slugs - no need for base name lookup
   try {
-    // Query the item directly by slug
-    // V2 API: Orders endpoint might not exist - handle gracefully
+    // Query item data from v2 API, but use v1 API for orders/statistics (v2 doesn't have these endpoints yet)
     let itemResponse, ordersResponse, statsResponse;
     try {
       [itemResponse, ordersResponse, statsResponse] = await Promise.all([
-        fetch(`${WARFRAME_MARKET_API}/items/${itemName}`, { headers: apiHeaders }),
-        fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, { headers: apiHeaders }).catch((err) => {
-          console.log(`>>> [Netlify] ${itemName}: Orders endpoint failed, will use statistics only <<<`);
-          return { ok: false, status: 404, json: () => Promise.resolve({ data: [], error: null }) };
+        fetch(`${WARFRAME_MARKET_API_V2}/items/${itemName}`, { headers: apiHeaders }),
+        fetch(`${WARFRAME_MARKET_API_V1}/items/${itemName}/orders`, { headers: apiHeaders }).catch((err) => {
+          console.log(`>>> [Netlify] ${itemName}: V1 Orders endpoint failed <<<`);
+          return { ok: false, status: 404, json: () => Promise.resolve({ payload: { orders: [] }, error: null }) };
         }),
-        fetch(`${WARFRAME_MARKET_API}/items/${itemName}/statistics`, { headers: apiHeaders }).catch((err) => {
-          console.log(`>>> [Netlify] ${itemName}: Statistics endpoint failed <<<`);
-          return { ok: false, status: 404, json: () => Promise.resolve({ data: { statistics_closed: { '90days': [] } }, error: null }) };
+        fetch(`${WARFRAME_MARKET_API_V1}/items/${itemName}/statistics`, { headers: apiHeaders }).catch((err) => {
+          console.log(`>>> [Netlify] ${itemName}: V1 Statistics endpoint failed <<<`);
+          return { ok: false, status: 404, json: () => Promise.resolve({ payload: { statistics_closed: { '90days': [] } }, error: null }) };
         })
       ]);
     } catch (error) {
@@ -128,8 +128,8 @@ const fetchSingleItemData = async (itemName: string) => {
 
     const [itemData, ordersData, statsData] = await Promise.all([
       itemResponse.json(),
-      ordersResponse.ok ? ordersResponse.json() : Promise.resolve({ data: [], error: null }),
-      statsResponse.ok ? statsResponse.json() : Promise.resolve({ data: { statistics_closed: { '90days': [] } }, error: null })
+      ordersResponse.ok ? ordersResponse.json() : Promise.resolve({ payload: { orders: [] }, error: null }),
+      statsResponse.ok ? statsResponse.json() : Promise.resolve({ payload: { statistics_closed: { '90days': [] } }, error: null })
     ]);
 
     // V2 API structure: { apiVersion, data: { ... }, error }
@@ -142,14 +142,14 @@ const fetchSingleItemData = async (itemName: string) => {
     
     // Log if orders endpoint failed
     if (!ordersResponse.ok) {
-      console.log(`>>> [Netlify] ${itemName}: Orders endpoint returned ${ordersResponse.status}, using empty orders array <<<`);
+      console.log(`>>> [Netlify] ${itemName}: V1 Orders endpoint returned ${ordersResponse.status}, using empty orders array <<<`);
     }
 
-    // Extract averages from statistics (V2 API structure)
+    // Extract averages from statistics (V1 API structure: payload.statistics_closed)
     let historicalAverage = 0;
     let recentAverage48h = 0;
-    if (statsData.data && statsData.data.statistics_closed) {
-      const closedStats = statsData.data.statistics_closed;
+    if (statsData.payload && statsData.payload.statistics_closed) {
+      const closedStats = statsData.payload.statistics_closed;
       if (closedStats['90days'] && closedStats['90days'].length > 0) {
         const latest90 = closedStats['90days'][closedStats['90days'].length - 1];
         historicalAverage = latest90.avg_price || 0;
@@ -161,19 +161,16 @@ const fetchSingleItemData = async (itemName: string) => {
       console.log(`>>> [Netlify] ${itemName}: avg90=${historicalAverage}p, avg48h=${recentAverage48h}p <<<`);
     }
 
-    // Process orders (V2 API structure: orders are in data array)
-    // Note: V2 API orders endpoint might not exist - check if data is an array or object
+    // Process orders (V1 API structure: payload.orders)
     let orders = [];
-    if (Array.isArray(ordersData.data)) {
-      orders = ordersData.data;
-    } else if (ordersData.data && Array.isArray(ordersData.data.orders)) {
-      orders = ordersData.data.orders;
-    } else if (ordersData.payload && Array.isArray(ordersData.payload.orders)) {
-      // Fallback to v1 structure if needed
+    if (ordersData.payload && Array.isArray(ordersData.payload.orders)) {
       orders = ordersData.payload.orders;
+    } else if (Array.isArray(ordersData.data)) {
+      // Fallback to v2 structure if it ever gets implemented
+      orders = ordersData.data;
     }
     
-    console.log(`>>> [Netlify] ${itemName}: Found ${orders.length} orders (structure: ${Array.isArray(ordersData.data) ? 'array' : typeof ordersData.data}) <<<`);
+    console.log(`>>> [Netlify] ${itemName}: Found ${orders.length} orders from V1 API <<<`);
     const buyOrders = orders.filter((order: any) =>
       order.order_type === 'buy' &&
       ['online', 'ingame'].includes(order.user.status) &&
