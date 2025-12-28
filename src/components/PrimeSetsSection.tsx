@@ -1327,11 +1327,11 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 </div>
 
                 {/* Trading Recommendation - Prominent at top */}
-                {progress.recommendedStrategy && (
+                {progress.recommendedStrategy && progress.recommendedStrategy !== 'INSUFFICIENT_DATA' && (
                   <div className={`mt-2 px-3 py-1.5 rounded-lg border text-xs font-medium ${
                     (() => {
-                      // Use expectedProfit from investmentAnalysis if available, otherwise fall back to profitDifference
-                      const profit = progress.investmentAnalysis?.expectedProfit ?? progress.profitDifference ?? 0;
+                      // Use expectedProfit (ROI) from investmentAnalysis
+                      const profit = progress.investmentAnalysis?.expectedProfit ?? 0;
                       return profit > 0
                         ? 'bg-green-900/30 border-green-500/30 text-green-400'
                         : profit < 0
@@ -1339,14 +1339,14 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         : 'bg-gray-800/30 border-gray-600/30 text-gray-400';
                     })()
                   }`}>
-                    💰 {progress.recommendedStrategy === 'SELL_PARTS' ? 'SELL PARTS' : progress.recommendedStrategy === 'SELL_SET' ? 'SELL SET' : progress.recommendedStrategy.replace(/_/g, ' ')}
+                    💰 {progress.recommendedStrategy === 'SELL_PARTS' ? 'SELL PARTS' : progress.recommendedStrategy === 'BUY_MISSING' ? 'BUY MISSING PARTS TO COMPLETE SET' : progress.recommendedStrategy.replace(/_/g, ' ')}
                     {(() => {
-                      // Use expectedProfit (ROI) if available, otherwise profitDifference
-                      const profit = progress.investmentAnalysis?.expectedProfit ?? progress.profitDifference ?? 0;
+                      // Show ROI if available from investment analysis
+                      const profit = progress.investmentAnalysis?.expectedProfit ?? 0;
                       if (profit !== 0) {
                         return (
                           <span className="ml-1">
-                            ({profit > 0 ? '+' : ''}{profit.toFixed(1)}p {progress.investmentAnalysis ? 'ROI' : 'profit'})
+                            ({profit > 0 ? '+' : ''}{profit.toFixed(1)}p ROI)
                           </span>
                         );
                       }
@@ -1358,16 +1358,17 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                 {/* Value summary with clearer labels */}
                 <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                   <div>
-                    <div className="text-xs text-gray-400">Owned Parts</div>
+                    <div className="text-xs text-gray-400">Owned Parts Value</div>
                     <div className="flex items-center gap-1 text-blue-400">
                       <Zap size={12} />
                       <span className="font-medium">
                         {Math.round(progress.individualPartsValue ?? 0)}p
                       </span>
                     </div>
+                    <div className="text-[10px] text-gray-500">(buyer prices)</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-400">Investment</div>
+                    <div className="text-xs text-gray-400">Missing Parts Cost</div>
                     <div className="flex items-center gap-1 text-orange-400">
                       <ShoppingCart size={12} />
                       <span className="font-medium">
@@ -1378,6 +1379,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         })()}
                       </span>
                     </div>
+                    <div className="text-[10px] text-gray-500">(seller prices)</div>
                   </div>
                 </div>
 
@@ -1390,6 +1392,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         {Math.round(progress.completeSetPrice ?? 0)}p
                       </span>
                     </div>
+                    <div className="text-[10px] text-gray-500">(buyer price)</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-400">48h Average</div>

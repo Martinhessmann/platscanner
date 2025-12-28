@@ -531,7 +531,7 @@ const calculateInvestmentAnalysis = (
   relicsInventory: VoidRelic[]
 ): SetProgress['investmentAnalysis'] => {
   const currentValue = setProgress.individualPartsValue || 0;
-  const potentialValue = setProgress.completeSetPrice || 0;
+  const potentialValue = setProgress.completeSetPrice || 0; // Buyer price (highest buy order)
 
   // If no complete set price available, can't do investment analysis
   if (potentialValue === 0) {
@@ -547,13 +547,13 @@ const calculateInvestmentAnalysis = (
     !setProgress.obtainableFromRelics.includes(part)
   );
 
-  // Calculate cost to buy missing parts from market using SELLER prices (what it costs to buy)
+  // Calculate cost to buy missing parts from market using SELLER prices (lowest sell orders - what it costs to buy)
   // First try to use fetched prices from missingPartsWithPrices if available
   let buyInvestmentCost = 0;
   const fetchedPrices = (setProgress as any)._tempMissingPartsWithPrices as Array<{ name: string; price: number }> | undefined;
   
   if (fetchedPrices && fetchedPrices.length > 0) {
-    // Use fetched prices (more accurate)
+    // Use fetched prices (more accurate) - these should be seller prices
     missingPartsToBuy.forEach(partName => {
       const fetchedPrice = fetchedPrices.find(p => 
         p.name.toLowerCase() === partName.toLowerCase()
@@ -561,13 +561,13 @@ const calculateInvestmentAnalysis = (
       if (fetchedPrice && fetchedPrice.price > 0) {
         buyInvestmentCost += fetchedPrice.price;
       } else {
-        // Fallback to estimated price if fetched price not found
+        // Fallback to estimated seller price if fetched price not found
         const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
         buyInvestmentCost += partPrice;
       }
     });
   } else {
-    // Use estimated prices if fetched prices not available
+    // Use estimated seller prices if fetched prices not available
     missingPartsToBuy.forEach(partName => {
       // Use seller price (cost to buy) for investment calculations
       const partPrice = getEstimatedPartPrice(partName, primePartsInventory, true);
@@ -583,7 +583,10 @@ const calculateInvestmentAnalysis = (
   const relicInvestmentCost = missingPartsFromRelics.length * avgVoidTracesPerPart * voidTraceToplatinumRatio;
 
   const totalInvestmentCost = buyInvestmentCost + relicInvestmentCost;
-  const expectedProfit = potentialValue - currentValue - totalInvestmentCost;
+  
+  // FIXED ROI: Complete set buyer price - sum of missing parts seller prices
+  // This represents the actual profit if you buy missing parts and sell the complete set
+  const expectedProfit = potentialValue - totalInvestmentCost;
   const roiPercentage = totalInvestmentCost > 0 ? (expectedProfit / totalInvestmentCost) * 100 : 0;
 
   // Determine recommended action
@@ -691,51 +694,26 @@ const determineOptimalStrategyWithInvestment = (
   completeSetPrice: number,
   investmentAnalysis?: SetProgress['investmentAnalysis']
 ): SetProgress['recommendedStrategy'] => {
-  // If set is already mastered, no recommendation needed
-  if (setProgress.ismastered) {
-    return 'KEEP_FOR_MASTERY';
-  }
-
   // If no market data available, can't make recommendation
   if (completeSetPrice === 0 && individualPartsValue === 0) {
     return 'INSUFFICIENT_DATA';
   }
 
-  // If we have investment analysis and it shows good ROI
-  if (investmentAnalysis && investmentAnalysis.expectedProfit > 10) {
-    switch (investmentAnalysis.recommendedAction) {
-      case 'open_relics':
-        return 'OPEN_RELICS';
-      case 'buy_parts':
-        return 'BUY_MISSING';
-      case 'hybrid':
-        return 'HYBRID_STRATEGY';
+  // If we have investment analysis and it shows good ROI (buy missing parts to complete set)
+  if (investmentAnalysis && investmentAnalysis.expectedProfit > 5) {
+    // Only recommend buying if there are missing parts to buy
+    if (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0) {
+      return 'BUY_MISSING';
     }
   }
 
-  // Fall back to original logic for immediate actions
-  if (!setProgress.canBuild) {
-    return individualPartsValue > 0 ? 'SELL_PARTS' : 'INSUFFICIENT_DATA';
-  }
-
-  if (completeSetPrice === 0) {
+  // Default: sell individual parts (if you have parts but completing the set isn't profitable)
+  if (individualPartsValue > 0) {
     return 'SELL_PARTS';
   }
-  if (individualPartsValue === 0) {
-    return 'BUILD_AND_SELL';
-  }
 
-  // Compare profit potential (with 5% threshold to account for market volatility)
-  const profitDifference = completeSetPrice - individualPartsValue;
-  const threshold = Math.max(individualPartsValue * 0.05, 5);
-
-  if (profitDifference > threshold) {
-    return 'BUILD_AND_SELL';
-  } else if (profitDifference < -threshold) {
-    return 'SELL_PARTS';
-  } else {
-    return 'SELL_PARTS';
-  }
+  // If no parts owned, can't sell anything
+  return 'INSUFFICIENT_DATA';
 };
 
 // NEW: Enhanced analyze function with complete set market data
@@ -871,18 +849,19 @@ export const analyzeSetProgressWithMarketData = async (
                 missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
               );
 
-              // Store individual SELLER prices for display (cost to buy)
+              // Store individual SELLER prices for display (cost to buy - lowest sell orders)
+              // CRITICAL: Must use sellerPrice (lowest sell order), not average or buyer price
               const missingPartsWithPrices = priced
                 .map((p, i) => ({
                   name: missingPartItems[i].name,
-                  price: p?.sellerPrice || p?.average || 0, // Use seller price for investment cost
+                  price: p?.sellerPrice || 0, // Use seller price ONLY (lowest sell order)
                   avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
                 }))
                 .filter(p => p.price > 0);
 
-              // Calculate cost using SELLER prices (what it costs to buy)
+              // Calculate cost using SELLER prices ONLY (what it costs to buy - lowest sell orders)
               const missingCost = priced.reduce((sum, p) => {
-                const cost = (p && p.sellerPrice) ? p.sellerPrice : (p && p.average) ? p.average : 0;
+                const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
                 return sum + cost;
               }, 0);
               progress.missingCost = missingCost;
@@ -1125,18 +1104,19 @@ export const refreshIndividualSetMarketData = async (
               missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
             );
 
-            // Store individual SELLER prices for display (cost to buy)
+            // Store individual SELLER prices for display (cost to buy - lowest sell orders)
+            // CRITICAL: Must use sellerPrice (lowest sell order), not average or buyer price
             missingPartsWithPrices = priced
               .map((p, i) => ({
                 name: missingPartItems[i].name,
-                price: p?.sellerPrice || p?.average || 0, // Use seller price for investment cost
+                price: p?.sellerPrice || 0, // Use seller price ONLY (lowest sell order)
                 avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
               }))
               .filter(p => p.price > 0);
 
-            // Calculate cost using SELLER prices (what it costs to buy)
+            // Calculate cost using SELLER prices ONLY (what it costs to buy - lowest sell orders)
             const missingCost = priced.reduce((sum, p) => {
-              const cost = (p && p.sellerPrice) ? p.sellerPrice : (p && p.average) ? p.average : 0;
+              const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
               return sum + cost;
             }, 0);
             setProgress.missingCost = missingCost;
