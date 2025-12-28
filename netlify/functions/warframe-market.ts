@@ -17,6 +17,11 @@ const WARFRAME_MARKET_API = 'https://api.warframe.market/v1';
 
 /**
  * Normalizes item names to match Warframe Market URL format
+ * 
+ * IMPORTANT: Warframe Market API structure:
+ * - Querying a prime set (e.g., "garuda_prime") returns items_in_set with all components
+ * - For warframe components (blueprint, chassis, neuroptics, systems), query the base name
+ * - Example: "Garuda Prime Blueprint" -> query "garuda_prime", then find "garuda_prime_blueprint" in items_in_set
  */
 const normalizeItemName = (name: string): string => {
   return name
@@ -30,110 +35,20 @@ const normalizeItemName = (name: string): string => {
 };
 
 /**
- * Searches for an item using Warframe Market search API to find the correct URL name
+ * Extracts the base prime name for warframe components
+ * For warframe components, we need to query the base set name, not the component name
+ * Example: "garuda_prime_blueprint" -> "garuda_prime"
  */
-const searchItemUrlName = async (itemName: string, apiHeaders: any): Promise<string | null> => {
-  try {
-    // Try searching with the normalized name (with underscores replaced by spaces for search)
-    const searchTerm = itemName.replace(/_/g, ' ');
-    const searchResponse = await fetch(`${WARFRAME_MARKET_API}/items?search=${encodeURIComponent(searchTerm)}`, { headers: apiHeaders });
-    
-    if (!searchResponse.ok) {
-      return null;
-    }
-
-    const searchData = await searchResponse.json();
-    
-    if (searchData?.payload?.items && searchData.payload.items.length > 0) {
-      // Find the best match - prefer exact match, then partial match
-      const normalizedSearch = itemName.toLowerCase();
-      const searchTermLower = searchTerm.toLowerCase();
-      
-      // Score each item to find the best match
-      let bestMatch: { url_name: string; score: number } | null = null;
-      
-      for (const item of searchData.payload.items) {
-        const itemUrlName = item.url_name;
-        const itemUrlLower = itemUrlName.toLowerCase();
-        let score = 0;
-        
-        // Exact match gets highest score
-        if (itemUrlName === itemName) {
-          score = 100;
-        }
-        // Check if URL name contains our search term or vice versa
-        else if (itemUrlLower.includes(normalizedSearch) || normalizedSearch.includes(itemUrlLower)) {
-          score = 80;
-        }
-        // Check if the display name matches
-        else if (item.item_name && item.item_name.toLowerCase().includes(searchTermLower)) {
-          score = 60;
-        }
-        // Partial match
-        else if (itemUrlLower.replace(/_/g, '').includes(normalizedSearch.replace(/_/g, ''))) {
-          score = 40;
-        }
-        
-        if (score > 0 && (!bestMatch || score > bestMatch.score)) {
-          bestMatch = { url_name: itemUrlName, score };
-        }
-      }
-      
-      if (bestMatch && bestMatch.score >= 40) {
-        console.log(`>>> [Netlify] Search found: ${itemName} -> ${bestMatch.url_name} (score: ${bestMatch.score}) <<<`);
-        return bestMatch.url_name;
-      }
-      
-      // If no good match, return the first result as fallback
-      const firstItem = searchData.payload.items[0];
-      console.log(`>>> [Netlify] Search fallback: ${itemName} -> ${firstItem.url_name} <<<`);
-      return firstItem.url_name;
-    }
-    
-    return null;
-  } catch (error) {
-    console.error(`>>> [Netlify] Search error for ${itemName}:`, error);
-    return null;
+const getBasePrimeName = (itemName: string): string | null => {
+  // Check if this is a warframe component (blueprint, chassis, neuroptics, systems)
+  const warframeComponentPattern = /^(.+_prime)_(blueprint|chassis|neuroptics|systems)$/;
+  const match = itemName.match(warframeComponentPattern);
+  if (match) {
+    return match[1]; // Return base name (e.g., "garuda_prime")
   }
+  return null;
 };
 
-/**
- * Generates alternative name formats to try when direct lookup fails
- */
-const generateAlternativeNames = (itemName: string): string[] => {
-  const alternatives: string[] = [];
-  
-  // For warframe blueprints, try without "_blueprint" suffix first
-  // Warframe Market API often stores warframe blueprints as just "warframe_prime"
-  if (itemName.endsWith('_blueprint')) {
-    const withoutBlueprint = itemName.replace(/_blueprint$/, '');
-    alternatives.push(withoutBlueprint);
-    
-    // Also try adding "_set" suffix (some items might be stored as sets)
-    alternatives.push(`${withoutBlueprint}_set`);
-  }
-  
-  // For warframe components (chassis, neuroptics, systems), try base name
-  // e.g., "garuda_prime_chassis" -> "garuda_prime"
-  if (itemName.match(/_prime_(chassis|neuroptics|systems)$/)) {
-    const baseName = itemName.replace(/_(chassis|neuroptics|systems)$/, '');
-    alternatives.push(baseName);
-    // Also try with "_blueprint" suffix
-    alternatives.push(`${baseName}_blueprint`);
-  }
-  
-  // For weapon/equipment components, try base name
-  // e.g., "acceltra_prime_barrel" -> "acceltra_prime"
-  const componentMatch = itemName.match(/^(.+_prime)_(barrel|receiver|stock|blade|handle|link|grip|string|lower_limb|upper_limb|gauntlet|boot|ornament|head|pouch|carapace|cerebrum|guard|hilt|blades)$/);
-  if (componentMatch) {
-    const baseName = componentMatch[1];
-    alternatives.push(baseName);
-    // Also try with "_blueprint" suffix
-    alternatives.push(`${baseName}_blueprint`);
-  }
-  
-  return alternatives;
-};
 
 /**
  * Fetches price data for a single item
@@ -153,66 +68,26 @@ const fetchSingleItemData = async (itemName: string) => {
     'User-Agent': 'PlatScanner/1.8.0'
   };
 
-  // Try direct lookup first
+  // For warframe components, query the base prime name instead
+  // The API returns items_in_set with all components when querying the base name
+  const basePrimeName = getBasePrimeName(itemName);
+  const queryName = basePrimeName || itemName;
+  
   let actualItemName = itemName;
   let itemResponse: Response;
   let ordersResponse: Response;
   let statsResponse: Response;
 
   try {
+    // Query using base name for warframe components, or original name for others
     [itemResponse, ordersResponse, statsResponse] = await Promise.all([
-      fetch(`${WARFRAME_MARKET_API}/items/${itemName}`, { headers: apiHeaders }),
-      fetch(`${WARFRAME_MARKET_API}/items/${itemName}/orders`, { headers: apiHeaders }),
-      fetch(`${WARFRAME_MARKET_API}/items/${itemName}/statistics`, { headers: apiHeaders })
+      fetch(`${WARFRAME_MARKET_API}/items/${queryName}`, { headers: apiHeaders }),
+      fetch(`${WARFRAME_MARKET_API}/items/${queryName}/orders`, { headers: apiHeaders }),
+      fetch(`${WARFRAME_MARKET_API}/items/${queryName}/statistics`, { headers: apiHeaders })
     ]);
 
-    // If direct lookup failed, try alternatives
+    // If lookup failed, return error
     if (!itemResponse.ok || !ordersResponse.ok) {
-      const alternatives = generateAlternativeNames(itemName);
-      let found = false;
-      
-      // Try each alternative
-      for (const altName of alternatives) {
-        console.log(`>>> [Netlify] Trying alternative: ${itemName} -> ${altName} <<<`);
-        const [altItemRes, altOrdersRes, altStatsRes] = await Promise.all([
-          fetch(`${WARFRAME_MARKET_API}/items/${altName}`, { headers: apiHeaders }),
-          fetch(`${WARFRAME_MARKET_API}/items/${altName}/orders`, { headers: apiHeaders }),
-          fetch(`${WARFRAME_MARKET_API}/items/${altName}/statistics`, { headers: apiHeaders })
-        ]);
-        
-        if (altItemRes.ok && altOrdersRes.ok) {
-          actualItemName = altName;
-          itemResponse = altItemRes;
-          ordersResponse = altOrdersRes;
-          statsResponse = altStatsRes;
-          found = true;
-          console.log(`>>> [Netlify] Alternative worked: ${itemName} -> ${altName} <<<`);
-          break;
-        }
-      }
-      
-      // If alternatives didn't work, try search API
-      if (!found) {
-        console.log(`>>> [Netlify] Trying search API for: ${itemName} <<<`);
-        const searchedUrlName = await searchItemUrlName(itemName, apiHeaders);
-        
-        if (searchedUrlName && searchedUrlName !== itemName) {
-          actualItemName = searchedUrlName;
-          [itemResponse, ordersResponse, statsResponse] = await Promise.all([
-            fetch(`${WARFRAME_MARKET_API}/items/${searchedUrlName}`, { headers: apiHeaders }),
-            fetch(`${WARFRAME_MARKET_API}/items/${searchedUrlName}/orders`, { headers: apiHeaders }),
-            fetch(`${WARFRAME_MARKET_API}/items/${searchedUrlName}/statistics`, { headers: apiHeaders })
-          ]);
-          
-          if (itemResponse.ok && ordersResponse.ok) {
-            found = true;
-            console.log(`>>> [Netlify] Search API found: ${itemName} -> ${searchedUrlName} <<<`);
-          }
-        }
-      }
-      
-      // If still not found, return error
-      if (!found || !itemResponse.ok || !ordersResponse.ok) {
         const errorType = itemResponse.status === 404 || ordersResponse.status === 404 ? 'not_found' : 'api_error';
         console.log(`>>> [Netlify] ${itemName}: ${errorType} (status: ${itemResponse.status}/${ordersResponse.status}) <<<`);
 
@@ -239,10 +114,31 @@ const fetchSingleItemData = async (itemName: string) => {
       statsResponse.ok ? statsResponse.json() : Promise.resolve({ payload: { statistics_closed: { '90days': [] } } })
     ]);
 
-    // Find the item details - prefer exact match, fallback to first item
-    const itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
-      item.url_name === actualItemName || item.url_name === itemName
-    ) || itemData.payload.item.items_in_set[0];
+    // Find the item details - for warframe components, search in items_in_set
+    // For other items, prefer exact match, fallback to first item
+    let itemDetails;
+    if (basePrimeName) {
+      // For warframe components, find the specific component in the set
+      itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
+        item.url_name === itemName // Original component name (e.g., "garuda_prime_blueprint")
+      );
+      if (!itemDetails) {
+        // Fallback: try to find by matching the component type
+        const componentType = itemName.replace(basePrimeName + '_', '');
+        itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
+          item.url_name.includes(componentType)
+        );
+      }
+      if (!itemDetails) {
+        // Last resort: use first item
+        itemDetails = itemData.payload.item.items_in_set[0];
+      }
+    } else {
+      // For non-warframe components, use original logic
+      itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
+        item.url_name === actualItemName || item.url_name === itemName
+      ) || itemData.payload.item.items_in_set[0];
+    }
 
     // Extract averages from statistics
     let historicalAverage = 0;
@@ -325,12 +221,13 @@ const fetchSingleItemData = async (itemName: string) => {
       trading_tax: itemDetails.trading_tax || 0
     };
 
-    // Cache with both the original name and the actual name for future lookups
+    // Cache the result
     cache.set(itemName, { data: result, timestamp: Date.now() });
-    if (actualItemName !== itemName) {
-      cache.set(actualItemName, { data: result, timestamp: Date.now() });
+    if (basePrimeName && basePrimeName !== itemName) {
+      // Also cache with base name for faster lookups of other components
+      cache.set(basePrimeName, { data: result, timestamp: Date.now() });
     }
-    console.log(`>>> [Netlify] ${itemName}${actualItemName !== itemName ? ` (${actualItemName})` : ''}: Success (${result.price}p) <<<`);
+    console.log(`>>> [Netlify] ${itemName}${basePrimeName ? ` (queried as ${basePrimeName})` : ''}: Success (${result.price}p) <<<`);
     return result;
   } catch (error: any) {
     console.error(`>>> [Netlify] ${itemName}: Exception -`, error);
