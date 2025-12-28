@@ -37,3 +37,4 @@ debug/grid-overlay.png
 eng.traineddata
 test-ocr-*.mjs
 test-grid-overlay.mjs
+test-llmwhisperer*.mjs
