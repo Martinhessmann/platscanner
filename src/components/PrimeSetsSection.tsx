@@ -1580,17 +1580,40 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                       return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
                                     });
                                     
-                                    if (inventoryItem && inventoryItem.price && inventoryItem.price > 0) {
+                                    if (!inventoryItem) {
+                                      return <span className="text-gray-500">Not found</span>;
+                                    }
+                                    
+                                    // Check if it's a built warframe part (not tradeable)
+                                    const isBuiltWarframe = progress.set.type === 'Warframe' && 
+                                      !inventoryItem.name.toLowerCase().includes('blueprint') &&
+                                      ['chassis', 'systems', 'neuroptics'].some(comp => 
+                                        inventoryItem.name.toLowerCase().includes(comp)
+                                      );
+                                    
+                                    if (isBuiltWarframe) {
+                                      // Built warframe component - show special indicator
                                       return (
                                         <span className="flex flex-col items-end">
-                                          <span>{inventoryItem.price}p</span>
+                                          <span className="text-orange-400 text-xs">Built (Not Tradeable)</span>
+                                        </span>
+                                      );
+                                    }
+                                    
+                                    // Check if it's a blueprint
+                                    const isBlueprint = inventoryItem.name.toLowerCase().includes('blueprint');
+                                    
+                                    if (inventoryItem.price && inventoryItem.price > 0) {
+                                      return (
+                                        <span className="flex flex-col items-end">
+                                          <span>{inventoryItem.price}p {isBlueprint && <span className="text-[10px] text-blue-400">(BP)</span>}</span>
                                           {inventoryItem.average && inventoryItem.average !== inventoryItem.price && (
                                             <span className="text-[10px] text-gray-600">48h: {inventoryItem.average}p</span>
                                           )}
                                         </span>
                                       );
                                     }
-                                    return <span className="text-gray-500">No buyers</span>;
+                                    return <span className="text-gray-500">No buyers {isBlueprint && <span className="text-[10px] text-blue-400">(BP)</span>}</span>;
                                   })() : (
                                     isObtainableFromRelics ? (
                                       <span className="text-gray-400"></span>

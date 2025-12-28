@@ -470,6 +470,30 @@ const isBuiltWarframePart = (partName: string, setType: PrimeSet['type']): boole
   return isWarframeComponent;
 };
 
+// Helper: Check if an inventory item is a built (non-blueprint) warframe component
+const isBuiltWarframeInventoryItem = (itemName: string, setType: PrimeSet['type']): boolean => {
+  // Only applies to Warframes
+  if (setType !== 'Warframe') {
+    return false;
+  }
+  
+  // Check if it's a built component (not a blueprint)
+  const lowerName = itemName.toLowerCase();
+  const isBlueprint = lowerName.includes('blueprint');
+  
+  // If it's a blueprint, it's tradeable
+  if (isBlueprint) {
+    return false;
+  }
+  
+  // Check if it's a warframe component (chassis, systems, neuroptics)
+  const warframeComponents = ['chassis', 'systems', 'neuroptics'];
+  const isWarframeComponent = warframeComponents.some(component => lowerName.includes(component));
+  
+  // If it's a built warframe component, it's not tradeable
+  return isWarframeComponent;
+};
+
 // NEW: Calculate the total market value of owned individual parts
 // Excludes built warframe parts (non-blueprint chassis/systems/neuroptics) as they cannot be traded
 const calculateIndividualPartsValue = (
@@ -480,16 +504,16 @@ const calculateIndividualPartsValue = (
   let totalValue = 0;
 
   ownedParts.forEach(partName => {
-    // Skip built warframe parts - they cannot be traded
-    if (setType && isBuiltWarframePart(partName, setType)) {
-      return;
-    }
-    
     const inventoryItem = primePartsInventory.find(item => {
       const lowerItemName = item.name.toLowerCase();
       const lowerPartName = partName.toLowerCase();
       return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
     });
+
+    // Skip built warframe parts - check the ACTUAL inventory item name, not the part name
+    if (inventoryItem && setType && isBuiltWarframeInventoryItem(inventoryItem.name, setType)) {
+      return; // Built warframe component cannot be traded
+    }
 
     if (inventoryItem && inventoryItem.price && inventoryItem.price > 0) {
       const quantity = inventoryItem.quantity || 1;
