@@ -21,14 +21,24 @@ const downloadDebugImage = (blob: Blob, filename: string): void => {
 };
 
 // Grid layout configuration for Warframe inventory
-// Based on analysis of IMG_0318.png (2532 x 1170 px)
+// Based on detailed analysis of IMG_0318.png (2532 x 1170 px)
+// Layout: 8 columns x 3-4 rows of items
+// Text labels are at the bottom of each cell
 const INVENTORY_GRID_CONFIG = {
+  // For 2532 x 1170 image:
+  // - Cell width: 243px (~9.6% of width)
+  // - Row 1 text Y: 378px (32% of height)
+  // - Row 2 text Y: 595px (51% of height)  
+  // - Row 3 text Y: 910px (78% of height)
+  // - Text height: 52px (~4.4% of height)
+  
   // Percentages of image dimensions
-  headerHeight: 0.13,      // Top 13% is header (INVENTORY/SELL, PRIME PARTS, SEARCH) ~155px
-  sidebarWidth: 0.23,      // Right 23% is sidebar (TAP ON ITEMS, TOTAL, SELL ITEMS) ~580px
-  bottomHeight: 0.08,      // Bottom 8% is footer (ONLY SELLABLE, EXIT) ~90px
-  leftPadding: 0.02,       // Left 2% padding ~50px
-  columns: 7,              // Number of item columns in grid
+  gridLeft: 0.012,         // Left margin ~30px
+  gridRight: 0.79,         // Right edge before sidebar ~2000px
+  textRowY: [0.323, 0.509, 0.778],  // Y position of text for each row (as % of height)
+  textHeight: 0.044,       // Text label height ~52px
+  columns: 8,              // Number of item columns in grid
+  scale: 3,                // Scale factor for OCR
 };
 
 // Preprocess image to enhance text visibility for OCR
@@ -124,23 +134,13 @@ const cropImageRegion = async (
   });
 };
 
-// Extract text from each column of a grid inventory
-const extractTextByColumns = async (imageFile: File, usePreprocessing: boolean = true): Promise<string[]> => {
+// Extract text from each cell of the inventory grid (cell-based approach)
+// This extracts just the text label area at the bottom of each item cell
+const extractTextByColumns = async (imageFile: File, usePreprocessing: boolean = false): Promise<string[]> => {
   const config = INVENTORY_GRID_CONFIG;
-  const columnTexts: string[] = [];
+  const allTexts: string[] = [];
   
-  // Calculate the grid area (excluding header, sidebar, bottom)
-  const gridX = config.leftPadding;
-  const gridY = config.headerHeight;
-  const gridWidth = 1 - config.leftPadding - config.sidebarWidth;
-  const gridHeight = 1 - config.headerHeight - config.bottomHeight;
-  
-  // Add overlap between columns to avoid cutting items at boundaries
-  const overlapPercent = 0.02;
-  const baseColumnWidth = gridWidth / config.columns;
-  const columnWidth = baseColumnWidth + overlapPercent;
-  
-  ocrLogger.info('GridOCR', `Extracting text from ${config.columns} columns (preprocessing: ${usePreprocessing})`);
+  ocrLogger.info('GridOCR', `Extracting text from ${config.columns} columns x ${config.textRowY.length} rows`);
   
   // Create a worker for OCR
   const workerPath = `${window.location.origin}/tesseract/worker.min.js`;
@@ -152,47 +152,105 @@ const extractTextByColumns = async (imageFile: File, usePreprocessing: boolean =
     workerBlobURL: false,
   });
   
-  // Configure for single column reading with character whitelist
+  // Configure for text blocks with character whitelist
   await worker.setParameters({
-    tessedit_pageseg_mode: PSM.SINGLE_COLUMN,  // Each column is read top-to-bottom
-    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -\'',
+    tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ',
   });
   
   try {
-    for (let col = 0; col < config.columns; col++) {
-      const colX = gridX + (col * baseColumnWidth);  // Use base width for positioning
+    // Process each row
+    for (let row = 0; row < config.textRowY.length; row++) {
+      const rowTexts: string[] = [];
       
-      ocrLogger.debug('GridOCR', `Processing column ${col + 1}/${config.columns}`, {
-        x: colX, y: gridY, width: columnWidth, height: gridHeight
-      });
+      // Process each cell in the row
+      for (let col = 0; col < config.columns; col++) {
+        const gridWidth = config.gridRight - config.gridLeft;
+        const cellWidth = gridWidth / config.columns;
+        
+        const x = config.gridLeft + (col * cellWidth);
+        const y = config.textRowY[row];
+        const w = cellWidth;
+        const h = config.textHeight;
+        
+        ocrLogger.debug('GridOCR', `Cell [${row},${col}]: x=${(x*100).toFixed(1)}%, y=${(y*100).toFixed(1)}%`);
+        
+        // Extract and scale up the cell text area
+        const cellBlob = await cropAndScaleRegion(imageFile, x, y, w, h, config.scale);
+        
+        // Debug: download cell images
+        downloadDebugImage(cellBlob, `ocr-debug-r${row}c${col}.png`);
+        
+        // OCR the cell
+        const cellFile = new File([cellBlob], `cell-${row}-${col}.png`, { type: 'image/png' });
+        const { data: { text } } = await worker.recognize(cellFile);
+        
+        const cleanText = text.trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
+        if (cleanText.length > 3) {
+          rowTexts.push(cleanText);
+          ocrLogger.debug('GridOCR', `Cell [${row},${col}]: "${cleanText}"`);
+        }
+      }
       
-      // Crop this column (with optional preprocessing)
-      const columnBlob = await cropImageRegion(
-        imageFile,
-        colX,
-        gridY,
-        columnWidth,
-        gridHeight,
-        usePreprocessing
-      );
-      
-      // Debug: download preprocessed column images
-      downloadDebugImage(columnBlob, `ocr-debug-column-${col}.png`);
-      
-      // OCR the column
-      const columnFile = new File([columnBlob], `column-${col}.png`, { type: 'image/png' });
-      const { data: { text } } = await worker.recognize(columnFile);
-      
-      columnTexts.push(text);
-      ocrLogger.debug('GridOCR', `Column ${col + 1} text (${text.length} chars)`, {
-        preview: text.substring(0, 200)
-      });
+      allTexts.push(...rowTexts);
     }
   } finally {
     await worker.terminate();
   }
   
-  return columnTexts;
+  ocrLogger.info('GridOCR', `Extracted ${allTexts.length} text segments`);
+  return allTexts;
+};
+
+// Crop and scale a region for better OCR
+const cropAndScaleRegion = async (
+  imageFile: File,
+  xPercent: number,
+  yPercent: number,
+  widthPercent: number,
+  heightPercent: number,
+  scale: number = 3
+): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const x = Math.floor(img.width * xPercent);
+      const y = Math.floor(img.height * yPercent);
+      const width = Math.floor(img.width * widthPercent);
+      const height = Math.floor(img.height * heightPercent);
+      
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Failed to get canvas context'));
+        return;
+      }
+      
+      // Scale up for better OCR
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, x, y, width, height, 0, 0, width * scale, height * scale);
+      
+      // Invert colors for better OCR (dark text on light background)
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = 255 - data[i];
+        data[i + 1] = 255 - data[i + 1];
+        data[i + 2] = 255 - data[i + 2];
+      }
+      ctx.putImageData(imageData, 0, 0);
+      
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('Failed to create blob from canvas'));
+      }, 'image/png');
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(imageFile);
+  });
 };
 
 // Cache for valid prime item names (built from primesets.json)
