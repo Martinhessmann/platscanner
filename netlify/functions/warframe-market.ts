@@ -35,17 +35,29 @@ const normalizeItemName = (name: string): string => {
 };
 
 /**
- * Extracts the base prime name for warframe components
- * For warframe components, we need to query the base set name, not the component name
+ * Extracts the base prime name for prime components
+ * For prime components (warframe or weapon), we need to query the base set name, not the component name
  * Example: "garuda_prime_blueprint" -> "garuda_prime"
+ * Example: "ninkondi_prime_blueprint" -> "ninkondi_prime"
  */
 const getBasePrimeName = (itemName: string): string | null => {
   // Check if this is a warframe component (blueprint, chassis, neuroptics, systems)
   const warframeComponentPattern = /^(.+_prime)_(blueprint|chassis|neuroptics|systems)$/;
-  const match = itemName.match(warframeComponentPattern);
-  if (match) {
-    return match[1]; // Return base name (e.g., "garuda_prime")
+  const warframeMatch = itemName.match(warframeComponentPattern);
+  if (warframeMatch) {
+    return warframeMatch[1]; // Return base name (e.g., "garuda_prime")
   }
+  
+  // Check if this is a weapon blueprint (weapons only have blueprints, not chassis/neuroptics/systems)
+  // Pattern: "weapon_prime_blueprint" -> "weapon_prime"
+  const weaponBlueprintPattern = /^(.+_prime)_blueprint$/;
+  const weaponMatch = itemName.match(weaponBlueprintPattern);
+  if (weaponMatch) {
+    // Verify it's not already matched as a warframe component
+    // If it ends with _prime_blueprint and doesn't match warframe pattern, it's likely a weapon
+    return weaponMatch[1]; // Return base name (e.g., "ninkondi_prime")
+  }
+  
   return null;
 };
 
@@ -108,13 +120,13 @@ const fetchSingleItemData = async (itemName: string) => {
       statsResponse.ok ? statsResponse.json() : Promise.resolve({ payload: { statistics_closed: { '90days': [] } } })
     ]);
 
-    // Find the item details - for warframe components, search in items_in_set
+    // Find the item details - for prime components (warframe or weapon), search in items_in_set
     // For other items, prefer exact match, fallback to first item
     let itemDetails;
     if (basePrimeName) {
-      // For warframe components, find the specific component in the set
+      // For prime components (warframe or weapon), find the specific component in the set
       itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
-        item.url_name === itemName // Original component name (e.g., "garuda_prime_blueprint")
+        item.url_name === itemName // Original component name (e.g., "garuda_prime_blueprint" or "ninkondi_prime_blueprint")
       );
       if (!itemDetails) {
         // Fallback: try to find by matching the component type
