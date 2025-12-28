@@ -1190,7 +1190,10 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     let extractedText = '';
     let ocrMethod = 'tesseract';
     
-    if (isLLMWhispererConfigured()) {
+    const llmWhispererConfigured = isLLMWhispererConfigured();
+    ocrLogger.debug('Analysis', `LLMWhisperer configured: ${llmWhispererConfigured}`);
+    
+    if (llmWhispererConfigured) {
       ocrLogger.info('Analysis', 'Step 1: Extracting text using LLMWhisperer');
       try {
         extractedText = await extractTextWithLLMWhisperer(imageFile);
@@ -1226,10 +1229,11 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     const screenType = determineScreenType(extractedText);
     ocrLogger.info('Analysis', `Detected screen type: ${screenType}`);
 
-    // Step 2b: For prime_parts, try grid-based extraction for better results
+    // Step 2b: For prime_parts with Tesseract, try grid-based extraction for better results
+    // Skip this if LLMWhisperer was used - it already provides good results
     let finalText = extractedText;
-    if (screenType === 'prime_parts') {
-      ocrLogger.info('Analysis', 'Step 2b: Using grid-based column extraction for prime parts');
+    if (screenType === 'prime_parts' && ocrMethod === 'tesseract') {
+      ocrLogger.info('Analysis', 'Step 2b: Using grid-based column extraction for prime parts (Tesseract fallback)');
       try {
         // Try with preprocessing first
         const columnTextsPreprocessed = await extractTextByColumns(imageFile, true);
@@ -1256,6 +1260,8 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
           error: gridError instanceof Error ? gridError.message : String(gridError)
         });
       }
+    } else if (screenType === 'prime_parts' && ocrMethod === 'llmwhisperer') {
+      ocrLogger.info('Analysis', 'Step 2b: Skipping grid extraction - LLMWhisperer already provided high-quality OCR');
     }
 
     // Step 3: Parse detected items
