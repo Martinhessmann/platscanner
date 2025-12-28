@@ -4,7 +4,7 @@
   functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "18.20.5"
 
 # Handle SPA routing
 [[redirects]]
