@@ -343,7 +343,8 @@ export const toggleSetMastery = (setId: string): void => {
 // REMOVED: ownsItem function - using hasItemInInventory directly for completion
 
 // Check if item exists in inventory (regardless of owned status)
-const hasItemInInventory = (itemName: string, requiredCount: number, inventory: DetectedItem[]): boolean => {
+// For warframes, prefers blueprint over built part if both exist
+const hasItemInInventory = (itemName: string, requiredCount: number, inventory: DetectedItem[], setType?: PrimeSet['type']): boolean => {
   // Filter out invalid items (Gemini response text, etc.)
   const validInventory = inventory.filter(item => {
     // Must be prime_parts category
@@ -361,10 +362,37 @@ const hasItemInInventory = (itemName: string, requiredCount: number, inventory: 
 
   const lowerItemName = itemName.toLowerCase();
 
-
   // Convert "Acceltra Prime Barrel" to "acceltra_prime_barrel" format
   const underscoreFormat = lowerItemName.replace(/\s+/g, '_');
 
+  // For warframes, prefer blueprint if both exist
+  if (setType === 'Warframe') {
+    // First try to find blueprint (tradeable)
+    const blueprintItem = validInventory.find(item => {
+      const lowerInventoryItemName = item.name.toLowerCase();
+      const blueprintMatch = lowerInventoryItemName === `${lowerItemName} blueprint`;
+      const underscoreBlueprintMatch = lowerInventoryItemName === `${underscoreFormat}_blueprint`;
+      return blueprintMatch || underscoreBlueprintMatch;
+    });
+
+    if (blueprintItem) {
+      return (blueprintItem.quantity || 1) >= requiredCount;
+    }
+
+    // Fallback to built part (but it's not tradeable, so we still count it as owned for completion)
+    const builtItem = validInventory.find(item => {
+      const lowerInventoryItemName = item.name.toLowerCase();
+      const exactMatch = lowerInventoryItemName === lowerItemName;
+      const underscoreMatch = lowerInventoryItemName === underscoreFormat;
+      // Exclude blueprints from this check
+      const isNotBlueprint = !lowerInventoryItemName.includes('blueprint');
+      return (exactMatch || underscoreMatch) && isNotBlueprint;
+    });
+
+    return builtItem ? (builtItem.quantity || 1) >= requiredCount : false;
+  }
+
+  // For weapons, find any matching item
   const inventoryItem = validInventory.find(item => {
     const lowerInventoryItemName = item.name.toLowerCase();
 
@@ -496,6 +524,7 @@ const isBuiltWarframeInventoryItem = (itemName: string, setType: PrimeSet['type'
 
 // NEW: Calculate the total market value of owned individual parts
 // Excludes built warframe parts (non-blueprint chassis/systems/neuroptics) as they cannot be traded
+// If both built part and blueprint exist, prefer blueprint (tradeable)
 const calculateIndividualPartsValue = (
   ownedParts: string[],
   primePartsInventory: DetectedItem[],
@@ -504,11 +533,36 @@ const calculateIndividualPartsValue = (
   let totalValue = 0;
 
   ownedParts.forEach(partName => {
-    const inventoryItem = primePartsInventory.find(item => {
-      const lowerItemName = item.name.toLowerCase();
-      const lowerPartName = partName.toLowerCase();
-      return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
-    });
+    // For warframes, prefer blueprint if both exist
+    let inventoryItem: DetectedItem | undefined;
+    
+    if (setType === 'Warframe') {
+      // First try to find blueprint (tradeable)
+      const blueprintItem = primePartsInventory.find(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName === `${lowerPartName} blueprint` || 
+               lowerItemName === `${lowerPartName.replace(/\s+/g, '_')}_blueprint`;
+      });
+      
+      if (blueprintItem) {
+        inventoryItem = blueprintItem;
+      } else {
+        // Fallback to built part (but it's not tradeable, so value is 0)
+        inventoryItem = primePartsInventory.find(item => {
+          const lowerItemName = item.name.toLowerCase();
+          const lowerPartName = partName.toLowerCase();
+          return lowerItemName === lowerPartName || lowerItemName === lowerPartName.replace(/\s+/g, '_');
+        });
+      }
+    } else {
+      // For weapons, find any matching item
+      inventoryItem = primePartsInventory.find(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+      });
+    }
 
     // Skip built warframe parts - check the ACTUAL inventory item name, not the part name
     if (inventoryItem && setType && isBuiltWarframeInventoryItem(inventoryItem.name, setType)) {
@@ -748,7 +802,7 @@ export const analyzeSetProgressWithMarketData = async (
     // Check each required part
     set.requiredParts.forEach(part => {
       const requiredCount = part.itemCount || 1;
-      if (hasItemInInventory(part.name, requiredCount, primePartsInventory)) {
+      if (hasItemInInventory(part.name, requiredCount, primePartsInventory, set.type)) {
         ownedParts.push(part.name);
       } else {
         missingParts.push(part.name);
@@ -823,22 +877,24 @@ export const analyzeSetProgressWithMarketData = async (
 
       // Fetch missing part prices for sets that are near completion (50%+)
       // This provides accurate investment costs without overwhelming the API
-      // OPTIMIZATION: Only fetch prices for parts that must be BOUGHT (not obtainable from relics)
+      // Fetch prices for ALL missing parts (both market-only and relic-obtainable) for display
       const nearCompleteSets = setsNeedingMarketData.filter(p => p.completionPercentage >= 50);
       if (nearCompleteSets.length > 0) {
         console.log(`💰 [Batch Refresh] Fetching missing part prices for ${nearCompleteSets.length} near-complete sets`);
 
         for (const progress of nearCompleteSets) {
-          // FILTER: Only fetch for parts that must be bought (not obtainable from relics)
+          // Fetch prices for ALL missing parts (for display purposes)
+          // But only use market-only parts for investment cost calculation
+          const allMissingParts = progress.missingParts;
           const partsToBuy = progress.missingParts.filter(part =>
             !progress.obtainableFromRelics.includes(part)
           );
 
-          if (partsToBuy.length > 0) {
+          if (allMissingParts.length > 0) {
             try {
-              console.log(`💰 [Batch Refresh] ${progress.set.name}: Fetching ${partsToBuy.length} parts to buy (skipping ${progress.obtainableFromRelics.length} relic-obtainable parts)`);
+              console.log(`💰 [Batch Refresh] ${progress.set.name}: Fetching ${allMissingParts.length} missing parts (${partsToBuy.length} to buy, ${progress.obtainableFromRelics.length} from relics)`);
 
-              const missingPartItems: DetectedItem[] = partsToBuy.map(name => ({
+              const missingPartItems: DetectedItem[] = allMissingParts.map(name => ({
                 id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
                 name,
                 category: 'prime_parts',
@@ -849,7 +905,7 @@ export const analyzeSetProgressWithMarketData = async (
                 missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
               );
 
-              // Store individual SELLER prices for display (cost to buy - lowest sell orders)
+              // Store individual SELLER prices for ALL missing parts (for display)
               // CRITICAL: Must use sellerPrice (lowest sell order), not average or buyer price
               const missingPartsWithPrices = priced
                 .map((p, i) => ({
@@ -859,11 +915,13 @@ export const analyzeSetProgressWithMarketData = async (
                 }))
                 .filter(p => p.price > 0);
 
-              // Calculate cost using SELLER prices ONLY (what it costs to buy - lowest sell orders)
-              const missingCost = priced.reduce((sum, p) => {
-                const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
-                return sum + cost;
-              }, 0);
+              // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
+              const missingCost = priced
+                .filter((p, i) => partsToBuy.includes(missingPartItems[i].name))
+                .reduce((sum, p) => {
+                  const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
+                  return sum + cost;
+                }, 0);
               progress.missingCost = missingCost;
 
               // Store the prices temporarily - will be added to investmentAnalysis later
@@ -872,7 +930,7 @@ export const analyzeSetProgressWithMarketData = async (
               console.warn(`Failed to fetch missing part prices for ${progress.set.name}:`, err);
             }
           } else {
-            console.log(`💰 [Batch Refresh] ${progress.set.name}: All missing parts obtainable from relics, skipping price fetch`);
+            console.log(`💰 [Batch Refresh] ${progress.set.name}: No missing parts, skipping price fetch`);
           }
         }
       }
@@ -1033,7 +1091,7 @@ export const refreshIndividualSetMarketData = async (
 
     targetSet.requiredParts.forEach(part => {
       const requiredCount = part.itemCount || 1;
-      if (hasItemInInventory(part.name, requiredCount, primePartsInventory)) {
+      if (hasItemInInventory(part.name, requiredCount, primePartsInventory, targetSet.type)) {
         ownedParts.push(part.name);
       } else {
         missingParts.push(part.name);
@@ -1083,17 +1141,18 @@ export const refreshIndividualSetMarketData = async (
         setProgress.profitDifference = profitDifference;
 
         // NEW: Fetch real market prices for missing parts to compute accurate missingCost
-        // OPTIMIZATION: Only fetch for parts that must be BOUGHT (not obtainable from relics)
-        let missingPartsWithPrices: Array<{ name: string; price: number }> = [];
+        // Fetch prices for ALL missing parts (for display), but only use market-only parts for investment cost
+        let missingPartsWithPrices: Array<{ name: string; price: number; avg48h?: number }> = [];
+        const allMissingParts = setProgress.missingParts;
         const partsToBuy = setProgress.missingParts.filter(part =>
           !setProgress.obtainableFromRelics.includes(part)
         );
 
-        if (partsToBuy.length > 0) {
+        if (allMissingParts.length > 0) {
           try {
-            console.log(`💰 [Individual Set] ${setName}: Fetching ${partsToBuy.length} parts to buy (skipping ${setProgress.obtainableFromRelics.length} relic-obtainable parts)`);
+            console.log(`💰 [Individual Set] ${setName}: Fetching ${allMissingParts.length} missing parts (${partsToBuy.length} to buy, ${setProgress.obtainableFromRelics.length} from relics)`);
 
-            const missingPartItems: DetectedItem[] = partsToBuy.map(name => ({
+            const missingPartItems: DetectedItem[] = allMissingParts.map(name => ({
               id: `missing-${name.toLowerCase().replace(/\s+/g, '-')}`,
               name,
               category: 'prime_parts',
@@ -1104,7 +1163,7 @@ export const refreshIndividualSetMarketData = async (
               missingPartItems.map(item => fetchSinglePriceData(item).catch(() => null))
             );
 
-            // Store individual SELLER prices for display (cost to buy - lowest sell orders)
+            // Store individual SELLER prices for ALL missing parts (for display)
             // CRITICAL: Must use sellerPrice (lowest sell order), not average or buyer price
             missingPartsWithPrices = priced
               .map((p, i) => ({
@@ -1114,17 +1173,19 @@ export const refreshIndividualSetMarketData = async (
               }))
               .filter(p => p.price > 0);
 
-            // Calculate cost using SELLER prices ONLY (what it costs to buy - lowest sell orders)
-            const missingCost = priced.reduce((sum, p) => {
-              const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
-              return sum + cost;
-            }, 0);
+            // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
+            const missingCost = priced
+              .filter((p, i) => partsToBuy.includes(missingPartItems[i].name))
+              .reduce((sum, p) => {
+                const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
+                return sum + cost;
+              }, 0);
             setProgress.missingCost = missingCost;
           } catch (_err) {
             // Keep existing estimated missingCost on failure
           }
         } else {
-          console.log(`💰 [Individual Set] ${setName}: All missing parts obtainable from relics, skipping price fetch`);
+          console.log(`💰 [Individual Set] ${setName}: No missing parts, skipping price fetch`);
         }
 
         // Store fetched prices temporarily so calculateInvestmentAnalysis can use them
