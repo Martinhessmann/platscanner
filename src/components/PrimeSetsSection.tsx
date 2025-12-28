@@ -1548,39 +1548,26 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           const isOwned = progress.ownedParts.includes(part.name);
                           const isObtainableFromRelics = progress.obtainableFromRelics.includes(part.name);
                           
-                          // Check if there's a built warframe part (not tradeable, shouldn't count as owned)
-                          // Only check if not already owned (to avoid duplicate checks)
+                          // Check if there's a built warframe part in inventory (for display purposes only)
+                          // Built parts are NOT tradeable and don't count as owned, but we show them separately
                           let hasBuiltPart = false;
                           if (progress.set.type === 'Warframe' && !isOwned) {
                             const lowerPartName = part.name.toLowerCase();
-                            // If part name includes "Blueprint", check for built part without blueprint suffix
-                            // e.g., "Wisp Prime Blueprint" -> look for "Wisp Prime Chassis" (built)
-                            if (lowerPartName.includes('blueprint')) {
-                              const partNameWithoutBlueprint = lowerPartName.replace(/\s+blueprint\s*$/, '').replace(/_blueprint$/, '');
-                              const builtPartItem = primePartsInventory.find(item => {
-                                const lowerItemName = item.name.toLowerCase();
-                                // Match built part name (e.g., "Wisp Prime Chassis")
-                                const matchesBaseName = lowerItemName.startsWith(partNameWithoutBlueprint) || 
-                                                        lowerItemName.startsWith(partNameWithoutBlueprint.replace(/\s+/g, '_'));
-                                return matchesBaseName &&
-                                       !lowerItemName.includes('blueprint') &&
-                                       ['chassis', 'systems', 'neuroptics'].some(comp => 
-                                         lowerItemName.includes(comp)
-                                       );
-                              });
-                              hasBuiltPart = !!builtPartItem;
-                            } else {
-                              // Part name doesn't include "Blueprint", check for exact match of built part
-                              const builtPartItem = primePartsInventory.find(item => {
-                                const lowerItemName = item.name.toLowerCase();
-                                return (lowerItemName === lowerPartName || lowerItemName === lowerPartName.replace(/\s+/g, '_')) &&
-                                       !lowerItemName.includes('blueprint') &&
-                                       ['chassis', 'systems', 'neuroptics'].some(comp => 
-                                         lowerItemName.includes(comp)
-                                       );
-                              });
-                              hasBuiltPart = !!builtPartItem;
-                            }
+                            // For warframe components, check if there's a built version (without blueprint)
+                            // e.g., "Protea Prime Systems" -> look for "Protea Prime Systems" (built, no blueprint)
+                            const builtPartItem = primePartsInventory.find(item => {
+                              const lowerItemName = item.name.toLowerCase();
+                              // Match the component name exactly (e.g., "Protea Prime Systems")
+                              // But exclude blueprints
+                              const matchesPartName = lowerItemName === lowerPartName || 
+                                                      lowerItemName === lowerPartName.replace(/\s+/g, '_');
+                              return matchesPartName &&
+                                     !lowerItemName.includes('blueprint') &&
+                                     ['chassis', 'systems', 'neuroptics'].some(comp => 
+                                       lowerItemName.includes(comp)
+                                     );
+                            });
+                            hasBuiltPart = !!builtPartItem;
                           }
                           
                           let iconColor = 'text-gray-500';
@@ -1682,10 +1669,54 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                     );
                                   })() : (
                                     hasBuiltPart ? (
-                                      // Built warframe part (not tradeable) - show "—" for price, "Built (Not Tradeable)" in Source column
-                                      <span className="text-gray-500">—</span>
-                                    ) : isObtainableFromRelics ? (
-                                      <span className="text-gray-400"></span>
+                                      // Built warframe part (not tradeable) - try to show blueprint price if available
+                                      (() => {
+                                        // Try to find blueprint price for this built part
+                                        const blueprintName = `${part.name} Blueprint`;
+                                        const partName = part.name.toLowerCase();
+                                        const setBaseName = progress.set.name.toLowerCase();
+                                        
+                                        // Try to find blueprint price in missingPartsWithPrices
+                                        const blueprintPriceData = progress.investmentAnalysis?.missingPartsWithPrices?.find(
+                                          p => {
+                                            const pName = p.name.toLowerCase();
+                                            // Match the blueprint name (e.g., "Protea Prime Systems Blueprint")
+                                            return pName === `${partName} blueprint` || 
+                                                   pName === `${partName.replace(/\s+/g, '_')}_blueprint` ||
+                                                   // Or match by component type
+                                                   (pName.includes('blueprint') && 
+                                                    ['chassis', 'systems', 'neuroptics'].some(comp => 
+                                                      partName.includes(comp) && pName.includes(comp)
+                                                    ) &&
+                                                    pName.includes(setBaseName.split(' ')[0]));
+                                          }
+                                        );
+                                        
+                                        // Also check inventory for blueprint
+                                        const blueprintInInventory = primePartsInventory.find(item => {
+                                          const lowerItemName = item.name.toLowerCase();
+                                          const lowerBlueprintName = blueprintName.toLowerCase();
+                                          return lowerItemName === lowerBlueprintName || 
+                                                 lowerItemName === lowerBlueprintName.replace(/\s+/g, '_');
+                                        });
+                                        
+                                        const blueprintBuyerPrice = blueprintPriceData?.buyerPrice || blueprintInInventory?.price || 0;
+                                        const blueprintSellerPrice = blueprintPriceData?.price || blueprintInInventory?.sellerPrice || 0;
+                                        const blueprintPrice = blueprintSellerPrice > 0 ? blueprintSellerPrice : blueprintBuyerPrice;
+                                        
+                                        if (blueprintPrice > 0) {
+                                          return (
+                                            <span className="text-gray-400">
+                                              <span className="flex flex-col items-end">
+                                                <span>{blueprintPrice}p</span>
+                                                <span className="text-[10px] text-gray-500">(blueprint)</span>
+                                              </span>
+                                            </span>
+                                          );
+                                        }
+                                        
+                                        return <span className="text-gray-500">—</span>;
+                                      })()
                                     ) : (
                                       (() => {
                                         // Find price for this missing part (seller price - what it costs to buy)
@@ -1736,16 +1767,28 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                                           }
                                         }
                                         
-                                        // Show price if found, otherwise show "—" (not "Market only" - that goes in Source column)
+                                        // Show seller price if available, otherwise show buyer price as reference, or "—"
                                         return (
                                           <span className="text-gray-500">
-                                            {priceData && priceData.price > 0 ? (
-                                              <span className="flex flex-col items-end">
-                                                <span>{priceData.price}p</span>
-                                                {priceData.avg48h && priceData.avg48h !== priceData.price && (
-                                                  <span className="text-[10px] text-gray-600">48h: {priceData.avg48h}p</span>
-                                                )}
-                                              </span>
+                                            {priceData ? (
+                                              priceData.price > 0 ? (
+                                                // Has seller price (what it costs to buy)
+                                                <span className="flex flex-col items-end">
+                                                  <span>{priceData.price}p</span>
+                                                  {priceData.avg48h && priceData.avg48h !== priceData.price && (
+                                                    <span className="text-[10px] text-gray-600">48h: {priceData.avg48h}p</span>
+                                                  )}
+                                                </span>
+                                              ) : (priceData as any).buyerPrice > 0 ? (
+                                                // No sellers, but has buyer price (show as reference with note)
+                                                <span className="flex flex-col items-end">
+                                                  <span className="text-gray-400">{(priceData as any).buyerPrice}p</span>
+                                                  <span className="text-[10px] text-gray-500">(buyer, no sellers)</span>
+                                                </span>
+                                              ) : (
+                                                // No price data at all
+                                                <span className="text-gray-500">—</span>
+                                              )
                                             ) : (
                                               <span className="text-gray-500">—</span>
                                             )}

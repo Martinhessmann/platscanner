@@ -54,7 +54,7 @@ export interface SetProgress {
     potentialValue: number;
     missingPartsFromRelics: string[];
     missingPartsToBuy: string[];
-    missingPartsWithPrices?: Array<{ name: string; price: number; avg48h?: number }>; // Individual prices for missing parts
+    missingPartsWithPrices?: Array<{ name: string; price: number; buyerPrice?: number; avg48h?: number }>; // Individual prices for missing parts (price=seller, buyerPrice=buyer)
     relicInvestmentCost: number; // void traces equivalent in platinum
     buyInvestmentCost: number; // platinum cost to buy missing parts
     totalInvestmentCost: number;
@@ -876,14 +876,15 @@ export const analyzeSetProgressWithMarketData = async (
                   const originalPartName = (missingPartItems[i] as any).originalName || missingPartItems[i].name;
                   return {
                     name: originalPartName, // Use original name (e.g., "Protea Prime Systems") for consistent matching
-                    price: p?.sellerPrice || 0, // Use seller price ONLY (lowest sell order)
+                    price: p?.sellerPrice || 0, // Use seller price ONLY (lowest sell order) - 0 if no sellers
+                    buyerPrice: p?.price || 0, // Also store buyer price for display reference
                     avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
                   };
                 })
                 // Keep all entries, even with 0 price, for debugging
                 .map(p => {
                   if (p.price === 0) {
-                    console.warn(`💰 [Batch] No seller price for "${p.name}"`);
+                    console.warn(`💰 [Batch] No seller price for "${p.name}" (buyerPrice=${p.buyerPrice || 0})`);
                   }
                   return p;
                 });
@@ -1177,9 +1178,12 @@ export const refreshIndividualSetMarketData = async (
                 
                 // CRITICAL: Always use the original part name for storage, not the market lookup or API response name
                 // This ensures the UI matching logic works correctly
+                // If sellerPrice is 0 but buyerPrice exists, we might want to show buyerPrice as reference
+                // But for investment cost, we ONLY use sellerPrice (what it costs to buy)
                 return {
                   name: originalPartName, // Use original name (e.g., "Protea Prime Systems") for consistent matching
-                  price: sellerPrice, // Use seller price ONLY (lowest sell order)
+                  price: sellerPrice, // Use seller price ONLY (lowest sell order) - 0 if no sellers
+                  buyerPrice: p?.price || 0, // Also store buyer price for display reference
                   avg48h: p?.recentAverage48h || p?.average || 0 // Include 48h average for display
                 };
               })
