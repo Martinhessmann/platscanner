@@ -126,7 +126,7 @@ const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 
 };
 
 // Parse prime items from extracted text
-import { findBestPrimeMatch } from './ocrService';
+import { findBestPrimeMatch } from './primeItemValidator';
 
 export const parsePrimeItemsFromText = (text: string): string[] => {
   const items: string[] = [];
