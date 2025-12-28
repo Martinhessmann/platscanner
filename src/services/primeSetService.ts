@@ -367,9 +367,21 @@ const hasItemInInventory = (itemName: string, requiredCount: number, inventory: 
 
   // For warframes, ONLY count blueprints as owned (built parts are NOT tradeable)
   if (setType === 'Warframe') {
+    // Check if the part name already includes "Blueprint" (e.g., "Wisp Prime Blueprint")
+    const partNameIsBlueprint = lowerItemName.includes('blueprint');
+    
     // Only look for blueprint (tradeable) - built parts don't count toward set completion
     const blueprintItem = validInventory.find(item => {
       const lowerInventoryItemName = item.name.toLowerCase();
+      
+      // If part name already includes "Blueprint", match it directly
+      if (partNameIsBlueprint) {
+        const exactMatch = lowerInventoryItemName === lowerItemName;
+        const underscoreMatch = lowerInventoryItemName === underscoreFormat;
+        return exactMatch || underscoreMatch;
+      }
+      
+      // Otherwise, try adding "Blueprint" suffix
       const blueprintMatch = lowerInventoryItemName === `${lowerItemName} blueprint`;
       const underscoreBlueprintMatch = lowerInventoryItemName === `${underscoreFormat}_blueprint`;
       return blueprintMatch || underscoreBlueprintMatch;

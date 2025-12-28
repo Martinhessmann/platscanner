@@ -1546,18 +1546,38 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                           const isObtainableFromRelics = progress.obtainableFromRelics.includes(part.name);
                           
                           // Check if there's a built warframe part (not tradeable, shouldn't count as owned)
+                          // Only check if not already owned (to avoid duplicate checks)
                           let hasBuiltPart = false;
                           if (progress.set.type === 'Warframe' && !isOwned) {
-                            const builtPartItem = primePartsInventory.find(item => {
-                              const lowerItemName = item.name.toLowerCase();
-                              const lowerPartName = part.name.toLowerCase();
-                              return (lowerItemName === lowerPartName || lowerItemName === lowerPartName.replace(/\s+/g, '_')) &&
-                                     !lowerItemName.includes('blueprint') &&
-                                     ['chassis', 'systems', 'neuroptics'].some(comp => 
-                                       lowerItemName.includes(comp)
-                                     );
-                            });
-                            hasBuiltPart = !!builtPartItem;
+                            const lowerPartName = part.name.toLowerCase();
+                            // If part name includes "Blueprint", check for built part without blueprint suffix
+                            // e.g., "Wisp Prime Blueprint" -> look for "Wisp Prime Chassis" (built)
+                            if (lowerPartName.includes('blueprint')) {
+                              const partNameWithoutBlueprint = lowerPartName.replace(/\s+blueprint\s*$/, '').replace(/_blueprint$/, '');
+                              const builtPartItem = primePartsInventory.find(item => {
+                                const lowerItemName = item.name.toLowerCase();
+                                // Match built part name (e.g., "Wisp Prime Chassis")
+                                const matchesBaseName = lowerItemName.startsWith(partNameWithoutBlueprint) || 
+                                                        lowerItemName.startsWith(partNameWithoutBlueprint.replace(/\s+/g, '_'));
+                                return matchesBaseName &&
+                                       !lowerItemName.includes('blueprint') &&
+                                       ['chassis', 'systems', 'neuroptics'].some(comp => 
+                                         lowerItemName.includes(comp)
+                                       );
+                              });
+                              hasBuiltPart = !!builtPartItem;
+                            } else {
+                              // Part name doesn't include "Blueprint", check for exact match of built part
+                              const builtPartItem = primePartsInventory.find(item => {
+                                const lowerItemName = item.name.toLowerCase();
+                                return (lowerItemName === lowerPartName || lowerItemName === lowerPartName.replace(/\s+/g, '_')) &&
+                                       !lowerItemName.includes('blueprint') &&
+                                       ['chassis', 'systems', 'neuroptics'].some(comp => 
+                                         lowerItemName.includes(comp)
+                                       );
+                              });
+                              hasBuiltPart = !!builtPartItem;
+                            }
                           }
                           
                           let iconColor = 'text-gray-500';
