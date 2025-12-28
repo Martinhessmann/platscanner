@@ -128,16 +128,26 @@ const fetchSingleItemData = async (itemName: string) => {
     ]);
     
     // Debug: Log raw orders response structure
-    if (ordersResponse.ok && ordersData.payload) {
-      console.log(`>>> [Netlify] ${itemName}: Orders response structure check - has payload: ${!!ordersData.payload}, has orders array: ${Array.isArray(ordersData.payload.orders)} <<<`);
-      if (Array.isArray(ordersData.payload.orders) && ordersData.payload.orders.length > 0) {
-        const firstOrder = ordersData.payload.orders[0];
-        console.log(`>>> [Netlify] ${itemName}: First order structure: ${JSON.stringify(Object.keys(firstOrder))} <<<`);
-        console.log(`>>> [Netlify] ${itemName}: First order user structure: ${JSON.stringify(firstOrder.user ? Object.keys(firstOrder.user) : 'no user')} <<<`);
-        if (firstOrder.user) {
-          console.log(`>>> [Netlify] ${itemName}: First order user.status value: "${firstOrder.user.status}" (type: ${typeof firstOrder.user.status}) <<<`);
+    if (ordersResponse.ok) {
+      console.log(`>>> [Netlify] ${itemName}: Orders response keys: ${JSON.stringify(Object.keys(ordersData))} <<<`);
+      if (ordersData.payload) {
+        console.log(`>>> [Netlify] ${itemName}: Payload keys: ${JSON.stringify(Object.keys(ordersData.payload))} <<<`);
+        console.log(`>>> [Netlify] ${itemName}: Has orders array: ${Array.isArray(ordersData.payload.orders)}, length: ${ordersData.payload.orders?.length || 0} <<<`);
+        if (Array.isArray(ordersData.payload.orders) && ordersData.payload.orders.length > 0) {
+          const firstOrder = ordersData.payload.orders[0];
+          console.log(`>>> [Netlify] ${itemName}: First order keys: ${JSON.stringify(Object.keys(firstOrder))} <<<`);
+          console.log(`>>> [Netlify] ${itemName}: First order full: ${JSON.stringify(firstOrder).substring(0, 500)} <<<`);
+          if (firstOrder.user) {
+            console.log(`>>> [Netlify] ${itemName}: User keys: ${JSON.stringify(Object.keys(firstOrder.user))} <<<`);
+            console.log(`>>> [Netlify] ${itemName}: User status: "${firstOrder.user.status}" (type: ${typeof firstOrder.user.status}) <<<`);
+            console.log(`>>> [Netlify] ${itemName}: User banned: ${firstOrder.user.banned}, visible: ${firstOrder.visible} <<<`);
+          }
         }
+      } else {
+        console.log(`>>> [Netlify] ${itemName}: WARNING - No payload in orders response! Full response: ${JSON.stringify(ordersData).substring(0, 500)} <<<`);
       }
+    } else {
+      console.log(`>>> [Netlify] ${itemName}: Orders response NOT ok - status: ${ordersResponse.status} <<<`);
     }
 
     // V2 API structure: { apiVersion, data: { ... }, error }
