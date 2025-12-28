@@ -1191,12 +1191,17 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     let ocrMethod = 'tesseract';
     
     const llmWhispererConfigured = isLLMWhispererConfigured();
-    console.log('[OCR] LLMWhisperer configured:', llmWhispererConfigured);
-    ocrLogger.debug('Analysis', `LLMWhisperer configured: ${llmWhispererConfigured}`);
+    
+    // Log prominently whether LLMWhisperer is configured
+    if (llmWhispererConfigured) {
+      ocrLogger.info('Analysis', '✅ LLMWhisperer IS configured - using AI OCR');
+      ocrLogger.info('Analysis', 'Step 1: Extracting text using LLMWhisperer');
+    } else {
+      ocrLogger.warn('Analysis', '⚠️ LLMWhisperer NOT configured - falling back to Tesseract (low accuracy)');
+      ocrLogger.info('Analysis', 'To enable LLMWhisperer: Settings → API → paste your key');
+    }
     
     if (llmWhispererConfigured) {
-      console.log('[OCR] Using LLMWhisperer for OCR');
-      ocrLogger.info('Analysis', 'Step 1: Extracting text using LLMWhisperer');
       try {
         extractedText = await extractTextWithLLMWhisperer(imageFile);
         ocrMethod = 'llmwhisperer';

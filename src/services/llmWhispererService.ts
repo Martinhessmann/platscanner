@@ -27,10 +27,16 @@ export const setLLMWhispererApiKey = (apiKey: string): void => {
 
 // Check if LLMWhisperer is configured
 export const isLLMWhispererConfigured = (): boolean => {
-  const key = getApiKey();
-  const isConfigured = !!key && key.length > 10;
-  console.log('[LLMWhisperer] isConfigured check:', { hasKey: !!key, keyLength: key?.length || 0, isConfigured });
-  return isConfigured;
+  try {
+    const key = getApiKey();
+    const isConfigured = !!key && key.length > 10;
+    // Log for debugging - this will show in browser console
+    console.log('[LLMWhisperer] isConfigured check:', { hasKey: !!key, keyLength: key?.length || 0, isConfigured });
+    return isConfigured;
+  } catch (error) {
+    console.error('[LLMWhisperer] Error checking configuration:', error);
+    return false;
+  }
 };
 
 // Convert File to base64
