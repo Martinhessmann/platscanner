@@ -8,7 +8,7 @@ import { ocrLogger } from './ocrLogger';
 let validPrimeItemsCache: Set<string> | null = null;
 
 // Build list of valid prime item names for validation
-const buildValidPrimeItems = (): Set<string> => {
+export const buildValidPrimeItems = (): Set<string> => {
   if (validPrimeItemsCache) return validPrimeItemsCache;
   
   const primeSets = getPrimeSetsCache();

@@ -258,7 +258,10 @@ const cropAndScaleRegion = async (
   });
 };
 
-import { findBestPrimeMatch } from './primeItemValidator';
+import { findBestPrimeMatch, buildValidPrimeItems } from './primeItemValidator';
+
+// Re-export for backward compatibility
+export { findBestPrimeMatch };
 
 const IMAGE_CACHE_KEY = 'platscanner_image_cache';
 const CACHE_EXPIRY_HOURS = 24; // Cache results for 24 hours
