@@ -1,4 +1,4 @@
-import { createWorker, PSM, OEM, createScheduler } from 'tesseract.js';
+import { createWorker, PSM } from 'tesseract.js';
 import { DetectedItem, PrimePart, VoidRelic, SyndicateReward, Mod } from '../types';
 import { getCategorizedInventory } from './inventoryService';
 import { determineModRarity, determineModType } from './modService';
@@ -220,75 +220,12 @@ const base64ToImageData = (base64: string): Promise<ImageData> => {
 };
 
 // Extract text from image using OCR
-// Uses Supabase Edge Function in production to avoid browser security restrictions
-// Falls back to client-side OCR for localhost development
+// Uses client-side Tesseract.js for OCR processing
+// Note: Supabase Edge Function for OCR was deprecated - using client-side only
 const extractTextFromImage = async (imageFile: File): Promise<string> => {
   ocrLogger.info('OCR', `Starting text extraction for file: ${imageFile.name} (${imageFile.size} bytes, type: ${imageFile.type})`);
   
-  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  const isProduction = window.location.protocol === 'https:' || !window.location.hostname.includes('localhost');
-  const useEdgeFunction = isProduction && SUPABASE_URL && SUPABASE_ANON_KEY;
-  
-  // Use Edge Function in production to avoid browser security restrictions
-  if (useEdgeFunction) {
-    ocrLogger.info('OCR', 'Using Supabase Edge Function for server-side OCR processing');
-    try {
-      const imageBase64 = await fileToBase64(imageFile);
-      
-      ocrLogger.debug('OCR', 'Sending image to Edge Function', {
-        base64Length: imageBase64.length,
-        fileName: imageFile.name
-      });
-      
-      const startTime = Date.now();
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/ocr-process`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'apikey': SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          imageBase64,
-          fileName: imageFile.name,
-          fileType: imageFile.type,
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || `Edge Function returned ${response.status}`);
-      }
-      
-      const result = await response.json();
-      const duration = Date.now() - startTime;
-      
-      ocrLogger.info('OCR', `Edge Function OCR completed in ${duration}ms`, {
-        textLength: result.text?.length || 0,
-        success: result.success
-      });
-      
-      if (!result.success || !result.text) {
-        throw new Error(result.error || 'Edge Function returned no text');
-      }
-      
-      ocrLogger.debug('OCR', 'Extracted text preview', {
-        preview: result.text.substring(0, 500),
-        fullLength: result.text.length
-      });
-      
-      return result.text;
-    } catch (error) {
-      ocrLogger.error('OCR', 'Edge Function OCR failed, falling back to client-side', {
-        error: error instanceof Error ? error.message : String(error),
-        willTryClientSide: true
-      });
-      // Fall through to client-side OCR
-    }
-  }
-  
-  // Client-side OCR (for localhost or if Edge Function fails)
+  // Client-side OCR using Tesseract.js
   ocrLogger.info('OCR', 'Using client-side OCR processing');
   let worker: any = null;
   
