@@ -101,3 +101,9 @@ export const findBestPrimeMatch = (ocrText: string, threshold: number = 0.85): s
   
   return bestMatch;
 };
+
+// Ensure buildValidPrimeItems is always included in the bundle
+// by referencing it at module level
+if (typeof window !== 'undefined') {
+  (window as any).__primeItemValidator = { buildValidPrimeItems, findBestPrimeMatch };
+}
