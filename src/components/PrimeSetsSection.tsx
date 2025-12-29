@@ -44,7 +44,8 @@ import {
   Combine,
   RefreshCw,
   Check,
-  ExternalLink
+  ExternalLink,
+  ArrowUpDown
 } from 'lucide-react';
 import { getImageUrlSync, preloadImageData } from '../services/unifiedImageService';
 import LastRefreshInfo from './LastRefreshInfo';
@@ -84,6 +85,9 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set());
   const [refreshingSet, setRefreshingSet] = useState<string | null>(null);
   const [copiedSetId, setCopiedSetId] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<'priority' | 'roi' | 'setValue' | 'partsValue' | 'completion'>('priority');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [showSortOptions, setShowSortOptions] = useState(false);
 
     const sectionRef = useRef<HTMLDivElement>(null);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
@@ -161,7 +165,41 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     setRefreshProgress({ current: 0, total: visibleSetNames.length });
 
     try {
-      await refreshPrimeSetsMarketData(primePartsInventory, relicsInventory, visibleSetNames);
+      // Process sets one by one to provide progressive progress updates
+      const updatedProgresses: SetProgress[] = [];
+      
+      for (let i = 0; i < visibleSetNames.length; i++) {
+        const setName = visibleSetNames[i];
+        
+        // Update progress
+        setRefreshProgress({ current: i, total: visibleSetNames.length });
+        
+        try {
+          // Refresh individual set market data
+          const updatedProgress = await refreshIndividualSetMarketData(
+            setName,
+            primePartsInventory,
+            relicsInventory
+          );
+          
+          if (updatedProgress) {
+            updatedProgresses.push(updatedProgress);
+            
+            // Update the specific set in state immediately for progressive UI updates
+            setSetProgress(prev => prev.map(p =>
+              p.set.name === setName ? updatedProgress : p
+            ));
+          }
+        } catch (error) {
+          console.error(`Failed to refresh set ${setName}:`, error);
+          // Continue with next set even if one fails
+        }
+      }
+      
+      // Final progress update
+      setRefreshProgress({ current: visibleSetNames.length, total: visibleSetNames.length });
+      
+      // Trigger a refresh to ensure all updates are reflected
       setRefreshKey((prev: number) => prev + 1);
 
       // Update last refresh time
@@ -679,7 +717,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     // Apply all active filters
     if (!activeFilters.has('all')) {
       filtered = filtered.filter(p => {
-        // Check status filters (mutually exclusive - OR logic)
+        // Check status filters
         const builtFilter = activeFilters.has('built');
         const plannerFilter = activeFilters.has('planner');
         const priorityFilter = activeFilters.has('priority');
@@ -693,6 +731,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           const isNonPriority = !isBuilt && !isPriority; // Not built and not priority
 
           // OR logic: match if any active status filter matches
+          // "built" and "non_priority" can be combined (show all sellable sets)
+          // When both are active, show sets that are EITHER built OR non-priority
           statusMatch = (builtFilter && isBuilt) ||
                        (plannerFilter && isPlanned) ||
                        (priorityFilter && isPriority) ||
@@ -727,58 +767,119 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       });
     }
 
-    // Apply simple priority-first + completion-based sorting
+    // Apply sorting based on selected sort field
     return filtered.sort((a, b) => {
-      // Priority sets always come first
+      // Priority sets always come first (regardless of sort field)
       const aPriority = plannedSets.get(a.set.id)?.isPriority || false;
       const bPriority = plannedSets.get(b.set.id)?.isPriority || false;
 
       if (aPriority && !bPriority) return -1;
       if (!aPriority && bPriority) return 1;
 
-      // Within same priority level, sort by smart completion logic
-      const aOwned = a.ownedParts.length;
-      const aObtainable = a.obtainableFromRelics.length;
-      const aTotal = a.set.requiredParts.length;
+      // Within same priority level, sort by selected field
+      let comparison = 0;
 
-      const bOwned = b.ownedParts.length;
-      const bObtainable = b.obtainableFromRelics.length;
-      const bTotal = b.set.requiredParts.length;
+      switch (sortField) {
+        case 'roi': {
+          // Sort by ROI (expectedProfit from investmentAnalysis)
+          const aROI = a.investmentAnalysis?.expectedProfit ?? 0;
+          const bROI = b.investmentAnalysis?.expectedProfit ?? 0;
+          comparison = aROI - bROI;
+          break;
+        }
+        case 'setValue': {
+          // Sort by total set value (completeSetPrice)
+          const aValue = a.completeSetPrice ?? 0;
+          const bValue = b.completeSetPrice ?? 0;
+          comparison = aValue - bValue;
+          break;
+        }
+        case 'partsValue': {
+          // Sort by current parts value (individualPartsValue)
+          const aValue = a.individualPartsValue ?? 0;
+          const bValue = b.individualPartsValue ?? 0;
+          comparison = aValue - bValue;
+          break;
+        }
+        case 'completion': {
+          // Sort by completion percentage
+          comparison = a.completionPercentage - b.completionPercentage;
+          break;
+        }
+        case 'priority':
+        default: {
+          // Default: smart completion-based sorting
+          const aOwned = a.ownedParts.length;
+          const aObtainable = a.obtainableFromRelics.length;
+          const aTotal = a.set.requiredParts.length;
 
-      // Calculate completion potential
-      const aCompletable = aOwned + aObtainable;
-      const bCompletable = bOwned + bObtainable;
+          const bOwned = b.ownedParts.length;
+          const bObtainable = b.obtainableFromRelics.length;
+          const bTotal = b.set.requiredParts.length;
 
-      // Priority order:
-      // 1. Fully completable sets (owned + obtainable = total) - sort by owned parts
-      // 2. Partially completable sets - sort by completion potential, then owned parts
-      // 3. Non-completable sets - sort by owned parts only
+          // Calculate completion potential
+          const aCompletable = aOwned + aObtainable;
+          const bCompletable = bOwned + bObtainable;
 
-      const aFullyCompletable = aCompletable >= aTotal;
-      const bFullyCompletable = bCompletable >= bTotal;
+          // Priority order:
+          // 1. Fully completable sets (owned + obtainable = total) - sort by owned parts
+          // 2. Partially completable sets - sort by completion potential, then owned parts
+          // 3. Non-completable sets - sort by owned parts only
 
-      if (aFullyCompletable && !bFullyCompletable) return -1;
-      if (!aFullyCompletable && bFullyCompletable) return 1;
+          const aFullyCompletable = aCompletable >= aTotal;
+          const bFullyCompletable = bCompletable >= bTotal;
 
-      if (aFullyCompletable && bFullyCompletable) {
-        // Both fully completable - prioritize by owned parts, then total completion
-        if (aOwned !== bOwned) return bOwned - aOwned;
-        return bCompletable - aCompletable;
+          if (aFullyCompletable && !bFullyCompletable) return -1;
+          if (!aFullyCompletable && bFullyCompletable) return 1;
+
+          if (aFullyCompletable && bFullyCompletable) {
+            // Both fully completable - prioritize by owned parts, then total completion
+            if (aOwned !== bOwned) return bOwned - aOwned;
+            return bCompletable - aCompletable;
+          }
+
+          // Neither fully completable - sort by completion potential, then owned
+          const aCompletionPercent = aCompletable / aTotal;
+          const bCompletionPercent = bCompletable / bTotal;
+
+          if (Math.abs(aCompletionPercent - bCompletionPercent) > 0.01) {
+            return bCompletionPercent - aCompletionPercent;
+          }
+
+          comparison = bOwned - aOwned;
+          break;
+        }
       }
 
-      // Neither fully completable - sort by completion potential, then owned
-      const aCompletionPercent = aCompletable / aTotal;
-      const bCompletionPercent = bCompletable / bTotal;
-
-      if (Math.abs(aCompletionPercent - bCompletionPercent) > 0.01) {
-        return bCompletionPercent - aCompletionPercent;
-      }
-
-      return bOwned - aOwned;
+      // Apply sort direction
+      return sortDirection === 'asc' ? comparison : -comparison;
     });
   };
 
   const sortedSets = filteredSets();
+
+  // Sort handler
+  const handleSort = (field: 'priority' | 'roi' | 'setValue' | 'partsValue' | 'completion') => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      // Default direction: descending for most fields (higher is better)
+      setSortDirection('desc');
+    }
+    setShowSortOptions(false);
+  };
+
+  const getSortLabel = () => {
+    switch (sortField) {
+      case 'roi': return 'ROI';
+      case 'setValue': return 'Set Value';
+      case 'partsValue': return 'Parts Value';
+      case 'completion': return 'Completion';
+      case 'priority':
+      default: return 'Priority';
+    }
+  };
 
   // Helper function to handle filter toggling
   const toggleFilter = (filter: string) => {
@@ -792,24 +893,22 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Remove "all" if selecting specific filters
         updated.delete('all');
 
-        // Special case: "Built", "Not Built", "Priority", and "Non-Priority" are mutually exclusive
-        if (filter === 'built') {
-          updated.delete('planner');
-          updated.delete('priority');
-          updated.delete('non_priority');
-        } else if (filter === 'planner') {
+        // Special case: Some status filters are mutually exclusive
+        // "Planner" and "Priority" are mutually exclusive with others
+        // BUT "Built" and "Non-Priority" CAN be combined (to show all sellable sets)
+        if (filter === 'planner') {
+          // Planner conflicts with built, priority, and non_priority
           updated.delete('built');
           updated.delete('priority');
           updated.delete('non_priority');
         } else if (filter === 'priority') {
-          updated.delete('built');
+          // Priority conflicts with planner, built, and non_priority
           updated.delete('planner');
+          updated.delete('built');
           updated.delete('non_priority');
-        } else if (filter === 'non_priority') {
-          updated.delete('built');
-          updated.delete('planner');
-          updated.delete('priority');
         }
+        // Note: "built" and "non_priority" can be active simultaneously
+        // This allows showing all sellable sets (built + non-priority)
 
         // Toggle the specific filter
         if (updated.has(filter)) {
@@ -872,6 +971,81 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
 
           {/* Unified action buttons with consistent spacing */}
           <div className="flex items-center gap-2">
+            {/* Sort dropdown */}
+            <div className="relative" ref={sortDropdownRef}>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowSortOptions(!showSortOptions);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+              >
+                <ArrowUpDown size={14} />
+                {getSortLabel()} {sortDirection === 'asc' ? '↑' : '↓'}
+              </button>
+
+              {showSortOptions && (
+                <div className="absolute right-0 top-full mt-1 bg-gray-800 rounded-lg border border-gray-700 shadow-xl z-50 min-w-40">
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSort('priority');
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-t-lg flex items-center gap-2"
+                  >
+                    <Star size={12} className="text-yellow-400" />
+                    Priority {sortField === 'priority' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSort('roi');
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <TrendingUp size={12} className="text-green-400" />
+                    ROI {sortField === 'roi' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSort('setValue');
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <DollarSign size={12} className="text-green-400" />
+                    Set Value {sortField === 'setValue' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSort('partsValue');
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <Zap size={12} className="text-blue-400" />
+                    Parts Value {sortField === 'partsValue' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSort('completion');
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-lg flex items-center gap-2"
+                  >
+                    <Target size={12} className="text-cyan-400" />
+                    Completion {sortField === 'completion' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </button>
+                </div>
+              )}
+            </div>
+
             <button
               onClick={handleRefreshPrimeSets}
               disabled={isRefreshing}
