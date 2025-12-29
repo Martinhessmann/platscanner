@@ -20,61 +20,7 @@ import {
 import { isItemReserved } from '../services/buildPlanService';
 import { getImageUrlSync } from '../services/unifiedImageService';
 import LastRefreshInfo from './LastRefreshInfo';
-import { getPrimeSetsCache } from '../services/staticDataService';
-
-// Helper: Check if a prime part is tradeable
-// Built warframe components (chassis, systems, neuroptics without blueprint) are NOT tradeable
-const isPrimePartTradeable = (itemName: string): boolean => {
-  const lowerName = itemName.toLowerCase();
-  
-  // Check if it's a blueprint - blueprints are always tradeable
-  if (lowerName.includes('blueprint')) {
-    return true;
-  }
-  
-  // Check if it's a warframe component (chassis, systems, neuroptics)
-  const warframeComponents = ['chassis', 'systems', 'neuroptics'];
-  const matchingComponent = warframeComponents.find(component => lowerName.includes(component));
-  
-  if (!matchingComponent) {
-    // Not a warframe component, so it's tradeable (weapons, etc.)
-    return true;
-  }
-  
-  // It's a warframe component without "blueprint" - check if it belongs to a warframe set
-  const primeSets = getPrimeSetsCache();
-  if (!primeSets || primeSets.length === 0) {
-    // Can't determine, assume tradeable to be safe
-    return true;
-  }
-  
-  // Extract the prime set name from the item name
-  // Pattern: "Wisp Prime Chassis" -> "Wisp Prime"
-  // Pattern: "Harrow Prime Systems" -> "Harrow Prime"
-  const words = itemName.split(' ');
-  const primeIndex = words.findIndex(w => w.toLowerCase() === 'prime');
-  
-  if (primeIndex === -1 || primeIndex === 0) {
-    // No "Prime" found or it's the first word, assume tradeable
-    return true;
-  }
-  
-  // Extract set name: everything up to and including "Prime"
-  const setName = words.slice(0, primeIndex + 1).join(' ');
-  
-  // Check if this set exists and is a Warframe
-  const matchingSet = primeSets.find(set => 
-    set.name.toLowerCase() === setName.toLowerCase() && set.type === 'Warframe'
-  );
-  
-  if (matchingSet) {
-    // It's a built warframe component - NOT tradeable
-    return false;
-  }
-  
-  // Not found in warframe sets, assume tradeable (might be a weapon component with similar name)
-  return true;
-};
+import { isPrimePartTradeable } from '../services/primeSetService';
 
 interface PrimePartsProps {
   results: DetectedItem[];
@@ -650,7 +596,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                     <div className="flex items-center justify-center gap-1">
                       <Zap size={12} className="text-gray-300" />
                       <span className="font-semibold text-gray-300">
-                        {item.price && item.price > 0 ? `${item.price}p` : 'No buyers'}
+                        {item.price && item.price > 0 ? `${item.price}p` : (isPrimePartTradeable(item.name) ? 'No buyers' : 'Not Tradeable')}
                         {item.average && item.average !== item.price && (
                           <span className="text-gray-500 ml-1">/ {item.average}p</span>
                         )}
@@ -749,7 +695,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                   <span className="flex items-center gap-1 text-gray-600 text-xs">
                     <MessageCircle size={10} />
                     <span className="hidden sm:inline">
-                      {isItemReserved(item.name, 'prime_parts').reserved ? "Reserved" : "No buyers"}
+                      {isItemReserved(item.name, 'prime_parts').reserved ? "Reserved" : (isPrimePartTradeable(item.name) ? "No buyers" : "Not Tradeable")}
                     </span>
                   </span>
                 )}

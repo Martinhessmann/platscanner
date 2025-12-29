@@ -6,6 +6,7 @@ import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import ModDuplicatesSection from '../components/ModDuplicatesSection';
 import { analyzeImage, isGeminiConfigured } from '../services/ocrService';
 import { fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
+import { isPrimePartTradeable } from '../services/primeSetService';
 import { cloudSyncService } from '../services/cloudSyncService';
 import { initializeStaticData } from '../services/staticDataService';
 import {
@@ -591,6 +592,25 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
             const item = newItems[index];
             console.log(`>>> [Price Fetching] Processing item ${index + 1}/${newItems.length}: ${item.name} <<<`);
+
+            // Skip price fetching for built warframe parts (non-tradeable)
+            if (item.category === 'prime_parts' && !isPrimePartTradeable(item.name)) {
+              console.log(`>>> [Price Fetching] Skipping built warframe part (non-tradeable): ${item.name} <<<`);
+              // Add item to inventory with 0 price and mark as non-tradeable
+              const nonTradeableItem: DetectedItem = {
+                ...item,
+                price: 0,
+                status: 'loaded',
+                error: undefined
+              };
+              // Save to inventory immediately (same pattern as processed items)
+              saveToInventory([nonTradeableItem], sessionId);
+              // Update categorized inventory display
+              const updatedInventory = getCategorizedInventory();
+              setCategorizedInventory(updatedInventory);
+              setInventoryRefreshTrigger(prev => prev + 1);
+              continue;
+            }
 
             // Update current fetch item in metadata
             setProcessingMetadata(current => ({
