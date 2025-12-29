@@ -161,7 +161,41 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     setRefreshProgress({ current: 0, total: visibleSetNames.length });
 
     try {
-      await refreshPrimeSetsMarketData(primePartsInventory, relicsInventory, visibleSetNames);
+      // Process sets one by one to provide progressive progress updates
+      const updatedProgresses: SetProgress[] = [];
+      
+      for (let i = 0; i < visibleSetNames.length; i++) {
+        const setName = visibleSetNames[i];
+        
+        // Update progress
+        setRefreshProgress({ current: i, total: visibleSetNames.length });
+        
+        try {
+          // Refresh individual set market data
+          const updatedProgress = await refreshIndividualSetMarketData(
+            setName,
+            primePartsInventory,
+            relicsInventory
+          );
+          
+          if (updatedProgress) {
+            updatedProgresses.push(updatedProgress);
+            
+            // Update the specific set in state immediately for progressive UI updates
+            setSetProgress(prev => prev.map(p =>
+              p.set.name === setName ? updatedProgress : p
+            ));
+          }
+        } catch (error) {
+          console.error(`Failed to refresh set ${setName}:`, error);
+          // Continue with next set even if one fails
+        }
+      }
+      
+      // Final progress update
+      setRefreshProgress({ current: visibleSetNames.length, total: visibleSetNames.length });
+      
+      // Trigger a refresh to ensure all updates are reflected
       setRefreshKey((prev: number) => prev + 1);
 
       // Update last refresh time
