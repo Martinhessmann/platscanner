@@ -45,7 +45,7 @@ export interface SetProgress {
   completeSetBuyerQuantity?: number;
   individualPartsValue?: number;
   profitDifference?: number;
-  recommendedStrategy?: 'SELL_PARTS' | 'BUILD_AND_SELL' | 'KEEP_FOR_MASTERY' | 'OPEN_RELICS' | 'BUY_MISSING' | 'HYBRID_STRATEGY' | 'INSUFFICIENT_DATA';
+  recommendedStrategy?: 'SELL_PARTS' | 'SELL_SET' | 'KEEP_FOR_MASTERY' | 'OPEN_RELICS' | 'BUY_MISSING' | 'HYBRID_STRATEGY' | 'INSUFFICIENT_DATA';
   setMarketStatus?: 'loaded' | 'loading' | 'error';
   setMarketError?: string;
   // NEW: Investment Analysis
@@ -629,6 +629,7 @@ export const isPrimePartTradeable = (itemName: string): boolean => {
 // NEW: Calculate the total market value of owned individual parts
 // Excludes built warframe parts (non-blueprint chassis/systems/neuroptics) as they cannot be traded
 // If both built part and blueprint exist, prefer blueprint (tradeable)
+// CRITICAL: Only counts parts with buyers (hasBuyers === true) - parts without buyers cannot be sold
 const calculateIndividualPartsValue = (
   ownedParts: string[],
   primePartsInventory: DetectedItem[],
@@ -661,10 +662,20 @@ const calculateIndividualPartsValue = (
       }
     } else {
       // For weapons, find any matching item
+      // Try multiple matching strategies for better compatibility
       inventoryItem = primePartsInventory.find(item => {
         const lowerItemName = item.name.toLowerCase();
         const lowerPartName = partName.toLowerCase();
-        return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+        // Try exact match
+        if (lowerItemName === lowerPartName) return true;
+        // Try with blueprint suffix
+        if (lowerItemName === `${lowerPartName} blueprint`) return true;
+        // Try underscore format
+        const underscorePartName = lowerPartName.replace(/\s+/g, '_');
+        if (lowerItemName === underscorePartName) return true;
+        // Try underscore with blueprint
+        if (lowerItemName === `${underscorePartName}_blueprint`) return true;
+        return false;
       });
     }
 
@@ -673,12 +684,43 @@ const calculateIndividualPartsValue = (
       return; // Built warframe component cannot be traded
     }
 
-    if (inventoryItem && inventoryItem.price && inventoryItem.price > 0) {
-      const quantity = inventoryItem.quantity || 1;
-      totalValue += inventoryItem.price * quantity;
+    // Debug logging for troubleshooting
+    if (!inventoryItem) {
+      console.warn(`💰 [Parts Value] Part "${partName}" not found in inventory (${primePartsInventory.length} items available)`);
+      // Try to find similar items for debugging
+      const similarItems = primePartsInventory.filter(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName.includes(lowerPartName.split(' ').pop() || '') || 
+               lowerPartName.includes(lowerItemName.split(' ').pop() || '');
+      });
+      if (similarItems.length > 0) {
+        console.warn(`💰 [Parts Value] Similar items found: ${similarItems.map(i => i.name).join(', ')}`);
+      }
+    } else {
+      const hasPrice = inventoryItem.price && inventoryItem.price > 0;
+      const hasBuyers = inventoryItem.hasBuyers;
+      
+      // FIXED: If price > 0, there ARE buyers (price is the highest buy order from Warframe Market API)
+      // The hasBuyers field might be stale/incorrect, but price > 0 is definitive proof of buyers
+      // Only exclude if price is 0 or undefined (no buyers = no price)
+      const shouldCount = hasPrice; // Count if price > 0, regardless of hasBuyers value
+      
+      console.log(`💰 [Parts Value] Part "${partName}": found="${inventoryItem.name}", price=${inventoryItem.price || 0}, hasBuyers=${hasBuyers}, willCount=${shouldCount}`);
+      
+      // CRITICAL: Count parts with price > 0 (buyer price = buyers exist)
+      // Price comes from buyer orders, so price > 0 means buyers exist
+      if (shouldCount) {
+        const quantity = inventoryItem.quantity || 1;
+        totalValue += inventoryItem.price * quantity;
+        console.log(`💰 [Parts Value] Added ${inventoryItem.price * quantity}p for "${partName}" (total: ${totalValue}p)`);
+      } else {
+        console.warn(`💰 [Parts Value] Part "${partName}" excluded: price=${inventoryItem.price || 0}, hasBuyers=${hasBuyers} (no price = no buyers)`);
+      }
     }
   });
 
+  console.log(`💰 [Parts Value] Total value for ${ownedParts.length} parts: ${totalValue}p`);
   return totalValue;
 };
 
@@ -714,6 +756,10 @@ const calculateInvestmentAnalysis = (
     console.log(`💰 [Investment] Using fetched prices for ${missingPartsToBuy.length} parts to buy`);
     // Use fetched prices (more accurate) - these should be seller prices
     missingPartsToBuy.forEach(partName => {
+      // Find the PrimePart object to get itemCount (how many of this part are needed)
+      const primePart = setProgress.set.requiredParts.find(p => p.name === partName);
+      const itemCount = primePart?.itemCount || 1; // Default to 1 if not specified
+      
       const fetchedPrice = fetchedPrices.find(p => {
         const pName = p.name.toLowerCase();
         const partNameLower = partName.toLowerCase();
@@ -729,8 +775,9 @@ const calculateInvestmentAnalysis = (
       });
       if (fetchedPrice) {
         if (fetchedPrice.price > 0) {
-          buyInvestmentCost += fetchedPrice.price;
-          console.log(`💰 [Investment] ${partName}: ${fetchedPrice.price}p (from fetched price)`);
+          const totalCost = fetchedPrice.price * itemCount;
+          buyInvestmentCost += totalCost;
+          console.log(`💰 [Investment] ${partName}: ${fetchedPrice.price}p × ${itemCount} = ${totalCost}p (from fetched price)`);
         } else {
           console.warn(`💰 [Investment] ${partName}: No seller price in fetched data (using 0)`);
         }
@@ -796,6 +843,10 @@ const calculateInvestmentAnalysis = (
 // If we can't get a real price from the market or inventory, use 0
 
 // NEW: Enhanced strategy determination with investment analysis
+// Smart formula that considers:
+// 1. Parts with buyers vs no buyers (unsellable parts)
+// 2. Set with buyers vs no buyers
+// 3. Real sellable value comparison
 const determineOptimalStrategyWithInvestment = (
   setProgress: SetProgress,
   individualPartsValue: number,
@@ -807,11 +858,109 @@ const determineOptimalStrategyWithInvestment = (
     return 'INSUFFICIENT_DATA';
   }
 
-  // If we have investment analysis and it shows good ROI (buy missing parts to complete set)
-  if (investmentAnalysis && investmentAnalysis.expectedProfit > 5) {
-    // Only recommend buying if there are missing parts to buy
-    if (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0) {
+  // PRIORITY: If there are missing parts, check if buying them is profitable
+  // Only recommend BUY_MISSING if buying missing parts is profitable (expectedProfit > 0)
+  // This takes priority over SELL_SET because completing the set is usually better than selling parts
+  if (investmentAnalysis && 
+      (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0)) {
+    // If buying missing parts is profitable (even slightly), recommend BUY_MISSING
+    if (investmentAnalysis.expectedProfit > 0) {
+      console.log(`🎯 [Strategy] ${setProgress.set.name}: Missing parts detected, expectedProfit=${investmentAnalysis.expectedProfit}p → BUY_MISSING`);
       return 'BUY_MISSING';
+    } else {
+      console.log(`🎯 [Strategy] ${setProgress.set.name}: Missing parts detected but not profitable (expectedProfit=${investmentAnalysis.expectedProfit}p), will check SELL_SET`);
+    }
+  }
+
+  // SMART FORMULA: Check if set has buyers
+  const setHasBuyers = setProgress.completeSetBuyerUsername != null || 
+                       (setProgress.completeSetBuyerQuantity != null && setProgress.completeSetBuyerQuantity > 0) ||
+                       completeSetPrice > 0; // If price > 0, assume buyers exist (from market data)
+
+  // Count how many owned parts have buyers vs no buyers
+  const primePartsInventory = getCategorizedInventory().prime_parts || [];
+  let partsWithBuyers = 0;
+  let partsWithoutBuyers = 0;
+  
+  setProgress.ownedParts.forEach(partName => {
+    let inventoryItem: DetectedItem | undefined;
+    
+    if (setProgress.set.type === 'Warframe') {
+      const blueprintItem = primePartsInventory.find(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName === `${lowerPartName} blueprint` || 
+               lowerItemName === `${lowerPartName.replace(/\s+/g, '_')}_blueprint`;
+      });
+      inventoryItem = blueprintItem || primePartsInventory.find(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName === lowerPartName || lowerItemName === lowerPartName.replace(/\s+/g, '_');
+      });
+    } else {
+      inventoryItem = primePartsInventory.find(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+      });
+    }
+
+    if (inventoryItem && 
+        !isBuiltWarframeInventoryItem(inventoryItem.name, setProgress.set.type)) {
+      if (inventoryItem.hasBuyers === true && inventoryItem.price && inventoryItem.price > 0) {
+        partsWithBuyers++;
+      } else {
+        partsWithoutBuyers++;
+      }
+    }
+  });
+
+  // SMART DECISION LOGIC:
+  // PRIORITY ORDER:
+  // 1. If there are missing parts AND buying them is profitable → BUY_MISSING (already checked above)
+  // 2. If set has buyers and individualPartsValue < set price, sell the set
+  //    (This catches cases like Bronco Prime where some parts have no buyers)
+  // 3. If set has buyers and individualPartsValue >= set price, sell parts
+  // 4. If set has no buyers but parts have buyers, sell parts
+  // 5. If some parts have no buyers, heavily favor selling the set (if set has buyers)
+  // 6. If NO parts have buyers but set has buyers, definitely sell the set
+  
+  console.log(`🎯 [Strategy Logic] ${setProgress.set.name}: partsValue=${individualPartsValue}p, setPrice=${completeSetPrice}p, setHasBuyers=${setHasBuyers}, partsWithBuyers=${partsWithBuyers}, partsWithoutBuyers=${partsWithoutBuyers}, hasMissingParts=${investmentAnalysis ? (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0) : false}`);
+  
+  if (setHasBuyers) {
+    // Set can be sold - compare real sellable value
+    // BUT: Only recommend SELL_SET if there are NO missing parts OR buying them is not profitable
+    const hasMissingParts = investmentAnalysis && 
+      (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0);
+    const buyingNotProfitable = !investmentAnalysis || investmentAnalysis.expectedProfit <= 0;
+    
+    if (individualPartsValue === 0 && completeSetPrice > 0) {
+      // No parts can be sold individually, but set can be sold - definitely sell the set
+      // UNLESS buying missing parts is profitable
+      if (!hasMissingParts || buyingNotProfitable) {
+        console.log(`🎯 [Strategy] ${setProgress.set.name}: No parts sellable individually, but set can be sold → SELL_SET`);
+        return 'SELL_SET';
+      }
+    } else if (individualPartsValue < completeSetPrice) {
+      // Set is worth more than sellable parts - sell the set
+      // UNLESS buying missing parts is profitable (completing set is better than selling incomplete)
+      if (!hasMissingParts || buyingNotProfitable) {
+        console.log(`🎯 [Strategy] ${setProgress.set.name}: Set price (${completeSetPrice}p) > parts value (${individualPartsValue}p) → SELL_SET`);
+        return 'SELL_SET';
+      }
+    } else if (partsWithoutBuyers > 0 && completeSetPrice > 0) {
+      // Some parts can't be sold individually, but set can be sold
+      // If set price is reasonable (at least 50% of parts value), sell the set
+      // OR if more than half the parts have no buyers, sell the set
+      const partsValueRatio = individualPartsValue > 0 ? completeSetPrice / individualPartsValue : 1;
+      const unsellableRatio = partsWithoutBuyers / (partsWithBuyers + partsWithoutBuyers);
+      
+      console.log(`🎯 [Strategy] ${setProgress.set.name}: Some parts unsellable (${partsWithoutBuyers}/${partsWithBuyers + partsWithoutBuyers}), valueRatio=${partsValueRatio.toFixed(2)}, unsellableRatio=${unsellableRatio.toFixed(2)}`);
+      
+      if (partsValueRatio >= 0.5 || unsellableRatio > 0.5) {
+        console.log(`🎯 [Strategy] ${setProgress.set.name}: Unsellable parts detected, set price reasonable → SELL_SET`);
+        return 'SELL_SET';
+      }
     }
   }
 
@@ -996,12 +1145,24 @@ export const analyzeSetProgressWithMarketData = async (
                 });
 
               // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
-              const missingCost = priced
-                .filter((p, i) => partsToBuy.includes(missingPartItems[i].name))
-                .reduce((sum, p) => {
-                  const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
-                  return sum + cost;
-                }, 0);
+              // FIXED: Account for itemCount (some parts need multiple copies, e.g., Ninkondi Prime Handle x2)
+              let missingCost = 0;
+              priced.forEach((p, i) => {
+                const originalPartName = (missingPartItems[i] as any).originalName || missingPartItems[i].name;
+                if (partsToBuy.includes(originalPartName)) {
+                  // Find the PrimePart object to get itemCount (how many of this part are needed)
+                  const primePart = progress.set.requiredParts.find(part => part.name === originalPartName);
+                  const itemCount = primePart?.itemCount || 1; // Default to 1 if not specified
+                  
+                  const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice * itemCount : 0;
+                  if (cost > 0) {
+                    if (itemCount > 1) {
+                      console.log(`💰 [Batch] ${originalPartName}: ${p.sellerPrice}p × ${itemCount} = ${cost}p`);
+                    }
+                    missingCost += cost;
+                  }
+                }
+              });
               progress.missingCost = missingCost;
 
               // Store the prices temporarily - will be added to investmentAnalysis later
@@ -1305,12 +1466,21 @@ export const refreshIndividualSetMarketData = async (
 
             // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
             // Use the stored prices from missingPartsWithPrices (which uses original names) instead of priced array
+            // FIXED: Account for itemCount (some parts need multiple copies, e.g., Ninkondi Prime Handle x2)
             const missingCost = missingPartsWithPrices
               .filter(p => partsToBuy.includes(p.name))
               .reduce((sum, p) => {
-                const cost = p.price > 0 ? p.price : 0;
+                // Find the PrimePart object to get itemCount (how many of this part are needed)
+                const primePart = setProgress.set.requiredParts.find(part => part.name === p.name);
+                const itemCount = primePart?.itemCount || 1; // Default to 1 if not specified
+                
+                const cost = p.price > 0 ? p.price * itemCount : 0;
                 if (cost > 0) {
-                  console.log(`💰 [Cost Calc] ${p.name}: ${cost}p`);
+                  if (itemCount > 1) {
+                    console.log(`💰 [Cost Calc] ${p.name}: ${p.price}p × ${itemCount} = ${cost}p`);
+                  } else {
+                    console.log(`💰 [Cost Calc] ${p.name}: ${cost}p`);
+                  }
                 } else {
                   console.warn(`💰 [Cost Calc] ${p.name}: No seller price (using 0, not fallback estimate)`);
                 }

@@ -1551,7 +1551,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 isRefreshing={refreshingCategories.has('relics')}
                 progress={categoryProgress?.category === 'relics' ? categoryProgress : undefined}
                 lastRefreshTime={lastRelicsRefresh}
-                onRefreshAll={() => handleRefreshCategoryPrices('relics')}
+                onRefreshAll={(itemsToRefresh) => handleRefreshCategoryPrices('relics', itemsToRefresh)}
                 onClearAll={() => handleClearInventory('relics')}
                 onRefreshItem={handleRefreshSingleItem}
                 onRemoveItem={handleRemoveFromInventory}
