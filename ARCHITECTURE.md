@@ -164,6 +164,166 @@ const relics = getRelicsCache();         // relicDataService
 - **`RelicAnalysisCard`**: Expected value analysis and recommendations
 - **`ApiKeySettings`**: Secure API key management
 
+## 📦 Inventory Sections Architecture
+
+The application has **5 inventory sections**, each with different architectural patterns. This section documents the differences and why they exist.
+
+### Architecture Patterns
+
+#### Pattern 1: Wrapper Pattern (`InventorySection`)
+
+**Used by:**
+- Prime Parts (`PrimeParts.tsx`)
+- Void Relics (`RelicResultsTable.tsx`)
+
+**Structure:**
+```tsx
+<InventorySection
+  category="prime_parts" | "relics"
+  onRefreshAll={(itemsToRefresh?: InventoryItem[]) => void}
+  onRefreshItem={(itemName: string) => void}
+  onRemoveItem={(itemName: string) => void}
+  ...
+/>
+```
+
+**Characteristics:**
+- ✅ Consistent header/accordion UI via wrapper
+- ✅ Unified refresh button and progress tracking
+- ✅ Filtered refresh support via `visibleItems` state
+- ✅ Same prop interface for both sections
+- ✅ Refresh handlers in `HomePage.tsx`
+
+**Refresh Flow:**
+1. Component calls `onFilteredItemsChange(filteredItems)` → `InventorySection` stores in `visibleItems`
+2. User clicks refresh → `InventorySection` calls `onRefreshAll(visibleItems || undefined)`
+3. `HomePage` handler receives filtered items and refreshes only those
+
+---
+
+#### Pattern 2: Standalone Pattern
+
+**Used by:**
+- Syndicate Rewards (`SyndicateRewardsSection.tsx`)
+- Mod Duplicates (`ModDuplicatesSection.tsx`)
+- Prime Sets (`PrimeSetsSection.tsx`)
+
+**Structure:**
+Each component is fully self-contained with its own:
+- Header/accordion UI
+- Filtering logic
+- Refresh handlers
+- Progress tracking
+
+**Differences:**
+
+| Component | Refresh Prop | Filtered Refresh | Cancel Support | Complete Callback |
+|-----------|-------------|------------------|----------------|-------------------|
+| **SyndicateRewards** | `onRefreshStart(itemsToRefresh?)` | ✅ Yes | ✅ Yes | ✅ Yes |
+| **ModDuplicates** | `onRefreshStart(itemsToRefresh?)` | ✅ Yes | ✅ Yes | ✅ Yes |
+| **PrimeSets** | Internal `handleRefreshPrimeSets()` | ✅ Yes | ❌ No | ❌ No |
+
+**Why Different?**
+
+1. **SyndicateRewards & ModDuplicates:**
+   - More complex refresh logic (progress tracking, cancellation)
+   - Custom filtering needs (syndicate types, mod rarity, etc.)
+   - Need `onRefreshComplete` callback for state management
+   - Similar patterns (ModDuplicates follows SyndicateRewards pattern)
+
+2. **PrimeSets:**
+   - Completely different data model (`SetProgress[]` vs `InventoryItem[]`)
+   - Self-contained refresh logic (no external handler needed)
+   - Complex filtering (vaulted, warframes, weapons, completion status)
+   - Investment analysis calculations
+   - No need for external refresh callbacks
+
+---
+
+### Filtered Refresh Implementation
+
+**All sections support filtered refresh**, but implementation differs:
+
+#### Wrapper Pattern (Prime Parts, Relics)
+```typescript
+// InventorySection.tsx
+const [visibleItems, setVisibleItems] = useState<InventoryItem[] | null>(null);
+
+// Component reports filtered items
+onFilteredItemsChange(filteredItems);
+
+// Refresh passes filtered items
+onRefreshAll(visibleItems || undefined);
+```
+
+#### Standalone Pattern (Syndicate, Mods, Prime Sets)
+```typescript
+// Each component checks filters internally
+const handleRefresh = async () => {
+  const itemsToRefresh = activeFilters.has('all')
+    ? allItems
+    : filteredItems;
+  
+  onRefreshStart(itemsToRefresh); // Syndicate/Mods
+  // OR
+  handleRefreshPrimeSets(); // Prime Sets (internal)
+};
+```
+
+---
+
+### Component Comparison
+
+| Feature | Prime Parts | Relics | Syndicate | Mods | Prime Sets |
+|---------|-------------|--------|-----------|------|------------|
+| **Wrapper Component** | ✅ `InventorySection` | ✅ `InventorySection` | ❌ Standalone | ❌ Standalone | ❌ Standalone |
+| **Refresh Prop** | `onRefreshAll` | `onRefreshAll` | `onRefreshStart` | `onRefreshStart` | Internal |
+| **Filtered Refresh** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Progress Tracking** | Via wrapper | Via wrapper | Via props | Via props | Internal |
+| **Cancel Support** | ❌ No | ❌ No | ✅ Yes | ✅ Yes | ❌ No |
+| **Refresh Complete** | ❌ No | ❌ No | ✅ Yes | ✅ Yes | ❌ No |
+| **Data Type** | `InventoryItem[]` | `InventoryItem[]` | `SyndicateReward[]` | `ModItem[]` | `SetProgress[]` |
+
+---
+
+### Why Not Standardize?
+
+**Current State:**
+- ✅ All sections work correctly
+- ✅ All support filtered refresh
+- ✅ Each optimized for its specific needs
+
+**Risks of Standardization:**
+- 🔴 Breaking changes to working code
+- 🔴 Different data types don't map easily
+- 🔴 Prime Sets would require major refactoring
+- 🔴 Testing burden (5 sections × multiple features)
+- 🔴 No user benefit, only developer convenience
+
+**Recommendation:**
+- ✅ **Keep as-is** - Document differences (this section)
+- ✅ **Standardize incrementally** - Only when adding new features
+- ✅ **Don't force uniformity** - Different needs justify different patterns
+
+---
+
+### Future Considerations
+
+**When to Standardize:**
+- Adding a new feature that needs consistency across all sections
+- Refactoring a specific section for other reasons
+- Differences cause actual maintenance problems
+
+**Safe Standardization Steps:**
+1. **Low Risk**: Standardize prop names (`onRefreshStart` → `onRefreshAll`)
+2. **Medium Risk**: Add missing features (cancel support, complete callbacks)
+3. **High Risk**: Full architectural refactor (not recommended)
+
+**Current Priority:**
+- ✅ Document differences (done)
+- ✅ Ensure filtered refresh works (done)
+- ⏸️ Standardization (deferred - not needed)
+
 ### Data Storage
 - **LocalStorage**: API keys and user preferences
 - **SessionStorage**: Temporary processing state
