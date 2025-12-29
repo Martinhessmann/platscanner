@@ -756,6 +756,10 @@ const calculateInvestmentAnalysis = (
     console.log(`💰 [Investment] Using fetched prices for ${missingPartsToBuy.length} parts to buy`);
     // Use fetched prices (more accurate) - these should be seller prices
     missingPartsToBuy.forEach(partName => {
+      // Find the PrimePart object to get itemCount (how many of this part are needed)
+      const primePart = setProgress.set.requiredParts.find(p => p.name === partName);
+      const itemCount = primePart?.itemCount || 1; // Default to 1 if not specified
+      
       const fetchedPrice = fetchedPrices.find(p => {
         const pName = p.name.toLowerCase();
         const partNameLower = partName.toLowerCase();
@@ -771,8 +775,9 @@ const calculateInvestmentAnalysis = (
       });
       if (fetchedPrice) {
         if (fetchedPrice.price > 0) {
-          buyInvestmentCost += fetchedPrice.price;
-          console.log(`💰 [Investment] ${partName}: ${fetchedPrice.price}p (from fetched price)`);
+          const totalCost = fetchedPrice.price * itemCount;
+          buyInvestmentCost += totalCost;
+          console.log(`💰 [Investment] ${partName}: ${fetchedPrice.price}p × ${itemCount} = ${totalCost}p (from fetched price)`);
         } else {
           console.warn(`💰 [Investment] ${partName}: No seller price in fetched data (using 0)`);
         }
@@ -1121,12 +1126,24 @@ export const analyzeSetProgressWithMarketData = async (
                 });
 
               // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
-              const missingCost = priced
-                .filter((p, i) => partsToBuy.includes(missingPartItems[i].name))
-                .reduce((sum, p) => {
-                  const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice : 0;
-                  return sum + cost;
-                }, 0);
+              // FIXED: Account for itemCount (some parts need multiple copies, e.g., Ninkondi Prime Handle x2)
+              let missingCost = 0;
+              priced.forEach((p, i) => {
+                const originalPartName = (missingPartItems[i] as any).originalName || missingPartItems[i].name;
+                if (partsToBuy.includes(originalPartName)) {
+                  // Find the PrimePart object to get itemCount (how many of this part are needed)
+                  const primePart = progress.set.requiredParts.find(part => part.name === originalPartName);
+                  const itemCount = primePart?.itemCount || 1; // Default to 1 if not specified
+                  
+                  const cost = (p && p.sellerPrice && p.sellerPrice > 0) ? p.sellerPrice * itemCount : 0;
+                  if (cost > 0) {
+                    if (itemCount > 1) {
+                      console.log(`💰 [Batch] ${originalPartName}: ${p.sellerPrice}p × ${itemCount} = ${cost}p`);
+                    }
+                    missingCost += cost;
+                  }
+                }
+              });
               progress.missingCost = missingCost;
 
               // Store the prices temporarily - will be added to investmentAnalysis later
@@ -1430,12 +1447,21 @@ export const refreshIndividualSetMarketData = async (
 
             // Calculate cost using SELLER prices ONLY for parts that must be BOUGHT (not from relics)
             // Use the stored prices from missingPartsWithPrices (which uses original names) instead of priced array
+            // FIXED: Account for itemCount (some parts need multiple copies, e.g., Ninkondi Prime Handle x2)
             const missingCost = missingPartsWithPrices
               .filter(p => partsToBuy.includes(p.name))
               .reduce((sum, p) => {
-                const cost = p.price > 0 ? p.price : 0;
+                // Find the PrimePart object to get itemCount (how many of this part are needed)
+                const primePart = setProgress.set.requiredParts.find(part => part.name === p.name);
+                const itemCount = primePart?.itemCount || 1; // Default to 1 if not specified
+                
+                const cost = p.price > 0 ? p.price * itemCount : 0;
                 if (cost > 0) {
-                  console.log(`💰 [Cost Calc] ${p.name}: ${cost}p`);
+                  if (itemCount > 1) {
+                    console.log(`💰 [Cost Calc] ${p.name}: ${p.price}p × ${itemCount} = ${cost}p`);
+                  } else {
+                    console.log(`💰 [Cost Calc] ${p.name}: ${cost}p`);
+                  }
                 } else {
                   console.warn(`💰 [Cost Calc] ${p.name}: No seller price (using 0, not fallback estimate)`);
                 }
