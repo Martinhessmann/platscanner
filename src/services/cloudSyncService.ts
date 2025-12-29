@@ -2,6 +2,7 @@
 // Uses optional user identifier (hashed API key or generated ID) for cross-platform inventory sync
 
 import { createClient } from '@supabase/supabase-js';
+import { reservationLogger } from './reservationLogger';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -187,7 +188,28 @@ class CloudSyncService {
         localStorage.setItem('platscanner_inventory', JSON.stringify(data.inventory_data));
       }
       if (data.build_plans) {
+        const oldPlans = localStorage.getItem('platscanner_build_plans');
+        const oldData = oldPlans ? JSON.parse(oldPlans) : { buildPlans: [], reservedItems: [], version: 1 };
         localStorage.setItem('platscanner_build_plans', JSON.stringify(data.build_plans));
+        
+        // Log sync changes for debugging reservation issues
+        try {
+          const newPlans = data.build_plans.buildPlans || [];
+          const newReservations = data.build_plans.reservedItems || [];
+          reservationLogger.info('sync', 'Build plans synced from cloud', {
+            oldPlansCount: oldData.buildPlans?.length || 0,
+            newPlansCount: newPlans.length,
+            oldReservationsCount: oldData.reservedItems?.length || 0,
+            newReservationsCount: newReservations.length,
+            plansChanged: JSON.stringify(oldData.buildPlans) !== JSON.stringify(newPlans),
+            reservationsChanged: JSON.stringify(oldData.reservedItems) !== JSON.stringify(newReservations),
+            newPlans: newPlans.map((p: any) => p.setName),
+            newReservations: newReservations.map((r: any) => ({ item: r.itemName, for: r.reservedFor }))
+          });
+        } catch (error) {
+          // Logger not available, skip logging
+          console.warn('Failed to log reservation sync:', error);
+        }
       }
       if (data.mastery_data) {
         localStorage.setItem('platscanner_mastery', JSON.stringify(data.mastery_data));

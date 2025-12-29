@@ -3,6 +3,7 @@
 
 import { VoidRelic } from '../types';
 import { cloudSyncService } from './cloudSyncService';
+import { reservationLogger } from './reservationLogger';
 
 interface BuildPlan {
   setName: string;
@@ -77,14 +78,27 @@ export const addToBuildPlan = (setName: string, isPriority: boolean = false, not
   const existing = storage.buildPlans.find(plan => plan.setName === setName);
   if (existing) {
     // Update priority if different
+    const wasPriority = existing.isPriority;
     existing.isPriority = isPriority;
     if (notes) existing.notes = notes;
+    reservationLogger.info('set_planning', `Updated build plan for "${setName}" (priority: ${wasPriority} → ${isPriority})`, {
+      setName,
+      wasPriority,
+      isPriority,
+      notes
+    });
   } else {
     storage.buildPlans.push({
       setName,
       isPriority,
       dateAdded: Date.now(),
       notes
+    });
+    reservationLogger.info('set_planning', `Added "${setName}" to build plans (priority: ${isPriority})`, {
+      setName,
+      isPriority,
+      notes,
+      totalPlans: storage.buildPlans.length
     });
   }
 
@@ -97,16 +111,42 @@ export const addToBuildPlan = (setName: string, isPriority: boolean = false, not
 export const removeFromBuildPlan = (setName: string): void => {
   const storage = loadBuildPlans();
 
+  const planExists = storage.buildPlans.some(plan => plan.setName === setName);
+  if (!planExists) {
+    reservationLogger.warn('set_planning', `Attempted to remove non-existent plan: "${setName}"`, {
+      setName,
+      existingPlans: storage.buildPlans.map(p => p.setName)
+    });
+    return;
+  }
+
+  // Track items that will be affected
+  const affectedItems = storage.reservedItems
+    .filter(item => item.reservedFor.includes(setName))
+    .map(item => ({ itemName: item.itemName, category: item.category, reservedFor: [...item.reservedFor] }));
+
   // Remove build plan
   storage.buildPlans = storage.buildPlans.filter(plan => plan.setName !== setName);
 
   // Remove reservations for this set
+  const beforeCount = storage.reservedItems.length;
   storage.reservedItems = storage.reservedItems
     .map(item => ({
       ...item,
       reservedFor: item.reservedFor.filter(planName => planName !== setName)
     }))
     .filter(item => item.reservedFor.length > 0); // Remove items with no reservations
+  const afterCount = storage.reservedItems.length;
+  const removedCount = beforeCount - afterCount;
+
+  reservationLogger.info('cleanup', `Removed build plan for "${setName}"`, {
+    setName,
+    affectedItems: affectedItems.length,
+    removedReservations: removedCount,
+    remainingPlans: storage.buildPlans.length,
+    remainingReservations: storage.reservedItems.length,
+    affectedItemsDetails: affectedItems
+  });
 
   saveBuildPlans(storage);
 };
@@ -148,6 +188,18 @@ export const reserveItem = (itemName: string, category: 'prime_parts' | 'relics'
     // Add to existing reservation if not already there
     if (!existing.reservedFor.includes(setName)) {
       existing.reservedFor.push(setName);
+      reservationLogger.info('reservation_update', `Added "${setName}" to existing reservation for "${itemName}"`, {
+        itemName,
+        category,
+        setName,
+        reservedFor: existing.reservedFor
+      });
+    } else {
+      reservationLogger.debug('reservation_update', `Item "${itemName}" already reserved for "${setName}"`, {
+        itemName,
+        category,
+        setName
+      });
     }
   } else {
     storage.reservedItems.push({
@@ -155,6 +207,12 @@ export const reserveItem = (itemName: string, category: 'prime_parts' | 'relics'
       category,
       reservedFor: [setName],
       dateReserved: Date.now()
+    });
+    reservationLogger.info('reservation_update', `Created new reservation for "${itemName}" → "${setName}"`, {
+      itemName,
+      category,
+      setName,
+      totalReservations: storage.reservedItems.length
     });
   }
 
@@ -194,6 +252,7 @@ export const isItemReserved = (itemName: string, category: 'prime_parts' | 'reli
 
   // First try exact match
   let reservation = storage.reservedItems.find(item => item.itemName === itemName && item.category === category);
+  let matchType = reservation ? 'exact' : null;
 
   // If no exact match found for prime parts, try fuzzy matching
   if (!reservation && category === 'prime_parts') {
@@ -208,27 +267,47 @@ export const isItemReserved = (itemName: string, category: 'prime_parts' | 'reli
         item.itemName.replace(/ Blueprint$/, '') === baseItemName
       )
     );
-  }
-
-    // Optional: Add debug logging for specific items (can be removed in production)
-  const shouldDebugLog = false; // Set to true for debugging specific items
-  if (shouldDebugLog && itemName.toLowerCase().includes('debug_item_name')) {
-    console.log(`>>> [Reservation Check] Checking reservation for "${itemName}" (${category}) <<<`);
     if (reservation) {
-      console.log(`>>> [Reservation Check] Found match: "${reservation.itemName}" <<<`);
-    } else {
-      console.log(`>>> [Reservation Check] No match found for "${itemName}" <<<`);
+      matchType = 'fuzzy';
     }
   }
+
+  // Log reservation checks (debug level for verbose logging)
+  reservationLogger.debug('reservation_check', `Checking reservation for "${itemName}" (${category})`, {
+    itemName,
+    category,
+    matchType,
+    found: !!reservation,
+    matchedItemName: reservation?.itemName,
+    reservedFor: reservation?.reservedFor || []
+  });
 
   if (!reservation) {
     return { reserved: false, reservedFor: [], isPriority: false };
   }
 
   // Check if any of the sets this is reserved for are priority
-  const isPriority = reservation.reservedFor.some(setName =>
-    storage.buildPlans.find(plan => plan.setName === setName)?.isPriority
+  const reservedForSets = reservation.reservedFor;
+  const activePlans = reservedForSets
+    .map(setName => storage.buildPlans.find(plan => plan.setName === setName))
+    .filter(plan => plan !== undefined);
+  const isPriority = activePlans.some(plan => plan?.isPriority);
+
+  // Log warning if reservation exists but set is not in build plans
+  const orphanedReservations = reservedForSets.filter(setName => 
+    !storage.buildPlans.some(plan => plan.setName === setName)
   );
+  
+  if (orphanedReservations.length > 0) {
+    reservationLogger.warn('reservation_check', `Found orphaned reservation for "${itemName}"`, {
+      itemName,
+      category,
+      reservedFor: reservedForSets,
+      orphanedSets: orphanedReservations,
+      activePlans: activePlans.map(p => p?.setName),
+      allPlans: storage.buildPlans.map(p => p.setName)
+    });
+  }
 
   return {
     reserved: true,
@@ -260,9 +339,19 @@ export const autoReserveItemsForSet = (
 ): void => {
   // Ensure requiredParts is an array
   if (!Array.isArray(requiredParts)) {
-    console.warn('autoReserveItemsForSet: requiredParts is not an array, skipping reservation');
+    reservationLogger.warn('reservation_update', 'autoReserveItemsForSet: requiredParts is not an array, skipping reservation', {
+      setName,
+      requiredPartsType: typeof requiredParts
+    });
     return;
   }
+
+  reservationLogger.info('reservation_update', `Auto-reserving items for "${setName}"`, {
+    setName,
+    requiredPartsCount: requiredParts.length,
+    ownedPartsCount: ownedParts.length,
+    relicsInventoryCount: relicsInventory?.length || 0
+  });
 
   // Reserve ALL required prime parts (both owned and missing)
   // Owned parts are reserved to prevent accidental selling
@@ -273,6 +362,12 @@ export const autoReserveItemsForSet = (
 
   // Only reserve relics for missing parts (avoid unnecessary relic reservations)
   const missingParts = requiredParts.filter(part => !ownedParts.includes(part));
+
+  reservationLogger.debug('reservation_update', `Reserving relics for missing parts of "${setName}"`, {
+    setName,
+    missingPartsCount: missingParts.length,
+    missingParts
+  });
 
     // Also reserve relics that contain these MISSING parts
   if (relicsInventory && relicsInventory.length > 0) {
@@ -333,6 +428,22 @@ export const autoReserveItemsForSet = (
       });
     });
   }
+
+  const finalStorage = loadBuildPlans();
+  const reservedParts = finalStorage.reservedItems.filter(item => 
+    item.category === 'prime_parts' && item.reservedFor.includes(setName)
+  );
+  const reservedRelics = finalStorage.reservedItems.filter(item => 
+    item.category === 'relics' && item.reservedFor.includes(setName)
+  );
+
+  reservationLogger.info('reservation_update', `Auto-reservation complete for "${setName}"`, {
+    setName,
+    reservedPartsCount: reservedParts.length,
+    reservedRelicsCount: reservedRelics.length,
+    reservedParts: reservedParts.map(p => p.itemName),
+    reservedRelics: reservedRelics.map(r => r.itemName)
+  });
 };
 
 /**
@@ -348,25 +459,50 @@ export const updateAllReservations = (
 ): void => {
   // First, clear all existing reservations (both prime parts and relics)
   const storage = loadBuildPlans();
+  const clearedCount = storage.reservedItems.length;
   storage.reservedItems = [];
   saveBuildPlans(storage);
 
+  reservationLogger.info('cleanup', `Cleared all reservations (${clearedCount} items)`, {
+    clearedCount,
+    plannedSets: storage.buildPlans.length
+  });
+
   // If no sets provided, just clear reservations and return
   if (!sets || !Array.isArray(sets)) {
-    console.warn('updateAllReservations: No sets provided, only clearing reservations');
+    reservationLogger.warn('cleanup', 'updateAllReservations: No sets provided, only clearing reservations', {
+      setsProvided: false
+    });
     return;
   }
 
   // Then, recreate reservations for all planned sets
   const plannedSets = getAllPlannedSets();
+  const activePlans = plannedSets.map(p => p.setName);
+
+  reservationLogger.info('cleanup', `Updating reservations for ${activePlans.length} planned sets`, {
+    plannedSets: activePlans,
+    totalSets: sets.length
+  });
 
   sets.forEach(({ set, ownedParts }) => {
     const isPlanActive = plannedSets.some(plan => plan.setName === set.name);
 
     if (isPlanActive) {
       const requiredPartNames = set.requiredParts.map(part => `${set.name} ${part.partType}`);
+      reservationLogger.debug('cleanup', `Recreating reservations for "${set.name}"`, {
+        setName: set.name,
+        requiredParts: requiredPartNames.length,
+        ownedParts: ownedParts.length
+      });
       autoReserveItemsForSet(set.name, requiredPartNames, ownedParts, relicsInventory);
     }
+  });
+
+  const finalStorage = loadBuildPlans();
+  reservationLogger.info('cleanup', `Reservation update complete`, {
+    finalReservationCount: finalStorage.reservedItems.length,
+    plannedSets: finalStorage.buildPlans.length
   });
 };
 
