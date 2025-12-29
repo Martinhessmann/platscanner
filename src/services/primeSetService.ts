@@ -699,21 +699,23 @@ const calculateIndividualPartsValue = (
       }
     } else {
       const hasPrice = inventoryItem.price && inventoryItem.price > 0;
-      const hasBuyers = inventoryItem.hasBuyers === true;
-      // FIXED: If price > 0, assume there are buyers (price comes from buyer orders)
-      // hasBuyers might be undefined in some cases, so we check price as primary indicator
-      const shouldCount = hasPrice && (hasBuyers !== false); // Count if price > 0 and hasBuyers is not explicitly false
+      const hasBuyers = inventoryItem.hasBuyers;
+      
+      // FIXED: If price > 0, there ARE buyers (price is the highest buy order from Warframe Market API)
+      // The hasBuyers field might be stale/incorrect, but price > 0 is definitive proof of buyers
+      // Only exclude if price is 0 or undefined (no buyers = no price)
+      const shouldCount = hasPrice; // Count if price > 0, regardless of hasBuyers value
       
       console.log(`💰 [Parts Value] Part "${partName}": found="${inventoryItem.name}", price=${inventoryItem.price || 0}, hasBuyers=${hasBuyers}, willCount=${shouldCount}`);
       
-      // CRITICAL: Count parts with price > 0 (buyer price implies buyers exist)
-      // Only exclude if hasBuyers is explicitly false
+      // CRITICAL: Count parts with price > 0 (buyer price = buyers exist)
+      // Price comes from buyer orders, so price > 0 means buyers exist
       if (shouldCount) {
         const quantity = inventoryItem.quantity || 1;
         totalValue += inventoryItem.price * quantity;
         console.log(`💰 [Parts Value] Added ${inventoryItem.price * quantity}p for "${partName}" (total: ${totalValue}p)`);
       } else {
-        console.warn(`💰 [Parts Value] Part "${partName}" excluded: price=${inventoryItem.price || 0}, hasBuyers=${hasBuyers}`);
+        console.warn(`💰 [Parts Value] Part "${partName}" excluded: price=${inventoryItem.price || 0}, hasBuyers=${hasBuyers} (no price = no buyers)`);
       }
     }
   });
