@@ -534,7 +534,9 @@ export const getPrimePartSetType = (itemName: string): PrimeSet['type'] | null =
   // Extract the prime set name from the item name
   // Pattern: "Wisp Prime Chassis" -> "Wisp Prime"
   // Pattern: "Acceltra Prime Barrel" -> "Acceltra Prime"
-  const words = itemName.split(' ');
+  // Also handle underscore format: "wisp_prime_chassis" -> "Wisp Prime"
+  const normalizedName = itemName.replace(/_/g, ' ');
+  const words = normalizedName.split(' ');
   const primeIndex = words.findIndex(w => w.toLowerCase() === 'prime');
   
   if (primeIndex === -1 || primeIndex === 0) {
@@ -544,12 +546,27 @@ export const getPrimePartSetType = (itemName: string): PrimeSet['type'] | null =
   // Extract set name: everything up to and including "Prime"
   const setName = words.slice(0, primeIndex + 1).join(' ');
   
-  // Find matching set
-  const matchingSet = primeSets.find(set => 
-    set.name.toLowerCase() === setName.toLowerCase()
-  );
+  // Find matching set - handle both raw JSON format (with category) and transformed PrimeSet format (with type)
+  const matchingSet = primeSets.find((set: any) => {
+    const setNameLower = setName.toLowerCase();
+    const setNameInData = (set.name || '').toLowerCase();
+    return setNameInData === setNameLower;
+  });
   
-  return matchingSet ? matchingSet.type : null;
+  if (!matchingSet) {
+    return null;
+  }
+  
+  // Handle both raw JSON format (category field) and transformed PrimeSet format (type field)
+  if (matchingSet.type) {
+    // Already transformed PrimeSet object
+    return matchingSet.type;
+  } else if (matchingSet.category) {
+    // Raw JSON format - map category to type
+    return mapCategoryToType(matchingSet.category);
+  }
+  
+  return null;
 };
 
 /**

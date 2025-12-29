@@ -680,6 +680,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     if (!activeFilters.has('all')) {
       filtered = filtered.filter(p => {
         // Check status filters (mutually exclusive - OR logic)
+        // "built" and "non_priority" are mutually exclusive - when one is active, the other is disabled
         const builtFilter = activeFilters.has('built');
         const plannerFilter = activeFilters.has('planner');
         const priorityFilter = activeFilters.has('priority');
@@ -693,6 +694,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           const isNonPriority = !isBuilt && !isPriority; // Not built and not priority
 
           // OR logic: match if any active status filter matches
+          // Note: "built" and "non_priority" are mutually exclusive by design (a set can't be both)
           statusMatch = (builtFilter && isBuilt) ||
                        (plannerFilter && isPlanned) ||
                        (priorityFilter && isPriority) ||
@@ -792,7 +794,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Remove "all" if selecting specific filters
         updated.delete('all');
 
-        // Special case: "Built", "Not Built", "Priority", and "Non-Priority" are mutually exclusive
+        // Special case: Status filters are mutually exclusive (OR logic)
+        // "Built" and "Non-Priority" should disable each other when activated
         if (filter === 'built') {
           updated.delete('planner');
           updated.delete('priority');
@@ -806,6 +809,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           updated.delete('planner');
           updated.delete('non_priority');
         } else if (filter === 'non_priority') {
+          // When activating "non_priority", disable "built" and other status filters
           updated.delete('built');
           updated.delete('planner');
           updated.delete('priority');
