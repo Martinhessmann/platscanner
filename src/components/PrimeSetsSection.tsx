@@ -679,8 +679,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     // Apply all active filters
     if (!activeFilters.has('all')) {
       filtered = filtered.filter(p => {
-        // Check status filters (mutually exclusive - OR logic)
-        // "built" and "non_priority" are mutually exclusive - when one is active, the other is disabled
+        // Check status filters
         const builtFilter = activeFilters.has('built');
         const plannerFilter = activeFilters.has('planner');
         const priorityFilter = activeFilters.has('priority');
@@ -694,7 +693,8 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           const isNonPriority = !isBuilt && !isPriority; // Not built and not priority
 
           // OR logic: match if any active status filter matches
-          // Note: "built" and "non_priority" are mutually exclusive by design (a set can't be both)
+          // "built" and "non_priority" can be combined (show all sellable sets)
+          // When both are active, show sets that are EITHER built OR non-priority
           statusMatch = (builtFilter && isBuilt) ||
                        (plannerFilter && isPlanned) ||
                        (priorityFilter && isPriority) ||
@@ -794,26 +794,22 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
         // Remove "all" if selecting specific filters
         updated.delete('all');
 
-        // Special case: Status filters are mutually exclusive (OR logic)
-        // "Built" and "Non-Priority" should disable each other when activated
-        if (filter === 'built') {
-          updated.delete('planner');
-          updated.delete('priority');
-          updated.delete('non_priority');
-        } else if (filter === 'planner') {
+        // Special case: Some status filters are mutually exclusive
+        // "Planner" and "Priority" are mutually exclusive with others
+        // BUT "Built" and "Non-Priority" CAN be combined (to show all sellable sets)
+        if (filter === 'planner') {
+          // Planner conflicts with built, priority, and non_priority
           updated.delete('built');
           updated.delete('priority');
           updated.delete('non_priority');
         } else if (filter === 'priority') {
-          updated.delete('built');
+          // Priority conflicts with planner, built, and non_priority
           updated.delete('planner');
+          updated.delete('built');
           updated.delete('non_priority');
-        } else if (filter === 'non_priority') {
-          // When activating "non_priority", disable "built" and other status filters
-          updated.delete('built');
-          updated.delete('planner');
-          updated.delete('priority');
         }
+        // Note: "built" and "non_priority" can be active simultaneously
+        // This allows showing all sellable sets (built + non-priority)
 
         // Toggle the specific filter
         if (updated.has(filter)) {
