@@ -671,7 +671,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                     <div className="flex items-center justify-center gap-1">
                       <Zap size={12} className="text-gray-300" />
                       <span className="font-semibold text-gray-300">
-                        {item.price && item.price > 0 ? `${item.price}p` : (isPrimePartTradeable(item.name) ? 'No buyers' : 'Not Tradeable')}
+                        {item.price && item.price > 0 ? `${item.price}p` : 'No buyers'}
                         {item.average && item.average !== item.price && (
                           <span className="text-gray-500 ml-1">/ {item.average}p</span>
                         )}
@@ -770,7 +770,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                   <span className="flex items-center gap-1 text-gray-600 text-xs">
                     <MessageCircle size={10} />
                     <span className="hidden sm:inline">
-                      {isItemReserved(item.name, 'prime_parts').reserved ? "Reserved" : (isPrimePartTradeable(item.name) ? "No buyers" : "Not Tradeable")}
+                      {isItemReserved(item.name, 'prime_parts').reserved ? "Reserved" : "No buyers"}
                     </span>
                   </span>
                 )}

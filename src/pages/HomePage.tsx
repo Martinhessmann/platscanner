@@ -1146,8 +1146,19 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           updatedItem = basicItem;
         }
       } else {
-        // For prime parts, just fetch basic price data
-        updatedItem = await fetchSinglePriceOnly(item);
+        // For prime parts, skip fetching if it's a built warframe part (non-tradeable)
+        if (!isPrimePartTradeable(itemName)) {
+          console.log(`>>> [HomePage] Skipping refresh for built warframe part (non-tradeable): ${itemName} <<<`);
+          updatedItem = {
+            ...item,
+            price: 0,
+            status: 'loaded' as const,
+            error: undefined
+          };
+        } else {
+          // For tradeable prime parts, fetch basic price data
+          updatedItem = await fetchSinglePriceOnly(item);
+        }
       }
 
       console.log(`>>> [HomePage] Fetched updated item: ${updatedItem.name}, status: ${updatedItem.status}, price: ${updatedItem.price} <<<`);
@@ -1219,7 +1230,16 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         try {
           let updatedItem: DetectedItem;
 
-          if (category === 'relics') {
+          // Skip fetching for built warframe parts (non-tradeable)
+          if (category === 'prime_parts' && !isPrimePartTradeable(item.name)) {
+            console.log(`>>> [HomePage] Category refresh skipping built warframe part (non-tradeable): ${item.name} <<<`);
+            updatedItem = {
+              ...item,
+              price: 0,
+              status: 'loaded' as const,
+              error: undefined
+            };
+          } else if (category === 'relics') {
             // For relics, fetch basic price data AND calculate relic value analysis
             const basicItem = await fetchSinglePriceOnly(item);
 
