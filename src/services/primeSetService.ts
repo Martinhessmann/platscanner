@@ -629,6 +629,7 @@ export const isPrimePartTradeable = (itemName: string): boolean => {
 // NEW: Calculate the total market value of owned individual parts
 // Excludes built warframe parts (non-blueprint chassis/systems/neuroptics) as they cannot be traded
 // If both built part and blueprint exist, prefer blueprint (tradeable)
+// CRITICAL: Only counts parts with buyers (hasBuyers === true) - parts without buyers cannot be sold
 const calculateIndividualPartsValue = (
   ownedParts: string[],
   primePartsInventory: DetectedItem[],
@@ -673,7 +674,12 @@ const calculateIndividualPartsValue = (
       return; // Built warframe component cannot be traded
     }
 
-    if (inventoryItem && inventoryItem.price && inventoryItem.price > 0) {
+    // CRITICAL: Only count parts that have buyers AND a price > 0
+    // Parts without buyers cannot be sold, so they have no value
+    if (inventoryItem && 
+        inventoryItem.price && 
+        inventoryItem.price > 0 && 
+        inventoryItem.hasBuyers === true) {
       const quantity = inventoryItem.quantity || 1;
       totalValue += inventoryItem.price * quantity;
     }
@@ -796,6 +802,10 @@ const calculateInvestmentAnalysis = (
 // If we can't get a real price from the market or inventory, use 0
 
 // NEW: Enhanced strategy determination with investment analysis
+// Smart formula that considers:
+// 1. Parts with buyers vs no buyers (unsellable parts)
+// 2. Set with buyers vs no buyers
+// 3. Real sellable value comparison
 const determineOptimalStrategyWithInvestment = (
   setProgress: SetProgress,
   individualPartsValue: number,
@@ -812,6 +822,85 @@ const determineOptimalStrategyWithInvestment = (
     // Only recommend buying if there are missing parts to buy
     if (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0) {
       return 'BUY_MISSING';
+    }
+  }
+
+  // SMART FORMULA: Check if set has buyers
+  const setHasBuyers = setProgress.completeSetBuyerUsername != null || 
+                       (setProgress.completeSetBuyerQuantity != null && setProgress.completeSetBuyerQuantity > 0) ||
+                       completeSetPrice > 0; // If price > 0, assume buyers exist (from market data)
+
+  // Count how many owned parts have buyers vs no buyers
+  const primePartsInventory = getCategorizedInventory().prime_parts || [];
+  let partsWithBuyers = 0;
+  let partsWithoutBuyers = 0;
+  
+  setProgress.ownedParts.forEach(partName => {
+    let inventoryItem: DetectedItem | undefined;
+    
+    if (setProgress.set.type === 'Warframe') {
+      const blueprintItem = primePartsInventory.find(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName === `${lowerPartName} blueprint` || 
+               lowerItemName === `${lowerPartName.replace(/\s+/g, '_')}_blueprint`;
+      });
+      inventoryItem = blueprintItem || primePartsInventory.find(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName === lowerPartName || lowerItemName === lowerPartName.replace(/\s+/g, '_');
+      });
+    } else {
+      inventoryItem = primePartsInventory.find(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+      });
+    }
+
+    if (inventoryItem && 
+        !isBuiltWarframeInventoryItem(inventoryItem.name, setProgress.set.type)) {
+      if (inventoryItem.hasBuyers === true && inventoryItem.price && inventoryItem.price > 0) {
+        partsWithBuyers++;
+      } else {
+        partsWithoutBuyers++;
+      }
+    }
+  });
+
+  // SMART DECISION LOGIC:
+  // 1. If set has buyers and individualPartsValue < set price, sell the set
+  //    (This catches cases like Bronco Prime where some parts have no buyers)
+  // 2. If set has buyers and individualPartsValue >= set price, sell parts
+  // 3. If set has no buyers but parts have buyers, sell parts
+  // 4. If some parts have no buyers, heavily favor selling the set (if set has buyers)
+  // 5. If NO parts have buyers but set has buyers, definitely sell the set
+  
+  console.log(`🎯 [Strategy Logic] ${setProgress.set.name}: partsValue=${individualPartsValue}p, setPrice=${completeSetPrice}p, setHasBuyers=${setHasBuyers}, partsWithBuyers=${partsWithBuyers}, partsWithoutBuyers=${partsWithoutBuyers}`);
+  
+  if (setHasBuyers) {
+    // Set can be sold - compare real sellable value
+    if (individualPartsValue === 0 && completeSetPrice > 0) {
+      // No parts can be sold individually, but set can be sold - definitely sell the set
+      console.log(`🎯 [Strategy] ${setProgress.set.name}: No parts sellable individually, but set can be sold → BUILD_AND_SELL`);
+      return 'BUILD_AND_SELL';
+    } else if (individualPartsValue < completeSetPrice) {
+      // Set is worth more than sellable parts - sell the set
+      console.log(`🎯 [Strategy] ${setProgress.set.name}: Set price (${completeSetPrice}p) > parts value (${individualPartsValue}p) → BUILD_AND_SELL`);
+      return 'BUILD_AND_SELL';
+    } else if (partsWithoutBuyers > 0 && completeSetPrice > 0) {
+      // Some parts can't be sold individually, but set can be sold
+      // If set price is reasonable (at least 50% of parts value), sell the set
+      // OR if more than half the parts have no buyers, sell the set
+      const partsValueRatio = individualPartsValue > 0 ? completeSetPrice / individualPartsValue : 1;
+      const unsellableRatio = partsWithoutBuyers / (partsWithBuyers + partsWithoutBuyers);
+      
+      console.log(`🎯 [Strategy] ${setProgress.set.name}: Some parts unsellable (${partsWithoutBuyers}/${partsWithBuyers + partsWithoutBuyers}), valueRatio=${partsValueRatio.toFixed(2)}, unsellableRatio=${unsellableRatio.toFixed(2)}`);
+      
+      if (partsValueRatio >= 0.5 || unsellableRatio > 0.5) {
+        console.log(`🎯 [Strategy] ${setProgress.set.name}: Unsellable parts detected, set price reasonable → BUILD_AND_SELL`);
+        return 'BUILD_AND_SELL';
+      }
     }
   }
 
