@@ -85,7 +85,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set());
   const [refreshingSet, setRefreshingSet] = useState<string | null>(null);
   const [copiedSetId, setCopiedSetId] = useState<string | null>(null);
-  const [sortField, setSortField] = useState<'priority' | 'roi' | 'setValue' | 'partsValue' | 'completion'>('priority');
+  const [sortField, setSortField] = useState<'priority' | 'roi' | 'setValue' | 'partsValue' | 'completion' | 'investment'>('priority');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showSortOptions, setShowSortOptions] = useState(false);
 
@@ -787,6 +787,13 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
           comparison = aROI - bROI;
           break;
         }
+        case 'investment': {
+          // Sort by investment needed (totalInvestmentCost from investmentAnalysis)
+          const aInvestment = a.investmentAnalysis?.totalInvestmentCost ?? 0;
+          const bInvestment = b.investmentAnalysis?.totalInvestmentCost ?? 0;
+          comparison = aInvestment - bInvestment;
+          break;
+        }
         case 'setValue': {
           // Sort by total set value (completeSetPrice)
           const aValue = a.completeSetPrice ?? 0;
@@ -859,7 +866,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const sortedSets = filteredSets();
 
   // Sort handler
-  const handleSort = (field: 'priority' | 'roi' | 'setValue' | 'partsValue' | 'completion') => {
+  const handleSort = (field: 'priority' | 'roi' | 'setValue' | 'partsValue' | 'completion' | 'investment') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -873,6 +880,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const getSortLabel = () => {
     switch (sortField) {
       case 'roi': return 'ROI';
+      case 'investment': return 'Investment';
       case 'setValue': return 'Set Value';
       case 'partsValue': return 'Parts Value';
       case 'completion': return 'Completion';
@@ -1008,6 +1016,17 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   >
                     <TrendingUp size={12} className="text-green-400" />
                     ROI {sortField === 'roi' && (sortDirection === 'asc' ? '↑' : '↓')}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleSort('investment');
+                    }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <ShoppingCart size={12} className="text-orange-400" />
+                    Investment {sortField === 'investment' && (sortDirection === 'asc' ? '↑' : '↓')}
                   </button>
                   <button
                     onClick={(e) => {

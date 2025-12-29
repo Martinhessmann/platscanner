@@ -757,9 +757,10 @@ const calculateInvestmentAnalysis = (
 
   const totalInvestmentCost = buyInvestmentCost + relicInvestmentCost;
   
-  // FIXED ROI: Complete set buyer price - sum of missing parts seller prices
+  // FIXED ROI: Complete set buyer price - investment cost - current parts value (opportunity cost)
   // This represents the actual profit if you buy missing parts and sell the complete set
-  const expectedProfit = potentialValue - totalInvestmentCost;
+  // We subtract currentValue because selling the set means giving up the ability to sell individual parts
+  const expectedProfit = potentialValue - totalInvestmentCost - currentValue;
   const roiPercentage = totalInvestmentCost > 0 ? (expectedProfit / totalInvestmentCost) * 100 : 0;
 
   // Determine recommended action
