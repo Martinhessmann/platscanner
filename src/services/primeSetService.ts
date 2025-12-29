@@ -522,6 +522,37 @@ const isBuiltWarframeInventoryItem = (itemName: string, setType: PrimeSet['type'
 };
 
 /**
+ * Get the set type (Warframe, Primary, Secondary, Melee, etc.) for a prime part
+ * Returns null if the set cannot be determined
+ */
+export const getPrimePartSetType = (itemName: string): PrimeSet['type'] | null => {
+  const primeSets = getStaticPrimeSetsCache();
+  if (!primeSets || primeSets.length === 0) {
+    return null;
+  }
+  
+  // Extract the prime set name from the item name
+  // Pattern: "Wisp Prime Chassis" -> "Wisp Prime"
+  // Pattern: "Acceltra Prime Barrel" -> "Acceltra Prime"
+  const words = itemName.split(' ');
+  const primeIndex = words.findIndex(w => w.toLowerCase() === 'prime');
+  
+  if (primeIndex === -1 || primeIndex === 0) {
+    return null;
+  }
+  
+  // Extract set name: everything up to and including "Prime"
+  const setName = words.slice(0, primeIndex + 1).join(' ');
+  
+  // Find matching set
+  const matchingSet = primeSets.find(set => 
+    set.name.toLowerCase() === setName.toLowerCase()
+  );
+  
+  return matchingSet ? matchingSet.type : null;
+};
+
+/**
  * Check if a prime part item is tradeable
  * Built warframe components (chassis, systems, neuroptics without blueprint) are NOT tradeable
  * This is a standalone function that doesn't require set type context

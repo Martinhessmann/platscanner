@@ -15,12 +15,14 @@ import {
   Star,
   Circle,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Sword,
+  Crosshair
 } from 'lucide-react';
 import { isItemReserved } from '../services/buildPlanService';
 import { getImageUrlSync } from '../services/unifiedImageService';
 import LastRefreshInfo from './LastRefreshInfo';
-import { isPrimePartTradeable } from '../services/primeSetService';
+import { isPrimePartTradeable, getPrimePartSetType } from '../services/primeSetService';
 
 interface PrimePartsProps {
   results: DetectedItem[];
@@ -112,6 +114,19 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
         if (filterId === 'below_average') newFilters.delete('above_average');
         if (filterId === 'reserved') newFilters.delete('not_reserved');
         if (filterId === 'not_reserved') newFilters.delete('reserved');
+        // Type filters are mutually exclusive
+        if (filterId === 'warframes') {
+          newFilters.delete('weapons');
+          newFilters.delete('companions');
+        }
+        if (filterId === 'weapons') {
+          newFilters.delete('warframes');
+          newFilters.delete('companions');
+        }
+        if (filterId === 'companions') {
+          newFilters.delete('warframes');
+          newFilters.delete('weapons');
+        }
         if (newFilters.has(filterId)) {
           newFilters.delete(filterId);
         } else {
@@ -142,6 +157,18 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
           case 'prime_junk': {
             const ratio = calculateRatio(item);
             return ratio < 1.0 && (item.ducats || 0) > 0;
+          }
+          case 'warframes': {
+            const setType = getPrimePartSetType(item.name);
+            return setType === 'Warframe';
+          }
+          case 'weapons': {
+            const setType = getPrimePartSetType(item.name);
+            return setType === 'Primary' || setType === 'Secondary' || setType === 'Melee';
+          }
+          case 'companions': {
+            const setType = getPrimePartSetType(item.name);
+            return setType === 'Sentinel' || setType === 'Archwing' || setType === 'Companion';
           }
           default: return true;
         }
@@ -417,6 +444,54 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 {(results || []).filter(i => {
                   try {
                     return i && i.name && !isItemReserved(i.name, 'prime_parts').reserved;
+                  } catch {
+                    return false;
+                  }
+                }).length}
+              </span>
+            </button>
+            
+            {/* Type Filters */}
+            <button
+              onClick={() => toggleFilter('warframes')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('warframes')
+                  ? 'bg-cyan-900/50 border-cyan-500/50 text-cyan-400 ring-1 ring-cyan-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Sword size={16} />
+              <span>Warframes</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('warframes') ? 'bg-cyan-800/50 text-cyan-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {(results || []).filter(i => {
+                  try {
+                    return i && i.name && getPrimePartSetType(i.name) === 'Warframe';
+                  } catch {
+                    return false;
+                  }
+                }).length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => toggleFilter('weapons')}
+              className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
+                activeFilters.has('weapons')
+                  ? 'bg-red-900/50 border-red-500/50 text-red-400 ring-1 ring-red-500/30'
+                  : 'bg-gray-900/30 border-gray-700/50 text-gray-300 hover:bg-gray-800/50 hover:border-gray-600/50 hover:text-white'
+              }`}
+            >
+              <Crosshair size={16} />
+              <span>Weapons</span>
+              <span className={`px-1.5 py-0.5 rounded text-xs ${
+                activeFilters.has('weapons') ? 'bg-red-800/50 text-red-300' : 'bg-gray-800/50 text-gray-400'
+              }`}>
+                {(results || []).filter(i => {
+                  try {
+                    const setType = i && i.name ? getPrimePartSetType(i.name) : null;
+                    return setType === 'Primary' || setType === 'Secondary' || setType === 'Melee';
                   } catch {
                     return false;
                   }
