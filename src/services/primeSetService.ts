@@ -858,11 +858,17 @@ const determineOptimalStrategyWithInvestment = (
     return 'INSUFFICIENT_DATA';
   }
 
-  // If we have investment analysis and it shows good ROI (buy missing parts to complete set)
-  if (investmentAnalysis && investmentAnalysis.expectedProfit > 5) {
-    // Only recommend buying if there are missing parts to buy
-    if (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0) {
+  // PRIORITY: If there are missing parts, check if buying them is profitable
+  // Only recommend BUY_MISSING if buying missing parts is profitable (expectedProfit > 0)
+  // This takes priority over SELL_SET because completing the set is usually better than selling parts
+  if (investmentAnalysis && 
+      (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0)) {
+    // If buying missing parts is profitable (even slightly), recommend BUY_MISSING
+    if (investmentAnalysis.expectedProfit > 0) {
+      console.log(`🎯 [Strategy] ${setProgress.set.name}: Missing parts detected, expectedProfit=${investmentAnalysis.expectedProfit}p → BUY_MISSING`);
       return 'BUY_MISSING';
+    } else {
+      console.log(`🎯 [Strategy] ${setProgress.set.name}: Missing parts detected but not profitable (expectedProfit=${investmentAnalysis.expectedProfit}p), will check SELL_SET`);
     }
   }
 
@@ -910,25 +916,38 @@ const determineOptimalStrategyWithInvestment = (
   });
 
   // SMART DECISION LOGIC:
-  // 1. If set has buyers and individualPartsValue < set price, sell the set
+  // PRIORITY ORDER:
+  // 1. If there are missing parts AND buying them is profitable → BUY_MISSING (already checked above)
+  // 2. If set has buyers and individualPartsValue < set price, sell the set
   //    (This catches cases like Bronco Prime where some parts have no buyers)
-  // 2. If set has buyers and individualPartsValue >= set price, sell parts
-  // 3. If set has no buyers but parts have buyers, sell parts
-  // 4. If some parts have no buyers, heavily favor selling the set (if set has buyers)
-  // 5. If NO parts have buyers but set has buyers, definitely sell the set
+  // 3. If set has buyers and individualPartsValue >= set price, sell parts
+  // 4. If set has no buyers but parts have buyers, sell parts
+  // 5. If some parts have no buyers, heavily favor selling the set (if set has buyers)
+  // 6. If NO parts have buyers but set has buyers, definitely sell the set
   
-  console.log(`🎯 [Strategy Logic] ${setProgress.set.name}: partsValue=${individualPartsValue}p, setPrice=${completeSetPrice}p, setHasBuyers=${setHasBuyers}, partsWithBuyers=${partsWithBuyers}, partsWithoutBuyers=${partsWithoutBuyers}`);
+  console.log(`🎯 [Strategy Logic] ${setProgress.set.name}: partsValue=${individualPartsValue}p, setPrice=${completeSetPrice}p, setHasBuyers=${setHasBuyers}, partsWithBuyers=${partsWithBuyers}, partsWithoutBuyers=${partsWithoutBuyers}, hasMissingParts=${investmentAnalysis ? (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0) : false}`);
   
   if (setHasBuyers) {
     // Set can be sold - compare real sellable value
+    // BUT: Only recommend SELL_SET if there are NO missing parts OR buying them is not profitable
+    const hasMissingParts = investmentAnalysis && 
+      (investmentAnalysis.missingPartsToBuy.length > 0 || investmentAnalysis.missingPartsFromRelics.length > 0);
+    const buyingNotProfitable = !investmentAnalysis || investmentAnalysis.expectedProfit <= 0;
+    
     if (individualPartsValue === 0 && completeSetPrice > 0) {
       // No parts can be sold individually, but set can be sold - definitely sell the set
-      console.log(`🎯 [Strategy] ${setProgress.set.name}: No parts sellable individually, but set can be sold → SELL_SET`);
-      return 'SELL_SET';
+      // UNLESS buying missing parts is profitable
+      if (!hasMissingParts || buyingNotProfitable) {
+        console.log(`🎯 [Strategy] ${setProgress.set.name}: No parts sellable individually, but set can be sold → SELL_SET`);
+        return 'SELL_SET';
+      }
     } else if (individualPartsValue < completeSetPrice) {
       // Set is worth more than sellable parts - sell the set
-      console.log(`🎯 [Strategy] ${setProgress.set.name}: Set price (${completeSetPrice}p) > parts value (${individualPartsValue}p) → SELL_SET`);
-      return 'SELL_SET';
+      // UNLESS buying missing parts is profitable (completing set is better than selling incomplete)
+      if (!hasMissingParts || buyingNotProfitable) {
+        console.log(`🎯 [Strategy] ${setProgress.set.name}: Set price (${completeSetPrice}p) > parts value (${individualPartsValue}p) → SELL_SET`);
+        return 'SELL_SET';
+      }
     } else if (partsWithoutBuyers > 0 && completeSetPrice > 0) {
       // Some parts can't be sold individually, but set can be sold
       // If set price is reasonable (at least 50% of parts value), sell the set
