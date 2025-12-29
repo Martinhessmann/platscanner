@@ -261,17 +261,23 @@ const fetchViaDirect = async (normalizedName: string) => {
       order.visible
     );
 
+    const price = buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0;
+    
     return {
       name: itemDetails.en.item_name,
       thumb: itemDetails.thumb,
       ducats: itemDetails.ducats || 0,
-      price: buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0,
+      price: price,
       volume: ordersData.payload.orders.length,
       average: allValidOrders.length > 0
         ? Math.round(allValidOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / allValidOrders.length)
         : 0,
       buyerUsername: highestBidder?.user?.ingame_name || null,
       buyerQuantity: highestBidder?.quantity || 0,
+      // FIXED: hasBuyers should be true if price > 0 (price comes from buy orders)
+      hasBuyers: price > 0 || buyOrders.length > 0,
+      buyerCount: buyOrders.length,
+      sellerCount: sellOrders.length,
       // Seller data for investment cost calculations
       sellerPrice: sellOrders.length > 0 ? Math.min(...sellOrders.map((o: any) => o.platinum)) : 0,
       sellerUsername: lowestSeller?.user?.ingame_name || null,
