@@ -19,6 +19,8 @@ A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots 
 - 🛡️ **Syndicate Market Analysis**: Compare plat/standing ratios to optimize standing spending
 - 🔄 **Unified Refresh System**: Consistent refresh controls across all inventory modules with progress tracking
 - 📊 **Enhanced Market Data**: Fixed average calculation for more accurate price comparisons
+- 🛡️ **Reservation Debugging**: Comprehensive logging system to track and debug item reservations
+- 🎯 **Type Filtering**: Filter Prime Parts by Warframes, Weapons, and other categories
 - 📱 **Mobile-First Design**: Optimized interface with touch-friendly controls
 - 🎨 **Warframe-Themed UI**: Beautiful interface matching the game's aesthetic
 - ⚡ **Reliable Processing**: Robust queue system with automatic error handling
