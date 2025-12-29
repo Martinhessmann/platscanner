@@ -83,7 +83,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
   const [copiedItems, setCopiedItems] = useState<Set<string>>(new Set());
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set());
-  const [refreshingSet, setRefreshingSet] = useState<string | null>(null);
+  const [refreshingSets, setRefreshingSets] = useState<Set<string>>(new Set());
   const [copiedSetId, setCopiedSetId] = useState<string | null>(null);
   const [sortField, setSortField] = useState<'priority' | 'roi' | 'setValue' | 'partsValue' | 'completion' | 'investment'>('priority');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -159,20 +159,31 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
     setIsRefreshing(true);
 
     // Get currently visible sets based on filters
+    // If filters are active (not "all"), only refresh filtered sets
+    // Otherwise refresh all sets
     const visibleSets = filteredSets();
     const visibleSetNames = visibleSets.map(p => p.set.name);
+    
+    // If no filters active (showing all), refresh all sets
+    // Otherwise only refresh filtered sets (QoL feature)
+    const setsToRefresh = activeFilters.has('all') 
+      ? setProgress.map(p => p.set.name) 
+      : visibleSetNames;
 
-    setRefreshProgress({ current: 0, total: visibleSetNames.length });
+    setRefreshProgress({ current: 0, total: setsToRefresh.length });
 
     try {
+      // Mark all sets as refreshing
+      setRefreshingSets(new Set(setsToRefresh));
+      
       // Process sets one by one to provide progressive progress updates
       const updatedProgresses: SetProgress[] = [];
       
-      for (let i = 0; i < visibleSetNames.length; i++) {
-        const setName = visibleSetNames[i];
+      for (let i = 0; i < setsToRefresh.length; i++) {
+        const setName = setsToRefresh[i];
         
         // Update progress
-        setRefreshProgress({ current: i, total: visibleSetNames.length });
+        setRefreshProgress({ current: i, total: setsToRefresh.length });
         
         try {
           // Refresh individual set market data
@@ -197,7 +208,10 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       }
       
       // Final progress update
-      setRefreshProgress({ current: visibleSetNames.length, total: visibleSetNames.length });
+      setRefreshProgress({ current: setsToRefresh.length, total: setsToRefresh.length });
+      
+      // Clear refreshing state
+      setRefreshingSets(new Set());
       
       // Trigger a refresh to ensure all updates are reflected
       setRefreshKey((prev: number) => prev + 1);
@@ -215,8 +229,18 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
   };
 
   const handleRefreshIndividualSet = async (setNameOrProgress: string | SetProgress) => {
+    const setName = typeof setNameOrProgress === 'string' ? setNameOrProgress : setNameOrProgress.set.name;
+    
+    // Prevent duplicate refresh requests
+    if (refreshingSets.has(setName)) {
+      console.log(`⏭️ [Refresh] ${setName} already refreshing, skipping duplicate request`);
+      return;
+    }
+    
     try {
-      const setName = typeof setNameOrProgress === 'string' ? setNameOrProgress : setNameOrProgress.set.name;
+      // Mark as refreshing
+      setRefreshingSets(prev => new Set(prev).add(setName));
+      
       const updatedProgress = await refreshIndividualSetMarketData(setName, primePartsInventory, relicsInventory);
 
       if (updatedProgress) {
@@ -227,6 +251,13 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
       }
     } catch (error) {
       console.error('Failed to refresh individual set:', error);
+    } finally {
+      // Clear refreshing state
+      setRefreshingSets(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(setName);
+        return newSet;
+      });
     }
   };
 
@@ -1532,7 +1563,7 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                         : 'bg-gray-800/30 border-gray-600/30 text-gray-400';
                     })()
                   }`}>
-                    💰 {progress.recommendedStrategy === 'SELL_PARTS' ? 'SELL PARTS' : progress.recommendedStrategy === 'BUY_MISSING' ? 'BUY MISSING PARTS TO COMPLETE SET' : progress.recommendedStrategy.replace(/_/g, ' ')}
+                    💰 {progress.recommendedStrategy === 'SELL_PARTS' ? 'SELL PARTS' : progress.recommendedStrategy === 'SELL_SET' ? 'SELL SET' : progress.recommendedStrategy === 'BUY_MISSING' ? 'BUY MISSING PARTS TO COMPLETE SET' : progress.recommendedStrategy.replace(/_/g, ' ')}
                     {(() => {
                       // Show ROI if available from investment analysis
                       const profit = progress.investmentAnalysis?.expectedProfit ?? 0;
@@ -1610,24 +1641,19 @@ const PrimeSetsSection: React.FC<PrimeSetsProps> = ({
                   <div className="flex items-center gap-2">
                     {/* Refresh Button */}
                     <button
-                      onClick={async (e) => {
+                      onClick={(e) => {
                         e.stopPropagation();
-                        setRefreshingSet(progress.set.name);
-                        try {
-                          await handleRefreshIndividualSet(progress.set.name);
-                        } finally {
-                          setRefreshingSet(null);
-                        }
+                        handleRefreshIndividualSet(progress);
                       }}
-                      disabled={refreshingSet === progress.set.name}
+                      disabled={refreshingSets.has(progress.set.name)}
                       className={`p-1 rounded text-xs transition-colors ${
-                        refreshingSet === progress.set.name
+                        refreshingSets.has(progress.set.name)
                           ? 'text-gray-500 cursor-not-allowed'
                           : 'text-tenno-blue hover:bg-gray-700/50'
                       }`}
                       title="Refresh market prices"
                     >
-                      <RefreshCw size={12} className={refreshingSet === progress.set.name ? 'animate-spin' : ''} />
+                      <RefreshCw size={12} className={refreshingSets.has(progress.set.name) ? 'animate-spin' : ''} />
                     </button>
                   </div>
 

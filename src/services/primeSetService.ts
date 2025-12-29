@@ -45,7 +45,7 @@ export interface SetProgress {
   completeSetBuyerQuantity?: number;
   individualPartsValue?: number;
   profitDifference?: number;
-  recommendedStrategy?: 'SELL_PARTS' | 'BUILD_AND_SELL' | 'KEEP_FOR_MASTERY' | 'OPEN_RELICS' | 'BUY_MISSING' | 'HYBRID_STRATEGY' | 'INSUFFICIENT_DATA';
+  recommendedStrategy?: 'SELL_PARTS' | 'SELL_SET' | 'KEEP_FOR_MASTERY' | 'OPEN_RELICS' | 'BUY_MISSING' | 'HYBRID_STRATEGY' | 'INSUFFICIENT_DATA';
   setMarketStatus?: 'loaded' | 'loading' | 'error';
   setMarketError?: string;
   // NEW: Investment Analysis
@@ -882,12 +882,12 @@ const determineOptimalStrategyWithInvestment = (
     // Set can be sold - compare real sellable value
     if (individualPartsValue === 0 && completeSetPrice > 0) {
       // No parts can be sold individually, but set can be sold - definitely sell the set
-      console.log(`🎯 [Strategy] ${setProgress.set.name}: No parts sellable individually, but set can be sold → BUILD_AND_SELL`);
-      return 'BUILD_AND_SELL';
+      console.log(`🎯 [Strategy] ${setProgress.set.name}: No parts sellable individually, but set can be sold → SELL_SET`);
+      return 'SELL_SET';
     } else if (individualPartsValue < completeSetPrice) {
       // Set is worth more than sellable parts - sell the set
-      console.log(`🎯 [Strategy] ${setProgress.set.name}: Set price (${completeSetPrice}p) > parts value (${individualPartsValue}p) → BUILD_AND_SELL`);
-      return 'BUILD_AND_SELL';
+      console.log(`🎯 [Strategy] ${setProgress.set.name}: Set price (${completeSetPrice}p) > parts value (${individualPartsValue}p) → SELL_SET`);
+      return 'SELL_SET';
     } else if (partsWithoutBuyers > 0 && completeSetPrice > 0) {
       // Some parts can't be sold individually, but set can be sold
       // If set price is reasonable (at least 50% of parts value), sell the set
@@ -898,8 +898,8 @@ const determineOptimalStrategyWithInvestment = (
       console.log(`🎯 [Strategy] ${setProgress.set.name}: Some parts unsellable (${partsWithoutBuyers}/${partsWithBuyers + partsWithoutBuyers}), valueRatio=${partsValueRatio.toFixed(2)}, unsellableRatio=${unsellableRatio.toFixed(2)}`);
       
       if (partsValueRatio >= 0.5 || unsellableRatio > 0.5) {
-        console.log(`🎯 [Strategy] ${setProgress.set.name}: Unsellable parts detected, set price reasonable → BUILD_AND_SELL`);
-        return 'BUILD_AND_SELL';
+        console.log(`🎯 [Strategy] ${setProgress.set.name}: Unsellable parts detected, set price reasonable → SELL_SET`);
+        return 'SELL_SET';
       }
     }
   }
