@@ -17,8 +17,10 @@ A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots 
 - 📦 **Persistent Inventory**: Your scanned items save automatically across sessions
 - 🎮 **Extended Item Support**: Scan Prime Parts, Void Relics, and Syndicate Rewards
 - 🛡️ **Syndicate Market Analysis**: Compare plat/standing ratios to optimize standing spending
-- 🔄 **Unified Refresh System**: Consistent refresh controls across all inventory modules with progress tracking
+- 🔄 **Unified Refresh System**: Consistent refresh controls across all inventory modules with progressive progress tracking
 - 📊 **Enhanced Market Data**: Fixed average calculation for more accurate price comparisons
+- 📊 **Prime Sets Sorting**: Sort by ROI, Set Value, Parts Value, Completion, or Priority with ascending/descending options
+- 🎯 **Smart Filtering**: Combine filters to show all sellable sets (built + non-priority) for better trading decisions
 - 🛡️ **Reservation Debugging**: Comprehensive logging system to track and debug item reservations
 - 🎯 **Type Filtering**: Filter Prime Parts by Warframes, Weapons, and other categories
 - 📱 **Mobile-First Design**: Optimized interface with touch-friendly controls
@@ -156,7 +158,11 @@ For detailed technical information, see:
 - [FUTURE_IDEAS.md](FUTURE_IDEAS.md) - Planned features and roadmap
 - [TODO.md](TODO.md) - Open issues and follow-up tasks
 
-### Recent Improvements (2025-10-14)
+### Recent Improvements (2025-12-29)
+- **Prime Sets Sorting**: Added comprehensive sorting options (ROI, Set Value, Parts Value, Completion, Priority)
+- **Progressive Progress Updates**: Prime Sets refresh now shows real-time progress updates (like Prime Parts)
+- **Enhanced Filtering**: Built and Non-Priority filters can be combined to show all sellable sets
+- **Fixed Filter Counts**: Prime Parts Warframes/Weapons filter counts now display correctly
 - **Optimized Static Data Loading**: Eliminated duplicate `primesets.json` loading across services
 - **Centralized Caching**: Single cache manager (`staticDataService`) for all static data
 - **Performance**: 3x faster startup with reduced memory usage

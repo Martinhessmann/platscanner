@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.3] - 2025-12-29
+
+### Fixed
+- **Prime Parts Type Filter Counts**: Fixed issue where Warframes and Weapons filter counts showed 0
+  - Updated `getPrimePartSetType` to handle both raw JSON format (with `category` field) and transformed PrimeSet format (with `type` field)
+  - Added support for underscore-separated item names (e.g., `wisp_prime_chassis`)
+  - Filter counts now correctly display the number of items in each category
+- **Prime Sets Refresh Progress**: Fixed progress bar not updating incrementally during refresh
+  - Progress bar now updates after each set is processed (instead of only at the end)
+  - Provides real-time feedback during long refresh operations
+  - Similar progressive updates as Prime Parts refresh functionality
+
+### Added
+- **Prime Sets Sorting**: New comprehensive sorting options for Prime Sets section
+  - **ROI Sorting**: Sort by expected profit from investment analysis (ascending/descending)
+  - **Set Value Sorting**: Sort by complete set price (ascending/descending)
+  - **Parts Value Sorting**: Sort by current individual parts value (ascending/descending)
+  - **Completion Sorting**: Sort by completion percentage (ascending/descending)
+  - **Priority Sorting**: Smart completion-based sorting (default, with priority sets always first)
+  - Sort dropdown menu in Prime Sets header with visual indicators
+  - Priority sets always appear first regardless of selected sort field
+  - Click same sort option to toggle ascending/descending direction
+
+### Changed
+- **Prime Sets Filter Logic**: Updated filter behavior for better sellable sets management
+  - "Built" and "Non-Priority" filters can now be combined (OR logic)
+  - Allows showing all sellable sets: built sets + non-priority sets you could build but aren't prioritizing
+  - "Planner" and "Priority" filters remain mutually exclusive with others
+  - More flexible filtering for inventory management and trading decisions
+
 ## [1.17.2] - 2025-12-29
 
 ### Added
