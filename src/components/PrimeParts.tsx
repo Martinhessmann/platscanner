@@ -20,9 +20,61 @@ import {
 import { isItemReserved } from '../services/buildPlanService';
 import { getImageUrlSync } from '../services/unifiedImageService';
 import LastRefreshInfo from './LastRefreshInfo';
+import { getPrimeSetsCache } from '../services/staticDataService';
 
-// Helper: treat all prime parts as tradeable in UI
-const isPrimePartTradeable = (): boolean => true;
+// Helper: Check if a prime part is tradeable
+// Built warframe components (chassis, systems, neuroptics without blueprint) are NOT tradeable
+const isPrimePartTradeable = (itemName: string): boolean => {
+  const lowerName = itemName.toLowerCase();
+  
+  // Check if it's a blueprint - blueprints are always tradeable
+  if (lowerName.includes('blueprint')) {
+    return true;
+  }
+  
+  // Check if it's a warframe component (chassis, systems, neuroptics)
+  const warframeComponents = ['chassis', 'systems', 'neuroptics'];
+  const matchingComponent = warframeComponents.find(component => lowerName.includes(component));
+  
+  if (!matchingComponent) {
+    // Not a warframe component, so it's tradeable (weapons, etc.)
+    return true;
+  }
+  
+  // It's a warframe component without "blueprint" - check if it belongs to a warframe set
+  const primeSets = getPrimeSetsCache();
+  if (!primeSets || primeSets.length === 0) {
+    // Can't determine, assume tradeable to be safe
+    return true;
+  }
+  
+  // Extract the prime set name from the item name
+  // Pattern: "Wisp Prime Chassis" -> "Wisp Prime"
+  // Pattern: "Harrow Prime Systems" -> "Harrow Prime"
+  const words = itemName.split(' ');
+  const primeIndex = words.findIndex(w => w.toLowerCase() === 'prime');
+  
+  if (primeIndex === -1 || primeIndex === 0) {
+    // No "Prime" found or it's the first word, assume tradeable
+    return true;
+  }
+  
+  // Extract set name: everything up to and including "Prime"
+  const setName = words.slice(0, primeIndex + 1).join(' ');
+  
+  // Check if this set exists and is a Warframe
+  const matchingSet = primeSets.find(set => 
+    set.name.toLowerCase() === setName.toLowerCase() && set.type === 'Warframe'
+  );
+  
+  if (matchingSet) {
+    // It's a built warframe component - NOT tradeable
+    return false;
+  }
+  
+  // Not found in warframe sets, assume tradeable (might be a weapon component with similar name)
+  return true;
+};
 
 interface PrimePartsProps {
   results: DetectedItem[];
@@ -559,7 +611,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
               {/* Actions */}
               {showActionButtons && (
                 <div className="flex items-center gap-1">
-                      {onRefreshItem && isPrimePartTradeable() && (
+                      {onRefreshItem && isPrimePartTradeable(item.name) && (
                     <button
                       onClick={() => onRefreshItem(item.name)}
                       disabled={item.status === 'loading'}
@@ -587,7 +639,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
             </div>
 
             {/* Price and Info Display */}
-                {isPrimePartTradeable() ? (
+                {isPrimePartTradeable(item.name) ? (
               // Tradeable items: Show full price info
                   <div className="grid grid-cols-4 gap-2 text-sm mb-2">
                 <div className="text-center">
@@ -663,13 +715,13 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
 
                 <div className="text-center">
                   <div className="text-xs text-gray-400 mb-1">Status</div>
-                  <span className="text-xs text-orange-400">Not Tradeable</span>
+                  <span className="text-xs text-orange-400">Built (Not Tradeable)</span>
                 </div>
               </div>
             )}
 
             {/* Market Actions - Only show for tradeable items */}
-                {isPrimePartTradeable() && (
+                {isPrimePartTradeable(item.name) && (
               <div className="flex items-center justify-between pt-2 border-t border-gray-700/50">
                 <div className="flex items-center gap-3">
                   {item.volume && (
