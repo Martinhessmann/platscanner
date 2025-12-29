@@ -662,10 +662,20 @@ const calculateIndividualPartsValue = (
       }
     } else {
       // For weapons, find any matching item
+      // Try multiple matching strategies for better compatibility
       inventoryItem = primePartsInventory.find(item => {
         const lowerItemName = item.name.toLowerCase();
         const lowerPartName = partName.toLowerCase();
-        return lowerItemName === lowerPartName || lowerItemName === `${lowerPartName} blueprint`;
+        // Try exact match
+        if (lowerItemName === lowerPartName) return true;
+        // Try with blueprint suffix
+        if (lowerItemName === `${lowerPartName} blueprint`) return true;
+        // Try underscore format
+        const underscorePartName = lowerPartName.replace(/\s+/g, '_');
+        if (lowerItemName === underscorePartName) return true;
+        // Try underscore with blueprint
+        if (lowerItemName === `${underscorePartName}_blueprint`) return true;
+        return false;
       });
     }
 
@@ -674,17 +684,41 @@ const calculateIndividualPartsValue = (
       return; // Built warframe component cannot be traded
     }
 
-    // CRITICAL: Only count parts that have buyers AND a price > 0
-    // Parts without buyers cannot be sold, so they have no value
-    if (inventoryItem && 
-        inventoryItem.price && 
-        inventoryItem.price > 0 && 
-        inventoryItem.hasBuyers === true) {
-      const quantity = inventoryItem.quantity || 1;
-      totalValue += inventoryItem.price * quantity;
+    // Debug logging for troubleshooting
+    if (!inventoryItem) {
+      console.warn(`💰 [Parts Value] Part "${partName}" not found in inventory (${primePartsInventory.length} items available)`);
+      // Try to find similar items for debugging
+      const similarItems = primePartsInventory.filter(item => {
+        const lowerItemName = item.name.toLowerCase();
+        const lowerPartName = partName.toLowerCase();
+        return lowerItemName.includes(lowerPartName.split(' ').pop() || '') || 
+               lowerPartName.includes(lowerItemName.split(' ').pop() || '');
+      });
+      if (similarItems.length > 0) {
+        console.warn(`💰 [Parts Value] Similar items found: ${similarItems.map(i => i.name).join(', ')}`);
+      }
+    } else {
+      const hasPrice = inventoryItem.price && inventoryItem.price > 0;
+      const hasBuyers = inventoryItem.hasBuyers === true;
+      // FIXED: If price > 0, assume there are buyers (price comes from buyer orders)
+      // hasBuyers might be undefined in some cases, so we check price as primary indicator
+      const shouldCount = hasPrice && (hasBuyers !== false); // Count if price > 0 and hasBuyers is not explicitly false
+      
+      console.log(`💰 [Parts Value] Part "${partName}": found="${inventoryItem.name}", price=${inventoryItem.price || 0}, hasBuyers=${hasBuyers}, willCount=${shouldCount}`);
+      
+      // CRITICAL: Count parts with price > 0 (buyer price implies buyers exist)
+      // Only exclude if hasBuyers is explicitly false
+      if (shouldCount) {
+        const quantity = inventoryItem.quantity || 1;
+        totalValue += inventoryItem.price * quantity;
+        console.log(`💰 [Parts Value] Added ${inventoryItem.price * quantity}p for "${partName}" (total: ${totalValue}p)`);
+      } else {
+        console.warn(`💰 [Parts Value] Part "${partName}" excluded: price=${inventoryItem.price || 0}, hasBuyers=${hasBuyers}`);
+      }
     }
   });
 
+  console.log(`💰 [Parts Value] Total value for ${ownedParts.length} parts: ${totalValue}p`);
   return totalValue;
 };
 
