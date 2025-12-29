@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.2] - 2025-12-29
+
+### Added
+- **Reservation Debugging System**: New comprehensive logging system to debug prime part reservation issues
+  - New "Reservations" log category in Settings → Debug/Logs tab
+  - Tracks reservation checks, updates, set planning, cleanup, and cloud sync operations
+  - Helps identify orphaned reservations (parts reserved for sets not in build plans)
+  - Logs name matching issues, cloud sync conflicts, and cleanup failures
+  - Verbose mode available for detailed debug-level logging
+- **Prime Parts Type Filters**: Added Warframes and Weapons filter buttons to Prime Parts section
+  - Filter by set type (Warframes, Weapons) similar to Prime Sets section
+  - Shows real-time counts of items by type
+  - Can be combined with other filters (e.g., "Warframes" + "Reserved")
+
+### Fixed
+- **Built Warframe Parts Detection**: Fixed issue where built warframe components (chassis, systems, neuroptics without blueprint) were showing "No buyers" instead of "Built (Not Tradeable)"
+  - Built warframe parts now correctly skip price fetching (no API calls)
+  - UI properly displays "Built (Not Tradeable)" status with orange text
+  - Prevents 404 errors from trying to fetch non-tradeable items
+  - Single item refresh and category refresh now skip built warframe parts
+- **Reservation Cleanup**: Enhanced reservation removal logic with detailed logging
+  - Better tracking of which items are affected when sets are removed from build plans
+  - Warns about orphaned reservations (reservations for sets not in build plans)
+
+### Changed
+- **Price Fetching Logic**: Built warframe parts are now detected and skipped before API calls
+  - Prevents unnecessary API requests for non-tradeable items
+  - Reduces API rate limit usage
+  - Faster processing for items that can't be traded anyway
+
 ## [1.17.1] - 2025-12-28
 
 ### Changed

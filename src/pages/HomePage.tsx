@@ -6,6 +6,7 @@ import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import ModDuplicatesSection from '../components/ModDuplicatesSection';
 import { analyzeImage, isGeminiConfigured } from '../services/ocrService';
 import { fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
+import { isPrimePartTradeable } from '../services/primeSetService';
 import { cloudSyncService } from '../services/cloudSyncService';
 import { initializeStaticData } from '../services/staticDataService';
 import {
@@ -592,6 +593,25 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
             const item = newItems[index];
             console.log(`>>> [Price Fetching] Processing item ${index + 1}/${newItems.length}: ${item.name} <<<`);
 
+            // Skip price fetching for built warframe parts (non-tradeable)
+            if (item.category === 'prime_parts' && !isPrimePartTradeable(item.name)) {
+              console.log(`>>> [Price Fetching] Skipping built warframe part (non-tradeable): ${item.name} <<<`);
+              // Add item to inventory with 0 price and mark as non-tradeable
+              const nonTradeableItem: DetectedItem = {
+                ...item,
+                price: 0,
+                status: 'loaded',
+                error: undefined
+              };
+              // Save to inventory immediately (same pattern as processed items)
+              saveToInventory([nonTradeableItem], sessionId);
+              // Update categorized inventory display
+              const updatedInventory = getCategorizedInventory();
+              setCategorizedInventory(updatedInventory);
+              setInventoryRefreshTrigger(prev => prev + 1);
+              continue;
+            }
+
             // Update current fetch item in metadata
             setProcessingMetadata(current => ({
               ...current,
@@ -1126,8 +1146,19 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           updatedItem = basicItem;
         }
       } else {
-        // For prime parts, just fetch basic price data
-        updatedItem = await fetchSinglePriceOnly(item);
+        // For prime parts, skip fetching if it's a built warframe part (non-tradeable)
+        if (!isPrimePartTradeable(itemName)) {
+          console.log(`>>> [HomePage] Skipping refresh for built warframe part (non-tradeable): ${itemName} <<<`);
+          updatedItem = {
+            ...item,
+            price: 0,
+            status: 'loaded' as const,
+            error: undefined
+          };
+        } else {
+          // For tradeable prime parts, fetch basic price data
+          updatedItem = await fetchSinglePriceOnly(item);
+        }
       }
 
       console.log(`>>> [HomePage] Fetched updated item: ${updatedItem.name}, status: ${updatedItem.status}, price: ${updatedItem.price} <<<`);
@@ -1199,7 +1230,16 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         try {
           let updatedItem: DetectedItem;
 
-          if (category === 'relics') {
+          // Skip fetching for built warframe parts (non-tradeable)
+          if (category === 'prime_parts' && !isPrimePartTradeable(item.name)) {
+            console.log(`>>> [HomePage] Category refresh skipping built warframe part (non-tradeable): ${item.name} <<<`);
+            updatedItem = {
+              ...item,
+              price: 0,
+              status: 'loaded' as const,
+              error: undefined
+            };
+          } else if (category === 'relics') {
             // For relics, fetch basic price data AND calculate relic value analysis
             const basicItem = await fetchSinglePriceOnly(item);
 

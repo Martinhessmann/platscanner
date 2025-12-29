@@ -4,6 +4,7 @@ import DataBackupSection from './DataBackupSection';
 import CloudSyncSection from './CloudSyncSection';
 import { ocrLogger } from '../services/ocrLogger';
 import { marketLogger } from '../services/marketLogger';
+import { reservationLogger } from '../services/reservationLogger';
 import { isLLMWhispererConfigured, setLLMWhispererApiKey } from '../services/llmWhispererService';
 
 interface ApiKeySettingsProps {
@@ -28,13 +29,15 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
   const [llmWhispererConfigured, setLlmWhispererConfigured] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [logType, setLogType] = useState<'ocr' | 'market'>('ocr');
+  const [logType, setLogType] = useState<'ocr' | 'market' | 'reservation'>('ocr');
   const [ocrLogs, setOcrLogs] = useState(ocrLogger.getRecentLogs(100));
   const [marketLogs, setMarketLogs] = useState(marketLogger.getRecentLogs(100));
+  const [reservationLogs, setReservationLogs] = useState(reservationLogger.getRecentLogs(100));
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [copied, setCopied] = useState(false);
   const [verboseLogging, setVerboseLogging] = useState(ocrLogger.isVerboseLoggingEnabled());
   const [verboseMarketLogging, setVerboseMarketLogging] = useState(marketLogger.isVerboseLoggingEnabled());
+  const [verboseReservationLogging, setVerboseReservationLogging] = useState(reservationLogger.isVerboseLoggingEnabled());
 
   useEffect(() => {
     if (openSettings) {
@@ -49,6 +52,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
       const interval = setInterval(() => {
         setOcrLogs(ocrLogger.getRecentLogs(100));
         setMarketLogs(marketLogger.getRecentLogs(100));
+        setReservationLogs(reservationLogger.getRecentLogs(100));
       }, 1000); // Refresh every second
       return () => clearInterval(interval);
     }
@@ -59,8 +63,10 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
     if (activeTab === 'debug') {
       setVerboseLogging(ocrLogger.isVerboseLoggingEnabled());
       setVerboseMarketLogging(marketLogger.isVerboseLoggingEnabled());
+      setVerboseReservationLogging(reservationLogger.isVerboseLoggingEnabled());
       setOcrLogs(ocrLogger.getRecentLogs(100));
       setMarketLogs(marketLogger.getRecentLogs(100));
+      setReservationLogs(reservationLogger.getRecentLogs(100));
     }
   }, [activeTab]);
 
@@ -176,6 +182,7 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                   setActiveTab('debug');
                   setOcrLogs(ocrLogger.getRecentLogs(100));
                   setMarketLogs(marketLogger.getRecentLogs(100));
+                  setReservationLogs(reservationLogger.getRecentLogs(100));
                 }}
                 className={`flex items-center gap-2 px-4 sm:px-6 py-3 font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
                   activeTab === 'debug'
@@ -186,9 +193,9 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                 <Bug size={16} />
                 <span className="hidden sm:inline">Debug/Logs</span>
                 <span className="sm:hidden">Logs</span>
-                {(ocrLogger.getLogCount() > 0 || marketLogger.getLogCount() > 0) && (
+                {(ocrLogger.getLogCount() > 0 || marketLogger.getLogCount() > 0 || reservationLogger.getLogCount() > 0) && (
                   <span className="ml-1 px-1.5 py-0.5 bg-tenno-blue/20 text-tenno-blue text-xs rounded">
-                    {ocrLogger.getLogCount() + marketLogger.getLogCount()}
+                    {ocrLogger.getLogCount() + marketLogger.getLogCount() + reservationLogger.getLogCount()}
                   </span>
                 )}
               </button>
@@ -318,23 +325,41 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                         >
                           Market ({marketLogger.getLogCount()})
                         </button>
+                        <button
+                          onClick={() => setLogType('reservation')}
+                          className={`px-3 py-1 rounded text-xs transition-colors ${
+                            logType === 'reservation'
+                              ? 'bg-tenno-blue text-white'
+                              : 'text-gray-400 hover:text-gray-300'
+                          }`}
+                        >
+                          Reservations ({reservationLogger.getLogCount()})
+                        </button>
                       </div>
                       
                       {/* Verbose Logging Toggle */}
                       <label className="flex items-center gap-2 text-sm text-gray-300 whitespace-nowrap">
                         <input
                           type="checkbox"
-                          checked={logType === 'ocr' ? verboseLogging : verboseMarketLogging}
+                          checked={
+                            logType === 'ocr' ? verboseLogging :
+                            logType === 'market' ? verboseMarketLogging :
+                            verboseReservationLogging
+                          }
                           onChange={(e) => {
                             const enabled = e.target.checked;
                             if (logType === 'ocr') {
                               setVerboseLogging(enabled);
                               ocrLogger.setVerboseLogging(enabled);
                               setOcrLogs(ocrLogger.getRecentLogs(100));
-                            } else {
+                            } else if (logType === 'market') {
                               setVerboseMarketLogging(enabled);
                               marketLogger.setVerboseLogging(enabled);
                               setMarketLogs(marketLogger.getRecentLogs(100));
+                            } else {
+                              setVerboseReservationLogging(enabled);
+                              reservationLogger.setVerboseLogging(enabled);
+                              setReservationLogs(reservationLogger.getRecentLogs(100));
                             }
                           }}
                           className="rounded"
@@ -354,11 +379,14 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                       <button
                         onClick={async () => {
                           try {
-                            const currentLogs = logType === 'ocr' ? ocrLogs : marketLogs;
+                            const currentLogs = 
+                              logType === 'ocr' ? ocrLogs :
+                              logType === 'market' ? marketLogs :
+                              reservationLogs;
                             const logsText = currentLogs.map(log => {
                               const date = new Date(log.timestamp);
                               const dataStr = log.data ? '\n' + JSON.stringify(log.data, null, 2) : '';
-                              const category = (log as any).category || 'market';
+                              const category = (log as any).category || (logType === 'market' ? 'market' : logType === 'reservation' ? 'reservation' : 'ocr');
                               return `[${log.level.toUpperCase()}] ${date.toLocaleString()} [${category}]\n${log.message}${dataStr}`;
                             }).join('\n\n');
                             
@@ -367,12 +395,15 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                             setTimeout(() => setCopied(false), 2000);
                           } catch (error) {
                             console.error('Failed to copy logs:', error);
-                            const currentLogs = logType === 'ocr' ? ocrLogs : marketLogs;
+                            const currentLogs = 
+                              logType === 'ocr' ? ocrLogs :
+                              logType === 'market' ? marketLogs :
+                              reservationLogs;
                             const textarea = document.createElement('textarea');
                             const logsText = currentLogs.map(log => {
                               const date = new Date(log.timestamp);
                               const dataStr = log.data ? '\n' + JSON.stringify(log.data, null, 2) : '';
-                              const category = (log as any).category || 'market';
+                              const category = (log as any).category || (logType === 'market' ? 'market' : logType === 'reservation' ? 'reservation' : 'ocr');
                               return `[${log.level.toUpperCase()}] ${date.toLocaleString()} [${category}]\n${log.message}${dataStr}`;
                             }).join('\n\n');
                             textarea.value = logsText;
@@ -403,9 +434,12 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                           if (logType === 'ocr') {
                             ocrLogger.clearLogs();
                             setOcrLogs([]);
-                          } else {
+                          } else if (logType === 'market') {
                             marketLogger.clearLogs();
                             setMarketLogs([]);
+                          } else {
+                            reservationLogger.clearLogs();
+                            setReservationLogs([]);
                           }
                         }}
                         className="px-3 py-1.5 bg-grineer-red/20 hover:bg-grineer-red/30 border border-grineer-red/50 text-grineer-red rounded text-sm transition-colors whitespace-nowrap"
@@ -416,8 +450,10 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                         onClick={() => {
                           if (logType === 'ocr') {
                             setOcrLogs(ocrLogger.getRecentLogs(100));
-                          } else {
+                          } else if (logType === 'market') {
                             setMarketLogs(marketLogger.getRecentLogs(100));
+                          } else {
+                            setReservationLogs(reservationLogger.getRecentLogs(100));
                           }
                         }}
                         className="px-3 py-1.5 bg-tenno-blue/20 hover:bg-tenno-blue/30 border border-tenno-blue/50 text-tenno-blue rounded text-sm transition-colors whitespace-nowrap"
@@ -429,23 +465,36 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
 
                   <div className="bg-background-dark rounded-lg border border-gray-700 p-4 max-h-[60vh] overflow-y-auto">
                     {(() => {
-                      const currentLogs = logType === 'ocr' ? ocrLogs : marketLogs;
-                      const currentVerbose = logType === 'ocr' ? verboseLogging : verboseMarketLogging;
-                      const logger = logType === 'ocr' ? ocrLogger : marketLogger;
+                      const currentLogs = 
+                        logType === 'ocr' ? ocrLogs :
+                        logType === 'market' ? marketLogs :
+                        reservationLogs;
+                      const currentVerbose = 
+                        logType === 'ocr' ? verboseLogging :
+                        logType === 'market' ? verboseMarketLogging :
+                        verboseReservationLogging;
+                      const logger = 
+                        logType === 'ocr' ? ocrLogger :
+                        logType === 'market' ? marketLogger :
+                        reservationLogger;
                       
                       // Filter logs based on verbose setting
                       const filteredLogs = currentVerbose 
                         ? currentLogs 
-                        : currentLogs.filter(log => log.level === 'error' || log.level === 'warn');
+                        : currentLogs.filter(log => log.level === 'error' || log.level === 'warn' || log.level === 'info');
                       
                       if (filteredLogs.length === 0) {
                         return (
                           <p className="text-gray-500 text-center py-8">
                             {currentLogs.length === 0 
-                              ? `No ${logType} logs yet. ${logType === 'ocr' ? 'Upload an image to see OCR processing logs.' : 'Refresh prime sets to see market fetch logs.'}`
+                              ? `No ${logType} logs yet. ${
+                                  logType === 'ocr' ? 'Upload an image to see OCR processing logs.' :
+                                  logType === 'market' ? 'Refresh prime sets to see market fetch logs.' :
+                                  'Interact with build plans or check reservations to see reservation logs.'
+                                }`
                               : currentVerbose 
                                 ? 'No logs to display.'
-                                : `Verbose logging is disabled. Enable verbose to see all ${logType} activity.`}
+                                : `Verbose logging is disabled. Enable verbose to see all ${logType} activity (including debug logs).`}
                           </p>
                         );
                       }
@@ -466,7 +515,11 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                             error: 'bg-grineer-red/10',
                             debug: 'bg-gray-500/10'
                           };
-                          const category = (log as any).category || (logType === 'market' ? 'market' : 'ocr');
+                          const category = (log as any).category || (
+                            logType === 'market' ? 'market' :
+                            logType === 'reservation' ? 'reservation' :
+                            'ocr'
+                          );
 
                           return (
                             <div
@@ -516,26 +569,36 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                         <>
                           OCR logs: {ocrLogger.getLogCount()} 
                           {!verboseLogging && ocrLogs.length > 0 && (
-                            <span> (showing {ocrLogs.filter(log => log.level === 'error' || log.level === 'warn').length} errors/warnings, enable verbose to see all)</span>
+                            <span> (showing {ocrLogs.filter(log => log.level === 'error' || log.level === 'warn' || log.level === 'info').length} errors/warnings/info, enable verbose to see all)</span>
                           )}
                           {verboseLogging && ocrLogs.length > 0 && (
                             <span> (showing last {ocrLogs.length})</span>
                           )}
                         </>
-                      ) : (
+                      ) : logType === 'market' ? (
                         <>
                           Market logs: {marketLogger.getLogCount()} 
                           {!verboseMarketLogging && marketLogs.length > 0 && (
-                            <span> (showing {marketLogs.filter(log => log.level === 'error' || log.level === 'warn').length} errors/warnings, enable verbose to see all)</span>
+                            <span> (showing {marketLogs.filter(log => log.level === 'error' || log.level === 'warn' || log.level === 'info').length} errors/warnings/info, enable verbose to see all)</span>
                           )}
                           {verboseMarketLogging && marketLogs.length > 0 && (
                             <span> (showing last {marketLogs.length})</span>
                           )}
                         </>
+                      ) : (
+                        <>
+                          Reservation logs: {reservationLogger.getLogCount()} 
+                          {!verboseReservationLogging && reservationLogs.length > 0 && (
+                            <span> (showing {reservationLogs.filter(log => log.level === 'error' || log.level === 'warn' || log.level === 'info').length} errors/warnings/info, enable verbose to see debug logs)</span>
+                          )}
+                          {verboseReservationLogging && reservationLogs.length > 0 && (
+                            <span> (showing last {reservationLogs.length})</span>
+                          )}
+                        </>
                       )}
                     </p>
                     <p className="mt-1">
-                      Logs are stored locally and persist across sessions. Disable verbose logging for better performance.
+                      Logs are stored locally and persist across sessions. Enable verbose logging to see debug-level reservation checks (useful for debugging orphaned reservations).
                     </p>
                   </div>
                 </div>
