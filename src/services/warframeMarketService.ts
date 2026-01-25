@@ -100,7 +100,9 @@ const getRelicMarketNames = (relicName: string): string[] => {
  * Fetches market data using Netlify Function
  */
 const fetchViaNetlify = async (normalizedName: string, isPrimeSet: boolean = false) => {
-  const url = new URL(NETLIFY_FUNCTION_URL, window.location.origin);
+  // Use configured production URL or current origin
+  const baseUrl = import.meta.env.VITE_PROD_FUNCTIONS_URL || window.location.origin;
+  const url = new URL(NETLIFY_FUNCTION_URL, baseUrl);
   url.searchParams.set('item', normalizedName);
   if (isPrimeSet) {
     url.searchParams.set('prime_set', 'true');
@@ -150,7 +152,9 @@ const fetchRelicViaNetlify = async (relicName: string) => {
  * Fetches market data for multiple items in batch using Netlify Function
  */
 const fetchBatchViaNetlify = async (normalizedNames: string[]) => {
-  const url = new URL(NETLIFY_FUNCTION_URL, window.location.origin);
+  // Use configured production URL or current origin
+  const baseUrl = import.meta.env.VITE_PROD_FUNCTIONS_URL || window.location.origin;
+  const url = new URL(NETLIFY_FUNCTION_URL, baseUrl);
   url.searchParams.set('batch', JSON.stringify(normalizedNames));
 
   const response = await fetch(url.toString());
@@ -177,8 +181,12 @@ const fetchViaDirect = async (normalizedName: string) => {
   };
 
   try {
+    // Use configured production URL or fallback to relative path (for deployed environments)
+    // This allows local dev to use the deployed proxy
+    const baseUrl = import.meta.env.VITE_PROD_FUNCTIONS_URL || '';
+
     // Fetch item details first
-    const itemResponse = await fetch(`/api/warframe-market/items/${normalizedName}`, { headers });
+    const itemResponse = await fetch(`${baseUrl}/api/warframe-market/items/${normalizedName}`, { headers });
 
     if (!itemResponse.ok) {
       throw new Error(`Item API error: ${itemResponse.status}`);
@@ -200,7 +208,7 @@ const fetchViaDirect = async (normalizedName: string) => {
     }
 
     // Fetch orders
-    const ordersResponse = await fetch(`/api/warframe-market/items/${normalizedName}/orders`, { headers });
+    const ordersResponse = await fetch(`${baseUrl}/api/warframe-market/items/${normalizedName}/orders`, { headers });
 
     if (!ordersResponse.ok) {
       throw new Error(`Orders API error: ${ordersResponse.status}`);
@@ -262,7 +270,7 @@ const fetchViaDirect = async (normalizedName: string) => {
     );
 
     const price = buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0;
-    
+
     return {
       name: itemDetails.en.item_name,
       thumb: itemDetails.thumb,
@@ -319,10 +327,10 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
       if (isProduction) {
         try {
           data = await fetchViaNetlify(normalizedName);
-          marketLogger.debug('PriceFetch', `Netlify Function response for ${part.name}`, { 
-            price: data.price, 
+          marketLogger.debug('PriceFetch', `Netlify Function response for ${part.name}`, {
+            price: data.price,
             error: data.error,
-            status: data.status 
+            status: data.status
           });
         } catch (error) {
           marketLogger.warn('PriceFetch', `Netlify Function failed for ${part.name}, falling back to direct API`, { error });
