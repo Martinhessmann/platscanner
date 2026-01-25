@@ -23,7 +23,8 @@ import {
   updateInventoryWithStaticDucats
 } from '../services/inventoryService';
 import { getPrimeSetsCache, setPrimeSetsCache, analyzeSetProgress } from '../services/primeSetService';
-import { ImageState, DetectedItem, ProcessingState, VoidRelic, InventoryItem } from '../types';
+import { ImageState, DetectedItem, ProcessingState, VoidRelic, InventoryItem, Mod, SyndicateReward, PrimeSetItem } from '../types';
+import type { SetProgress } from '../services/primeSetService';
 import InfoCard from '../components/InfoCard';
 import PrimeSetsSection from '../components/PrimeSetsSection';
 import { FileWithPath } from 'react-dropzone';
@@ -399,123 +400,110 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     }, 500);
   }, [processingState.activeImageId, refreshingCategories, isRefreshingPrices]);
 
-  // Separate processing for AI analysis and price fetching
-  const processImageAnalysis = useCallback(async () => {
+  // Separate processing for AI analysis
+  const processImageAnalysis = useCallback(async (imageId: string) => {
+  // 1. Update status to analyzing
     setProcessingState(prev => {
-      // Get all queued images from current state
-      const queuedImages = Array.from(prev.images.values())
-        .filter(img => img.status === 'queued');
-
-      if (queuedImages.length === 0) return prev;
-
-      const nextImage = queuedImages[0];
-
-      // Start AI analysis immediately by updating status
       const newImages = new Map(prev.images);
-      newImages.set(nextImage.id, {
-        ...nextImage,
-        status: 'analyzing'
-      });
-
-      // Trigger async AI analysis only
-      (async () => {
-        try {
-          console.log(`>>> [AI Analysis] Starting analysis for image: ${nextImage.id} <<<`);
-
-          // Track analysis start time to detect cache usage
-          const startTime = Date.now();
-
-          // Extract items using Gemini AI
-          const analysisResult = await analyzeImage(nextImage.file);
-          const detectedItems = analysisResult.items || [];
-          const screenType = analysisResult.screenType || 'unknown';
-
-          // If analysis was very fast (< 500ms), it was likely cached
-          const analysisTime = Date.now() - startTime;
-          const wasCached = analysisTime < 500;
-
-          // Check if processing was stopped
-          if (shouldStopProcessing) {
-            setProcessingState(current => ({
-              ...current,
-              images: new Map(current.images).set(nextImage.id, {
-                ...nextImage,
-                status: 'complete',
-                error: 'Processing stopped by user',
-                results: [],
-                screenType,
-                wasCached
-              }),
-              processedCount: current.processedCount + 1
-            }));
-            return;
-          }
-
-          // Filter out items already in inventory to avoid duplicates (for ALL items including syndicate)
-          const currentInventory = loadInventory();
-          const existingItemNames = new Set(currentInventory.items.map(item => item.name));
-          const newItems = Array.isArray(detectedItems) ? detectedItems.filter(item => !existingItemNames.has(item.name)) : [];
-          const duplicatesCount = Array.isArray(detectedItems) ? detectedItems.length - newItems.length : 0;
-
-          console.log(`>>> [AI Analysis] Detected ${Array.isArray(detectedItems) ? detectedItems.length : 0} items, ${newItems.length} are new, ${duplicatesCount} duplicates <<<`);
-
-          // Track duplicates for this image
-          setProcessingMetadata(current => ({
-            ...current,
-            duplicatesPerImage: new Map(current.duplicatesPerImage).set(nextImage.id, duplicatesCount)
-          }));
-
-          if (newItems.length === 0) {
-            setProcessingState(current => ({
-              ...current,
-              images: new Map(current.images).set(nextImage.id, {
-                ...nextImage,
-                status: 'complete',
-                results: [],
-                screenType,
-                wasCached
-              }),
-              processedCount: current.processedCount + 1
-            }));
-            return;
-          }
-
-          // Update status to 'analyzed' - ready for price fetching (even if only syndicate items)
-          setProcessingState(current => ({
-            ...current,
-            images: new Map(current.images).set(nextImage.id, {
-              ...nextImage,
-              status: 'analyzed', // New status indicating ready for price fetching
-              results: newItems,
-              syndicateRewards: newItems.filter(item => item.category === 'syndicate_rewards'), // Store syndicate rewards for price fetching
-              screenType, // Store the detected screen type
-              wasCached
-            })
-          }));
-
-          console.log(`>>> [AI Analysis] Completed for image: ${nextImage.id}, queued for price fetching <<<`);
-
-        } catch (error) {
-          console.error('>>> [AI Analysis] Error:', error);
-          setProcessingState(errorState => ({
-            ...errorState,
-            images: new Map(errorState.images).set(nextImage.id, {
-              ...nextImage,
-              status: 'error',
-              error: error instanceof Error ? error.message : 'AI analysis failed'
-            }),
-            processedCount: errorState.processedCount + 1
-          }));
-        }
-      })();
-
-      return {
-        ...prev,
-        activeImageId: nextImage.id,
-        images: newImages
-      };
+      const img = newImages.get(imageId);
+      if (img) {
+        newImages.set(imageId, { ...img, status: 'analyzing' });
+      }
+      return { ...prev, activeImageId: imageId, images: newImages };
     });
-  }, [shouldStopProcessing]);
+
+    // 2. Perform Async Analysis
+    try {
+      // Get the image file
+      const imageState = processingState.images.get(imageId);
+      if (!imageState) return;
+
+      console.log(`>>> [AI Analysis] Starting analysis for image: ${imageId} <<<`);
+      const startTime = Date.now();
+
+      // Extract items using Gemini AI
+      const analysisResult = await analyzeImage(imageState.file);
+      const detectedItems = analysisResult.items || [];
+      const screenType = analysisResult.screenType || 'unknown';
+
+      // Check if processing was stopped
+      if (shouldStopProcessing) {
+        setProcessingState(current => ({
+          ...current,
+          images: new Map(current.images).set(imageId, {
+            ...imageState,
+            status: 'complete',
+            error: 'Processing stopped by user',
+            results: [],
+            screenType,
+            wasCached: false
+          }),
+          processedCount: current.processedCount + 1
+        }));
+        return;
+      }
+
+      // Filter out items already in inventory
+      const currentInventory = loadInventory();
+      const existingItemNames = new Set(currentInventory.items.map(item => item.name));
+      const newItems = Array.isArray(detectedItems) ? detectedItems.filter(item => !existingItemNames.has(item.name)) : [];
+      const duplicatesCount = Array.isArray(detectedItems) ? detectedItems.length - newItems.length : 0;
+
+      console.log(`>>> [AI Analysis] Detected ${Array.isArray(detectedItems) ? detectedItems.length : 0} items, ${newItems.length} are new, ${duplicatesCount} duplicates <<<`);
+
+      setProcessingMetadata(current => ({
+        ...current,
+        duplicatesPerImage: new Map(current.duplicatesPerImage).set(imageId, duplicatesCount)
+      }));
+
+      const wasCached = (Date.now() - startTime) < 500;
+
+      if (newItems.length === 0) {
+        setProcessingState(current => ({
+          ...current,
+          images: new Map(current.images).set(imageId, {
+            ...imageState,
+            status: 'complete',
+            results: [],
+            screenType,
+            wasCached
+          }),
+          processedCount: current.processedCount + 1
+        }));
+        return;
+      }
+
+      // Update success state
+      setProcessingState(current => ({
+        ...current,
+        images: new Map(current.images).set(imageId, {
+          ...imageState,
+          status: 'analyzed',
+          results: newItems,
+          syndicateRewards: newItems.filter(item => item.category === 'syndicate_rewards'),
+          screenType,
+          wasCached
+        })
+      }));
+
+      console.log(`>>> [AI Analysis] Completed for image: ${imageId}, queued for price fetching <<<`);
+
+    } catch (error) {
+      console.error('>>> [AI Analysis] Error:', error);
+      setProcessingState(errorState => {
+        const failedImg = errorState.images.get(imageId);
+        return {
+          ...errorState,
+          images: new Map(errorState.images).set(imageId, {
+            ...failedImg!,
+            status: 'error',
+            error: error instanceof Error ? error.message : 'AI analysis failed'
+          }),
+          processedCount: errorState.processedCount + 1
+        };
+      });
+    }
+  }, [shouldStopProcessing, processingState.images]);
 
   // Separate processing for price fetching
   const processPriceFetching = useCallback(async () => {

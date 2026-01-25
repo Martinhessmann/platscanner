@@ -18,7 +18,7 @@
   to = "https://api.warframe.market/v1/:splat"
   status = 200
   force = true
-  headers = {Accept = "application/json", Language = "en", Platform = "pc"}
+  headers = {Accept = "application/json", Language = "en", Platform = "pc", Access-Control-Allow-Origin = "*"}
 
 
 
