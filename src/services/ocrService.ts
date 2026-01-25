@@ -158,7 +158,16 @@ const parseQuantity = (line: string): { quantity: number, cleanLine: string } =>
     return { quantity, cleanLine };
   }
 
-  // 5. Explicitly handle the common "Item 5" case only if it's NOT a relic name pattern
+  // 5. Check if the line is JUST a quantity (e.g., "x5" or "5")
+  const isPureQuantity = /^([x×])?(\d+)$/i.test(cleanLine);
+  if (isPureQuantity) {
+    const qtyMatch = cleanLine.match(/^([x×])?(\d+)$/i);
+    if (qtyMatch) {
+      return { quantity: parseInt(qtyMatch[2]), cleanLine: '' };
+    }
+  }
+
+  // 6. Explicitly handle the common "Item 5" case only if it's NOT a relic name pattern
   // Relic pattern example: "Lith A1" -> should NOT be Lith A quantity 1
   const isRelicPattern = /\b(Lith|Meso|Neo|Axi)\s+[A-Z]\d+$/i.test(cleanLine);
   if (!isRelicPattern) {
@@ -464,6 +473,47 @@ export const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+/**
+ * Common look-behind logic for quantity detection in the inventory grid.
+ * Standalone quantities (badges) appear ABOVE the item name.
+ */
+const extractQuantityFromAbove = (lines: string[], index: number, currentQuantity: number, itemName: string): number => {
+  if (currentQuantity > 1) return currentQuantity;
+
+  if (index > 0) {
+    const prevLine = lines[index - 1];
+
+    // Check for unowned icons/markers (Eye icon)
+    // Common OCR artifacts: (o), (0), O, 0, Ø, ©, ®, [o], [0], ( ), (), @
+    if (prevLine.match(/^[\(\[]?[Oo0ØVv@©®\-\s][\)\]]?$/) || prevLine === '()' || prevLine === '[]') {
+      console.log(`>>> [OCR Parsing] Detected unowned marker ABOVE ${itemName}: "${prevLine}". Skipping. <<<`);
+      return 0; // Return 0 to trigger skip
+    }
+
+    // Match "5", "x5", "x 5", etc.
+    const { quantity: aboveQty, cleanLine: remainingText } = parseQuantity(prevLine);
+
+    // If we found a quantity and there's no other text on that line, it's a standalone badge
+    if (aboveQty > 0 && (remainingText === '' || remainingText === 'x' || remainingText === '×')) {
+      if (aboveQty < 100) {
+        console.log(`>>> [OCR Parsing] Found quantity ${aboveQty} ABOVE item: ${itemName} <<<`);
+        return aboveQty;
+      }
+    }
+
+    // Fallback for tricky OCR that might see just the number
+    if (/^\d+$/.test(prevLine)) {
+      const prevQty = parseInt(prevLine);
+      if (prevQty > 0 && prevQty < 100) {
+        console.log(`>>> [OCR Parsing] Found raw numeric quantity ${prevQty} ABOVE item: ${itemName} <<<`);
+        return prevQty;
+      }
+    }
+  }
+
+  return currentQuantity;
+};
+
 // Extract prime items using pattern matching across the entire text
 const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
   const foundItems: DetectedItem[] = [];
@@ -493,20 +543,12 @@ const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
       const matchedItem = findBestPrimeMatch(fullName, 0.85);
       if (matchedItem) {
         // Multi-directional quantity detection (REFINED: Only look ABOVE/Behind)
-        let finalQuantity = quantity;
+        const finalQuantity = extractQuantityFromAbove(lines, index, quantity, matchedItem);
 
-        if (finalQuantity === 1) {
-          // Look behind (Above item in grid) - STANDALONE numbers in inventory are ABOVE item
-          if (index > 0) {
-            const prevLine = lines[index - 1];
-            if (/^\d+$/.test(prevLine)) {
-              const prevQty = parseInt(prevLine);
-              if (prevQty > 0 && prevQty < 100) {
-                finalQuantity = prevQty;
-                console.log(`>>> [OCR Parsing] Found quantity ${prevQty} ABOVE item: ${matchedItem} <<<`);
-              }
-            }
-          }
+        // Skip items with quantity 0 (unowned/darkened)
+        if (finalQuantity === 0) {
+          console.log(`>>> [OCR Parsing] Skipping ${matchedItem} (detected quantity 0/unowned) <<<`);
+          return;
         }
 
         // Create a unique key for deduplication within this scan
@@ -642,6 +684,12 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
 
     // Check if it's a Void Relic
     if (cleanLine.includes('Relic') || /\b(Lith|Meso|Neo|Axi)\s+[A-Z]\d+/i.test(cleanLine)) {
+      // Check for unowned icons/transparency indicators (LLMWhisperer often sees 'O' or 'o' for icons)
+      if (line.match(/^[\(\[]?[OoVv@][\)\]]?$/)) {
+        console.log(`>>> [OCR Parsing] Detected unowned relic icon/marker, skipping line: "${line}" <<<`);
+        return;
+      }
+
       let relicName = cleanLine;
       let rarity: VoidRelic['rarity'] = 'intact';
 
@@ -663,12 +711,21 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
         relicName += ' Relic';
       }
 
+      // Unified look-behind for Relics
+      const finalQuantity = extractQuantityFromAbove(lines, index, quantity, relicName);
+
+      // Skip items with quantity 0 (unowned/darkened)
+      if (finalQuantity === 0) {
+        console.log(`>>> [OCR Parsing] Skipping ${relicName} (detected quantity 0/unowned) <<<`);
+        return;
+      }
+
       const relicItem: VoidRelic = {
         id: `relic-${Date.now()}-${index}`,
         name: relicName,
         category: 'relics',
         rarity,
-        quantity,
+        quantity: finalQuantity,
         status: 'loading'
       };
       detectedItems.push(relicItem);
