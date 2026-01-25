@@ -214,10 +214,15 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
     inventoryItems.forEach(newItem => {
       const existingIndex = updatedItems.findIndex(existing => existing.name === newItem.name);
       if (existingIndex >= 0) {
-        // Update existing item with latest data but preserve addedAt
+        // Accumulate quantity for existing items
+        const existingItem = updatedItems[existingIndex];
+        const newQuantity = (existingItem.quantity || 1) + (newItem.quantity || 1);
+
+        // Update existing item with latest data but preserve addedAt and use accumulated quantity
         updatedItems[existingIndex] = {
           ...newItem,
-          addedAt: updatedItems[existingIndex].addedAt,
+          quantity: newQuantity,
+          addedAt: existingItem.addedAt,
           lastUpdated: now
         };
       } else {

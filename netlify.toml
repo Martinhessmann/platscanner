@@ -6,12 +6,6 @@
 [build.environment]
   NODE_VERSION = "18.20.5"
 
-[dev]
-  command = "npm run dev:vite" # We will create this script in package.json
-  port = 5173
-  publish = "dist"
-  autoLaunch = false
-
 # Handle SPA routing
 [[redirects]]
   from = "/*"
@@ -25,6 +19,8 @@
   status = 200
   force = true
   headers = {Accept = "application/json", Language = "en", Platform = "pc"}
+
+
 
 # Security headers
 [[headers]]
