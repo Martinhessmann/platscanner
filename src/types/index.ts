@@ -27,6 +27,7 @@ export interface BaseItem {
   sellerQuantity?: number;
   // NEW: Distinguish between inventory items and truly owned items
   isOwned?: boolean; // true = user wants to keep this item, false/undefined = can be sold
+  rarity?: string;
 }
 
 export interface PrimePart extends BaseItem {

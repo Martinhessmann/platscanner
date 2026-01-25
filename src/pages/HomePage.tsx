@@ -75,6 +75,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const [shouldStopProcessing, setShouldStopProcessing] = useState(false);
   const [inventoryRefreshTrigger, setInventoryRefreshTrigger] = useState(0);
 
+  // Track images currently in analysis or fetching to prevent double triggers
+  const currentlyProcessingRef = useRef<Set<string>>(new Set());
+
   // Story #3 & #8: Categorized Persistent Inventory State
   const [categorizedInventory, setCategorizedInventory] = useState({
     prime_parts: [] as InventoryItem[],
@@ -420,6 +423,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // 2. Perform Async Analysis
     try {
+      // Prevent multiple triggers for the same image
+      if (currentlyProcessingRef.current.has(`${imageId}_analyzing`)) {
+        console.log(`>>> [AI Analysis] Already analyzing image: ${imageId}, skipping re-entry <<<`);
+        return;
+      }
+      currentlyProcessingRef.current.add(`${imageId}_analyzing`);
+
       // Use ref for synchronous state access
       const imageState = processingStateRef.current.images.get(imageId);
       if (!imageState) {
@@ -508,7 +518,6 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       });
 
       console.log(`>>> [AI Analysis] Completed for image: ${imageId}, queued for price fetching <<<`);
-
     } catch (error) {
       console.error('>>> [AI Analysis] Error:', error);
       setProcessingState(errorState => {
@@ -524,6 +533,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           processedCount: errorState.processedCount + 1
         };
       });
+    } finally {
+      // Remove from processing lock
+      currentlyProcessingRef.current.delete(`${imageId}_analyzing`);
     }
   }, [shouldStopProcessing]);
 
@@ -541,6 +553,13 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // 2. Perform Async Fetching
     try {
+      // Prevent multiple triggers for the same image
+      if (currentlyProcessingRef.current.has(`${imageId}_fetching`)) {
+        console.log(`>>> [Price Fetching] Already fetching for image: ${imageId}, skipping re-entry <<<`);
+        return;
+      }
+      currentlyProcessingRef.current.add(`${imageId}_fetching`);
+
       // Use ref for synchronous state access
       const imageState = processingStateRef.current.images.get(imageId);
       if (!imageState || !imageState.results) {
@@ -744,6 +763,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           processedCount: errorState.processedCount + 1
         };
       });
+    } finally {
+      // Remove from processing lock
+      currentlyProcessingRef.current.delete(`${imageId}_fetching`);
     }
   }, [shouldStopProcessing]);
 

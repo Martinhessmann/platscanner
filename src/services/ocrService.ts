@@ -125,30 +125,54 @@ const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicat
 // Helper to parse quantity from a line
 const parseQuantity = (line: string): { quantity: number, cleanLine: string } => {
   let quantity = 1;
-  let cleanLine = line;
+  let cleanLine = line.trim();
 
-  // Try "5 x Item" or "5 × Item"
-  let match = line.match(/^(\d+)\s*[x×]\s*(.+)$/i);
+  // 1. Try "5 x Item" or "5 × Item" or "5X Item"
+  let match = cleanLine.match(/^(\d+)\s*[x×]\s+(.+)$/i);
   if (match) {
     quantity = parseInt(match[1]);
     cleanLine = match[2].trim();
     return { quantity, cleanLine };
   }
 
-  // Try "Item x5" or "Item ×5"
-  match = line.match(/^(.+)\s*[x×](\d+)$/i);
+  // 2. Try "Item x5" or "Item ×5" (explicitly with x/×)
+  match = cleanLine.match(/^(.+?)\s+[x×](\d+)$/i);
   if (match) {
     cleanLine = match[1].trim();
     quantity = parseInt(match[2]);
     return { quantity, cleanLine };
   }
 
-  // Try "x5 Item" or "×5 Item"
-  match = line.match(/^[x×](\d+)\s*(.+)$/i);
+  // 3. Try "x5 Item" or "×5 Item" (no space)
+  match = cleanLine.match(/^[x×](\d+)\s*(.+)$/i);
   if (match) {
     quantity = parseInt(match[1]);
     cleanLine = match[2].trim();
     return { quantity, cleanLine };
+  }
+
+  // 4. Try "Itemx5" or "Item×5" (no space)
+  match = cleanLine.match(/^(.+?)[x×](\d+)$/i);
+  if (match) {
+    cleanLine = match[1].trim();
+    quantity = parseInt(match[2]);
+    return { quantity, cleanLine };
+  }
+
+  // 5. Explicitly handle the common "Item 5" case only if it's NOT a relic name pattern
+  // Relic pattern example: "Lith A1" -> should NOT be Lith A quantity 1
+  const isRelicPattern = /\b(Lith|Meso|Neo|Axi)\s+[A-Z]\d+$/i.test(cleanLine);
+  if (!isRelicPattern) {
+    match = cleanLine.match(/^(.+?)\s+(\d+)$/i);
+    if (match) {
+      const potentialName = match[1].trim();
+      const potentialQty = parseInt(match[2]);
+      // Only treat as quantity if it's a small number or if there's a large gap
+      if (potentialQty < 100) {
+        cleanLine = potentialName;
+        quantity = potentialQty;
+      }
+    }
   }
 
   return { quantity, cleanLine };
@@ -454,10 +478,11 @@ const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
     // Skip UI noise
     if (isUINoiseText(line)) return;
 
+    // Preserve original for quantity check if not found by parseQuantity
     const { quantity, cleanLine } = parseQuantity(line);
 
-  // Pattern 1: "X Prime Component" (e.g., "Corvas Prime Receiver")
-  // This regex finds "Word Prime Word" patterns
+    // Pattern 1: "X Prime Component" (e.g., "Corvas Prime Receiver")
+    // This regex finds "Word Prime Word" patterns
     const primePattern = /([A-Z][a-zA-Z&\s]*?)\s*Prime\s+([A-Za-z]+(?:\s+Blueprint)?)/i;
     let match = primePattern.exec(cleanLine);
 
@@ -481,6 +506,12 @@ const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
           });
           seenItems.add(key);
           ocrLogger.debug('Parsing', `Pattern matched: "${fullName}" → "${matchedItem}" (x${quantity})`);
+        } else {
+          // If seen, update quantity
+          const existing = foundItems.find(item => item.name.toLowerCase() === key);
+          if (existing) {
+            existing.quantity = (existing.quantity || 1) + quantity;
+          }
         }
         return; // Found a match on this line
       }
@@ -507,6 +538,12 @@ const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
             status: 'loading'
           });
           seenItems.add(key);
+        } else if (!hasComponents) {
+          // If seen and no components, update quantity
+          const existing = foundItems.find(item => item.name.toLowerCase() === key);
+          if (existing) {
+            existing.quantity = (existing.quantity || 1) + quantity;
+          }
         }
       }
     }
