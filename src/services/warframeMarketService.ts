@@ -24,16 +24,18 @@ const NETLIFY_FUNCTION_URL = '/.netlify/functions/warframe-market';
 const getMarketApiUrl = (normalizedName: string, isPrimeSet: boolean = false): string => {
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-  // Use relative path locally for Vite proxy, absolute URL for production
-  const baseUrl = isLocal ? '' : (import.meta.env.VITE_PROD_FUNCTIONS_URL || window.location.origin);
-  const url = new URL(NETLIFY_FUNCTION_URL, baseUrl || window.location.origin);
-
-  url.searchParams.set('item', normalizedName);
-  if (isPrimeSet) {
-    url.searchParams.set('prime_set', 'true');
+  // Locally, use the direct V2 proxy
+  if (isLocal) {
+    return `/api/warframe-market/items/${normalizedName}${isPrimeSet ? '?prime_set=true' : ''}`;
   }
 
-  return url.toString();
+  // Use strictly relative path for production to avoid CORS/origin issues
+  // Netlify automatically routes /.netlify/functions to the correct backend
+  const params = new URLSearchParams();
+  params.set('item', normalizedName);
+  if (isPrimeSet) params.set('prime_set', 'true');
+
+  return `${NETLIFY_FUNCTION_URL}?${params.toString()}`;
 };
 
 /**
@@ -159,6 +161,7 @@ const fetchBatchViaNetlify = async (normalizedNames: string[]) => {
 
 /**
  * Fetches market data using direct API calls via Netlify proxy
+ * UPDATED: Now uses V2 API structure to match Netlify Function and support components
  */
 const fetchViaDirect = async (normalizedName: string) => {
   const headers = {
@@ -166,49 +169,35 @@ const fetchViaDirect = async (normalizedName: string) => {
     'Content-Type': 'application/json',
     'Language': 'en',
     'Platform': 'pc',
-    'User-Agent': 'PlatScanner/1.2.1'
+    'User-Agent': 'PlatScanner/1.8.0'
   };
 
   try {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const baseUrl = isLocal ? '' : (import.meta.env.VITE_PROD_FUNCTIONS_URL || '');
 
-    const itemResponse = await fetch(`${baseUrl}/api/warframe-market/items/${normalizedName}`, { headers });
+    // Fetch item details and orders in parallel using V2 endpoints
+    // Note: /api/warframe-market is proxied to https://api.warframe.market/v2
+    const [itemResponse, ordersResponse] = await Promise.all([
+      fetch(`${baseUrl}/api/warframe-market/items/${normalizedName}`, { headers }),
+      fetch(`${baseUrl}/api/warframe-market/orders/item/${normalizedName}/top`, { headers }).catch(() => null)
+    ]);
 
     if (!itemResponse.ok) {
       throw new Error(`Item API error: ${itemResponse.status}`);
     }
 
     const itemData = await itemResponse.json();
-    if (!itemData?.payload?.item?.items_in_set) {
-      throw new Error('Invalid item data structure');
+    const ordersData = ordersResponse?.ok ? await ordersResponse.json() : { data: { buy: [], sell: [] } };
+
+    // V2 structure: { data: { ... } }
+    const itemDetails = itemData.data;
+    if (!itemDetails) {
+      throw new Error('Invalid item data structure (V2)');
     }
 
-    const ordersResponse = await fetch(`${baseUrl}/api/warframe-market/items/${normalizedName}/orders`, { headers });
-
-    if (!ordersResponse.ok) {
-      throw new Error(`Orders API error: ${ordersResponse.status}`);
-    }
-
-    const ordersData = await ordersResponse.json();
-
-    const itemDetails = itemData.payload.item.items_in_set.find((item: any) =>
-      item.url_name === normalizedName
-    ) || itemData.payload.item.items_in_set[0];
-
-    const buyOrders = ordersData.payload.orders.filter((order: any) =>
-      order.order_type === 'buy' &&
-      ['online', 'ingame'].includes(order.user.status) &&
-      !order.user.banned &&
-      order.visible
-    );
-
-    const sellOrders = ordersData.payload.orders.filter((order: any) =>
-      order.order_type === 'sell' &&
-      ['online', 'ingame'].includes(order.user.status) &&
-      !order.user.banned &&
-      order.visible
-    );
+    const buyOrders = ordersData.data?.buy || [];
+    const sellOrders = ordersData.data?.sell || [];
 
     const highestBidder = buyOrders.length > 0
       ? buyOrders.reduce((highest: any, current: any) =>
@@ -222,23 +211,21 @@ const fetchViaDirect = async (normalizedName: string) => {
         )
       : null;
 
-    const allValidOrders = ordersData.payload.orders.filter((order: any) =>
-      ['online', 'ingame'].includes(order.user.status) &&
-      !order.user.banned &&
-      order.visible
-    );
+    const allOrders = [...buyOrders, ...sellOrders];
+    let average = 0;
+    if (allOrders.length > 0) {
+      average = Math.round(allOrders.reduce((sum: number, o: any) => sum + o.platinum, 0) / allOrders.length);
+    }
 
     const price = buyOrders.length > 0 ? Math.max(...buyOrders.map((o: any) => o.platinum)) : 0;
 
     return {
-      name: itemDetails.en.item_name,
-      thumb: itemDetails.thumb,
+      name: itemDetails.i18n?.en?.name || normalizedName,
+      thumb: itemDetails.i18n?.en?.thumb || '',
       ducats: itemDetails.ducats || 0,
       price: price,
-      volume: ordersData.payload.orders.length,
-      average: allValidOrders.length > 0
-        ? Math.round(allValidOrders.reduce((acc: number, o: any) => acc + o.platinum, 0) / allValidOrders.length)
-        : 0,
+      volume: allOrders.length,
+      average: average,
       buyerUsername: highestBidder?.user?.ingame_name || null,
       buyerQuantity: highestBidder?.quantity || 0,
       hasBuyers: price > 0 || buyOrders.length > 0,

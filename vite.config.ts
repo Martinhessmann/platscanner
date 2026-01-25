@@ -41,7 +41,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/warframe-market': {
-        target: 'https://api.warframe.market/v1',
+        target: 'https://api.warframe.market/v2',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/warframe-market/, ''),
         configure: (proxy) => {

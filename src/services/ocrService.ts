@@ -907,7 +907,6 @@ export const getApiKey = (): string | null => {
 };
 
 export const initializeGemini = (_apiKey: string): boolean => {
-  // OCR doesn't need initialization, always return true
   return true;
 };
 
