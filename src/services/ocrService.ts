@@ -492,15 +492,31 @@ const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
       // Validate against known items
       const matchedItem = findBestPrimeMatch(fullName, 0.85);
       if (matchedItem) {
-        // Look ahead for quantity if current quantity is 1
+        // Multi-directional quantity detection
         let finalQuantity = quantity;
-        if (finalQuantity === 1 && index < lines.length - 1) {
-          const nextLine = lines[index + 1];
-          // If next line is just a number (e.g., "2"), use it as quantity
-          if (/^\d+$/.test(nextLine)) {
-            const nextQty = parseInt(nextLine);
-            if (nextQty > 0 && nextQty < 100) {
-              finalQuantity = nextQty;
+
+        if (finalQuantity === 1) {
+          // 1. Look behind (some OCR puts number ABOVE item)
+          if (index > 0) {
+            const prevLine = lines[index - 1];
+            if (/^\d+$/.test(prevLine)) {
+              const prevQty = parseInt(prevLine);
+              if (prevQty > 0 && prevQty < 100) {
+                finalQuantity = prevQty;
+                ocrLogger.debug('Parsing', `Found quantity ${prevQty} on line ABOVE item: ${matchedItem}`);
+              }
+            }
+          }
+
+        // 2. Look ahead (some OCR puts number BELOW item) - only if Look behind didn't find anything > 1
+          if (finalQuantity === 1 && index < lines.length - 1) {
+            const nextLine = lines[index + 1];
+            if (/^\d+$/.test(nextLine)) {
+              const nextQty = parseInt(nextLine);
+              if (nextQty > 0 && nextQty < 100) {
+                finalQuantity = nextQty;
+                ocrLogger.debug('Parsing', `Found quantity ${nextQty} on line BELOW item: ${matchedItem}`);
+              }
             }
           }
         }

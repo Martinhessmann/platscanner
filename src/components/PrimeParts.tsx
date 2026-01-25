@@ -342,8 +342,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
         {/* Smart Filter Tags */}
         <div className="px-3 py-2 bg-gray-900/30 border-t border-gray-700/50">
           <div className="flex flex-wrap gap-2">
-            <button 
-              onClick={() => toggleFilter('all')} 
+            <button
+              onClick={() => toggleFilter('all')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
                 activeFilters.has('all')
                   ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
@@ -358,8 +358,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 {results?.length || 0}
               </span>
             </button>
-            <button 
-              onClick={() => toggleFilter('has_buyers')} 
+            <button
+              onClick={() => toggleFilter('has_buyers')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
                 activeFilters.has('has_buyers')
                   ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
@@ -374,8 +374,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 {(results || []).filter(i => i && (i.price || 0) > 0).length}
               </span>
             </button>
-            <button 
-              onClick={() => toggleFilter('blueprints')} 
+            <button
+              onClick={() => toggleFilter('blueprints')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
                 activeFilters.has('blueprints')
                   ? 'bg-blue-900/50 border-blue-500/50 text-blue-400 ring-1 ring-blue-500/30'
@@ -390,8 +390,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 {(results || []).filter(i => i && i.name && i.name.includes('Blueprint')).length}
               </span>
             </button>
-            <button 
-              onClick={() => toggleFilter('components')} 
+            <button
+              onClick={() => toggleFilter('components')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
                 activeFilters.has('components')
                   ? 'bg-cyan-900/50 border-cyan-500/50 text-cyan-400 ring-1 ring-cyan-500/30'
@@ -406,8 +406,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 {(results || []).filter(i => i && i.name && !i.name.includes('Blueprint')).length}
               </span>
             </button>
-            <button 
-              onClick={() => toggleFilter('reserved')} 
+            <button
+              onClick={() => toggleFilter('reserved')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
                 activeFilters.has('reserved')
                   ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
@@ -428,8 +428,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 }).length}
               </span>
             </button>
-            <button 
-              onClick={() => toggleFilter('not_reserved')} 
+            <button
+              onClick={() => toggleFilter('not_reserved')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
                 activeFilters.has('not_reserved')
                   ? 'bg-purple-900/50 border-purple-500/50 text-purple-400 ring-1 ring-purple-500/30'
@@ -450,7 +450,7 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 }).length}
               </span>
             </button>
-            
+
             {/* Type Filters */}
             <button
               onClick={() => toggleFilter('warframes')}
@@ -498,8 +498,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 }).length}
               </span>
             </button>
-            <button 
-              onClick={() => toggleFilter('above_average')} 
+            <button
+              onClick={() => toggleFilter('above_average')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
                 activeFilters.has('above_average')
                   ? 'bg-green-900/50 border-green-500/50 text-green-400 ring-1 ring-green-500/30'
@@ -514,8 +514,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 {(results || []).filter(i => i && (i.price || 0) > (i.average || 0)).length}
               </span>
             </button>
-            <button 
-              onClick={() => toggleFilter('below_average')} 
+            <button
+              onClick={() => toggleFilter('below_average')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
                 activeFilters.has('below_average')
                   ? 'bg-red-900/50 border-red-500/50 text-red-400 ring-1 ring-red-500/30'
@@ -530,8 +530,8 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 {(results || []).filter(i => i && (i.price || 0) < (i.average || 0)).length}
               </span>
             </button>
-            <button 
-              onClick={() => toggleFilter('prime_junk')} 
+            <button
+              onClick={() => toggleFilter('prime_junk')}
               className={`px-3 py-2 rounded-full border transition-all flex items-center gap-2 text-sm font-medium ${
                 activeFilters.has('prime_junk')
                   ? 'bg-yellow-900/50 border-yellow-500/50 text-yellow-400 ring-1 ring-yellow-500/30'
@@ -598,14 +598,17 @@ const PrimeParts: React.FC<PrimePartsProps> = ({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <div className="font-medium text-white text-sm leading-tight truncate">
-                      {item.name}
-                    </div>
-                    {item.quantity && item.quantity > 1 && (
-                      <span className="inline-flex items-center justify-center w-5 h-4 text-xs font-medium bg-tenno-blue/20 text-tenno-blue border border-tenno-blue/30 rounded">
-                        {item.quantity}
-                      </span>
-                    )}
+                        <div className="font-medium text-white text-sm leading-tight truncate">
+                          {item.name}
+                        </div>
+                        {item.quantity && (
+                          <span className={`inline-flex items-center justify-center min-w-[1.25rem] h-4 px-1 text-[10px] font-bold border rounded transition-colors ${item.quantity > 1
+                              ? 'bg-tenno-blue/20 text-tenno-blue border-tenno-blue/30'
+                              : 'bg-gray-800/50 text-gray-400 border-gray-700/50'
+                            }`}>
+                            x{item.quantity}
+                          </span>
+                        )}
                   </div>
                   {(() => {
                     const reservation = isItemReserved(item.name, 'prime_parts');

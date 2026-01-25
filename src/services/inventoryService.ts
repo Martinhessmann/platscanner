@@ -2,9 +2,9 @@
 // Supports Story #3: Persistent Inventory across sessions
 // Extended for Story #8: Support for multiple item categories (Prime Parts, Relics, etc.)
 
-import { DetectedItem, PrimePart, VoidRelic, ItemCategory, RelicRewardItem, InventoryItem } from '../types';
+import { DetectedItem, VoidRelic, ItemCategory, RelicRewardItem, InventoryItem } from '../types';
 import { getRelicDropsByName } from './relicDataService';
-import { fetchSinglePriceData, fetchBatchPriceData } from './warframeMarketService';
+import { fetchBatchPriceData } from './warframeMarketService';
 import { cloudSyncService } from './cloudSyncService';
 import { getImageUrl } from './unifiedImageService';
 import { determineItemType } from './syndicateService';
@@ -238,10 +238,27 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
       }
     });
 
+    // CRITICAL: Final deduplication pass to clean up any legacy duplicates
+    const finalItems: InventoryItem[] = [];
+    const seenNames = new Map<string, number>(); // name+category -> index
+
+    updatedItems.forEach(item => {
+      const key = `${item.name.trim().toLowerCase()}|${item.category}`;
+      if (seenNames.has(key)) {
+        const existingIdx = seenNames.get(key)!;
+        finalItems[existingIdx].quantity = (finalItems[existingIdx].quantity || 1) + (item.quantity || 1);
+        finalItems[existingIdx].lastUpdated = item.lastUpdated > finalItems[existingIdx].lastUpdated ? item.lastUpdated : finalItems[existingIdx].lastUpdated;
+        console.log(`>>> [Inventory] Legacy Cleanup: Merged duplicate "${item.name}" into inventory entry <<<`);
+      } else {
+        seenNames.set(key, finalItems.length);
+        finalItems.push(item as InventoryItem);
+      }
+    });
+
     const updatedInventory: InventoryStorage = {
-      items: updatedItems,
+      items: finalItems,
       lastScanDate: now,
-      version: '1.5.0' // Update version to reflect new features
+      version: '1.6.0' // Update version for legacy cleanup
     };
 
     localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(updatedInventory));
