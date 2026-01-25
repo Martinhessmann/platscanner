@@ -40,16 +40,17 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': {
-        target: 'https://api.warframe.market',
+      '/api/warframe-market': {
+        target: 'https://api.warframe.market/v1',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (path) => path.replace(/^\/api\/warframe-market/, ''),
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq) => {
             proxyReq.setHeader('Accept', 'application/json');
             proxyReq.setHeader('Content-Type', 'application/json');
             proxyReq.setHeader('Language', 'en');
             proxyReq.setHeader('Platform', 'pc');
+            proxyReq.setHeader('User-Agent', 'PlatScanner/1.2.1');
           });
         },
       },

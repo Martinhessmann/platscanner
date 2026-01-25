@@ -181,9 +181,9 @@ const fetchViaDirect = async (normalizedName: string) => {
   };
 
   try {
-    // Use configured production URL or fallback to relative path (for deployed environments)
-    // This allows local dev to use the deployed proxy
-    const baseUrl = import.meta.env.VITE_PROD_FUNCTIONS_URL || '';
+    // Use local proxy in dev, Netlify proxy URL in production
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const baseUrl = isLocal ? '' : (import.meta.env.VITE_PROD_FUNCTIONS_URL || '');
 
     // Fetch item details first
     const itemResponse = await fetch(`${baseUrl}/api/warframe-market/items/${normalizedName}`, { headers });

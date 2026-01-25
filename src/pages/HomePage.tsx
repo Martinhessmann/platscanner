@@ -23,7 +23,7 @@ import {
   updateInventoryWithStaticDucats
 } from '../services/inventoryService';
 import { getPrimeSetsCache, setPrimeSetsCache, analyzeSetProgress } from '../services/primeSetService';
-import { ImageState, DetectedItem, ProcessingState, VoidRelic, InventoryItem, Mod, PrimeSetItem } from '../types';
+import { ImageState, DetectedItem, ProcessingState, VoidRelic, InventoryItem, Mod } from '../types';
 import type { SetProgress } from '../services/primeSetService';
 import InfoCard from '../components/InfoCard';
 import PrimeSetsSection from '../components/PrimeSetsSection';
@@ -49,6 +49,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
     processedCount: 0,
     totalCount: 0
   });
+
+  // Ref to track latest state for async callbacks without capturing stale state
+  const processingStateRef = useRef(processingState);
+  useEffect(() => {
+    processingStateRef.current = processingState;
+  }, [processingState]);
 
   const [processingMetadata, setProcessingMetadata] = useState<ProcessingMetadata>({
     duplicatesPerImage: new Map(),
@@ -223,7 +229,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         type: (item as any).type || 'other',
         addedAt: item.addedAt instanceof Date ? item.addedAt : new Date(item.addedAt),
         lastUpdated: item.lastUpdated instanceof Date ? item.lastUpdated : new Date(item.lastUpdated)
-      }));
+      })) as any[];
 
       const updatedMods = await refreshModPrices(
         modData,
@@ -414,9 +420,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // 2. Perform Async Analysis
     try {
-      // Get the image file
-      const imageState = processingState.images.get(imageId);
-      if (!imageState) return;
+      // Use ref for synchronous state access
+      const imageState = processingStateRef.current.images.get(imageId);
+      if (!imageState) {
+        console.error(`>>> [AI Analysis] Image not found in state: ${imageId} <<<`);
+        return;
+      }
 
       console.log(`>>> [AI Analysis] Starting analysis for image: ${imageId} <<<`);
       const startTime = Date.now();
@@ -428,18 +437,22 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
       // Check if processing was stopped
       if (shouldStopProcessing) {
-        setProcessingState(current => ({
-          ...current,
-          images: new Map(current.images).set(imageId, {
-            ...imageState,
-            status: 'complete',
-            error: 'Processing stopped by user',
-            results: [],
-            screenType: screenType as any,
-            wasCached: false
-          }),
-          processedCount: current.processedCount + 1
-        }));
+        setProcessingState(current => {
+          const img = current.images.get(imageId);
+          if (!img) return current;
+          return {
+            ...current,
+            images: new Map(current.images).set(imageId, {
+              ...img,
+              status: 'complete',
+              error: 'Processing stopped by user',
+              results: [],
+              screenType: screenType as any,
+              wasCached: false
+            }),
+            processedCount: current.processedCount + 1
+          };
+        });
         return;
       }
 
@@ -459,32 +472,40 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       const wasCached = (Date.now() - startTime) < 500;
 
       if (newItems.length === 0) {
-        setProcessingState(current => ({
-          ...current,
-          images: new Map(current.images).set(imageId, {
-            ...imageState,
-            status: 'complete',
-            results: [],
-            screenType: screenType as any,
-            wasCached
-          }),
-          processedCount: current.processedCount + 1
-        }));
+        setProcessingState(current => {
+          const img = current.images.get(imageId);
+          if (!img) return current;
+          return {
+            ...current,
+            images: new Map(current.images).set(imageId, {
+              ...img,
+              status: 'complete',
+              results: [],
+              screenType: screenType as any,
+              wasCached
+            }),
+            processedCount: current.processedCount + 1
+          };
+        });
         return;
       }
 
       // Update success state
-      setProcessingState(current => ({
-        ...current,
-        images: new Map(current.images).set(imageId, {
-          ...imageState,
-          status: 'analyzed',
-          results: newItems,
-          syndicateRewards: newItems.filter(item => item.category === 'syndicate_rewards'),
-          screenType: screenType as any,
-          wasCached
-        })
-      }));
+      setProcessingState(current => {
+        const img = current.images.get(imageId);
+        if (!img) return current;
+        return {
+          ...current,
+          images: new Map(current.images).set(imageId, {
+            ...img,
+            status: 'analyzed',
+            results: newItems,
+            syndicateRewards: newItems.filter(item => item.category === 'syndicate_rewards'),
+            screenType: screenType as any,
+            wasCached
+          })
+        };
+      });
 
       console.log(`>>> [AI Analysis] Completed for image: ${imageId}, queued for price fetching <<<`);
 
@@ -492,10 +513,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       console.error('>>> [AI Analysis] Error:', error);
       setProcessingState(errorState => {
         const failedImg = errorState.images.get(imageId);
+        if (!failedImg) return errorState;
         return {
           ...errorState,
           images: new Map(errorState.images).set(imageId, {
-            ...failedImg!,
+            ...failedImg,
             status: 'error',
             error: error instanceof Error ? error.message : 'AI analysis failed'
           }),
@@ -503,7 +525,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         };
       });
     }
-  }, [shouldStopProcessing, processingState.images]);
+  }, [shouldStopProcessing]);
 
   // Separate processing for price fetching
   const processPriceFetching = useCallback(async (imageId: string) => {
@@ -519,13 +541,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
     // 2. Perform Async Fetching
     try {
-      let imageState: ImageState | undefined;
-      setProcessingState(prev => {
-        imageState = prev.images.get(imageId);
-        return prev;
-      });
-
-      if (!imageState || !imageState.results) return;
+      // Use ref for synchronous state access
+      const imageState = processingStateRef.current.images.get(imageId);
+      if (!imageState || !imageState.results) {
+        console.error(`>>> [Price Fetching] Image state or results not found: ${imageId} <<<`);
+        return;
+      }
 
       const newItems = imageState.results;
       const hasSyndicateRewards = imageState.syndicateRewards && imageState.syndicateRewards.length > 0;
@@ -534,11 +555,9 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         setProcessingState(current => {
           const img = current.images.get(imageId);
           if (!img) return current;
-          const newImages = new Map(current.images);
-          newImages.set(imageId, { ...img, status: 'complete' });
           return {
             ...current,
-            images: newImages,
+            images: new Map(current.images).set(imageId, { ...img, status: 'complete' }),
             processedCount: current.processedCount + 1
           };
         });
@@ -558,16 +577,14 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
           setProcessingState(current => {
             const img = current.images.get(imageId);
             if (!img) return current;
-            const newImages = new Map(current.images);
-            newImages.set(imageId, {
-              ...img,
-              status: 'complete',
-              error: 'Processing stopped by user',
-              results: processedItems
-            });
             return {
               ...current,
-              images: newImages,
+              images: new Map(current.images).set(imageId, {
+                ...img,
+                status: 'complete',
+                error: 'Processing stopped by user',
+                results: processedItems
+              }),
               processedCount: current.processedCount + 1
             };
           });
@@ -612,7 +629,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
               const relicItem = item as VoidRelic;
               const relicAnalysis = await calculateRelicValueAnalysis(
                 item.name,
-                relicItem.rarity as any || 'intact',
+                (relicItem as any).rarity || 'intact',
                 priceData.price || 0
               );
 
@@ -707,9 +724,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       setProcessingState(current => {
         const img = current.images.get(imageId);
         if (!img) return current;
-        const newImages = new Map(current.images);
-        newImages.set(imageId, { ...img, status: 'complete', results: processedItems });
-        return { ...current, images: newImages, processedCount: current.processedCount + 1 };
+        return {
+          ...current,
+          images: new Map(current.images).set(imageId, { ...img, status: 'complete', results: processedItems }),
+          processedCount: current.processedCount + 1
+        };
       });
 
       setProcessingMetadata(current => ({ ...current, currentFetchItem: undefined }));
@@ -719,9 +738,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       setProcessingState(errorState => {
         const failedImg = errorState.images.get(imageId);
         if (!failedImg) return errorState;
-        const newImages = new Map(errorState.images);
-        newImages.set(imageId, { ...failedImg, status: 'error', error: 'Fetching failed' });
-        return { ...errorState, images: newImages, processedCount: errorState.processedCount + 1 };
+        return {
+          ...errorState,
+          images: new Map(errorState.images).set(imageId, { ...failedImg, status: 'error', error: 'Fetching failed' }),
+          processedCount: errorState.processedCount + 1
+        };
       });
     }
   }, [shouldStopProcessing]);
@@ -1107,11 +1128,11 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         // Update local state with all processed items at once (prevents flickering)
         setCategorizedInventory(prev => ({
           ...prev,
-          [category]: prev[category].map(inventoryItem => {
+          [category]: (prev[category] as any[]).map(inventoryItem => {
             const updatedItem = updatedItems.find(updated => updated.name === inventoryItem.name);
             return updatedItem ? { ...inventoryItem, ...updatedItem, addedAt: inventoryItem.addedAt } : inventoryItem;
           })
-        }));
+        }) as any);
       }
 
       // Set category-specific last refresh time
