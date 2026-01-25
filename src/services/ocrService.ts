@@ -5,8 +5,7 @@ import { ocrLogger } from './ocrLogger';
 import { getPrimeSetsCache } from './staticDataService';
 import {
   isLLMWhispererConfigured,
-  extractTextWithLLMWhisperer,
-  setLLMWhispererApiKey
+  extractTextWithLLMWhisperer
 } from './llmWhispererService';
 
 
@@ -467,7 +466,6 @@ export const fileToBase64 = (file: File): Promise<string> => {
 
 // Extract prime items using pattern matching across the entire text
 const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
-  const validItems = buildValidPrimeItems();
   const foundItems: DetectedItem[] = [];
   const seenItems = new Set<string>();
 
@@ -908,7 +906,7 @@ export const getApiKey = (): string | null => {
   }
 };
 
-export const initializeGemini = (apiKey: string): boolean => {
+export const initializeGemini = (_apiKey: string): boolean => {
   // OCR doesn't need initialization, always return true
   return true;
 };

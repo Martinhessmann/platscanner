@@ -28,6 +28,7 @@ export interface BaseItem {
   // NEW: Distinguish between inventory items and truly owned items
   isOwned?: boolean; // true = user wants to keep this item, false/undefined = can be sold
   rarity?: string;
+  recommendation?: string | any;
 }
 
 export interface PrimePart extends BaseItem {
@@ -36,13 +37,13 @@ export interface PrimePart extends BaseItem {
 
 export interface VoidRelic extends BaseItem {
   category: 'relics';
-  rarity?: 'intact' | 'exceptional' | 'flawless' | 'radiant';
+  rarity?: 'intact' | 'exceptional' | 'flawless' | 'radiant' | any;
   relicDrops?: RelicRewardItem[];
   minDropValue?: number;
   maxDropValue?: number;
   expectedDropValue?: number;
   directSalePrice?: number;
-  recommendation?: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT';
+  recommendation?: 'OPEN' | 'SELL' | 'REFINE_TO_EXCEPTIONAL' | 'REFINE_TO_FLAWLESS' | 'REFINE_TO_RADIANT' | any;
   expectedProfit?: number;
   // Enhanced refinement analysis fields
   refinementAnalysis?: {
@@ -95,7 +96,7 @@ export interface Mod extends BaseItem {
   rarity: string;
   type: string;
   endoValue?: number;
-  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD' | 'HOLD_FOR_LATER';
+  recommendation?: 'SELL_FOR_ENDO' | 'TRADE_ON_MARKET' | 'KEEP' | 'HOLD' | 'HOLD_FOR_LATER' | any;
   reasoning?: string;
   platPerEndo?: number;
   hasHistoricalSales?: boolean;

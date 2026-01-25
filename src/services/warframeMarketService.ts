@@ -1,4 +1,4 @@
-import { DetectedItem, VoidRelic, Mod } from '../types';
+import { DetectedItem } from '../types';
 import { getImageUrl } from './unifiedImageService';
 import { marketLogger } from './marketLogger';
 
@@ -249,7 +249,7 @@ const fetchViaDirect = async (normalizedName: string) => {
       sellerQuantity: lowestSeller?.quantity || 0
     };
   } catch (error) {
-    marketLogger.error('fetchViaDirect', `Error fetching ${normalizedName}`, { error });
+    marketLogger.error(`Error in fetchViaDirect for ${normalizedName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     throw error;
   }
 };
@@ -304,7 +304,7 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
 
       await delay(RATE_LIMIT_DELAY);
     } catch (error) {
-      marketLogger.error('PriceFetch', `Failed for ${part.name}`, { error });
+      marketLogger.error(`Failed to fetch item details for ${part.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       updatedParts.push({
         ...part,
         status: 'error' as const,
