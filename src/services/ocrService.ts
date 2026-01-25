@@ -1,5 +1,4 @@
-import Tesseract from 'tesseract.js';
-import { DetectedItem, PrimePart, VoidRelic, SyndicateReward, Mod } from '../types';
+import { DetectedItem, VoidRelic, SyndicateReward, Mod } from '../types';
 import { getCategorizedInventory } from './inventoryService';
 import { determineModRarity, determineModType } from './modService';
 import { ocrLogger } from './ocrLogger';
@@ -10,252 +9,149 @@ import {
   setLLMWhispererApiKey
 } from './llmWhispererService';
 
-// Debug mode: set to true to download preprocessed images
-// Enable via console: window.OCR_DEBUG_MODE = true
-const OCR_DEBUG_MODE = (typeof window !== 'undefined' && (window as any).OCR_DEBUG_MODE) || false;
 
-// Download blob as file for debugging
-const downloadDebugImage = (blob: Blob, filename: string): void => {
-  if (!OCR_DEBUG_MODE) return;
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+
+// [Deleted Tesseract functions and unused image processing]
+
+// UI text patterns to filter out (noise from Warframe UI)
+const UI_NOISE_PATTERNS = [
+  /^(inventory|sell|search|exit|total|tap|hold|select|info|price|items?)$/i,
+  /inventory\/sell/i,
+  /sell\s*(price|items)/i,
+  /tap\s*(on|and)/i,
+  /more\s*info/i,
+  /only\s*sellable/i,
+  /search\.\.\./i,
+  /^\s*[@#$%^&*|\\[\]{}]+\s*$/,  // Lines with only special characters
+  /^\s*\d+\s*$/,  // Lines with only numbers
+  /^\s*[ivxlcdm]+\s*$/i,  // Roman numerals only
+];
+
+// Check if a line is UI noise
+const isUINoiseText = (line: string): boolean => {
+  const trimmed = line.trim();
+  // Too short (likely OCR noise)
+  if (trimmed.length < 3) return true;
+  // Too many special characters relative to alphanumeric
+  const alphaNum = trimmed.replace(/[^a-zA-Z0-9]/g, '').length;
+  if (alphaNum < trimmed.length * 0.4) return true;
+  // Matches known UI patterns
+  return UI_NOISE_PATTERNS.some(pattern => pattern.test(trimmed));
 };
 
-// Grid layout configuration for Warframe inventory
-// Based on detailed analysis of IMG_0318.png (2532 x 1170 px)
-// Layout: 8 columns x 3-4 rows of items
-// Text labels are at the bottom of each cell
-const INVENTORY_GRID_CONFIG = {
-  // For 2532 x 1170 image:
-  // - Cell width: 243px (~9.6% of width)
-  // - Row 1 text Y: 378px (32% of height)
-  // - Row 2 text Y: 595px (51% of height)
-  // - Row 3 text Y: 910px (78% of height)
-  // - Text height: 52px (~4.4% of height)
+// Determine screen type based on extracted text
+const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown' => {
+  ocrLogger.debug('ScreenType', 'Determining screen type from extracted text', {
+    textLength: text.length,
+    textPreview: text.substring(0, 200)
+  });
 
-  // Percentages of image dimensions
-  gridLeft: 0.012,         // Left margin ~30px
-  gridRight: 0.79,         // Right edge before sidebar ~2000px
-  textRowY: [0.323, 0.509, 0.778],  // Y position of text for each row (as % of height)
-  textHeight: 0.044,       // Text label height ~52px
-  columns: 8,              // Number of item columns in grid
-  scale: 3,                // Scale factor for OCR
-};
+  const lowerText = text.toLowerCase();
 
-// Preprocess image to enhance text visibility for OCR
-// Warframe uses gold/cream text on dark backgrounds
-// Gold color range: RGB(180-255, 140-220, 50-150)
-const preprocessImageForOCR = (
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number
-): void => {
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-
-  // Process each pixel
-  for (let i = 0; i < data.length; i += 4) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-
-    // Calculate luminance (weighted average)
-    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-
-    // Warframe gold/cream text detection:
-    // - R channel is highest (180+)
-    // - G channel is medium-high (130+)
-    // - B channel is lower than R and G
-    // - R > B by significant margin
-    const isGoldText = r > 180 && g > 130 && b < 180 &&
-                       r > g * 0.8 && r > b * 1.3 && (r + g) > 350;
-
-    // White/cream text (all channels high)
-    const isWhiteText = r > 200 && g > 200 && b > 180;
-
-    // Bright text fallback (high luminance)
-    const isBrightText = luminance > 160;
-
-    if (isGoldText || isWhiteText || isBrightText) {
-      // Make text black
-      data[i] = 0;
-      data[i + 1] = 0;
-      data[i + 2] = 0;
-    } else {
-      // Make background white
-      data[i] = 255;
-      data[i + 1] = 255;
-      data[i + 2] = 255;
-    }
+  // Check for syndicate indicators
+  if (
+    lowerText.includes('syndicate offerings') ||
+    lowerText.includes('arbiters of hexis') ||
+    lowerText.includes('steel meridian') ||
+    lowerText.includes('cephalon suda') ||
+    lowerText.includes('perrin sequence') ||
+    lowerText.includes('red veil') ||
+    lowerText.includes('new loka') ||
+    lowerText.includes('arbitration honors')
+  ) {
+    ocrLogger.info('ScreenType', 'Detected screen type: syndicate');
+    return 'syndicate';
   }
 
-  ctx.putImageData(imageData, 0, 0);
-};
-
-// Crop image to a specific region using canvas with preprocessing
-const cropImageRegion = async (
-  imageFile: File,
-  xPercent: number,
-  yPercent: number,
-  widthPercent: number,
-  heightPercent: number,
-  preprocess: boolean = true
-): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
-
-      const x = Math.floor(img.width * xPercent);
-      const y = Math.floor(img.height * yPercent);
-      const width = Math.floor(img.width * widthPercent);
-      const height = Math.floor(img.height * heightPercent);
-
-      canvas.width = width;
-      canvas.height = height;
-      ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
-
-      // Apply preprocessing to enhance text
-      if (preprocess) {
-        preprocessImageForOCR(ctx, width, height);
-      }
-
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error('Failed to create blob from canvas'));
-      }, 'image/png');
-    };
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = URL.createObjectURL(imageFile);
-  });
-};
-
-// Extract text from each cell of the inventory grid (cell-based approach)
-// This extracts just the text label area at the bottom of each item cell
-const extractTextByColumns = async (imageFile: File, usePreprocessing: boolean = false): Promise<string[]> => {
-  const config = INVENTORY_GRID_CONFIG;
-  const allTexts: string[] = [];
-
-  ocrLogger.info('GridOCR', `Extracting text from ${config.columns} columns x ${config.textRowY.length} rows`);
-
-  // Create a worker for OCR
-  const workerPath = `${window.location.origin}/tesseract/worker.min.js`;
-  const corePath = `${window.location.origin}/tesseract`;
-
-  const worker = await Tesseract.createWorker('eng', 1, {
-    workerPath,
-    corePath,
-    workerBlobURL: false,
-  });
-
-  // Configure for text blocks with character whitelist
-  await worker.setParameters({
-    tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ',
-  });
-
-  try {
-    // Process each row
-    for (let row = 0; row < config.textRowY.length; row++) {
-      const rowTexts: string[] = [];
-
-      // Process each cell in the row
-      for (let col = 0; col < config.columns; col++) {
-        const gridWidth = config.gridRight - config.gridLeft;
-        const cellWidth = gridWidth / config.columns;
-
-        const x = config.gridLeft + (col * cellWidth);
-        const y = config.textRowY[row];
-        const w = cellWidth;
-        const h = config.textHeight;
-
-        ocrLogger.debug('GridOCR', `Cell [${row},${col}]: x=${(x*100).toFixed(1)}%, y=${(y*100).toFixed(1)}%`);
-
-        // Extract and scale up the cell text area
-        const cellBlob = await cropAndScaleRegion(imageFile, x, y, w, h, config.scale);
-
-        // Debug: download cell images
-        downloadDebugImage(cellBlob, `ocr-debug-r${row}c${col}.png`);
-
-        // OCR the cell
-        const cellFile = new File([cellBlob], `cell-${row}-${col}.png`, { type: 'image/png' });
-        const { data: { text } } = await worker.recognize(cellFile);
-
-        const cleanText = text.trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
-        if (cleanText.length > 3) {
-          rowTexts.push(cleanText);
-          ocrLogger.debug('GridOCR', `Cell [${row},${col}]: "${cleanText}"`);
-        }
-      }
-
-      allTexts.push(...rowTexts);
-    }
-  } finally {
-    await worker.terminate();
+  // Check for relic indicators
+  if (
+    lowerText.includes('void relics') ||
+    lowerText.includes('relic') ||
+    /\b(lith|meso|neo|axi)\s+[a-z]\d+/i.test(text)
+  ) {
+    ocrLogger.info('ScreenType', 'Detected screen type: relics');
+    return 'relics';
   }
 
-  ocrLogger.info('GridOCR', `Extracted ${allTexts.length} text segments`);
-  return allTexts;
+  // Check for prime parts BEFORE mods (more specific patterns first)
+  // "PRIME PARTS" header or multiple Prime item names
+  if (
+    lowerText.includes('prime parts') ||
+    (lowerText.includes('prime') && (
+      lowerText.includes('blueprint') ||
+      lowerText.includes('chassis') ||
+      lowerText.includes('neuroptics') ||
+      lowerText.includes('systems') ||
+      lowerText.includes('barrel') ||
+      lowerText.includes('receiver') ||
+      lowerText.includes('stock') ||
+      lowerText.includes('blade') ||
+      lowerText.includes('handle') ||
+      lowerText.includes('link') ||
+      lowerText.includes('boot') ||
+      lowerText.includes('gauntlet')
+    ))
+  ) {
+    ocrLogger.info('ScreenType', 'Detected screen type: prime_parts');
+    return 'prime_parts';
+  }
+
+  // Check for mod indicators (polarity symbols, drain costs)
+  // Be more specific to avoid false positives from OCR noise
+  if (
+    /\bmods?\b/i.test(text) ||
+    /\b(drain|capacity)\s*:?\s*\d+/i.test(text) ||
+    /\d+\s*\/\s*\d+\s*\(drain/i.test(text) // Rank format with drain
+  ) {
+    ocrLogger.info('ScreenType', 'Detected screen type: mods');
+    return 'mods';
+  }
+
+  // Fallback check for prime parts (less specific)
+  if (lowerText.includes('prime') || lowerText.includes('blueprint')) {
+    ocrLogger.info('ScreenType', 'Detected screen type: prime_parts');
+    return 'prime_parts';
+  }
+
+  ocrLogger.warn('ScreenType', 'Could not determine screen type, defaulting to unknown', {
+    textPreview: text.substring(0, 500)
+  });
+  return 'unknown';
 };
 
-// Crop and scale a region for better OCR
-const cropAndScaleRegion = async (
-  imageFile: File,
-  xPercent: number,
-  yPercent: number,
-  widthPercent: number,
-  heightPercent: number,
-  scale: number = 3
-): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const x = Math.floor(img.width * xPercent);
-      const y = Math.floor(img.height * yPercent);
-      const width = Math.floor(img.width * widthPercent);
-      const height = Math.floor(img.height * heightPercent);
+// Known component types for Prime items
 
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
 
-      // Scale up for better OCR
-      canvas.width = width * scale;
-      canvas.height = height * scale;
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, x, y, width, height, 0, 0, width * scale, height * scale);
+// Helper to parse quantity from a line
+const parseQuantity = (line: string): { quantity: number, cleanLine: string } => {
+  let quantity = 1;
+  let cleanLine = line;
 
-      // Invert colors for better OCR (dark text on light background)
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        data[i] = 255 - data[i];
-        data[i + 1] = 255 - data[i + 1];
-        data[i + 2] = 255 - data[i + 2];
-      }
-      ctx.putImageData(imageData, 0, 0);
+  // Try "5 x Item" or "5 × Item"
+  let match = line.match(/^(\d+)\s*[x×]\s*(.+)$/i);
+  if (match) {
+    quantity = parseInt(match[1]);
+    cleanLine = match[2].trim();
+    return { quantity, cleanLine };
+  }
 
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error('Failed to create blob from canvas'));
-      }, 'image/png');
-    };
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = URL.createObjectURL(imageFile);
-  });
+  // Try "Item x5" or "Item ×5"
+  match = line.match(/^(.+)\s*[x×](\d+)$/i);
+  if (match) {
+    cleanLine = match[1].trim();
+    quantity = parseInt(match[2]);
+    return { quantity, cleanLine };
+  }
+
+  // Try "x5 Item" or "×5 Item"
+  match = line.match(/^[x×](\d+)\s*(.+)$/i);
+  if (match) {
+    quantity = parseInt(match[1]);
+    cleanLine = match[2].trim();
+    return { quantity, cleanLine };
+  }
+
+  return { quantity, cleanLine };
 };
 
 // Cache for valid prime item names (built from primesets.json)
@@ -502,10 +398,6 @@ export const clearImageCache = (): void => {
   }
 };
 
-// Get cache statistics for debugging
-// Export logger for use in UI
-export { ocrLogger } from './ocrLogger';
-
 export const getCacheStats = (): { entries: number; oldestEntry?: Date; newestEntry?: Date } => {
   try {
     const cacheData = localStorage.getItem(IMAGE_CACHE_KEY);
@@ -524,7 +416,7 @@ export const getCacheStats = (): { entries: number; oldestEntry?: Date; newestEn
     console.error('Failed to get cache stats:', error);
     return { entries: 0 };
   }
-  };
+};
 
 export const fileToBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -547,308 +439,6 @@ export const fileToBase64 = (file: File): Promise<string> => {
       reject(error);
     };
   });
-};
-
-// Convert base64 to image data URL for Tesseract
-const base64ToImageData = (base64: string): Promise<ImageData> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0);
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      resolve(imageData);
-    };
-    img.onerror = () => reject(new Error('Failed to load image'));
-    img.src = `data:image/png;base64,${base64}`;
-  });
-};
-
-// Extract text from image using OCR
-// Uses client-side Tesseract.js for OCR processing
-// Note: Supabase Edge Function for OCR was deprecated - using client-side only
-// Preprocess entire image for OCR (used for non-grid extraction)
-const preprocessFullImage = async (imageFile: File): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Failed to get canvas context'));
-        return;
-      }
-
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-
-      // Apply preprocessing
-      preprocessImageForOCR(ctx, img.width, img.height);
-
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error('Failed to create blob from canvas'));
-      }, 'image/png');
-    };
-    img.onerror = () => reject(new Error('Failed to load image for preprocessing'));
-    img.src = URL.createObjectURL(imageFile);
-  });
-};
-
-const extractTextFromImage = async (imageFile: File, psmMode: any = Tesseract.PSM.SPARSE_TEXT, preprocess: boolean = true): Promise<string> => {
-  ocrLogger.info('OCR', `Starting text extraction for file: ${imageFile.name} (${imageFile.size} bytes, type: ${imageFile.type})`);
-
-  // Client-side OCR using Tesseract.js
-  ocrLogger.info('OCR', 'Using client-side OCR processing');
-  let worker: any = null;
-
-  try {
-    // Preprocess image if enabled
-    let imageToProcess: File | Blob = imageFile;
-    if (preprocess) {
-      ocrLogger.debug('OCR', 'Preprocessing image for enhanced text detection...');
-      imageToProcess = await preprocessFullImage(imageFile);
-      ocrLogger.debug('OCR', 'Image preprocessing complete');
-    }
-
-    // Create worker with local files to avoid cross-origin issues
-    // All Tesseract files are hosted locally at /tesseract/ (same origin)
-    const workerPath = `${window.location.origin}/tesseract/worker.min.js`;
-    const corePath = `${window.location.origin}/tesseract`;
-
-    ocrLogger.debug('OCR', 'Creating Tesseract worker with configuration', {
-      workerPath,
-      corePath,
-      workerBlobURL: false,
-      origin: window.location.origin
-    });
-
-    const workerOptions: any = {
-      workerPath,
-      corePath,
-      workerBlobURL: false,
-      logger: (m: any) => {
-        if (m.status === 'recognizing text' && m.progress !== undefined) {
-          ocrLogger.debug('OCR', `OCR progress: ${Math.round(m.progress * 100)}%`);
-        } else if (m.status) {
-          ocrLogger.debug('OCR', `Worker status: ${m.status}`, m);
-        }
-      }
-    };
-
-    worker = await Tesseract.createWorker('eng', 1, workerOptions);
-
-    // Set page segmentation mode and character whitelist
-    await worker.setParameters({
-      tessedit_pageseg_mode: psmMode,
-      // Only allow alphanumeric characters plus common punctuation
-      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -\'',
-    });
-
-    ocrLogger.info('OCR', `Tesseract worker created with PSM mode ${psmMode}`);
-
-    ocrLogger.debug('OCR', 'Starting OCR recognition...');
-    const startTime = Date.now();
-
-    const { data: { text, words, lines, paragraphs } } = await worker.recognize(imageToProcess);
-    const duration = Date.now() - startTime;
-
-    ocrLogger.info('OCR', `OCR recognition completed in ${duration}ms`, {
-      textLength: text.length,
-      wordCount: words?.length || 0,
-      lineCount: lines?.length || 0,
-      paragraphCount: paragraphs?.length || 0
-    });
-
-    ocrLogger.debug('OCR', 'Extracted text preview', {
-      preview: text.substring(0, 500),
-      fullLength: text.length
-    });
-
-    ocrLogger.debug('OCR', 'Terminating Tesseract worker');
-    await worker.terminate();
-    worker = null;
-
-    return text;
-  } catch (error) {
-    ocrLogger.error('OCR', 'Failed to extract text from image', {
-      error: error instanceof Error ? error.message : String(error),
-      errorName: error instanceof Error ? error.name : typeof error,
-      fileName: imageFile.name,
-      fileSize: imageFile.size,
-      fileType: imageFile.type,
-      stack: error instanceof Error ? error.stack : undefined,
-      isSecurityError: error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure'))
-    });
-
-    // Clean up worker if it was created
-    if (worker) {
-      try {
-        await worker.terminate();
-      } catch (terminateError) {
-        ocrLogger.warn('OCR', 'Failed to terminate worker during error cleanup', {
-          error: terminateError instanceof Error ? terminateError.message : String(terminateError)
-        });
-      }
-    }
-
-    throw error;
-  }
-};
-
-// UI text patterns to filter out (noise from Warframe UI)
-const UI_NOISE_PATTERNS = [
-  /^(inventory|sell|search|exit|total|tap|hold|select|info|price|items?)$/i,
-  /inventory\/sell/i,
-  /sell\s*(price|items)/i,
-  /tap\s*(on|and)/i,
-  /more\s*info/i,
-  /only\s*sellable/i,
-  /search\.\.\./i,
-  /^\s*[@#$%^&*|\\[\]{}]+\s*$/,  // Lines with only special characters
-  /^\s*\d+\s*$/,  // Lines with only numbers
-  /^\s*[ivxlcdm]+\s*$/i,  // Roman numerals only
-];
-
-// Check if a line is UI noise
-const isUINoiseText = (line: string): boolean => {
-  const trimmed = line.trim();
-  // Too short (likely OCR noise)
-  if (trimmed.length < 3) return true;
-  // Too many special characters relative to alphanumeric
-  const alphaNum = trimmed.replace(/[^a-zA-Z0-9]/g, '').length;
-  if (alphaNum < trimmed.length * 0.4) return true;
-  // Matches known UI patterns
-  return UI_NOISE_PATTERNS.some(pattern => pattern.test(trimmed));
-};
-
-// Determine screen type based on extracted text
-const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicate' | 'mods' | 'unknown' => {
-  ocrLogger.debug('ScreenType', 'Determining screen type from extracted text', {
-    textLength: text.length,
-    textPreview: text.substring(0, 200)
-  });
-
-  const lowerText = text.toLowerCase();
-
-  // Check for syndicate indicators
-  if (
-    lowerText.includes('syndicate offerings') ||
-    lowerText.includes('arbiters of hexis') ||
-    lowerText.includes('steel meridian') ||
-    lowerText.includes('cephalon suda') ||
-    lowerText.includes('perrin sequence') ||
-    lowerText.includes('red veil') ||
-    lowerText.includes('new loka') ||
-    lowerText.includes('arbitration honors')
-  ) {
-    ocrLogger.info('ScreenType', 'Detected screen type: syndicate');
-    return 'syndicate';
-  }
-
-  // Check for relic indicators
-  if (
-    lowerText.includes('void relics') ||
-    lowerText.includes('relic') ||
-    /\b(lith|meso|neo|axi)\s+[a-z]\d+/i.test(text)
-  ) {
-    ocrLogger.info('ScreenType', 'Detected screen type: relics');
-    return 'relics';
-  }
-
-  // Check for prime parts BEFORE mods (more specific patterns first)
-  // "PRIME PARTS" header or multiple Prime item names
-  if (
-    lowerText.includes('prime parts') ||
-    (lowerText.includes('prime') && (
-      lowerText.includes('blueprint') ||
-      lowerText.includes('chassis') ||
-      lowerText.includes('neuroptics') ||
-      lowerText.includes('systems') ||
-      lowerText.includes('barrel') ||
-      lowerText.includes('receiver') ||
-      lowerText.includes('stock') ||
-      lowerText.includes('blade') ||
-      lowerText.includes('handle') ||
-      lowerText.includes('link') ||
-      lowerText.includes('boot') ||
-      lowerText.includes('gauntlet')
-    ))
-  ) {
-    ocrLogger.info('ScreenType', 'Detected screen type: prime_parts');
-    return 'prime_parts';
-  }
-
-  // Check for mod indicators (polarity symbols, drain costs)
-  // Be more specific to avoid false positives from OCR noise
-  if (
-    /\bmods?\b/i.test(text) ||
-    /\b(drain|capacity)\s*:?\s*\d+/i.test(text) ||
-    /\d+\s*\/\s*\d+\s*\(drain/i.test(text) // Rank format with drain
-  ) {
-    ocrLogger.info('ScreenType', 'Detected screen type: mods');
-    return 'mods';
-  }
-
-  // Fallback check for prime parts (less specific)
-  if (lowerText.includes('prime') || lowerText.includes('blueprint')) {
-    ocrLogger.info('ScreenType', 'Detected screen type: prime_parts');
-    return 'prime_parts';
-  }
-
-  ocrLogger.warn('ScreenType', 'Could not determine screen type, defaulting to unknown', {
-    textPreview: text.substring(0, 500)
-  });
-  return 'unknown';
-};
-
-// Known component types for Prime items
-const PRIME_COMPONENT_TYPES = [
-  'Blueprint', 'Chassis', 'Neuroptics', 'Systems',
-  'Barrel', 'Receiver', 'Stock', 'Blade', 'Handle', 'Link',
-  'Grip', 'String', 'Lower Limb', 'Upper Limb',
-  'Gauntlet', 'Boot', 'Ornament', 'Head', 'Pouch',
-  'Carapace', 'Cerebrum', 'Guard', 'Hilt', 'Blades'
-];
-
-// Helper to parse quantity from a line
-const parseQuantity = (line: string): { quantity: number, cleanLine: string } => {
-  let quantity = 1;
-  let cleanLine = line;
-
-  // Try "5 x Item" or "5 × Item"
-  let match = line.match(/^(\d+)\s*[x×]\s*(.+)$/i);
-  if (match) {
-    quantity = parseInt(match[1]);
-    cleanLine = match[2].trim();
-    return { quantity, cleanLine };
-  }
-
-  // Try "Item x5" or "Item ×5"
-  match = line.match(/^(.+)\s*[x×](\d+)$/i);
-  if (match) {
-    cleanLine = match[1].trim();
-    quantity = parseInt(match[2]);
-    return { quantity, cleanLine };
-  }
-
-  // Try "x5 Item" or "×5 Item"
-  match = line.match(/^[x×](\d+)\s*(.+)$/i);
-  if (match) {
-    quantity = parseInt(match[1]);
-    cleanLine = match[2].trim();
-    return { quantity, cleanLine };
-  }
-
-  return { quantity, cleanLine };
 };
 
 // Extract prime items using pattern matching across the entire text
@@ -1162,40 +752,32 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     }
 
     // Step 1: Extract text using OCR
-    // Try LLMWhisperer first (if configured), then fall back to Tesseract
+    // Only use LLMWhisperer
     let extractedText = '';
-    let ocrMethod = 'tesseract';
+
 
     const llmWhispererConfigured = isLLMWhispererConfigured();
 
-    // Log prominently whether LLMWhisperer is configured
-    if (llmWhispererConfigured) {
-      ocrLogger.info('Analysis', '✅ LLMWhisperer IS configured - using AI OCR');
-      ocrLogger.info('Analysis', 'Step 1: Extracting text using LLMWhisperer');
-    } else {
-      ocrLogger.warn('Analysis', '⚠️ LLMWhisperer NOT configured - falling back to Tesseract (low accuracy)');
-      ocrLogger.info('Analysis', 'To enable LLMWhisperer: Settings → API → paste your key');
+    if (!llmWhispererConfigured) {
+      ocrLogger.error('Analysis', 'LLMWhisperer not configured');
+      throw new Error('LLMWhisperer API key not configured. Please go to Settings → API and enter your key to use the scanner.');
     }
 
-    if (llmWhispererConfigured) {
-      try {
-        extractedText = await extractTextWithLLMWhisperer(imageFile);
-        ocrMethod = 'llmwhisperer';
-        ocrLogger.info('Analysis', `LLMWhisperer extracted ${extractedText.length} characters`);
-      } catch (llmError) {
-        ocrLogger.warn('Analysis', 'LLMWhisperer failed, falling back to Tesseract', {
-          error: llmError instanceof Error ? llmError.message : String(llmError)
-        });
-      }
+    ocrLogger.info('Analysis', '✅ LLMWhisperer configured - using AI OCR');
+    ocrLogger.info('Analysis', 'Step 1: Extracting text using LLMWhisperer');
+
+    try {
+      extractedText = await extractTextWithLLMWhisperer(imageFile);
+      ocrLogger.info('Analysis', `LLMWhisperer extracted ${extractedText.length} characters`);
+    } catch (llmError) {
+      ocrLogger.error('Analysis', 'LLMWhisperer failed', {
+        error: llmError instanceof Error ? llmError.message : String(llmError)
+      });
+      // Propagate the specific error message to the UI
+      throw new Error(`LLMWhisperer OCR failed: ${llmError instanceof Error ? llmError.message : 'Unknown error'}`);
     }
 
-    // Fall back to Tesseract if LLMWhisperer not configured or failed
-    if (!extractedText) {
-      ocrLogger.info('Analysis', 'Step 1: Extracting text from image using Tesseract OCR');
-      extractedText = await extractTextFromImage(imageFile);
-    }
-
-    ocrLogger.info('Analysis', `Extracted ${extractedText.length} characters of text (method: ${ocrMethod})`, {
+    ocrLogger.info('Analysis', `Extracted ${extractedText.length} characters of text`, {
       preview: extractedText.substring(0, 500)
     });
 
@@ -1212,44 +794,11 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     const screenType = determineScreenType(extractedText);
     ocrLogger.info('Analysis', `Detected screen type: ${screenType}`);
 
-    // Step 2b: For prime_parts with Tesseract, try grid-based extraction for better results
-    // Skip this if LLMWhisperer was used - it already provides good results
-    let finalText = extractedText;
-    if (screenType === 'prime_parts' && ocrMethod === 'tesseract') {
-      ocrLogger.info('Analysis', 'Step 2b: Using grid-based column extraction for prime parts (Tesseract fallback)');
-      try {
-        // Try with preprocessing first
-        const columnTextsPreprocessed = await extractTextByColumns(imageFile, true);
-        const textPreprocessed = columnTextsPreprocessed.join('\n\n');
-        const itemsPreprocessed = parseDetectedItems(textPreprocessed, screenType);
-
-        // Also try without preprocessing for comparison
-        const columnTextsRaw = await extractTextByColumns(imageFile, false);
-        const textRaw = columnTextsRaw.join('\n\n');
-        const itemsRaw = parseDetectedItems(textRaw, screenType);
-
-        ocrLogger.info('Analysis', `Preprocessing: ${itemsPreprocessed.length} items, Raw: ${itemsRaw.length} items`);
-
-        // Use whichever approach found more items
-        if (itemsRaw.length > itemsPreprocessed.length) {
-          ocrLogger.info('Analysis', 'Using raw OCR (found more items)');
-          finalText = textRaw;
-        } else {
-          ocrLogger.info('Analysis', 'Using preprocessed OCR');
-          finalText = textPreprocessed;
-        }
-      } catch (gridError) {
-        ocrLogger.warn('Analysis', 'Grid extraction failed, using standard OCR text', {
-          error: gridError instanceof Error ? gridError.message : String(gridError)
-        });
-      }
-    } else if (screenType === 'prime_parts' && ocrMethod === 'llmwhisperer') {
-      ocrLogger.info('Analysis', 'Step 2b: Skipping grid extraction - LLMWhisperer already provided high-quality OCR');
-    }
+    // Step 2b: Grid extraction logic removed (was Tesseract fallback)
 
     // Step 3: Parse detected items
     ocrLogger.info('Analysis', 'Step 3: Parsing detected items');
-    const detectedItems = parseDetectedItems(finalText, screenType);
+    const detectedItems = parseDetectedItems(extractedText, screenType);
 
     const categoryCounts = detectedItems.reduce((acc, item) => {
       acc[item.category] = (acc[item.category] || 0) + 1;
