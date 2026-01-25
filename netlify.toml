@@ -6,21 +6,19 @@
 [build.environment]
   NODE_VERSION = "18.20.5"
 
-# Handle SPA routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-# Proxy for Warframe Market API to avoid CORS issues
+# 1. Proxy for Warframe Market API (V2) - must be BEFORE SPA catch-all
 [[redirects]]
   from = "/api/warframe-market/*"
-  to = "https://api.warframe.market/v1/:splat"
+  to = "https://api.warframe.market/v2/:splat"
   status = 200
   force = true
   headers = {Accept = "application/json", Language = "en", Platform = "pc", Access-Control-Allow-Origin = "*"}
 
-
+# 2. Handle SPA routing - must be LAST
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
 # Security headers
 [[headers]]

@@ -164,6 +164,9 @@ const fetchBatchViaNetlify = async (normalizedNames: string[]) => {
  * UPDATED: Now uses V2 API structure to match Netlify Function and support components
  */
 const fetchViaDirect = async (normalizedName: string) => {
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  console.log(`>>> [Market API] Fetching via ${isLocal ? 'Local Proxy' : 'Production Origin'} for: ${normalizedName} <<<`);
+
   const headers = {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
@@ -173,14 +176,18 @@ const fetchViaDirect = async (normalizedName: string) => {
   };
 
   try {
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    // Only use VITE_PROD_FUNCTIONS_URL if we are NOT on localhost and want to hit a specific backend
     const baseUrl = isLocal ? '' : (import.meta.env.VITE_PROD_FUNCTIONS_URL || '');
+    const apiPath = `/api/warframe-market/items/${normalizedName}`;
+    const ordersPath = `/api/warframe-market/orders/item/${normalizedName}/top`;
+
+    console.log(`>>> [Market API] Base URL: "${baseUrl}", Path: "${apiPath}" <<<`);
 
     // Fetch item details and orders in parallel using V2 endpoints
     // Note: /api/warframe-market is proxied to https://api.warframe.market/v2
     const [itemResponse, ordersResponse] = await Promise.all([
-      fetch(`${baseUrl}/api/warframe-market/items/${normalizedName}`, { headers }),
-      fetch(`${baseUrl}/api/warframe-market/orders/item/${normalizedName}/top`, { headers }).catch(() => null)
+      fetch(`${baseUrl}${apiPath}`, { headers }),
+      fetch(`${baseUrl}${ordersPath}`, { headers }).catch(() => null)
     ]);
 
     if (!itemResponse.ok) {
