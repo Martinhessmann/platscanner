@@ -248,7 +248,7 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
         const existingIdx = seenNames.get(key)!;
         finalItems[existingIdx].quantity = (finalItems[existingIdx].quantity || 1) + (item.quantity || 1);
         finalItems[existingIdx].lastUpdated = item.lastUpdated > finalItems[existingIdx].lastUpdated ? item.lastUpdated : finalItems[existingIdx].lastUpdated;
-        console.log(`>>> [Inventory] Legacy Cleanup: Merged duplicate "${item.name}" into inventory entry <<<`);
+        console.log(`>>> [Inventory] Legacy Cleanup: Merged duplicate "${item.name}" into single entry <<<`);
       } else {
         seenNames.set(key, finalItems.length);
         finalItems.push(item as InventoryItem);

@@ -492,30 +492,18 @@ const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
       // Validate against known items
       const matchedItem = findBestPrimeMatch(fullName, 0.85);
       if (matchedItem) {
-        // Multi-directional quantity detection
+        // Multi-directional quantity detection (REFINED: Only look ABOVE/Behind)
         let finalQuantity = quantity;
 
         if (finalQuantity === 1) {
-          // 1. Look behind (some OCR puts number ABOVE item)
+          // Look behind (Above item in grid) - STANDALONE numbers in inventory are ABOVE item
           if (index > 0) {
             const prevLine = lines[index - 1];
             if (/^\d+$/.test(prevLine)) {
               const prevQty = parseInt(prevLine);
               if (prevQty > 0 && prevQty < 100) {
                 finalQuantity = prevQty;
-                ocrLogger.debug('Parsing', `Found quantity ${prevQty} on line ABOVE item: ${matchedItem}`);
-              }
-            }
-          }
-
-        // 2. Look ahead (some OCR puts number BELOW item) - only if Look behind didn't find anything > 1
-          if (finalQuantity === 1 && index < lines.length - 1) {
-            const nextLine = lines[index + 1];
-            if (/^\d+$/.test(nextLine)) {
-              const nextQty = parseInt(nextLine);
-              if (nextQty > 0 && nextQty < 100) {
-                finalQuantity = nextQty;
-                ocrLogger.debug('Parsing', `Found quantity ${nextQty} on line BELOW item: ${matchedItem}`);
+                console.log(`>>> [OCR Parsing] Found quantity ${prevQty} ABOVE item: ${matchedItem} <<<`);
               }
             }
           }
@@ -541,6 +529,8 @@ const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
           }
         }
         return; // Found a match on this line
+      } else {
+        console.warn(`>>> [OCR Parsing] Detected Prime-like text but failed strict match (0.85): "${fullName}" <<<`);
       }
     }
 
