@@ -492,6 +492,19 @@ const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
       // Validate against known items
       const matchedItem = findBestPrimeMatch(fullName, 0.85);
       if (matchedItem) {
+        // Look ahead for quantity if current quantity is 1
+        let finalQuantity = quantity;
+        if (finalQuantity === 1 && index < lines.length - 1) {
+          const nextLine = lines[index + 1];
+          // If next line is just a number (e.g., "2"), use it as quantity
+          if (/^\d+$/.test(nextLine)) {
+            const nextQty = parseInt(nextLine);
+            if (nextQty > 0 && nextQty < 100) {
+              finalQuantity = nextQty;
+            }
+          }
+        }
+
         // Create a unique key for deduplication within this scan
         const key = matchedItem.toLowerCase();
         if (!seenItems.has(key)) {
@@ -499,16 +512,16 @@ const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
             id: `prime-${Date.now()}-${index}`,
             name: matchedItem,
             category: 'prime_parts',
-            quantity,
+            quantity: finalQuantity,
             status: 'loading'
           });
           seenItems.add(key);
-          ocrLogger.debug('Parsing', `Pattern matched: "${fullName}" → "${matchedItem}" (x${quantity})`);
+          ocrLogger.debug('Parsing', `Pattern matched: "${fullName}" → "${matchedItem}" (x${finalQuantity})`);
         } else {
           // If seen, update quantity
           const existing = foundItems.find(item => item.name.toLowerCase() === key);
           if (existing) {
-            existing.quantity = (existing.quantity || 1) + quantity;
+            existing.quantity = (existing.quantity || 1) + finalQuantity;
           }
         }
         return; // Found a match on this line

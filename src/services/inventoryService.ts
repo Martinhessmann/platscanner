@@ -212,11 +212,17 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
     const updatedItems = [...currentInventory.items];
 
     inventoryItems.forEach(newItem => {
-      const existingIndex = updatedItems.findIndex(existing => existing.name === newItem.name);
+      const existingIndex = updatedItems.findIndex(existing =>
+        existing.name.trim().toLowerCase() === newItem.name.trim().toLowerCase() &&
+        existing.category === newItem.category
+      );
+
       if (existingIndex >= 0) {
         // Accumulate quantity for existing items
         const existingItem = updatedItems[existingIndex];
         const newQuantity = (existingItem.quantity || 1) + (newItem.quantity || 1);
+
+        console.log(`>>> [Inventory] Merging "${newItem.name}": ${existingItem.quantity} + ${newItem.quantity} = ${newQuantity} <<<`);
 
         // Update existing item with latest data but preserve addedAt and use accumulated quantity
         updatedItems[existingIndex] = {
@@ -227,6 +233,7 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
         };
       } else {
         // Add new item
+        console.log(`>>> [Inventory] Adding new item: "${newItem.name}" (qty: ${newItem.quantity || 1}) <<<`);
         updatedItems.push(newItem);
       }
     });

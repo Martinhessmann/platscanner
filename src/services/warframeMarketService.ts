@@ -233,13 +233,13 @@ const fetchViaDirect = async (normalizedName: string) => {
       price: price,
       volume: allOrders.length,
       average: average,
-      buyerUsername: highestBidder?.user?.ingame_name || null,
+      buyerUsername: highestBidder?.user?.ingameName || highestBidder?.user?.ingame_name || null,
       buyerQuantity: highestBidder?.quantity || 0,
       hasBuyers: price > 0 || buyOrders.length > 0,
       buyerCount: buyOrders.length,
       sellerCount: sellOrders.length,
       sellerPrice: sellOrders.length > 0 ? Math.min(...sellOrders.map((o: any) => o.platinum)) : 0,
-      sellerUsername: lowestSeller?.user?.ingame_name || null,
+      sellerUsername: lowestSeller?.user?.ingameName || lowestSeller?.user?.ingame_name || null,
       sellerQuantity: lowestSeller?.quantity || 0
     };
   } catch (error) {
