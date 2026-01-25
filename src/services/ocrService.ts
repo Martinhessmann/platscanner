@@ -1,13 +1,13 @@
-import { createWorker, PSM } from 'tesseract.js';
+import Tesseract from 'tesseract.js';
 import { DetectedItem, PrimePart, VoidRelic, SyndicateReward, Mod } from '../types';
 import { getCategorizedInventory } from './inventoryService';
 import { determineModRarity, determineModType } from './modService';
 import { ocrLogger } from './ocrLogger';
 import { getPrimeSetsCache } from './staticDataService';
-import { 
-  isLLMWhispererConfigured, 
+import {
+  isLLMWhispererConfigured,
   extractTextWithLLMWhisperer,
-  setLLMWhispererApiKey 
+  setLLMWhispererApiKey
 } from './llmWhispererService';
 
 // Debug mode: set to true to download preprocessed images
@@ -33,10 +33,10 @@ const INVENTORY_GRID_CONFIG = {
   // For 2532 x 1170 image:
   // - Cell width: 243px (~9.6% of width)
   // - Row 1 text Y: 378px (32% of height)
-  // - Row 2 text Y: 595px (51% of height)  
+  // - Row 2 text Y: 595px (51% of height)
   // - Row 3 text Y: 910px (78% of height)
   // - Text height: 52px (~4.4% of height)
-  
+
   // Percentages of image dimensions
   gridLeft: 0.012,         // Left margin ~30px
   gridRight: 0.79,         // Right edge before sidebar ~2000px
@@ -56,30 +56,30 @@ const preprocessImageForOCR = (
 ): void => {
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
-  
+
   // Process each pixel
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
-    
+
     // Calculate luminance (weighted average)
     const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
-    
+
     // Warframe gold/cream text detection:
     // - R channel is highest (180+)
     // - G channel is medium-high (130+)
     // - B channel is lower than R and G
     // - R > B by significant margin
-    const isGoldText = r > 180 && g > 130 && b < 180 && 
+    const isGoldText = r > 180 && g > 130 && b < 180 &&
                        r > g * 0.8 && r > b * 1.3 && (r + g) > 350;
-    
+
     // White/cream text (all channels high)
     const isWhiteText = r > 200 && g > 200 && b > 180;
-    
+
     // Bright text fallback (high luminance)
     const isBrightText = luminance > 160;
-    
+
     if (isGoldText || isWhiteText || isBrightText) {
       // Make text black
       data[i] = 0;
@@ -92,7 +92,7 @@ const preprocessImageForOCR = (
       data[i + 2] = 255;
     }
   }
-  
+
   ctx.putImageData(imageData, 0, 0);
 };
 
@@ -114,21 +114,21 @@ const cropImageRegion = async (
         reject(new Error('Failed to get canvas context'));
         return;
       }
-      
+
       const x = Math.floor(img.width * xPercent);
       const y = Math.floor(img.height * yPercent);
       const width = Math.floor(img.width * widthPercent);
       const height = Math.floor(img.height * heightPercent);
-      
+
       canvas.width = width;
       canvas.height = height;
       ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
-      
+
       // Apply preprocessing to enhance text
       if (preprocess) {
         preprocessImageForOCR(ctx, width, height);
       }
-      
+
       canvas.toBlob((blob) => {
         if (blob) resolve(blob);
         else reject(new Error('Failed to create blob from canvas'));
@@ -144,65 +144,65 @@ const cropImageRegion = async (
 const extractTextByColumns = async (imageFile: File, usePreprocessing: boolean = false): Promise<string[]> => {
   const config = INVENTORY_GRID_CONFIG;
   const allTexts: string[] = [];
-  
+
   ocrLogger.info('GridOCR', `Extracting text from ${config.columns} columns x ${config.textRowY.length} rows`);
-  
+
   // Create a worker for OCR
   const workerPath = `${window.location.origin}/tesseract/worker.min.js`;
   const corePath = `${window.location.origin}/tesseract`;
-  
-  const worker = await createWorker('eng', 1, {
+
+  const worker = await Tesseract.createWorker('eng', 1, {
     workerPath,
     corePath,
     workerBlobURL: false,
   });
-  
+
   // Configure for text blocks with character whitelist
   await worker.setParameters({
-    tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+    tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
     tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ',
   });
-  
+
   try {
     // Process each row
     for (let row = 0; row < config.textRowY.length; row++) {
       const rowTexts: string[] = [];
-      
+
       // Process each cell in the row
       for (let col = 0; col < config.columns; col++) {
         const gridWidth = config.gridRight - config.gridLeft;
         const cellWidth = gridWidth / config.columns;
-        
+
         const x = config.gridLeft + (col * cellWidth);
         const y = config.textRowY[row];
         const w = cellWidth;
         const h = config.textHeight;
-        
+
         ocrLogger.debug('GridOCR', `Cell [${row},${col}]: x=${(x*100).toFixed(1)}%, y=${(y*100).toFixed(1)}%`);
-        
+
         // Extract and scale up the cell text area
         const cellBlob = await cropAndScaleRegion(imageFile, x, y, w, h, config.scale);
-        
+
         // Debug: download cell images
         downloadDebugImage(cellBlob, `ocr-debug-r${row}c${col}.png`);
-        
+
         // OCR the cell
         const cellFile = new File([cellBlob], `cell-${row}-${col}.png`, { type: 'image/png' });
         const { data: { text } } = await worker.recognize(cellFile);
-        
+
         const cleanText = text.trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
         if (cleanText.length > 3) {
           rowTexts.push(cleanText);
           ocrLogger.debug('GridOCR', `Cell [${row},${col}]: "${cleanText}"`);
         }
       }
-      
+
       allTexts.push(...rowTexts);
     }
   } finally {
     await worker.terminate();
   }
-  
+
   ocrLogger.info('GridOCR', `Extracted ${allTexts.length} text segments`);
   return allTexts;
 };
@@ -223,21 +223,21 @@ const cropAndScaleRegion = async (
       const y = Math.floor(img.height * yPercent);
       const width = Math.floor(img.width * widthPercent);
       const height = Math.floor(img.height * heightPercent);
-      
+
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         reject(new Error('Failed to get canvas context'));
         return;
       }
-      
+
       // Scale up for better OCR
       canvas.width = width * scale;
       canvas.height = height * scale;
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, x, y, width, height, 0, 0, width * scale, height * scale);
-      
+
       // Invert colors for better OCR (dark text on light background)
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
@@ -247,7 +247,7 @@ const cropAndScaleRegion = async (
         data[i + 2] = 255 - data[i + 2];
       }
       ctx.putImageData(imageData, 0, 0);
-      
+
       canvas.toBlob((blob) => {
         if (blob) resolve(blob);
         else reject(new Error('Failed to create blob from canvas'));
@@ -264,15 +264,15 @@ let validPrimeItemsCache: Set<string> | null = null;
 // Build list of valid prime item names for validation
 const buildValidPrimeItems = (): Set<string> => {
   if (validPrimeItemsCache) return validPrimeItemsCache;
-  
+
   const primeSets = getPrimeSetsCache();
   const validItems = new Set<string>();
-  
+
   if (primeSets && primeSets.length > 0) {
     primeSets.forEach((set: any) => {
       const setName = set.name; // e.g., "Acceltra Prime"
       validItems.add(setName.toLowerCase());
-      
+
       // Add all component variations
       if (set.components) {
         set.components.forEach((comp: any) => {
@@ -287,7 +287,7 @@ const buildValidPrimeItems = (): Set<string> => {
       }
     });
   }
-  
+
   validPrimeItemsCache = validItems;
   ocrLogger.debug('Validation', `Built valid prime items cache with ${validItems.size} items`);
   return validItems;
@@ -297,9 +297,9 @@ const buildValidPrimeItems = (): Set<string> => {
 const stringSimilarity = (s1: string, s2: string): number => {
   const longer = s1.length > s2.length ? s1 : s2;
   const shorter = s1.length > s2.length ? s2 : s1;
-  
+
   if (longer.length === 0) return 1.0;
-  
+
   const editDistance = levenshteinDistance(longer, shorter);
   return (longer.length - editDistance) / longer.length;
 };
@@ -330,16 +330,16 @@ const levenshteinDistance = (s1: string, s2: string): number => {
 const findBestPrimeMatch = (ocrText: string, threshold: number = 0.85): string | null => {
   const validItems = buildValidPrimeItems();
   const normalizedOcr = ocrText.toLowerCase().trim();
-  
+
   // Direct match first
   if (validItems.has(normalizedOcr)) {
     return ocrText;
   }
-  
+
   // Try to find fuzzy match
   let bestMatch: string | null = null;
   let bestScore = 0;
-  
+
   validItems.forEach(validItem => {
     const score = stringSimilarity(normalizedOcr, validItem);
     if (score > bestScore && score >= threshold) {
@@ -348,11 +348,11 @@ const findBestPrimeMatch = (ocrText: string, threshold: number = 0.85): string |
       bestMatch = validItem.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     }
   });
-  
+
   if (bestMatch) {
     ocrLogger.debug('Validation', `Fuzzy matched "${ocrText}" → "${bestMatch}" (score: ${bestScore.toFixed(2)})`);
   }
-  
+
   return bestMatch;
 };
 
@@ -585,14 +585,14 @@ const preprocessFullImage = async (imageFile: File): Promise<Blob> => {
         reject(new Error('Failed to get canvas context'));
         return;
       }
-      
+
       canvas.width = img.width;
       canvas.height = img.height;
       ctx.drawImage(img, 0, 0);
-      
+
       // Apply preprocessing
       preprocessImageForOCR(ctx, img.width, img.height);
-      
+
       canvas.toBlob((blob) => {
         if (blob) resolve(blob);
         else reject(new Error('Failed to create blob from canvas'));
@@ -603,13 +603,13 @@ const preprocessFullImage = async (imageFile: File): Promise<Blob> => {
   });
 };
 
-const extractTextFromImage = async (imageFile: File, psmMode: number = PSM.SPARSE_TEXT, preprocess: boolean = true): Promise<string> => {
+const extractTextFromImage = async (imageFile: File, psmMode: any = Tesseract.PSM.SPARSE_TEXT, preprocess: boolean = true): Promise<string> => {
   ocrLogger.info('OCR', `Starting text extraction for file: ${imageFile.name} (${imageFile.size} bytes, type: ${imageFile.type})`);
-  
+
   // Client-side OCR using Tesseract.js
   ocrLogger.info('OCR', 'Using client-side OCR processing');
   let worker: any = null;
-  
+
   try {
     // Preprocess image if enabled
     let imageToProcess: File | Blob = imageFile;
@@ -618,19 +618,19 @@ const extractTextFromImage = async (imageFile: File, psmMode: number = PSM.SPARS
       imageToProcess = await preprocessFullImage(imageFile);
       ocrLogger.debug('OCR', 'Image preprocessing complete');
     }
-    
+
     // Create worker with local files to avoid cross-origin issues
     // All Tesseract files are hosted locally at /tesseract/ (same origin)
     const workerPath = `${window.location.origin}/tesseract/worker.min.js`;
     const corePath = `${window.location.origin}/tesseract`;
-    
+
     ocrLogger.debug('OCR', 'Creating Tesseract worker with configuration', {
       workerPath,
       corePath,
       workerBlobURL: false,
       origin: window.location.origin
     });
-    
+
     const workerOptions: any = {
       workerPath,
       corePath,
@@ -643,40 +643,40 @@ const extractTextFromImage = async (imageFile: File, psmMode: number = PSM.SPARS
         }
       }
     };
-    
-    worker = await createWorker('eng', 1, workerOptions);
-    
+
+    worker = await Tesseract.createWorker('eng', 1, workerOptions);
+
     // Set page segmentation mode and character whitelist
     await worker.setParameters({
       tessedit_pageseg_mode: psmMode,
       // Only allow alphanumeric characters plus common punctuation
       tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -\'',
     });
-    
+
     ocrLogger.info('OCR', `Tesseract worker created with PSM mode ${psmMode}`);
-    
+
     ocrLogger.debug('OCR', 'Starting OCR recognition...');
     const startTime = Date.now();
-    
+
     const { data: { text, words, lines, paragraphs } } = await worker.recognize(imageToProcess);
     const duration = Date.now() - startTime;
-    
+
     ocrLogger.info('OCR', `OCR recognition completed in ${duration}ms`, {
       textLength: text.length,
       wordCount: words?.length || 0,
       lineCount: lines?.length || 0,
       paragraphCount: paragraphs?.length || 0
     });
-    
+
     ocrLogger.debug('OCR', 'Extracted text preview', {
       preview: text.substring(0, 500),
       fullLength: text.length
     });
-    
+
     ocrLogger.debug('OCR', 'Terminating Tesseract worker');
     await worker.terminate();
     worker = null;
-    
+
     return text;
   } catch (error) {
     ocrLogger.error('OCR', 'Failed to extract text from image', {
@@ -688,7 +688,7 @@ const extractTextFromImage = async (imageFile: File, psmMode: number = PSM.SPARS
       stack: error instanceof Error ? error.stack : undefined,
       isSecurityError: error instanceof Error && (error.name === 'SecurityError' || error.message.includes('insecure'))
     });
-    
+
     // Clean up worker if it was created
     if (worker) {
       try {
@@ -699,7 +699,7 @@ const extractTextFromImage = async (imageFile: File, psmMode: number = PSM.SPARS
         });
       }
     }
-    
+
     throw error;
   }
 };
@@ -736,7 +736,7 @@ const determineScreenType = (text: string): 'prime_parts' | 'relics' | 'syndicat
     textLength: text.length,
     textPreview: text.substring(0, 200)
   });
-  
+
   const lowerText = text.toLowerCase();
 
   // Check for syndicate indicators
@@ -819,79 +819,109 @@ const PRIME_COMPONENT_TYPES = [
   'Carapace', 'Cerebrum', 'Guard', 'Hilt', 'Blades'
 ];
 
+// Helper to parse quantity from a line
+const parseQuantity = (line: string): { quantity: number, cleanLine: string } => {
+  let quantity = 1;
+  let cleanLine = line;
+
+  // Try "5 x Item" or "5 × Item"
+  let match = line.match(/^(\d+)\s*[x×]\s*(.+)$/i);
+  if (match) {
+    quantity = parseInt(match[1]);
+    cleanLine = match[2].trim();
+    return { quantity, cleanLine };
+  }
+
+  // Try "Item x5" or "Item ×5"
+  match = line.match(/^(.+)\s*[x×](\d+)$/i);
+  if (match) {
+    cleanLine = match[1].trim();
+    quantity = parseInt(match[2]);
+    return { quantity, cleanLine };
+  }
+
+  // Try "x5 Item" or "×5 Item"
+  match = line.match(/^[x×](\d+)\s*(.+)$/i);
+  if (match) {
+    quantity = parseInt(match[1]);
+    cleanLine = match[2].trim();
+    return { quantity, cleanLine };
+  }
+
+  return { quantity, cleanLine };
+};
+
 // Extract prime items using pattern matching across the entire text
-const extractPrimeItemsFromText = (text: string): string[] => {
+const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
   const validItems = buildValidPrimeItems();
-  const foundItems: string[] = [];
+  const foundItems: DetectedItem[] = [];
   const seenItems = new Set<string>();
-  
-  // Normalize text - replace newlines with spaces for cross-line matching
-  const normalizedText = text.replace(/\n/g, ' ').replace(/\s+/g, ' ');
-  
+
+  // Split into lines for quantity detection
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+  lines.forEach((line, index) => {
+    // Skip UI noise
+    if (isUINoiseText(line)) return;
+
+    const { quantity, cleanLine } = parseQuantity(line);
+
   // Pattern 1: "X Prime Component" (e.g., "Corvas Prime Receiver")
   // This regex finds "Word Prime Word" patterns
-  const primePattern = /([A-Z][a-zA-Z&\s]*?)\s*Prime\s+([A-Za-z]+(?:\s+Blueprint)?)/gi;
-  let match;
-  
-  while ((match = primePattern.exec(normalizedText)) !== null) {
-    const setName = match[1].trim();
-    const component = match[2].trim();
-    const fullName = `${setName} Prime ${component}`;
-    
-    // Validate against known items
-    const matchedItem = findBestPrimeMatch(fullName, 0.85);
-    if (matchedItem && !seenItems.has(matchedItem.toLowerCase())) {
-      foundItems.push(matchedItem);
-      seenItems.add(matchedItem.toLowerCase());
-      ocrLogger.debug('Parsing', `Pattern matched: "${fullName}" → "${matchedItem}"`);
-    }
-  }
-  
-  // Pattern 2: Just "X Prime" without component (for set-level matches)
-  const primeOnlyPattern = /([A-Z][a-zA-Z&\s]*?)\s*Prime(?!\s+[A-Z])/gi;
-  while ((match = primeOnlyPattern.exec(normalizedText)) !== null) {
-    const fullName = `${match[1].trim()} Prime`;
-    const matchedItem = findBestPrimeMatch(fullName, 0.7);
-    if (matchedItem && !seenItems.has(matchedItem.toLowerCase())) {
-      // Only add set names if they're valid and we haven't found components
-      const hasComponents = foundItems.some(item => 
-        item.toLowerCase().startsWith(matchedItem.toLowerCase())
-      );
-      if (!hasComponents) {
-        foundItems.push(matchedItem);
-        seenItems.add(matchedItem.toLowerCase());
+    const primePattern = /([A-Z][a-zA-Z&\s]*?)\s*Prime\s+([A-Za-z]+(?:\s+Blueprint)?)/i;
+    let match = primePattern.exec(cleanLine);
+
+    if (match) {
+      const setName = match[1].trim();
+      const component = match[2].trim();
+      const fullName = `${setName} Prime ${component}`;
+
+      // Validate against known items
+      const matchedItem = findBestPrimeMatch(fullName, 0.85);
+      if (matchedItem) {
+        // Create a unique key for deduplication within this scan
+        const key = matchedItem.toLowerCase();
+        if (!seenItems.has(key)) {
+          foundItems.push({
+            id: `prime-${Date.now()}-${index}`,
+            name: matchedItem,
+            category: 'prime_parts',
+            quantity,
+            status: 'loading'
+          });
+          seenItems.add(key);
+          ocrLogger.debug('Parsing', `Pattern matched: "${fullName}" → "${matchedItem}" (x${quantity})`);
+        }
+        return; // Found a match on this line
       }
     }
-  }
-  
-  // Pattern 3: Try to find components that were on separate lines
-  // Look for orphaned component names and try to match with recent Prime names
-  PRIME_COMPONENT_TYPES.forEach(compType => {
-    const compRegex = new RegExp(`\\b${compType}\\b`, 'gi');
-    const compMatches = normalizedText.match(compRegex) || [];
-    
-    compMatches.forEach(() => {
-      // For each component, look for nearby Prime names
-      const searchPattern = new RegExp(
-        `([A-Z][a-zA-Z&\\s]*?)\\s*Prime[\\s\\S]{0,50}?${compType}|${compType}[\\s\\S]{0,50}?([A-Z][a-zA-Z&\\s]*?)\\s*Prime`,
-        'gi'
-      );
-      const nearbyMatch = searchPattern.exec(normalizedText);
-      if (nearbyMatch) {
-        const setName = (nearbyMatch[1] || nearbyMatch[2] || '').trim();
-        if (setName) {
-          const fullName = `${setName} Prime ${compType}`;
-          const matchedItem = findBestPrimeMatch(fullName, 0.85);
-          if (matchedItem && !seenItems.has(matchedItem.toLowerCase())) {
-            foundItems.push(matchedItem);
-            seenItems.add(matchedItem.toLowerCase());
-            ocrLogger.debug('Parsing', `Nearby match: "${fullName}" → "${matchedItem}"`);
-          }
+
+    // Pattern 2: Just "X Prime" without component (for set-level matches)
+    const primeOnlyPattern = /([A-Z][a-zA-Z&\s]*?)\s*Prime(?!\s+[A-Z])/i;
+    match = primeOnlyPattern.exec(cleanLine);
+    if (match) {
+      const fullName = `${match[1].trim()} Prime`;
+      const matchedItem = findBestPrimeMatch(fullName, 0.7);
+      if (matchedItem) {
+        const key = matchedItem.toLowerCase();
+        // Only add set names if they're valid and we haven't found components
+        const hasComponents = foundItems.some(item =>
+          item.name.toLowerCase().startsWith(key)
+        );
+        if (!hasComponents && !seenItems.has(key)) {
+          foundItems.push({
+            id: `prime-${Date.now()}-${index}`,
+            name: matchedItem,
+            category: 'prime_parts',
+            quantity,
+            status: 'loading'
+          });
+          seenItems.add(key);
         }
       }
-    });
+    }
   });
-  
+
   return foundItems;
 };
 
@@ -902,35 +932,18 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
     textLength: text.length,
     textPreview: text.substring(0, 300)
   });
-  
-  const detectedItems: DetectedItem[] = [];
-  
+
   // For prime_parts, use the smarter pattern-based extraction
   if (screenType === 'prime_parts') {
     const primeItems = extractPrimeItemsFromText(text);
     ocrLogger.info('Parsing', `Pattern extraction found ${primeItems.length} prime items`);
-    
-    primeItems.forEach((itemName, index) => {
-      const primeItem: PrimePart = {
-        id: `prime-${Date.now()}-${index}`,
-        name: itemName,
-        category: 'prime_parts',
-        quantity: 1,
-        status: 'loading'
-      };
-      detectedItems.push(primeItem);
-    });
-    
-    ocrLogger.info('Parsing', `Parsed ${detectedItems.length} prime parts`, {
-      itemNames: detectedItems.map(item => item.name)
-    });
-    
-    return detectedItems;
+    return primeItems;
   }
-  
-  // Fallback to line-by-line parsing for other screen types
+
+  const detectedItems: DetectedItem[] = [];
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   ocrLogger.debug('Parsing', `Split text into ${lines.length} lines`);
+
   let detectedSyndicate = 'Unknown';
 
   lines.forEach((line, index) => {
@@ -941,83 +954,46 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
     }
 
     // Check for syndicate name
-    const syndicateMatch = line.match(/^SYNDICATE:\s*(.+)$/i);
-    if (syndicateMatch) {
-      detectedSyndicate = syndicateMatch[1].trim();
+    if (line.includes('Arbiters of Hexis') || line.includes('Cephalon Suda') ||
+      line.includes('Steel Meridian') || line.includes('New Loka') ||
+      line.includes('Red Veil') || line.includes('Perrin Sequence') ||
+      line.includes('Arbitration Honors') || line.match(/^SYNDICATE:\s*(.+)$/i)) {
+
+      const match = line.match(/^SYNDICATE:\s*(.+)$/i);
+      detectedSyndicate = match ? match[1].trim() : line.trim();
       console.log(`>>> [OCR Parsing] Detected syndicate: "${detectedSyndicate}" <<<`);
       return;
     }
 
+    // Parse quantity
+    const { quantity, cleanLine } = parseQuantity(line);
+
     // Syndicate reward format: "ITEM_NAME | 25,000"
-    const syndicateRewardMatch = line.match(/^(.*?)\s*\|\s*([\d,]+)/);
-    if (syndicateRewardMatch && screenType !== 'mods') {
+    const syndicateRewardMatch = cleanLine.match(/^(.*?)\s*\|\s*([\d,]+)/);
+    if (syndicateRewardMatch && (screenType === 'syndicate' || screenType === 'unknown')) {
       const name = syndicateRewardMatch[1].trim();
       const standingStr = syndicateRewardMatch[2].replace(/,/g, '');
       const standingCost = parseInt(standingStr, 10);
 
-      if (screenType === 'syndicate' || screenType === 'unknown') {
+      // Skip if it looks like a mod line (e.g. "Mod Name | Rank | Drain")
+      // Syndicate rewards usually just have Name | Cost
+      const isModLine = cleanLine.match(/^.+?\|\s*\d+\s*\|\s*\d+/);
+
+      if (!isModLine) {
         const reward: SyndicateReward = {
           id: `syndicate-${Date.now()}-${index}`,
           name,
           category: 'syndicate_rewards',
           syndicate: detectedSyndicate,
           standingCost: isNaN(standingCost) ? 0 : standingCost,
-          itemType: 'mod',
+          itemType: 'mod', // Default, will be refined by service
           currency: detectedSyndicate.toLowerCase().includes('arbitration') ? 'vitus_essence' : 'standing',
-          status: 'loading'
+          status: 'loading',
+          quantity
         };
         detectedItems.push(reward);
         return;
       }
-    }
-
-    // Parse quantity from formats like "5 x Item Name", "x5 Item Name", "2x Item Name"
-    let quantity = 1;
-    let cleanLine = line;
-
-    const quantityMatch = line.match(/^(\d+)\s*x\s*(.+)$/i) || line.match(/^x(\d+)\s*(.+)$/i);
-    if (quantityMatch) {
-      quantity = parseInt(quantityMatch[1]);
-      cleanLine = quantityMatch[2].trim();
-    }
-
-    // Skip if syndicate screen without proper format
-    if (screenType === 'syndicate' && !line.includes('|')) {
-      return;
-    }
-
-    // For prime_parts screen type, use fuzzy matching against known items
-    if (screenType === 'prime_parts') {
-      // Try to find a valid prime item match
-      const matchedItem = findBestPrimeMatch(cleanLine, 0.65);
-      if (matchedItem) {
-        const primeItem: PrimePart = {
-          id: `prime-${Date.now()}-${index}`,
-          name: matchedItem,
-          category: 'prime_parts',
-          quantity,
-          status: 'loading'
-        };
-        detectedItems.push(primeItem);
-        return;
-      }
-      // No match found - skip this line for prime parts
-      return;
-    }
-
-    // Legacy check for Prime part (for non-prime_parts screen types)
-    if (cleanLine.includes('Prime') || cleanLine.includes('Blueprint')) {
-      // Still try fuzzy match first
-      const matchedItem = findBestPrimeMatch(cleanLine, 0.65);
-      const primeItem: PrimePart = {
-        id: `prime-${Date.now()}-${index}`,
-        name: matchedItem || cleanLine,
-        category: 'prime_parts',
-        quantity,
-        status: 'loading'
-      };
-      detectedItems.push(primeItem);
-      return;
     }
 
     // Check if it's a Void Relic
@@ -1025,25 +1001,22 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
       let relicName = cleanLine;
       let rarity: VoidRelic['rarity'] = 'intact';
 
-      const relicRegex = /(.*?)\s+[([](Intact|Exceptional|Flawless|Radiant)[)\]]/i;
-      const match = cleanLine.match(relicRegex);
+      // Extract rarity: "Lith A1 Relic (Radiant)" or "Radiant Lith A1 Relic"
+      const rarityMatch = cleanLine.match(/[\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/i) ||
+        cleanLine.match(/\b(Intact|Exceptional|Flawless|Radiant)\b/i);
 
-      if (match) {
-        relicName = match[1].trim();
-        const detectedRarity = match[2].toLowerCase();
-        if (detectedRarity === 'intact' || detectedRarity === 'exceptional' || detectedRarity === 'flawless' || detectedRarity === 'radiant') {
-          rarity = detectedRarity;
-        }
-      } else {
-        const alternativeRegex = /(.*?)\s+(Intact|Exceptional|Flawless|Radiant)\s+Relic/i;
-        const altMatch = cleanLine.match(alternativeRegex);
-        if (altMatch) {
-          relicName = `${altMatch[1]} Relic`;
-          const detectedRarity = altMatch[2].toLowerCase();
-          if (detectedRarity === 'intact' || detectedRarity === 'exceptional' || detectedRarity === 'flawless' || detectedRarity === 'radiant') {
-            rarity = detectedRarity;
-          }
-        }
+      if (rarityMatch) {
+        rarity = rarityMatch[1].toLowerCase() as VoidRelic['rarity'];
+        // Clean rarity from name
+        relicName = cleanLine.replace(/[\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/gi, '')
+          .replace(/\b(Intact|Exceptional|Flawless|Radiant)\b/gi, '')
+          .trim()
+          .replace(/\s+/g, ' '); // Fix double spaces
+      }
+
+      // Ensure "Relic" is in the name if missing
+      if (!relicName.toLowerCase().includes('relic')) {
+        relicName += ' Relic';
       }
 
       const relicItem: VoidRelic = {
@@ -1067,13 +1040,13 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
       cleanLine.length < 100 &&
       cleanLine.length > 1
     ) {
-      // Try to parse mod format: "NAME rCURRENT/TOTAL (drain D)"
-      const rFormatMatch = cleanLine.match(/^(.*?)\s+r\s*(\d{1,2})\/(\d{1,2})(?:\s*\(drain\s*(\d{1,3})\))?\s*$/i);
-      if (rFormatMatch) {
-        const modName = rFormatMatch[1].trim();
-        const detectedLevel = parseInt(rFormatMatch[2]);
-        const detectedTotal = parseInt(rFormatMatch[3]);
-        const detectedDrain = rFormatMatch[4] ? parseInt(rFormatMatch[4]) : undefined;
+      // Mod Pattern 1: "Name | Rank X | Drain Y"
+      // Example: "Blind Rage | 8 | 14"
+      const pipeMatch = cleanLine.match(/^(.+?)\s*\|\s*(\d+)\s*\|\s*(\d+)/);
+      if (pipeMatch) {
+        const modName = pipeMatch[1].trim();
+        const detectedLevel = parseInt(pipeMatch[2]);
+        const detectedDrain = parseInt(pipeMatch[3]);
 
         const rarity = determineModRarity(modName);
         const type = determineModType(modName);
@@ -1082,7 +1055,7 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
           id: `mod-${Date.now()}-${index}`,
           name: modName,
           category: 'mods',
-          rank: !isNaN(detectedLevel) ? detectedLevel : undefined,
+          rank: detectedLevel,
           quantity,
           drain: detectedDrain,
           rarity,
@@ -1093,13 +1066,13 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
         return;
       }
 
-      // Try format: "MOD_NAME | QUANTITY | LEVEL | DRAIN"
-      const newFormatMatch = cleanLine.match(/^(.*?)\s*\|\s*(\d+)\s*\|\s*(\d+)\s*\|\s*(\d+)$/);
-      if (newFormatMatch) {
-        const modName = newFormatMatch[1].trim();
-        const detectedQuantity = parseInt(newFormatMatch[2]);
-        const detectedLevel = parseInt(newFormatMatch[3]);
-        const detectedDrain = parseInt(newFormatMatch[4]);
+      // Mod Pattern 2: "Name Rank X/Y (Drain Z)"
+      // Example: "Blind Rage Rank 8/10 (Drain 14)"
+      const rankMatch = cleanLine.match(/^(.+?)\s+(?:Rank|r)\s*(\d+)\/\d+\s*(?:\(Drain\s*(\d+)\))?/i);
+      if (rankMatch) {
+        const modName = rankMatch[1].trim();
+        const detectedLevel = parseInt(rankMatch[2]);
+        const detectedDrain = rankMatch[3] ? parseInt(rankMatch[3]) : undefined;
 
         const rarity = determineModRarity(modName);
         const type = determineModType(modName);
@@ -1108,8 +1081,8 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
           id: `mod-${Date.now()}-${index}`,
           name: modName,
           category: 'mods',
-          rank: detectedLevel > 0 ? detectedLevel : undefined,
-          quantity: detectedQuantity,
+          rank: detectedLevel,
+          quantity,
           drain: detectedDrain,
           rarity,
           type,
@@ -1119,20 +1092,23 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
         return;
       }
 
-      // Fallback: simple mod name
-      const rarity = determineModRarity(cleanLine);
-      const type = determineModType(cleanLine);
+      // Fallback: simple mod name (only if we are reasonably sure it's a mod screen or it looks like a mod)
+      // For now, we'll be conservative and only match if we have strong indicators or if screenType is 'mods'
+      if (screenType === 'mods' || determineModRarity(cleanLine) !== 'uncommon') {
+        const rarity = determineModRarity(cleanLine);
+        const type = determineModType(cleanLine);
 
-      const modItem: Mod = {
-        id: `mod-${Date.now()}-${index}`,
-        name: cleanLine,
-        category: 'mods',
-        quantity,
-        rarity,
-        type,
-        status: 'loading'
-      };
-      detectedItems.push(modItem);
+        const modItem: Mod = {
+          id: `mod-${Date.now()}-${index}`,
+          name: cleanLine,
+          category: 'mods',
+          quantity,
+          rarity,
+          type,
+          status: 'loading'
+        };
+        detectedItems.push(modItem);
+      }
     }
   });
 
@@ -1143,7 +1119,7 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
     }, {} as Record<string, number>),
     itemNames: detectedItems.map(item => item.name)
   });
-  
+
   return detectedItems;
 };
 
@@ -1189,9 +1165,9 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     // Try LLMWhisperer first (if configured), then fall back to Tesseract
     let extractedText = '';
     let ocrMethod = 'tesseract';
-    
+
     const llmWhispererConfigured = isLLMWhispererConfigured();
-    
+
     // Log prominently whether LLMWhisperer is configured
     if (llmWhispererConfigured) {
       ocrLogger.info('Analysis', '✅ LLMWhisperer IS configured - using AI OCR');
@@ -1200,7 +1176,7 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
       ocrLogger.warn('Analysis', '⚠️ LLMWhisperer NOT configured - falling back to Tesseract (low accuracy)');
       ocrLogger.info('Analysis', 'To enable LLMWhisperer: Settings → API → paste your key');
     }
-    
+
     if (llmWhispererConfigured) {
       try {
         extractedText = await extractTextWithLLMWhisperer(imageFile);
@@ -1212,13 +1188,13 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
         });
       }
     }
-    
+
     // Fall back to Tesseract if LLMWhisperer not configured or failed
     if (!extractedText) {
       ocrLogger.info('Analysis', 'Step 1: Extracting text from image using Tesseract OCR');
       extractedText = await extractTextFromImage(imageFile);
     }
-    
+
     ocrLogger.info('Analysis', `Extracted ${extractedText.length} characters of text (method: ${ocrMethod})`, {
       preview: extractedText.substring(0, 500)
     });
@@ -1246,14 +1222,14 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
         const columnTextsPreprocessed = await extractTextByColumns(imageFile, true);
         const textPreprocessed = columnTextsPreprocessed.join('\n\n');
         const itemsPreprocessed = parseDetectedItems(textPreprocessed, screenType);
-        
+
         // Also try without preprocessing for comparison
         const columnTextsRaw = await extractTextByColumns(imageFile, false);
         const textRaw = columnTextsRaw.join('\n\n');
         const itemsRaw = parseDetectedItems(textRaw, screenType);
-        
+
         ocrLogger.info('Analysis', `Preprocessing: ${itemsPreprocessed.length} items, Raw: ${itemsRaw.length} items`);
-        
+
         // Use whichever approach found more items
         if (itemsRaw.length > itemsPreprocessed.length) {
           ocrLogger.info('Analysis', 'Using raw OCR (found more items)');
@@ -1274,12 +1250,12 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     // Step 3: Parse detected items
     ocrLogger.info('Analysis', 'Step 3: Parsing detected items');
     const detectedItems = parseDetectedItems(finalText, screenType);
-    
+
     const categoryCounts = detectedItems.reduce((acc, item) => {
       acc[item.category] = (acc[item.category] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    
+
     ocrLogger.info('Analysis', `Parsed ${detectedItems.length} items`, {
       categoryDistribution: categoryCounts,
       items: detectedItems.map(item => ({ name: item.name, category: item.category }))
@@ -1314,7 +1290,7 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
       fileType: imageFile.type,
       duration
     });
-    
+
     const errorMessage = error instanceof Error ? error.message : 'Failed to analyze image. Please try again.';
     throw new Error(errorMessage);
   }
@@ -1352,9 +1328,9 @@ export const initializeGemini = (apiKey: string): boolean => {
 };
 
 // LLMWhisperer exports for UI configuration
-export { 
+export {
   isLLMWhispererConfigured,
-  setLLMWhispererApiKey 
+  setLLMWhispererApiKey
 } from './llmWhispererService';
 
 // Helper functions are already defined above, no need to re-export
