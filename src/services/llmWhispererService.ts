@@ -113,6 +113,11 @@ const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 
       }
 
       const textResult = await textResponse.json();
+      console.log(`>>> [LLMWhisperer RAW JSON] >>>`);
+      console.log(textResult); // Log as object for better browser console inspection
+      console.log(`<<< [LLMWhisperer RAW JSON] <<<`);
+
+      // Handle both structured JSON and simple {text: "..."} wrappers
       const extractedText = textResult.text || '';
       console.log(`[LLMWhisperer] Extracted ${extractedText.length} characters`);
       return extractedText;

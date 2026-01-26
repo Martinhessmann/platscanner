@@ -40,9 +40,9 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     // Handle different actions
     if (action === 'whisper') {
       console.log('[LLMWhisperer Proxy] Processing whisper request');
-      
+
       // Get image data from request body
-      const imageData = event.isBase64Encoded 
+      const imageData = event.isBase64Encoded
         ? Buffer.from(event.body || '', 'base64')
         : Buffer.from(event.body || '');
 
@@ -71,7 +71,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
 
       const result = await response.json();
       console.log('[LLMWhisperer Proxy] Whisper result:', JSON.stringify(result).substring(0, 200));
-      
+
       return {
         statusCode: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -81,7 +81,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     } else if (action === 'status') {
       const whisperHash = event.queryStringParameters?.whisper_hash;
       console.log('[LLMWhisperer Proxy] Checking status for:', whisperHash);
-      
+
       if (!whisperHash) {
         return {
           statusCode: 400,
@@ -104,7 +104,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
 
       const result = await response.json();
       console.log('[LLMWhisperer Proxy] Status result:', result.status);
-      
+
       return {
         statusCode: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -114,7 +114,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     } else if (action === 'retrieve') {
       const whisperHash = event.queryStringParameters?.whisper_hash;
       console.log('[LLMWhisperer Proxy] Retrieving result for:', whisperHash);
-      
+
       if (!whisperHash) {
         return {
           statusCode: 400,
@@ -123,6 +123,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         };
       }
 
+      // text_only=true returns raw text
       const response = await fetch(`${LLMWHISPERER_API_URL}/whisper-retrieve?whisper_hash=${whisperHash}&text_only=true`, {
         headers: { 'unstract-key': apiKey },
       });
@@ -135,10 +136,9 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         };
       }
 
-      // text_only=true returns raw text
       const extractedText = await response.text();
       console.log('[LLMWhisperer Proxy] Retrieved text length:', extractedText.length);
-      
+
       return {
         statusCode: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -158,9 +158,9 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     return {
       statusCode: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        error: 'Proxy error', 
-        details: error instanceof Error ? error.message : String(error) 
+      body: JSON.stringify({
+        error: 'Proxy error',
+        details: error instanceof Error ? error.message : String(error)
       }),
     };
   }

@@ -22,18 +22,29 @@ const UI_NOISE_PATTERNS = [
   /only\s*sellable/i,
   /search\.\.\./i,
   /^\s*[@#$%^&*|\\[\]{}]+\s*$/,  // Lines with only special characters
-  /^\s*\d+\s*$/,  // Lines with only numbers
+  // REMOVED: /^\s*\d+\s*$/,  // Allow standalone numbers (quantities)
   /^\s*[ivxlcdm]+\s*$/i,  // Roman numerals only
 ];
 
 // Check if a line is UI noise
 const isUINoiseText = (line: string): boolean => {
   const trimmed = line.trim();
-  // Too short (likely OCR noise)
-  if (trimmed.length < 3) return true;
-  // Too many special characters relative to alphanumeric
+
+  // NEVER skip potential quantities or unowned markers
+  const isQuantityOrMarker =
+    /^([x×])?(\d+)$/i.test(trimmed) ||
+    /^[\(\[]?[Oo0ØVv@©®\-\s][\)\]]?$/.test(trimmed) ||
+    trimmed === '()' || trimmed === '[]' || trimmed === 'x' || trimmed === '×';
+
+  if (isQuantityOrMarker) return false;
+
+  // Too short (likely OCR noise if NOT a quantity/marker)
+  if (trimmed.length < 2) return true;
+
+  // Too many special characters relative to alphanumeric (increased tolerance for markers)
   const alphaNum = trimmed.replace(/[^a-zA-Z0-9]/g, '').length;
-  if (alphaNum < trimmed.length * 0.4) return true;
+  if (trimmed.length > 3 && alphaNum < trimmed.length * 0.3) return true;
+
   // Matches known UI patterns
   return UI_NOISE_PATTERNS.some(pattern => pattern.test(trimmed));
 };
@@ -473,15 +484,12 @@ export const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-/**
- * Common look-behind logic for quantity detection in the inventory grid.
- * Standalone quantities (badges) appear ABOVE the item name.
- */
 const extractQuantityFromAbove = (lines: string[], index: number, currentQuantity: number, itemName: string): number => {
   if (currentQuantity > 1) return currentQuantity;
 
   if (index > 0) {
     const prevLine = lines[index - 1];
+    console.log(`>>> [OCR Parsing] Checking context above ${itemName}: "${prevLine}" <<<`);
 
     // Check for unowned icons/markers (Eye icon)
     // Common OCR artifacts: (o), (0), O, 0, Ø, ©, ®, [o], [0], ( ), (), @
@@ -862,10 +870,9 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
       clearCachedAnalysis(imageHash);
     }
 
-    // Step 1: Extract text using OCR
-    // Only use LLMWhisperer
+    // Step 1: Extract text using LLMWhisperer
+    ocrLogger.info('Analysis', '🔍 Using LLMWhisperer for text extraction');
     let extractedText = '';
-
 
     const llmWhispererConfigured = isLLMWhispererConfigured();
 
@@ -905,8 +912,6 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     const screenType = determineScreenType(extractedText);
     ocrLogger.info('Analysis', `Detected screen type: ${screenType}`);
 
-    // Step 2b: Grid extraction logic removed (was Tesseract fallback)
-
     // Step 3: Parse detected items
     ocrLogger.info('Analysis', 'Step 3: Parsing detected items');
     const detectedItems = parseDetectedItems(extractedText, screenType);
@@ -934,8 +939,7 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     ocrLogger.info('Analysis', `Analysis completed successfully in ${duration}ms`, {
       screenType,
       totalItems: detectedItems.length,
-      newItems: newItems.length,
-      duplicates: detectedItems.length - newItems.length
+      newItems: newItems.length
     });
 
     return { items: newItems, screenType };
@@ -943,11 +947,6 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
     const duration = Date.now() - analysisStartTime;
     ocrLogger.error('Analysis', 'Image analysis failed', {
       error: error instanceof Error ? error.message : String(error),
-      errorType: error instanceof Error ? error.constructor.name : typeof error,
-      stack: error instanceof Error ? error.stack : undefined,
-      fileName: imageFile.name,
-      fileSize: imageFile.size,
-      fileType: imageFile.type,
       duration
     });
 
