@@ -60,7 +60,7 @@ const getMarketApiUrl = (normalizedName: string, isPrimeSet: boolean = false): s
  * CRITICAL: Normalizes item names to match Warframe Market URL format
  * DO NOT modify without testing against the full item database
  */
-const normalizeItemName = (name: string): string => {
+export const normalizeItemName = (name: string): string => {
   return name
     .toLowerCase()
     .replace(/\s*&\s*/g, '_and_') // Replace & with 'and'
@@ -81,7 +81,7 @@ const normalizeModName = (name: string, _rank?: number): string => {
 /**
  * Smart relic market lookup: Try refined relic first, fallback to base relic
  */
-const getRelicMarketNames = (relicName: string): string[] => {
+export const getRelicMarketNames = (relicName: string): string[] => {
   const names = [];
   names.push(normalizeItemName(relicName));
 
@@ -115,29 +115,41 @@ const fetchViaNetlify = async (normalizedName: string, isPrimeSet: boolean = fal
 };
 
 /**
- * Smart relic market fetch: Try refined first, fallback to base relic
+ * Unified relic market fetch: Try refined first, fallback to base relic
+ * Works for both Netlify (production) and Direct (local) paths
  */
-const fetchRelicViaNetlify = async (relicName: string) => {
+const fetchRelicData = async (relicName: string, useNetlify: boolean = false) => {
   const marketNames = getRelicMarketNames(relicName);
 
   for (const marketName of marketNames) {
     try {
-      const data = await fetchViaNetlify(marketName);
+      let data;
+      if (useNetlify) {
+        data = await fetchViaNetlify(marketName);
+      } else {
+        data = await fetchViaDirect(marketName);
+      }
+
       if (data.error) {
-        if (data.error === 'not_found') {
+        if (data.error === 'not_found' || data.error === 'Item not found') {
           continue;
         } else {
           throw new Error(`API error for ${marketName}: ${data.message || data.error}`);
         }
       }
       return data;
-    } catch {
+    } catch (error) {
+      // Continue to fallback if not the last name
+      if (marketNames.indexOf(marketName) === marketNames.length - 1) {
+        throw error;
+      }
       continue;
     }
   }
 
   throw new Error(`No market data found for relic: ${relicName}`);
 };
+
 
 /**
  * Fetches market data for multiple items in batch using Netlify Function
@@ -266,12 +278,24 @@ export const fetchPriceData = async (primeParts: DetectedItem[]): Promise<Detect
       let data;
       if (isProduction) {
         try {
-          data = await fetchViaNetlify(normalizedName);
+          if (part.name.includes('Relic')) {
+            data = await fetchRelicData(part.name, true);
+          } else {
+            data = await fetchViaNetlify(normalizedName);
+          }
         } catch {
-          data = await fetchViaDirect(normalizedName);
+          if (part.name.includes('Relic')) {
+            data = await fetchRelicData(part.name, false);
+          } else {
+            data = await fetchViaDirect(normalizedName);
+          }
         }
       } else {
-        data = await fetchViaDirect(normalizedName);
+        if (part.name.includes('Relic')) {
+          data = await fetchRelicData(part.name, false);
+        } else {
+          data = await fetchViaDirect(normalizedName);
+        }
       }
 
       const localImageUrl = await getImageUrl(part.name);
@@ -359,7 +383,7 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
     if (isProduction) {
       try {
         if (primePart.name.includes('Relic')) {
-          data = await fetchRelicViaNetlify(primePart.name);
+          data = await fetchRelicData(primePart.name, true);
         } else if (primePart.category === 'mods') {
           normalizedName = normalizeModName(primePart.name, (primePart as any).rank);
           data = await fetchViaNetlify(normalizedName);
@@ -368,12 +392,20 @@ export const fetchSinglePriceOnly = async (primePart: DetectedItem): Promise<Det
           data = await fetchViaNetlify(normalizedName);
         }
       } catch {
+        if (primePart.name.includes('Relic')) {
+          data = await fetchRelicData(primePart.name, false);
+        } else {
+          normalizedName = normalizeItemName(primePart.name);
+          data = await fetchViaDirect(normalizedName);
+        }
+      }
+    } else {
+      if (primePart.name.includes('Relic')) {
+        data = await fetchRelicData(primePart.name, false);
+      } else {
         normalizedName = normalizeItemName(primePart.name);
         data = await fetchViaDirect(normalizedName);
       }
-    } else {
-      normalizedName = normalizeItemName(primePart.name);
-      data = await fetchViaDirect(normalizedName);
     }
 
     return {
@@ -424,7 +456,7 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
     if (isProduction) {
       try {
         if (primePart.name.includes('Relic')) {
-          data = await fetchRelicViaNetlify(primePart.name);
+          data = await fetchRelicData(primePart.name, true);
         } else if (primePart.category === 'mods') {
           normalizedName = normalizeModName(primePart.name, (primePart as any).rank);
           data = await fetchViaNetlify(normalizedName);
@@ -433,12 +465,20 @@ export const fetchSinglePriceData = async (primePart: DetectedItem): Promise<Det
           data = await fetchViaNetlify(normalizedName);
         }
       } catch {
+        if (primePart.name.includes('Relic')) {
+          data = await fetchRelicData(primePart.name, false);
+        } else {
+          normalizedName = normalizeItemName(primePart.name);
+          data = await fetchViaDirect(normalizedName);
+        }
+      }
+    } else {
+      if (primePart.name.includes('Relic')) {
+        data = await fetchRelicData(primePart.name, false);
+      } else {
         normalizedName = normalizeItemName(primePart.name);
         data = await fetchViaDirect(normalizedName);
       }
-    } else {
-      normalizedName = normalizeItemName(primePart.name);
-      data = await fetchViaDirect(normalizedName);
     }
 
     const localImageUrl = await getImageUrl(primePart.name);

@@ -48,7 +48,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
 
       console.log('[LLMWhisperer Proxy] Image data size:', imageData.length);
 
-      const response = await fetch(`${LLMWHISPERER_API_URL}/whisper?mode=high_quality&output_mode=text`, {
+      const response = await fetch(`${LLMWHISPERER_API_URL}/whisper?mode=high_quality&output_mode=layout_preserving`, {
         method: 'POST',
         headers: {
           'unstract-key': apiKey,
@@ -123,8 +123,7 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         };
       }
 
-      // text_only=true returns raw text
-      const response = await fetch(`${LLMWHISPERER_API_URL}/whisper-retrieve?whisper_hash=${whisperHash}&text_only=true`, {
+      const response = await fetch(`${LLMWHISPERER_API_URL}/whisper-retrieve?whisper_hash=${whisperHash}`, {
         headers: { 'unstract-key': apiKey },
       });
 
@@ -136,13 +135,14 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         };
       }
 
-      const extractedText = await response.text();
-      console.log('[LLMWhisperer Proxy] Retrieved text length:', extractedText.length);
+      // Return the RAW JSON from LLMWhisperer (disable text_only=true)
+      const result = await response.json();
+      console.log('[LLMWhisperer Proxy] Retrieved result keys:', Object.keys(result));
 
       return {
         statusCode: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: extractedText }),
+        body: JSON.stringify(result),
       };
 
     } else {

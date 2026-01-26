@@ -1,11 +1,12 @@
-import { DetectedItem, VoidRelic, SyndicateReward, Mod } from '../types';
+import { DetectedItem, VoidRelic } from '../types';
 import { getCategorizedInventory } from './inventoryService';
-import { determineModRarity, determineModType } from './modService';
+import { determineModRarity } from './modService';
 import { ocrLogger } from './ocrLogger';
 import { getPrimeSetsCache } from './staticDataService';
 import {
   isLLMWhispererConfigured,
-  extractTextWithLLMWhisperer
+  extractTextWithLLMWhisperer,
+  WhisperResult
 } from './llmWhispererService';
 
 
@@ -484,164 +485,24 @@ export const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
-const extractQuantityFromAbove = (lines: string[], index: number, currentQuantity: number, itemName: string): number => {
-  if (currentQuantity > 1) return currentQuantity;
-
-  if (index > 0) {
-    const prevLine = lines[index - 1];
-    console.log(`>>> [OCR Parsing] Checking context above ${itemName}: "${prevLine}" <<<`);
-
-    // Check for unowned icons/markers (Eye icon)
-    // Common OCR artifacts: (o), (0), O, 0, Ø, ©, ®, [o], [0], ( ), (), @
-    if (prevLine.match(/^[\(\[]?[Oo0ØVv@©®\-\s][\)\]]?$/) || prevLine === '()' || prevLine === '[]') {
-      console.log(`>>> [OCR Parsing] Detected unowned marker ABOVE ${itemName}: "${prevLine}". Skipping. <<<`);
-      return 0; // Return 0 to trigger skip
-    }
-
-    // Match "5", "x5", "x 5", etc.
-    const { quantity: aboveQty, cleanLine: remainingText } = parseQuantity(prevLine);
-
-    // If we found a quantity and there's no other text on that line, it's a standalone badge
-    if (aboveQty > 0 && (remainingText === '' || remainingText === 'x' || remainingText === '×')) {
-      if (aboveQty < 100) {
-        console.log(`>>> [OCR Parsing] Found quantity ${aboveQty} ABOVE item: ${itemName} <<<`);
-        return aboveQty;
-      }
-    }
-
-    // Fallback for tricky OCR that might see just the number
-    if (/^\d+$/.test(prevLine)) {
-      const prevQty = parseInt(prevLine);
-      if (prevQty > 0 && prevQty < 100) {
-        console.log(`>>> [OCR Parsing] Found raw numeric quantity ${prevQty} ABOVE item: ${itemName} <<<`);
-        return prevQty;
-      }
-    }
-  }
-
-  return currentQuantity;
-};
-
-// Extract prime items using pattern matching across the entire text
-const extractPrimeItemsFromText = (text: string): DetectedItem[] => {
-  const foundItems: DetectedItem[] = [];
-  const seenItems = new Set<string>();
-
-  // Split into lines for quantity detection
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-
-  lines.forEach((line, index) => {
-    // Skip UI noise
-    if (isUINoiseText(line)) return;
-
-    // Preserve original for quantity check if not found by parseQuantity
-    const { quantity, cleanLine } = parseQuantity(line);
-
-    // Pattern 1: "X Prime Component" (e.g., "Corvas Prime Receiver")
-    // This regex finds "Word Prime Word" patterns
-    const primePattern = /([A-Z][a-zA-Z&\s]*?)\s*Prime\s+([A-Za-z]+(?:\s+Blueprint)?)/i;
-    let match = primePattern.exec(cleanLine);
-
-    if (match) {
-      const setName = match[1].trim();
-      const component = match[2].trim();
-      const fullName = `${setName} Prime ${component}`;
-
-      // Validate against known items
-      const matchedItem = findBestPrimeMatch(fullName, 0.85);
-      if (matchedItem) {
-        // Multi-directional quantity detection (REFINED: Only look ABOVE/Behind)
-        const finalQuantity = extractQuantityFromAbove(lines, index, quantity, matchedItem);
-
-        // Skip items with quantity 0 (unowned/darkened)
-        if (finalQuantity === 0) {
-          console.log(`>>> [OCR Parsing] Skipping ${matchedItem} (detected quantity 0/unowned) <<<`);
-          return;
-        }
-
-        // Create a unique key for deduplication within this scan
-        const key = matchedItem.toLowerCase();
-        if (!seenItems.has(key)) {
-          foundItems.push({
-            id: `prime-${Date.now()}-${index}`,
-            name: matchedItem,
-            category: 'prime_parts',
-            quantity: finalQuantity,
-            status: 'loading'
-          });
-          seenItems.add(key);
-          ocrLogger.debug('Parsing', `Pattern matched: "${fullName}" → "${matchedItem}" (x${finalQuantity})`);
-        } else {
-          // If seen, update quantity
-          const existing = foundItems.find(item => item.name.toLowerCase() === key);
-          if (existing) {
-            existing.quantity = (existing.quantity || 1) + finalQuantity;
-          }
-        }
-        return; // Found a match on this line
-      } else {
-        console.warn(`>>> [OCR Parsing] Detected Prime-like text but failed strict match (0.85): "${fullName}" <<<`);
-      }
-    }
-
-    // Pattern 2: Just "X Prime" without component (for set-level matches)
-    const primeOnlyPattern = /([A-Z][a-zA-Z&\s]*?)\s*Prime(?!\s+[A-Z])/i;
-    match = primeOnlyPattern.exec(cleanLine);
-    if (match) {
-      const fullName = `${match[1].trim()} Prime`;
-      const matchedItem = findBestPrimeMatch(fullName, 0.7);
-      if (matchedItem) {
-        const key = matchedItem.toLowerCase();
-        // Only add set names if they're valid and we haven't found components
-        const hasComponents = foundItems.some(item =>
-          item.name.toLowerCase().startsWith(key)
-        );
-        if (!hasComponents && !seenItems.has(key)) {
-          foundItems.push({
-            id: `prime-${Date.now()}-${index}`,
-            name: matchedItem,
-            category: 'prime_parts',
-            quantity,
-            status: 'loading'
-          });
-          seenItems.add(key);
-        } else if (!hasComponents) {
-          // If seen and no components, update quantity
-          const existing = foundItems.find(item => item.name.toLowerCase() === key);
-          if (existing) {
-            existing.quantity = (existing.quantity || 1) + quantity;
-          }
-        }
-      }
-    }
-  });
-
-  return foundItems;
-};
-
 // Parse detected items from OCR text
-const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] => {
+const parseDetectedItems = (text: string, screenType?: string, whisperResult?: WhisperResult): DetectedItem[] => {
   ocrLogger.debug('Parsing', 'Starting item parsing', {
     screenType,
     textLength: text.length,
     textPreview: text.substring(0, 300)
   });
 
-  // For prime_parts, use the smarter pattern-based extraction
-  if (screenType === 'prime_parts') {
-    const primeItems = extractPrimeItemsFromText(text);
-    ocrLogger.info('Parsing', `Pattern extraction found ${primeItems.length} prime items`);
-    return primeItems;
-  }
-
   const detectedItems: DetectedItem[] = [];
   const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
   ocrLogger.debug('Parsing', `Split text into ${lines.length} lines`);
 
+  // State machine for sequential badge/item pairing
+  const pendingBadges: number[] = [];
   let detectedSyndicate = 'Unknown';
 
   lines.forEach((line, index) => {
-    // Skip UI noise and garbage text
+    // Skip UI noise
     if (isUINoiseText(line)) {
       ocrLogger.debug('Parsing', `Skipping noise: "${line}"`);
       return;
@@ -662,173 +523,99 @@ const parseDetectedItems = (text: string, screenType?: string): DetectedItem[] =
     // Parse quantity
     const { quantity, cleanLine } = parseQuantity(line);
 
-    // Syndicate reward format: "ITEM_NAME | 25,000"
-    const syndicateRewardMatch = cleanLine.match(/^(.*?)\s*\|\s*([\d,]+)/);
-    if (syndicateRewardMatch && (screenType === 'syndicate' || screenType === 'unknown')) {
-      const name = syndicateRewardMatch[1].trim();
-      const standingStr = syndicateRewardMatch[2].replace(/,/g, '');
-      const standingCost = parseInt(standingStr, 10);
-
-      // Skip if it looks like a mod line (e.g. "Mod Name | Rank | Drain")
-      // Syndicate rewards usually just have Name | Cost
-      const isModLine = cleanLine.match(/^.+?\|\s*\d+\s*\|\s*\d+/);
-
-      if (!isModLine) {
-        const reward: SyndicateReward = {
-          id: `syndicate-${Date.now()}-${index}`,
-          name,
-          category: 'syndicate_rewards',
-          syndicate: detectedSyndicate,
-          standingCost: isNaN(standingCost) ? 0 : standingCost,
-          itemType: 'mod', // Default, will be refined by service
-          currency: detectedSyndicate.toLowerCase().includes('arbitration') ? 'vitus_essence' : 'standing',
-          status: 'loading',
-          quantity
-        };
-        detectedItems.push(reward);
-        return;
+    // 1. If the line is JUST a badge (no text left), add it to pending
+    if (cleanLine === '' || cleanLine === 'x' || cleanLine === '×') {
+      if (quantity > 1) {
+        pendingBadges.push(quantity);
+        console.log(`>>> [OCR Parsing] Found standalone badge: x${quantity} <<<`);
+      } else {
+        // Known unowned glyph artifact?
+        if (line.match(/^[\(\[]?[Oo0ØVv@©®\-\s][\)\]]?$/) || line === '()' || line === '[]') {
+          console.log(`>>> [OCR Parsing] Found unowned marker glyph: "${line}" <<<`);
+          pendingBadges.push(0);
+        }
       }
+      return;
     }
 
-    // Check if it's a Void Relic
-    if (cleanLine.includes('Relic') || /\b(Lith|Meso|Neo|Axi)\s+[A-Z]\d+/i.test(cleanLine)) {
-      // Check for unowned icons/transparency indicators (LLMWhisperer often sees 'O' or 'o' for icons)
-      if (line.match(/^[\(\[]?[OoVv@][\)\]]?$/)) {
-        console.log(`>>> [OCR Parsing] Detected unowned relic icon/marker, skipping line: "${line}" <<<`);
-        return;
-      }
+    // 2. Extract item details
+    let matchedName: string | null = null;
+    let itemCategory: DetectedItem['category'] = 'relics'; // Default, will change
+    let extraData: any = {};
 
+    // Relic Check
+    if (cleanLine.includes('Relic') || /\b(Lith|Meso|Neo|Axi)\s+[A-Z]\d+/i.test(cleanLine)) {
+      itemCategory = 'relics';
       let relicName = cleanLine;
       let rarity: VoidRelic['rarity'] = 'intact';
 
-      // Extract rarity: "Lith A1 Relic (Radiant)" or "Radiant Lith A1 Relic"
       const rarityMatch = cleanLine.match(/[\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/i) ||
         cleanLine.match(/\b(Intact|Exceptional|Flawless|Radiant)\b/i);
 
       if (rarityMatch) {
         rarity = rarityMatch[1].toLowerCase() as VoidRelic['rarity'];
-        // Clean rarity from name
         relicName = cleanLine.replace(/[\(\[](Intact|Exceptional|Flawless|Radiant)[\)\]]/gi, '')
           .replace(/\b(Intact|Exceptional|Flawless|Radiant)\b/gi, '')
           .trim()
-          .replace(/\s+/g, ' '); // Fix double spaces
+          .replace(/\s+/g, ' ');
       }
 
-      // Ensure "Relic" is in the name if missing
-      if (!relicName.toLowerCase().includes('relic')) {
-        relicName += ' Relic';
-      }
-
-      // Unified look-behind for Relics
-      const finalQuantity = extractQuantityFromAbove(lines, index, quantity, relicName);
-
-      // Skip items with quantity 0 (unowned/darkened)
-      if (finalQuantity === 0) {
-        console.log(`>>> [OCR Parsing] Skipping ${relicName} (detected quantity 0/unowned) <<<`);
-        return;
-      }
-
-      const relicItem: VoidRelic = {
-        id: `relic-${Date.now()}-${index}`,
-        name: relicName,
-        category: 'relics',
-        rarity,
-        quantity: finalQuantity,
-        status: 'loading'
-      };
-      detectedItems.push(relicItem);
-      return;
+      if (!relicName.toLowerCase().includes('relic')) relicName += ' Relic';
+      matchedName = relicName;
+      extraData = { rarity };
     }
-
-    // Check if it's a mod
-    if (
-      screenType !== 'syndicate' &&
-      cleanLine &&
-      !cleanLine.includes('Prime') &&
-      !cleanLine.includes('Relic') &&
-      cleanLine.length < 100 &&
-      cleanLine.length > 1
-    ) {
-      // Mod Pattern 1: "Name | Rank X | Drain Y"
-      // Example: "Blind Rage | 8 | 14"
+    // Prime Check
+    else if (cleanLine.match(/([A-Z][a-zA-Z&\s]*?)\s*Prime\s+([A-Za-z]+(?:\s+Blueprint)?)/i) || cleanLine.includes('Prime')) {
+      const match = cleanLine.match(/([A-Z][a-zA-Z&\s]*?)\s*Prime\s+([A-Za-z]+(?:\s+Blueprint)?)/i);
+      const fullName = match ? `${match[1].trim()} Prime ${match[2].trim()}` : cleanLine;
+      const matched = findBestPrimeMatch(fullName, 0.7);
+      if (matched) {
+        matchedName = matched;
+        itemCategory = 'prime_parts';
+      }
+    }
+    // Mod Check
+    else if (determineModRarity(cleanLine) !== 'uncommon' || screenType === 'mods') {
+      matchedName = cleanLine;
+      itemCategory = 'mods';
+      // Mod parsing details...
       const pipeMatch = cleanLine.match(/^(.+?)\s*\|\s*(\d+)\s*\|\s*(\d+)/);
       if (pipeMatch) {
-        const modName = pipeMatch[1].trim();
-        const detectedLevel = parseInt(pipeMatch[2]);
-        const detectedDrain = parseInt(pipeMatch[3]);
+        matchedName = pipeMatch[1].trim();
+        extraData = { rank: parseInt(pipeMatch[2]), drain: parseInt(pipeMatch[3]) };
+      }
+    }
 
-        const rarity = determineModRarity(modName);
-        const type = determineModType(modName);
+    if (matchedName) {
+      // APPLY ADJACENCY INFERENCE
+      let finalQuantity = quantity;
 
-        const modItem: Mod = {
-          id: `mod-${Date.now()}-${index}`,
-          name: modName,
-          category: 'mods',
-          rank: detectedLevel,
-          quantity,
-          drain: detectedDrain,
-          rarity,
-          type,
-          status: 'loading'
-        };
-        detectedItems.push(modItem);
+      // If we have pending badges, consume one
+      if (pendingBadges.length > 0) {
+        finalQuantity = pendingBadges.shift()!;
+        console.log(`>>> [OCR Parsing] Pairing ${matchedName} with pending badge: x${finalQuantity} <<<`);
+      }
+
+      // Skip unowned items
+      if (finalQuantity === 0) {
+        ocrLogger.info('Parsing', `Skipping unowned item: ${matchedName}`);
         return;
       }
 
-      // Mod Pattern 2: "Name Rank X/Y (Drain Z)"
-      // Example: "Blind Rage Rank 8/10 (Drain 14)"
-      const rankMatch = cleanLine.match(/^(.+?)\s+(?:Rank|r)\s*(\d+)\/\d+\s*(?:\(Drain\s*(\d+)\))?/i);
-      if (rankMatch) {
-        const modName = rankMatch[1].trim();
-        const detectedLevel = parseInt(rankMatch[2]);
-        const detectedDrain = rankMatch[3] ? parseInt(rankMatch[3]) : undefined;
+      const item: DetectedItem = {
+        id: `${itemCategory}-${Date.now()}-${index}`,
+        name: matchedName,
+        category: itemCategory,
+        quantity: finalQuantity,
+        status: 'loading',
+        ...extraData
+      };
 
-        const rarity = determineModRarity(modName);
-        const type = determineModType(modName);
-
-        const modItem: Mod = {
-          id: `mod-${Date.now()}-${index}`,
-          name: modName,
-          category: 'mods',
-          rank: detectedLevel,
-          quantity,
-          drain: detectedDrain,
-          rarity,
-          type,
-          status: 'loading'
-        };
-        detectedItems.push(modItem);
-        return;
-      }
-
-      // Fallback: simple mod name (only if we are reasonably sure it's a mod screen or it looks like a mod)
-      // For now, we'll be conservative and only match if we have strong indicators or if screenType is 'mods'
-      if (screenType === 'mods' || determineModRarity(cleanLine) !== 'uncommon') {
-        const rarity = determineModRarity(cleanLine);
-        const type = determineModType(cleanLine);
-
-        const modItem: Mod = {
-          id: `mod-${Date.now()}-${index}`,
-          name: cleanLine,
-          category: 'mods',
-          quantity,
-          rarity,
-          type,
-          status: 'loading'
-        };
-        detectedItems.push(modItem);
-      }
+      detectedItems.push(item);
     }
   });
 
-  ocrLogger.info('Parsing', `Parsed ${detectedItems.length} items from ${lines.length} lines`, {
-    itemsByCategory: detectedItems.reduce((acc, item) => {
-      acc[item.category] = (acc[item.category] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>),
-    itemNames: detectedItems.map(item => item.name)
-  });
-
+  ocrLogger.info('Parsing', `Parsed ${detectedItems.length} items from ${lines.length} lines`);
   return detectedItems;
 };
 
@@ -843,115 +630,43 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
   });
 
   try {
-    ocrLogger.debug('Analysis', 'Converting file to base64');
-    let imageBase64 = await fileToBase64(imageFile);
-    ocrLogger.debug('Analysis', 'Generating image hash');
+    const imageBase64 = await fileToBase64(imageFile);
     const imageHash = await generateImageHash(imageBase64);
-    ocrLogger.info('Analysis', `Image hash: ${imageHash}`);
 
-    // Check cache first
+    // Check cache
     if (!forceRetry) {
-      ocrLogger.debug('Analysis', 'Checking cache for existing results');
       const cachedResult = getCachedAnalysis(imageHash);
       if (cachedResult) {
-        ocrLogger.info('Analysis', `Found cached result with ${cachedResult.length} items`);
         const items = filterNewItems(cachedResult);
-        if (items.length === 0) {
-          ocrLogger.warn('Analysis', 'Cached result had 0 items after filtering — bypassing cache and re-analyzing');
-        } else {
-          ocrLogger.info('Analysis', `Using cached analysis result - ${items.length} new items`);
-          return { items, screenType: 'unknown' };
-        }
-      } else {
-        ocrLogger.debug('Analysis', 'No cached result found');
+        if (items.length > 0) return { items, screenType: 'unknown' };
       }
     } else {
-      ocrLogger.info('Analysis', 'Force retry requested - bypassing cache');
       clearCachedAnalysis(imageHash);
     }
 
-    // Step 1: Extract text using LLMWhisperer
-    ocrLogger.info('Analysis', '🔍 Using LLMWhisperer for text extraction');
-    let extractedText = '';
-
-    const llmWhispererConfigured = isLLMWhispererConfigured();
-
-    if (!llmWhispererConfigured) {
-      ocrLogger.error('Analysis', 'LLMWhisperer not configured');
-      throw new Error('LLMWhisperer API key not configured. Please go to Settings → API and enter your key to use the scanner.');
+    if (!isLLMWhispererConfigured()) {
+      throw new Error('LLMWhisperer API key not configured.');
     }
 
-    ocrLogger.info('Analysis', '✅ LLMWhisperer configured - using AI OCR');
-    ocrLogger.info('Analysis', 'Step 1: Extracting text using LLMWhisperer');
+    const whisperResult = await extractTextWithLLMWhisperer(imageFile);
+    const extractedText = whisperResult.extracted_text || whisperResult.text || '';
 
-    try {
-      extractedText = await extractTextWithLLMWhisperer(imageFile);
-      ocrLogger.info('Analysis', `LLMWhisperer extracted ${extractedText.length} characters`);
-    } catch (llmError) {
-      ocrLogger.error('Analysis', 'LLMWhisperer failed', {
-        error: llmError instanceof Error ? llmError.message : String(llmError)
-      });
-      // Propagate the specific error message to the UI
-      throw new Error(`LLMWhisperer OCR failed: ${llmError instanceof Error ? llmError.message : 'Unknown error'}`);
-    }
+    if (!extractedText.trim()) throw new Error('OCR extracted no text.');
 
-    ocrLogger.info('Analysis', `Extracted ${extractedText.length} characters of text`, {
-      preview: extractedText.substring(0, 500)
-    });
-
-    if (!extractedText || extractedText.trim().length === 0) {
-      ocrLogger.error('Analysis', 'OCR extracted no text from image', {
-        fileName: imageFile.name,
-        fileSize: imageFile.size
-      });
-      throw new Error('OCR extracted no text from image. Please ensure the image contains readable text.');
-    }
-
-    // Step 2: Determine screen type
-    ocrLogger.info('Analysis', 'Step 2: Determining screen type');
     const screenType = determineScreenType(extractedText);
-    ocrLogger.info('Analysis', `Detected screen type: ${screenType}`);
+    const detectedItems = parseDetectedItems(extractedText, screenType, whisperResult);
 
-    // Step 3: Parse detected items
-    ocrLogger.info('Analysis', 'Step 3: Parsing detected items');
-    const detectedItems = parseDetectedItems(extractedText, screenType);
-
-    const categoryCounts = detectedItems.reduce((acc, item) => {
-      acc[item.category] = (acc[item.category] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    ocrLogger.info('Analysis', `Parsed ${detectedItems.length} items`, {
-      categoryDistribution: categoryCounts,
-      items: detectedItems.map(item => ({ name: item.name, category: item.category }))
-    });
-
-    // Cache the results
-    ocrLogger.debug('Analysis', 'Caching analysis results');
     setCachedAnalysis(imageHash, screenType, detectedItems);
-
-    // Filter out items that already exist in inventory
-    ocrLogger.debug('Analysis', 'Filtering out duplicate items');
     const newItems = filterNewItems(detectedItems);
-    ocrLogger.info('Analysis', `Filtered to ${newItems.length} new items (${detectedItems.length - newItems.length} duplicates removed)`);
 
     const duration = Date.now() - analysisStartTime;
-    ocrLogger.info('Analysis', `Analysis completed successfully in ${duration}ms`, {
-      screenType,
-      totalItems: detectedItems.length,
-      newItems: newItems.length
-    });
+    ocrLogger.info('Analysis', `Completed in ${duration}ms`, { totalItems: detectedItems.length, newItems: newItems.length });
 
     return { items: newItems, screenType };
   } catch (error) {
     const duration = Date.now() - analysisStartTime;
-    ocrLogger.error('Analysis', 'Image analysis failed', {
-      error: error instanceof Error ? error.message : String(error),
-      duration
-    });
-
-    const errorMessage = error instanceof Error ? error.message : 'Failed to analyze image. Please try again.';
-    throw new Error(errorMessage);
+    ocrLogger.error('Analysis', 'Failed', { error: error instanceof Error ? error.message : String(error), duration });
+    throw error;
   }
 };
 

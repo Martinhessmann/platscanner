@@ -8,6 +8,14 @@
 // In local dev, this can be pointed to the production URL via VITE_PROD_FUNCTIONS_URL
 const PROXY_URL = (import.meta.env.VITE_PROD_FUNCTIONS_URL || '') + '/.netlify/functions/llmwhisperer';
 
+export interface WhisperResult {
+  extracted_text?: string;
+  text?: string;
+  pages?: any[];
+  blocks?: any[];
+  metadata?: any;
+}
+
 // Get API key from localStorage
 const getApiKey = (): string | null => {
   try {
@@ -40,7 +48,7 @@ export const isLLMWhispererConfigured = (): boolean => {
 };
 
 // Extract text from image using LLMWhisperer (via Netlify proxy)
-export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<string> => {
+export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<WhisperResult> => {
   console.log('[LLMWhisperer] extractTextWithLLMWhisperer called');
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -77,12 +85,11 @@ export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<stri
     return await pollForResult(apiKey, result.whisper_hash);
   }
 
-  console.log('[LLMWhisperer] Extracted', result.extracted_text?.length || 0, 'characters');
-  return result.extracted_text || '';
+  return result;
 };
 
 // Poll for async result (via Netlify proxy)
-const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 30): Promise<string> => {
+const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 30): Promise<WhisperResult> => {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
 
@@ -112,15 +119,13 @@ const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 
         throw new Error(`Failed to retrieve result: ${textResponse.status}`);
       }
 
-      const textResult = await textResponse.json();
+      const textResult = await textResponse.json() as WhisperResult;
       console.log(`>>> [LLMWhisperer RAW JSON] >>>`);
-      console.log(textResult); // Log as object for better browser console inspection
+      // Use stringify because custom loggers (like marketLogger) might not handle objects
+      console.log(JSON.stringify(textResult, null, 2));
       console.log(`<<< [LLMWhisperer RAW JSON] <<<`);
 
-      // Handle both structured JSON and simple {text: "..."} wrappers
-      const extractedText = textResult.text || '';
-      console.log(`[LLMWhisperer] Extracted ${extractedText.length} characters`);
-      return extractedText;
+      return textResult;
     }
 
     if (result.status === 'error') {
