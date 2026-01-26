@@ -15,15 +15,25 @@ import {
 
 // UI text patterns to filter out (noise from Warframe UI)
 const UI_NOISE_PATTERNS = [
-  /^(inventory|sell|search|exit|total|tap|hold|select|info|price|items?)$/i,
+  /^(inventory|sell|search|exit|total|tap|hold|select|info|price|items?|sort by|duplicates|fragments?|credits|endo)$/i,
   /inventory\/sell/i,
   /sell\s*(price|items)/i,
   /tap\s*(on|and)/i,
   /more\s*info/i,
   /only\s*sellable/i,
   /search\.\.\./i,
-  /^\s*[@#$%^&*|\\[\]{}]+\s*$/,  // Lines with only special characters
-  // REMOVED: /^\s*\d+\s*$/,  // Allow standalone numbers (quantities)
+  /modding/i,
+  /fusion/i,
+  /transmute/i,
+  /dissolve/i,
+  /quick select/i,
+  /filter/i,
+  /riven capacity/i,
+  /ayatan treasures/i,
+  /no mod selected/i,
+  /hold to preview/i,
+  /tap to select/i,
+  /^\s*[@#$%^&*|\\[\]{}:~\-]+\s*$/,  // Lines with only special chars
   /^\s*[ivxlcdm]+\s*$/i,  // Roman numerals only
 ];
 
@@ -575,14 +585,39 @@ const parseDetectedItems = (text: string, screenType?: string, whisperResult?: W
       }
     }
     // Mod Check
-    else if (determineModRarity(cleanLine) !== 'uncommon' || screenType === 'mods') {
-      matchedName = cleanLine;
-      itemCategory = 'mods';
-      // Mod parsing details...
-      const pipeMatch = cleanLine.match(/^(.+?)\s*\|\s*(\d+)\s*\|\s*(\d+)/);
-      if (pipeMatch) {
-        matchedName = pipeMatch[1].trim();
-        extraData = { rank: parseInt(pipeMatch[2]), drain: parseInt(pipeMatch[3]) };
+    else if (screenType === 'mods') {
+      const rarity = determineModRarity(cleanLine);
+      const isKnown = rarity !== 'uncommon';
+      const looksLikeName = cleanLine.length > 5 && !/^\d+$/.test(cleanLine) && !cleanLine.includes('|');
+
+      if (isKnown || looksLikeName) {
+        itemCategory = 'mods';
+
+        // Mod parsing using internal regex for Rank/Drain
+        const pipeMatch = cleanLine.match(/^(.+?)\s*\|\s*(\d+)\s*\|\s*(\d+)/);
+        const rankMatch = cleanLine.match(/^(.+?)\s+(?:Rank|r)\s*(\d+)\/\d+\s*(?:\(Drain\s*(\d+)\))?/i);
+        const standaloneDrainMatch = cleanLine.match(/^(.+?)\s+(\d+)$/);
+
+        if (pipeMatch) {
+          matchedName = pipeMatch[1].trim();
+          extraData = { rank: parseInt(pipeMatch[2]), drain: parseInt(pipeMatch[3]) };
+        } else if (rankMatch) {
+          matchedName = rankMatch[1].trim();
+          extraData = {
+            rank: parseInt(rankMatch[2]),
+            drain: rankMatch[3] ? parseInt(rankMatch[3]) : undefined
+          };
+        } else if (standaloneDrainMatch) {
+          matchedName = standaloneDrainMatch[1].trim();
+          const potentialDrain = parseInt(standaloneDrainMatch[2]);
+          if (potentialDrain > 1 && potentialDrain < 20) {
+            extraData = { drain: potentialDrain };
+          }
+        } else {
+          matchedName = cleanLine;
+        }
+
+        matchedName = matchedName!.replace(/[.·*•-]$/, '').trim();
       }
     }
 
