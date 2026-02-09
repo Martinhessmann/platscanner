@@ -11,18 +11,36 @@ const PROXY_URL = (import.meta.env.VITE_PROD_FUNCTIONS_URL || '') + '/.netlify/f
 export interface WhisperResult {
   extracted_text?: string;
   text?: string;
+  result_text?: string;
   pages?: any[];
   blocks?: any[];
   metadata?: any;
 }
 
+export interface ExtractTextOptions {
+  logRawResponse?: boolean;
+  label?: string;
+}
+
 // Get API key from localStorage
-const getApiKey = (): string | null => {
+const getStoredApiKey = (): string | null => {
   try {
     return localStorage.getItem('platscanner_llmwhisperer_api_key');
   } catch {
     return null;
   }
+};
+
+const getEnvApiKey = (): string | null => {
+  const envKey = import.meta.env.VITE_LLMWHISPERER_API_KEY;
+  return typeof envKey === 'string' && envKey.trim().length > 0 ? envKey.trim() : null;
+};
+
+// Effective API key: user-provided key first, fallback to env key in local dev/deploys where present.
+const getApiKey = (): string | null => {
+  const stored = getStoredApiKey();
+  if (stored && stored.trim().length > 0) return stored.trim();
+  return getEnvApiKey();
 };
 
 // Set API key in localStorage
@@ -47,9 +65,47 @@ export const isLLMWhispererConfigured = (): boolean => {
   }
 };
 
+const parseProxyError = async (response: Response): Promise<{ message: string; raw: any }> => {
+  const fallback = `LLMWhisperer API error: ${response.status}`;
+  try {
+    const errorData = await response.json();
+    let message = errorData?.error || fallback;
+
+    if (typeof errorData?.details === 'string') {
+      try {
+        const parsedDetails = JSON.parse(errorData.details);
+        if (parsedDetails?.message) {
+          message = parsedDetails.message;
+        }
+      } catch {
+        // Keep original message if details is not JSON
+      }
+    }
+
+    return { message, raw: errorData };
+  } catch {
+    return { message: fallback, raw: null };
+  }
+};
+
+const requestWhisper = async (apiKey: string, arrayBuffer: ArrayBuffer): Promise<Response> => {
+  return fetch(`${PROXY_URL}?action=whisper`, {
+    method: 'POST',
+    headers: {
+      'X-LLMWhisperer-Key': apiKey,
+      'Content-Type': 'application/octet-stream',
+    },
+    body: arrayBuffer,
+  });
+};
+
 // Extract text from image using LLMWhisperer (via Netlify proxy)
-export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<WhisperResult> => {
-  console.log('[LLMWhisperer] extractTextWithLLMWhisperer called');
+export const extractTextWithLLMWhisperer = async (
+  imageFile: File,
+  options: ExtractTextOptions = {}
+): Promise<WhisperResult> => {
+  const { logRawResponse = true, label } = options;
+  console.log('[LLMWhisperer] extractTextWithLLMWhisperer called', label ? { label } : undefined);
   const apiKey = getApiKey();
   if (!apiKey) {
     console.error('[LLMWhisperer] No API key found!');
@@ -62,19 +118,28 @@ export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<Whis
   const arrayBuffer = await imageFile.arrayBuffer();
 
   // Call LLMWhisperer via Netlify proxy
-  const response = await fetch(`${PROXY_URL}?action=whisper`, {
-    method: 'POST',
-    headers: {
-      'X-LLMWhisperer-Key': apiKey,
-      'Content-Type': 'application/octet-stream',
-    },
-    body: arrayBuffer,
-  });
+  let effectiveApiKey = apiKey;
+  let response = await requestWhisper(effectiveApiKey, arrayBuffer);
+
+  // If user-stored key fails with 401, retry once with env fallback key (when available).
+  if (response.status === 401) {
+    const fallbackKey = getEnvApiKey();
+    if (fallbackKey && fallbackKey !== effectiveApiKey) {
+      console.warn('[LLMWhisperer] Stored key returned 401. Retrying with environment fallback key.');
+      effectiveApiKey = fallbackKey;
+      response = await requestWhisper(effectiveApiKey, arrayBuffer);
+    }
+  }
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-    console.error('[LLMWhisperer] API error:', response.status, errorData);
-    throw new Error(`LLMWhisperer API error: ${response.status} - ${errorData.error || errorData.details || 'Unknown'}`);
+    const parsed = await parseProxyError(response);
+    console.error('[LLMWhisperer] API error:', response.status, parsed.raw);
+
+    if (response.status === 401) {
+      throw new Error('LLMWhisperer authentication failed (401): API key is invalid or expired. Open API Settings and update your key.');
+    }
+
+    throw new Error(`LLMWhisperer API error (${response.status}): ${parsed.message}`);
   }
 
   const result = await response.json();
@@ -82,14 +147,25 @@ export const extractTextWithLLMWhisperer = async (imageFile: File): Promise<Whis
   if (result.status === 'processing' || result.whisper_hash) {
     // Need to poll for result (async processing)
     console.log('[LLMWhisperer] Processing, whisper hash:', result.whisper_hash);
-    return await pollForResult(apiKey, result.whisper_hash);
+    return await pollForResult(effectiveApiKey, result.whisper_hash, 30, logRawResponse);
+  }
+
+  if (logRawResponse) {
+    console.log(`>>> [LLMWhisperer RAW JSON] >>>`);
+    console.log(JSON.stringify(result, null, 2));
+    console.log(`<<< [LLMWhisperer RAW JSON] <<<`);
   }
 
   return result;
 };
 
 // Poll for async result (via Netlify proxy)
-const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 30): Promise<WhisperResult> => {
+const pollForResult = async (
+  apiKey: string,
+  whisperHash: string,
+  maxAttempts = 30,
+  logRawResponse: boolean = true
+): Promise<WhisperResult> => {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
 
@@ -120,10 +196,12 @@ const pollForResult = async (apiKey: string, whisperHash: string, maxAttempts = 
       }
 
       const textResult = await textResponse.json() as WhisperResult;
-      console.log(`>>> [LLMWhisperer RAW JSON] >>>`);
-      // Use stringify because custom loggers (like marketLogger) might not handle objects
-      console.log(JSON.stringify(textResult, null, 2));
-      console.log(`<<< [LLMWhisperer RAW JSON] <<<`);
+      if (logRawResponse) {
+        console.log(`>>> [LLMWhisperer RAW JSON] >>>`);
+        // Use stringify because custom loggers (like marketLogger) might not handle objects
+        console.log(JSON.stringify(textResult, null, 2));
+        console.log(`<<< [LLMWhisperer RAW JSON] <<<`);
+      }
 
       return textResult;
     }

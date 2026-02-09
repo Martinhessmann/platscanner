@@ -440,10 +440,10 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       }
 
       console.log(`>>> [AI Analysis] Starting analysis for image: ${imageId} <<<`);
-      const startTime = Date.now();
 
       // Extract items using OCR
-      const analysisResult = await analyzeImage(imageState.file);
+      const isDebugImage = typeof imageState.file.path === 'string' && imageState.file.path.startsWith('/debug/');
+      const analysisResult = await analyzeImage(imageState.file, isDebugImage);
       const detectedItems = analysisResult.items || [];
       const screenType = analysisResult.screenType || 'unknown';
 
@@ -481,7 +481,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
         duplicatesPerImage: new Map(current.duplicatesPerImage).set(imageId, duplicatesCount)
       }));
 
-      const wasCached = (Date.now() - startTime) < 500;
+      const wasCached = analysisResult.wasCached === true;
 
       if (newItems.length === 0) {
         setProcessingState(current => {

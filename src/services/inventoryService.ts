@@ -98,6 +98,8 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
   try {
     const currentInventory = loadInventory();
     const now = new Date();
+    let primeSetsAddedCount = 0;
+    let primeSetsMergedCount = 0;
 
     // Convert DetectedItems to InventoryItems
     const inventoryItems: InventoryItem[] = items.map(item => {
@@ -222,7 +224,11 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
         const existingItem = updatedItems[existingIndex];
         const newQuantity = (existingItem.quantity || 1) + (newItem.quantity || 1);
 
-        console.log(`>>> [Inventory] Merging "${newItem.name}": ${existingItem.quantity} + ${newItem.quantity} = ${newQuantity} <<<`);
+        if (newItem.category === 'prime_sets') {
+          primeSetsMergedCount += 1;
+        } else {
+          console.log(`>>> [Inventory] Merging [${newItem.category}] "${newItem.name}": ${existingItem.quantity} + ${newItem.quantity} = ${newQuantity} <<<`);
+        }
 
         // Update existing item with latest data but preserve addedAt and use accumulated quantity
         updatedItems[existingIndex] = {
@@ -233,10 +239,18 @@ export const saveToInventory = (items: DetectedItem[], sessionId?: string): void
         };
       } else {
         // Add new item
-        console.log(`>>> [Inventory] Adding new item: "${newItem.name}" (qty: ${newItem.quantity || 1}) <<<`);
+        if (newItem.category === 'prime_sets') {
+          primeSetsAddedCount += 1;
+        } else {
+          console.log(`>>> [Inventory] Adding new item [${newItem.category}]: "${newItem.name}" (qty: ${newItem.quantity || 1}) <<<`);
+        }
         updatedItems.push(newItem);
       }
     });
+
+    if (primeSetsAddedCount > 0 || primeSetsMergedCount > 0) {
+      console.log(`>>> [Inventory] Prime Sets cache sync: added=${primeSetsAddedCount}, merged=${primeSetsMergedCount} <<<`);
+    }
 
     // CRITICAL: Final deduplication pass to clean up any legacy duplicates
     const finalItems: InventoryItem[] = [];
