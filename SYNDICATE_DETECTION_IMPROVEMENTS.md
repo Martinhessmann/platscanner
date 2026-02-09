@@ -1,5 +1,7 @@
 # Syndicate Detection Improvements
 
+> Legacy note (2026-02-09): This document references the older Gemini-specific implementation. Active OCR detection now runs through `src/services/ocrService.ts` with LLMWhisperer text extraction.
+
 ## 🐛 Issues Identified
 
 The user reported two main issues:

@@ -108,8 +108,8 @@ const relics = getRelicsCache();         // relicDataService
 [User Browser]
     ↓ (Upload Screenshot)
 [React Frontend]
-    ↓ (Gemini AI Analysis)
-[Google Gemini API]
+    ↓ (LLMWhisperer OCR via Netlify Function)
+[LLMWhisperer API]
     ↓ (Detected Items)
 [React Frontend]
     ↓ (Price Lookup)
@@ -152,7 +152,7 @@ const relics = getRelicsCache();         // relicDataService
 ## 🔧 Technical Components
 
 ### Core Services
-- **`geminiService.ts`**: AI image analysis and item detection
+- **`ocrService.ts`**: OCR analysis, parsing, and item detection
 - **`warframeMarketService.ts`**: Market data fetching and price calculations
 - **`relicDataService.ts`**: Relic database lookup and drop analysis
 - **`inventoryService.ts`**: Persistent storage and inventory management
@@ -333,7 +333,7 @@ const handleRefresh = async () => {
 
 ### Required Variables
 ```env
-VITE_GEMINI_API_KEY=your_gemini_api_key
+VITE_PROD_FUNCTIONS_URL=your_netlify_site_url_optional_for_local_proxying
 ```
 
 ### Optional Variables (Supabase)
@@ -426,7 +426,7 @@ console.log('[Relic Analysis] Starting analysis for:', relicName)
 - **Market Data**: ~200ms per item (cached)
 
 ### API Usage
-- **Gemini API**: ~1 request per image
+- **LLMWhisperer OCR API**: ~1 request per image
 - **Warframe Market**: Batched requests in production
 - **Rate Limits**: 3 requests/second (Warframe Market)
 
@@ -445,11 +445,14 @@ console.log('[Relic Analysis] Starting analysis for:', relicName)
 ## 🚧 Known Limitations
 
 ### Current Constraints
-- **Gemini API Dependency**: Requires active API key
+- **LLMWhisperer Dependency**: Requires active API key
 - **Rate Limiting**: Warframe Market API limits (3 req/sec)
 - **Image Quality**: Detection accuracy depends on screenshot quality
 - **Browser Storage**: Limited by LocalStorage capacity
 - **Docker Requirement**: Supabase CLI deployment requires Docker Desktop
+- **Prime Parts**: Active regression exists, although quantity detection/inventory updates mostly still function
+- **Mods**: OCR detection currently not working
+- **Relics**: Invisible relics can be miscounted as quantity `1` instead of `0`
 
 ### Future Improvements
 - **GitHub Actions**: Automated Edge Function deployment

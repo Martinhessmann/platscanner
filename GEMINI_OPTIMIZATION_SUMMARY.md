@@ -1,5 +1,7 @@
 # Gemini AI System Optimization & Mod Detection Enhancement
 
+> Legacy note (2026-02-09): This document describes the old Gemini-based OCR pipeline. The active implementation is now LLMWhisperer-based via `src/services/ocrService.ts` and `netlify/functions/llmwhisperer.ts`.
+
 ## 🎯 Overview
 This document outlines the comprehensive optimizations and improvements implemented for the Gemini AI system, including rate limiting optimizations, advanced mod detection with segmentation, and enhanced accuracy improvements.
 

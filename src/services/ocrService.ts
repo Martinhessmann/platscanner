@@ -11,7 +11,7 @@ import {
 
 
 
-// [Deleted Tesseract functions and unused image processing]
+// LLMWhisperer-only OCR pipeline
 
 // UI text patterns to filter out (noise from Warframe UI)
 const UI_NOISE_PATTERNS = [
@@ -705,40 +705,29 @@ export const analyzeImage = async (imageFile: File, forceRetry: boolean = false)
   }
 };
 
-// Compatibility functions for existing code
-export const isGeminiConfigured = (): boolean => {
-  // OCR doesn't need API key, always available
-  return true;
+export const isOcrConfigured = (): boolean => {
+  return isLLMWhispererConfigured();
 };
 
-export const setApiKey = (apiKey: string): boolean => {
-  // OCR doesn't need API key, but we'll store it for compatibility
+export const setOcrApiKey = (apiKey: string): boolean => {
   try {
-    localStorage.setItem('platscanner_gemini_api_key', apiKey);
+    setLLMWhispererApiKey(apiKey);
     return true;
   } catch (error) {
-    console.error('Failed to store API key:', error);
+    console.error('Failed to store OCR API key:', error);
     return false;
   }
 };
 
-export const getApiKey = (): string | null => {
+export const getOcrApiKey = (): string | null => {
   try {
-    return localStorage.getItem('platscanner_gemini_api_key');
+    return localStorage.getItem('platscanner_llmwhisperer_api_key');
   } catch (error) {
-    console.error('Failed to retrieve API key:', error);
+    console.error('Failed to retrieve OCR API key:', error);
     return null;
   }
 };
 
-export const initializeGemini = (_apiKey: string): boolean => {
-  return true;
-};
-
-// LLMWhisperer exports for UI configuration
-export {
-  isLLMWhispererConfigured,
-  setLLMWhispererApiKey
-} from './llmWhispererService';
+export { isLLMWhispererConfigured, setLLMWhispererApiKey } from './llmWhispererService';
 
 // Helper functions are already defined above, no need to re-export

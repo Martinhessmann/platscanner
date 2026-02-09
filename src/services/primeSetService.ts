@@ -345,12 +345,12 @@ export const toggleSetMastery = (setId: string): void => {
 // Check if item exists in inventory (regardless of owned status)
 // For warframes, prefers blueprint over built part if both exist
 const hasItemInInventory = (itemName: string, requiredCount: number, inventory: DetectedItem[], setType?: PrimeSet['type']): boolean => {
-  // Filter out invalid items (Gemini response text, etc.)
+  // Filter out invalid items (OCR response artifacts, etc.)
   const validInventory = inventory.filter(item => {
     // Must be prime_parts category
     if (item.category !== 'prime_parts') return false;
 
-    // Must not contain Gemini response artifacts
+    // Must not contain OCR response artifacts
     const lowerName = item.name.toLowerCase();
     if (lowerName.includes('here are the') ||
         lowerName.includes('visible in the screenshot') ||

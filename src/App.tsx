@@ -6,18 +6,18 @@ import HomePage from './pages/HomePage';
 import AboutPage from './pages/AboutPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
-import { isGeminiConfigured, setApiKey } from './services/ocrService';
+import { isOcrConfigured, setOcrApiKey } from './services/ocrService';
 import { preloadImageData } from './services/unifiedImageService';
 import { migrateInventoryToLocalImages, verifyLocalImageMigration } from './services/inventoryService';
 
 function App() {
-  const [isConfigured, setIsConfigured] = useState(isGeminiConfigured());
+  const [isConfigured, setIsConfigured] = useState(isOcrConfigured());
   const [openSettings, setOpenSettings] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     // Check configuration status on mount
-    setIsConfigured(isGeminiConfigured());
+    setIsConfigured(isOcrConfigured());
 
     // Initialize app with local images
     const initializeApp = async () => {
@@ -48,9 +48,9 @@ function App() {
 
   const handleApiKeyChange = async (key: string) => {
     try {
-      const success = setApiKey(key);
+      const success = setOcrApiKey(key);
       if (success) {
-        setIsConfigured(true);
+        setIsConfigured(isOcrConfigured());
       } else {
         throw new Error('Failed to set API key');
       }
@@ -79,7 +79,6 @@ function App() {
       <div className="flex flex-col min-h-screen bg-background-dark text-white">
         <Header
           onApiKeyChange={handleApiKeyChange}
-          isConfigured={isConfigured}
           openSettings={openSettings}
           onOpenSettingsHandled={handleOpenSettingsHandled}
           onDataImported={handleDataImported}

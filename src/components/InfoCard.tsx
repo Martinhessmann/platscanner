@@ -26,7 +26,7 @@ const InfoCard: React.FC<InfoCardProps> = ({ isConfigured = true, onOpenSettings
               <div>
                 <p className="text-sm text-gray-300 flex items-center gap-2">
                   <Key size={14} className="text-orokin-gold" />
-                  OCR is ready to analyze your screenshots (no API key needed)
+                  LLMWhisperer OCR requires an API key before scanning
                   {onOpenSettings && (
                     <button
                       onClick={onOpenSettings}

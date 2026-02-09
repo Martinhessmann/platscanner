@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, X, Key, HardDrive, Cloud, Bug, Copy, Check, Eye, Wand2 } from 'lucide-react';
+import { Settings, X, Key, HardDrive, Cloud, Bug, Copy, Check, Wand2 } from 'lucide-react';
 import DataBackupSection from './DataBackupSection';
 import CloudSyncSection from './CloudSyncSection';
 import { ocrLogger } from '../services/ocrLogger';
@@ -9,7 +9,6 @@ import { isLLMWhispererConfigured, setLLMWhispererApiKey } from '../services/llm
 
 interface ApiKeySettingsProps {
   onApiKeyChange: (key: string) => Promise<void>;
-  isConfigured: boolean;
   openSettings?: boolean;
   onOpenSettingsHandled?: () => void;
   onDataImported?: () => void; // Callback to refresh UI after import
@@ -17,14 +16,12 @@ interface ApiKeySettingsProps {
 
 const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
   onApiKeyChange,
-  isConfigured,
   openSettings = false,
   onOpenSettingsHandled,
   onDataImported
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'api' | 'backup' | 'sync' | 'debug'>('api');
-  const [apiKey, setApiKey] = useState('');
   const [llmWhispererKey, setLlmWhispererKey] = useState('');
   const [llmWhispererConfigured, setLlmWhispererConfigured] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,45 +69,16 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
 
   useEffect(() => {
     try {
-      const storedKey = localStorage.getItem('platscanner_gemini_api_key');
-      if (storedKey) {
-        setApiKey(storedKey);
-        onApiKeyChange(storedKey).catch(err => {
-          console.error('Failed to restore API key:', err);
-          setError('Stored API key is invalid. Please enter a new one.');
-          setApiKey('');
-        });
-      }
-      
-      // Load LLMWhisperer key
       const storedLlmKey = localStorage.getItem('platscanner_llmwhisperer_api_key');
       if (storedLlmKey) {
         setLlmWhispererKey(storedLlmKey);
       }
       setLlmWhispererConfigured(isLLMWhispererConfigured());
     } catch (error) {
-      console.error('Failed to load API key:', error);
+      console.error('Failed to load OCR API key:', error);
       setError('Failed to load stored API key');
     }
-  }, [onApiKeyChange]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
-
-    try {
-      await onApiKeyChange(apiKey);
-      setIsOpen(false);
-      setError(null);
-    } catch (error) {
-      console.error('Failed to save API key:', error);
-      setError(error instanceof Error ? error.message : 'Failed to save API key. Please try again.');
-      setApiKey('');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  }, []);
 
   return (
     <>
@@ -229,59 +197,37 @@ const ApiKeySettings: React.FC<ApiKeySettingsProps> = ({
                         className="flex-1 px-3 py-2 bg-background-card border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orokin-gold focus:border-transparent"
                       />
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (llmWhispererKey.trim()) {
-                            setLLMWhispererApiKey(llmWhispererKey.trim());
-                            setLlmWhispererConfigured(true);
+                            setIsSubmitting(true);
                             setError(null);
+                            try {
+                              setLLMWhispererApiKey(llmWhispererKey.trim());
+                              await onApiKeyChange(llmWhispererKey.trim());
+                              setLlmWhispererConfigured(isLLMWhispererConfigured());
+                            } catch (saveError) {
+                              console.error('Failed to save LLMWhisperer key:', saveError);
+                              setError(saveError instanceof Error ? saveError.message : 'Failed to save API key. Please try again.');
+                            } finally {
+                              setIsSubmitting(false);
+                            }
                           }
                         }}
                         className="px-4 py-2 bg-orokin-gold text-black rounded hover:bg-orokin-light transition-colors font-medium"
+                        disabled={isSubmitting}
                       >
-                        Save
+                        {isSubmitting ? 'Saving...' : 'Save'}
                       </button>
                     </div>
                     {llmWhispererConfigured && (
                       <p className="mt-2 text-xs text-green-400">
-                        ✓ LLMWhisperer will be used for OCR (much better accuracy than Tesseract)
+                        ✓ LLMWhisperer OCR is configured and active
                       </p>
                     )}
+                    {error && (
+                      <p className="mt-2 text-sm text-grineer-red">{error}</p>
+                    )}
                   </div>
-
-                  {/* Legacy Gemini API Key */}
-                  <form onSubmit={handleSubmit}>
-                    <div className="p-4 bg-background-dark rounded-lg border border-gray-700">
-                      <div className="flex items-center gap-2 mb-3">
-                        <Eye size={18} className="text-gray-400" />
-                        <h3 className="text-lg font-semibold text-white">Legacy API Key</h3>
-                        <span className="px-2 py-0.5 bg-gray-500/20 text-gray-400 text-xs rounded">Optional</span>
-                      </div>
-                      <p className="text-sm text-gray-500 mb-3">
-                        For backward compatibility. Not required when LLMWhisperer is configured.
-                      </p>
-                      <div className="flex gap-2">
-                        <input
-                          type="password"
-                          id="apiKey"
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
-                          placeholder={isConfigured ? '••••••••••••••••' : 'Enter API key'}
-                          className="flex-1 px-3 py-2 bg-background-card border border-gray-700 rounded-md text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-tenno-blue focus:border-transparent"
-                          disabled={isSubmitting}
-                        />
-                        <button
-                          type="submit"
-                          className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors disabled:opacity-50"
-                          disabled={isSubmitting}
-                        >
-                          {isSubmitting ? 'Saving...' : 'Save'}
-                        </button>
-                      </div>
-                      {error && (
-                        <p className="mt-2 text-sm text-grineer-red">{error}</p>
-                      )}
-                    </div>
-                  </form>
                 </div>
               )}
 

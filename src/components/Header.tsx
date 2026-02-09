@@ -1,10 +1,9 @@
 import React from 'react';
-import { ScanLine, Zap, Settings } from 'lucide-react';
+import { ScanLine, Zap } from 'lucide-react';
 import ApiKeySettings from './ApiKeySettings';
 
 interface HeaderProps {
   onApiKeyChange: (key: string) => Promise<void>;
-  isConfigured: boolean;
   openSettings?: boolean;
   onOpenSettingsHandled?: () => void;
   onDataImported?: () => void;
@@ -12,7 +11,6 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({
   onApiKeyChange,
-  isConfigured,
   openSettings = false,
   onOpenSettingsHandled,
   onDataImported
@@ -35,7 +33,6 @@ const Header: React.FC<HeaderProps> = ({
 
         <ApiKeySettings
           onApiKeyChange={onApiKeyChange}
-          isConfigured={isConfigured}
           openSettings={openSettings}
           onOpenSettingsHandled={onOpenSettingsHandled}
           onDataImported={onDataImported}

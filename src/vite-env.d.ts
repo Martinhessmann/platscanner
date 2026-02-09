@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  // OCR doesn't require API keys - all processing happens client-side
+  readonly VITE_PROD_FUNCTIONS_URL?: string;
 }
 
 interface ImportMeta {

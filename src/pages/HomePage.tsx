@@ -4,7 +4,7 @@ import ProcessingPanel from '../components/ProcessingPanel';
 import InventorySection from '../components/InventorySection';
 import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import ModDuplicatesSection from '../components/ModDuplicatesSection';
-import { analyzeImage, isGeminiConfigured } from '../services/ocrService';
+import { analyzeImage, isOcrConfigured } from '../services/ocrService';
 import { fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
 import { isPrimePartTradeable } from '../services/primeSetService';
 import { cloudSyncService } from '../services/cloudSyncService';
@@ -74,6 +74,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   const [categoryProgress, setCategoryProgress] = useState<{ category: string; current: number; total: number } | undefined>(undefined);
   const [shouldStopProcessing, setShouldStopProcessing] = useState(false);
   const [inventoryRefreshTrigger, setInventoryRefreshTrigger] = useState(0);
+  const [isDebugUploadBusy, setIsDebugUploadBusy] = useState(false);
+  const debugAutoUploadKeyRef = useRef<string | null>(null);
 
   // Track images currently in analysis or fetching to prevent double triggers
   const currentlyProcessingRef = useRef<Set<string>>(new Set());
@@ -125,7 +127,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   // Prime parts to display based on filter
   const displayedPrimeParts = useMemo(() => {
     const validParts = categorizedInventory.prime_parts.filter(item => {
-      // Filter out corrupted Gemini data
+      // Filter out corrupted legacy OCR cache data
       if (item.category !== 'prime_parts') return false;
       const lowerName = item.name.toLowerCase();
       if (lowerName.includes('here are the') ||
@@ -440,7 +442,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       console.log(`>>> [AI Analysis] Starting analysis for image: ${imageId} <<<`);
       const startTime = Date.now();
 
-      // Extract items using Gemini AI
+      // Extract items using OCR
       const analysisResult = await analyzeImage(imageState.file);
       const detectedItems = analysisResult.items || [];
       const screenType = analysisResult.screenType || 'unknown';
@@ -772,7 +774,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
   // Watch for changes and trigger AI analysis (can run in parallel with price fetching)
   useEffect(() => {
-    if (!isGeminiConfigured()) return;
+    if (!isOcrConfigured()) return;
 
     const queuedImages = Array.from(processingState.images.values())
       .filter(img => img.status === 'queued');
@@ -789,7 +791,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
   // Watch for analyzed images and trigger price fetching (can run in parallel with AI analysis)
   useEffect(() => {
-    if (!isGeminiConfigured()) return;
+    if (!isOcrConfigured()) return;
 
     const analyzedImages = Array.from(processingState.images.values())
       .filter(img => img.status === 'analyzed');
@@ -829,6 +831,58 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       };
     });
   }, []);
+
+  const handleDebugUpload = useCallback(async (requestedName = 'primeparts_inventory.png') => {
+    if (isDebugUploadBusy) return;
+
+    const fileName = requestedName.replace(/^\/+/, '').trim();
+    if (!fileName || fileName.includes('..')) {
+      console.warn(`>>> [Debug Upload] Invalid file name: "${requestedName}" <<<`);
+      return;
+    }
+
+    setIsDebugUploadBusy(true);
+    try {
+      const response = await fetch(`/debug/${encodeURIComponent(fileName)}`, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} while fetching /debug/${fileName}`);
+      }
+
+      const blob = await response.blob();
+      const debugFile = new File([blob], fileName, {
+        type: blob.type || 'image/png',
+        lastModified: Date.now()
+      }) as FileWithPath;
+
+      debugFile.path = `/debug/${fileName}`;
+      handleImageUpload([debugFile]);
+      console.log(`>>> [Debug Upload] Loaded /debug/${fileName} <<<`);
+    } catch (error) {
+      console.error(`>>> [Debug Upload] Failed to load /debug/${fileName}:`, error);
+    } finally {
+      setIsDebugUploadBusy(false);
+    }
+  }, [handleImageUpload, isDebugUploadBusy]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const debugUploadParam = params.get('debugUpload');
+    if (!debugUploadParam) return;
+
+    if (debugAutoUploadKeyRef.current === debugUploadParam) {
+      return;
+    }
+    debugAutoUploadKeyRef.current = debugUploadParam;
+
+    const normalizedName = (
+      debugUploadParam === '1' ||
+      debugUploadParam === 'true' ||
+      debugUploadParam === 'default' ||
+      debugUploadParam === 'primeparts'
+    ) ? 'primeparts_inventory.png' : debugUploadParam;
+
+    void handleDebugUpload(normalizedName);
+  }, [handleDebugUpload]);
 
   const handleImageRemove = useCallback((id: string) => {
     setProcessingState(prev => {
@@ -1258,6 +1312,7 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
   }, [displayedPrimeParts, refreshingCategories, shouldStopProcessing]);
 
   const inventoryStats = useMemo(() => getInventoryStats(), [categorizedInventory]);
+  const showDebugUploaderControl = import.meta.env.DEV;
 
   return (
     <main className="min-h-screen bg-background-dark">
@@ -1278,6 +1333,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 activeImageId={processingState.activeImageId}
                 onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
                 onImageRemove={handleImageRemove}
+                onDebugUpload={showDebugUploaderControl ? () => { void handleDebugUpload(); } : undefined}
+                isDebugUploadBusy={isDebugUploadBusy}
               />
             </div>
           )}
@@ -1296,24 +1353,26 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 activeImageId={processingState.activeImageId}
                 onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
                 onImageRemove={handleImageRemove}
+                onDebugUpload={showDebugUploaderControl ? () => { void handleDebugUpload(); } : undefined}
+                isDebugUploadBusy={isDebugUploadBusy}
               />
             </div>
           )}
 
-          {/* OCR Ready - No API Key Needed */}
+          {/* OCR key required */}
           {!isConfigured && (
             <div className="bg-gray-800/40 backdrop-blur-sm rounded-xl border border-gray-700/50 p-4 text-center">
               <Key size={40} className="mx-auto text-orokin-gold mb-3" />
-              <h2 className="text-lg font-semibold mb-2">OCR Ready</h2>
+              <h2 className="text-lg font-semibold mb-2">LLMWhisperer API Key Required</h2>
               <p className="text-gray-400 mb-4 text-sm">
-                OCR-based text extraction is ready. Upload screenshots to start scanning your inventory.
+                Configure your LLMWhisperer key to enable OCR scanning.
               </p>
               <button
                 onClick={onOpenSettings}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-tenno-blue hover:bg-tenno-light text-white rounded-lg transition-colors"
               >
                 <Key size={16} />
-                Add API Key
+                Open Settings
               </button>
               <p className="text-xs text-gray-500 mt-3">
                 Your API key is stored securely in your browser and never transmitted to our servers.
@@ -1337,6 +1396,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
                 activeImageId={processingState.activeImageId}
                 onImageSelect={id => setProcessingState(prev => ({ ...prev, activeImageId: id }))}
                 onImageRemove={handleImageRemove}
+                onDebugUpload={showDebugUploaderControl ? () => { void handleDebugUpload(); } : undefined}
+                isDebugUploadBusy={isDebugUploadBusy}
               />
             </div>
           )}

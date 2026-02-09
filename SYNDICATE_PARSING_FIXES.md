@@ -1,5 +1,7 @@
 # Syndicate Parsing Fixes & Debug Tools
 
+> Legacy note (2026-02-09): This document was written for the previous Gemini pipeline. Current OCR parsing is implemented in `src/services/ocrService.ts` and fed by LLMWhisperer.
+
 ## 🐛 Root Cause Analysis
 
 The user identified the core issue: **Syndicate rewards CAN be mods!** This was causing a fundamental problem in our detection logic:

@@ -35,7 +35,7 @@ const AboutPage: React.FC = () => {
           <ul className="list-none space-y-3 text-gray-300">
             <li className="flex items-center gap-2">
               <span className="text-orokin-gold">🔍</span>
-              <span><strong>OCR-based text extraction</strong> using Tesseract.js for item detection</span>
+              <span><strong>OCR-based text extraction</strong> using LLMWhisperer via a Netlify proxy function</span>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-orokin-gold">📈</span>
@@ -76,7 +76,7 @@ const AboutPage: React.FC = () => {
             <ul className="list-disc list-inside space-y-2 text-gray-300">
               <li>React & TypeScript</li>
               <li>Tailwind CSS</li>
-              <li>Tesseract.js OCR</li>
+              <li>LLMWhisperer OCR</li>
               <li>Warframe Market API</li>
             </ul>
           </div>

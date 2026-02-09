@@ -24,7 +24,7 @@ export default defineConfig({
     __DEV_MODE__: JSON.stringify(process.env.NODE_ENV === 'development'),
   },
   optimizeDeps: {
-    exclude: ['lucide-react', 'tesseract.js'],
+    exclude: ['lucide-react'],
   },
   worker: {
     format: 'es',

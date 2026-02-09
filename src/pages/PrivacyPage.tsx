@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Lock, Key, Image, Database, Shield, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Lock, Key, Database, Shield, ExternalLink } from 'lucide-react';
 
 const PrivacyPage: React.FC = () => {
   return (
@@ -34,15 +34,15 @@ const PrivacyPage: React.FC = () => {
             <div>
               <h3 className="font-medium mb-2">OCR Processing</h3>
               <p className="leading-relaxed">
-                OCR processing happens entirely in your browser using Tesseract.js.
-                No API keys are required, and images are never sent to external servers.
+                OCR processing uses LLMWhisperer through our Netlify proxy.
+                A user-provided LLMWhisperer API key is required and stored only in your browser.
               </p>
             </div>
             <div>
               <h3 className="font-medium mb-2">Image Uploads</h3>
               <p className="leading-relaxed">
-                Uploaded screenshots are processed locally in your browser using OCR.
-                Images are never sent to external servers, and Prime Parts Scanner does not store images.
+                Uploaded screenshots are forwarded to LLMWhisperer for OCR processing via our proxy function.
+                Prime Parts Scanner does not persist uploaded image files.
               </p>
             </div>
             <div>

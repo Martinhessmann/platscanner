@@ -11,6 +11,8 @@ interface ImageUploaderProps {
   activeImageId: string | null;
   onImageSelect: (id: string) => void;
   onImageRemove: (id: string) => void;
+  onDebugUpload?: () => void;
+  isDebugUploadBusy?: boolean;
 }
 
 const ImageUploader: React.FC<ImageUploaderProps> = ({ 
@@ -19,7 +21,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   images,
   activeImageId,
   onImageSelect,
-  onImageRemove
+  onImageRemove,
+  onDebugUpload,
+  isDebugUploadBusy = false
 }) => {
   const [skippedFiles, setSkippedFiles] = useState<string[]>([]);
 
@@ -111,6 +115,20 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           )}
         </div>
       </div>
+
+      {onDebugUpload && (
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={onDebugUpload}
+            disabled={isDebugUploadBusy}
+            className="text-xs px-2 py-1 rounded border border-gray-600 text-gray-300 hover:border-orokin-gold/70 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Load debug image from /debug/primeparts_inventory.png"
+          >
+            {isDebugUploadBusy ? 'Loading debug image...' : 'Load Debug Image'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

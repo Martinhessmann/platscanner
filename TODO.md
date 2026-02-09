@@ -4,17 +4,27 @@ This document tracks open issues and follow-up tasks that need to be addressed.
 
 ## 🔴 High Priority
 
-### Multiple Items Detection
-- **Issue**: Can't detect multiple items properly
+### Prime Parts Detection Regression
+- **Issue**: Prime Parts flow still has an active bug
 - **Status**: Open
-- **Notes**: LLM Whisperer extracts text correctly, but parsing may not handle all item variations
-- **Related**: May need to improve regex patterns or validation logic
+- **Notes**:
+  - Prime Parts detection used to work reliably
+  - Quantity parsing and inventory updates still work in most cases
+  - There is a regression that still needs investigation
 
-### Void Relics & Rewards Detection
-- **Issue**: Have to fix void relics and rewards detection and market fetches
+### Mods Detection
+- **Issue**: Mods are currently not working
 - **Status**: Open
-- **Notes**: Detection and market price fetching for relics and syndicate rewards needs improvement
-- **Related**: May need separate handling for different item types
+- **Notes**:
+  - OCR parsing for mods is currently failing in real usage
+  - Needs focused parser and test coverage updates
+
+### Relics Invisible Item Quantity Bug
+- **Issue**: Invisible relics can be counted as quantity `1` but should be `0`
+- **Status**: Open
+- **Notes**:
+  - Unowned/invisible markers are not consistently mapped to zero quantity
+  - Causes false positives in relic inventory totals
 
 ## 🟡 Medium Priority
 

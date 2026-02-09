@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.17.4] - 2026-02-09
+
+### Changed
+- OCR configuration and readiness checks now align with the active LLMWhisperer-only pipeline.
+- Removed legacy Gemini/Tesseract wording from user-facing OCR flows.
+
+### Removed
+- Removed legacy `geminiService.ts` implementation from the active codebase.
+- Removed bundled `public/tesseract/*` runtime artifacts.
+- Removed unused OCR dependencies tied to the old stack.
+
+### Documentation
+- Updated OCR documentation to reflect current architecture (LLMWhisperer + Netlify proxy).
+- Added explicit current OCR status:
+  - Prime Parts has an active bug but still supports quantity detection and inventory updates.
+  - Mods are currently not working.
+  - Relics have an active bug where invisible relics can be counted as `1` instead of `0`.
+
 ## [1.17.3] - 2025-12-29
 
 ### Fixed

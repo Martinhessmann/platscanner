@@ -7,7 +7,6 @@ A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots 
 - 🔍 **AI-Powered OCR**: Uses LLMWhisperer for high-accuracy text extraction from game screenshots
   - Works with Warframe's stylized fonts that traditional OCR struggles with
   - Get a free API key from [unstract.com](https://unstract.com)
-  - Falls back to Tesseract.js if LLMWhisperer is not configured
 - 💰 **Real-time Pricing**: Fetches current market data from Warframe Market API v2 (with v1 fallback for orders/stats)
 - 🎲 **Relic Value Analysis**: Smart OPEN/SELL/REFINE recommendations with expected value calculations
 - 📊 **Market Analytics**: Shows current prices, 24h averages, and trading volume
@@ -34,7 +33,14 @@ A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots 
 - Go to Settings → API → LLMWhisperer OCR
 - Get a free API key from [unstract.com](https://unstract.com)
 - Paste your key and click Save
-- This enables AI-powered OCR with much better accuracy
+- OCR scanning requires this key in the current implementation
+
+## 📌 Current OCR Status (2026-02-09)
+
+- **Prime Parts**: Mostly working, including quantity detection and inventory updates, but there is an active bug.
+- **Mods**: Currently not working.
+- **Relics**: Active bug where invisible relics can be counted as quantity `1` when they should be `0`.
+- **Tesseract**: Fully removed from the active OCR pipeline; OCR is LLMWhisperer-only.
 
 ### 1. Start Scanning
 - Take screenshots of your Warframe Prime parts or Void relics inventory
@@ -154,7 +160,7 @@ The app uses Netlify Functions for improved performance and API handling. Functi
 
 For detailed technical information, see:
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and deployment details
-- [CLAUDE.md](CLAUDE.md) - Project architecture, services, and recent updates
+- [AGENTS.md](AGENTS.md) - Agent-specific implementation guidance
 - [FUTURE_IDEAS.md](FUTURE_IDEAS.md) - Planned features and roadmap
 - [TODO.md](TODO.md) - Open issues and follow-up tasks
 
@@ -192,7 +198,6 @@ MIT License - See [LICENSE](LICENSE) file for details
 - [Warframe Market](https://warframe.market) for market data API
 - [Digital Extremes](https://www.warframe.com) for Warframe
 - [Unstract LLMWhisperer](https://unstract.com) for AI-powered OCR
-- [Tesseract.js](https://tesseract.projectnaptha.com/) for fallback OCR text extraction
 - [Lucide](https://lucide.dev) for beautiful icons
 
 ## 📞 Support

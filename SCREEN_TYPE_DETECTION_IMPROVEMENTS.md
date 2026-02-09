@@ -1,5 +1,7 @@
 # Screen Type Detection & Image Modal Improvements
 
+> Legacy note (2026-02-09): This document references the old Gemini-based OCR workflow. Current screen-type detection is text-based in `src/services/ocrService.ts` using LLMWhisperer output.
+
 ## 🐛 Issues Identified
 
 The user reported critical issues with the Gemini image detection system:
