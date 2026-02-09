@@ -20,6 +20,7 @@ export interface WhisperResult {
 export interface ExtractTextOptions {
   logRawResponse?: boolean;
   label?: string;
+  quiet?: boolean;
 }
 
 // Get API key from localStorage
@@ -57,7 +58,11 @@ export const isLLMWhispererConfigured = (): boolean => {
   try {
     const key = getApiKey();
     const isConfigured = !!key && key.length > 10;
-    console.log('[LLMWhisperer] isConfigured check:', { hasKey: !!key, keyLength: key?.length || 0, isConfigured });
+    const signature = `${!!key}:${key?.length || 0}:${isConfigured}`;
+    if ((globalThis as any).__llmwhispererConfigLogSig !== signature) {
+      (globalThis as any).__llmwhispererConfigLogSig = signature;
+      console.log('[LLMWhisperer] isConfigured check:', { hasKey: !!key, keyLength: key?.length || 0, isConfigured });
+    }
     return isConfigured;
   } catch (error) {
     console.error('[LLMWhisperer] Error checking configuration:', error);
@@ -104,15 +109,23 @@ export const extractTextWithLLMWhisperer = async (
   imageFile: File,
   options: ExtractTextOptions = {}
 ): Promise<WhisperResult> => {
-  const { logRawResponse = true, label } = options;
-  console.log('[LLMWhisperer] extractTextWithLLMWhisperer called', label ? { label } : undefined);
+  const { logRawResponse = true, label, quiet = false } = options;
+  if (!quiet) {
+    if (label) {
+      console.log('[LLMWhisperer] extractTextWithLLMWhisperer called', { label });
+    } else {
+      console.log('[LLMWhisperer] extractTextWithLLMWhisperer called');
+    }
+  }
   const apiKey = getApiKey();
   if (!apiKey) {
     console.error('[LLMWhisperer] No API key found!');
     throw new Error('LLMWhisperer API key not configured');
   }
 
-  console.log('[LLMWhisperer] Starting OCR for:', imageFile.name, `(${imageFile.size} bytes)`);
+  if (!quiet) {
+    console.log('[LLMWhisperer] Starting OCR for:', imageFile.name, `(${imageFile.size} bytes)`);
+  }
 
   // Get file as ArrayBuffer
   const arrayBuffer = await imageFile.arrayBuffer();
@@ -146,8 +159,10 @@ export const extractTextWithLLMWhisperer = async (
 
   if (result.status === 'processing' || result.whisper_hash) {
     // Need to poll for result (async processing)
-    console.log('[LLMWhisperer] Processing, whisper hash:', result.whisper_hash);
-    return await pollForResult(effectiveApiKey, result.whisper_hash, 30, logRawResponse);
+    if (!quiet) {
+      console.log('[LLMWhisperer] Processing, whisper hash:', result.whisper_hash);
+    }
+    return await pollForResult(effectiveApiKey, result.whisper_hash, 30, logRawResponse, quiet);
   }
 
   if (logRawResponse) {
@@ -164,7 +179,8 @@ const pollForResult = async (
   apiKey: string,
   whisperHash: string,
   maxAttempts = 30,
-  logRawResponse: boolean = true
+  logRawResponse: boolean = true,
+  quiet: boolean = false
 ): Promise<WhisperResult> => {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
@@ -181,7 +197,9 @@ const pollForResult = async (
     }
 
     const result = await statusResponse.json();
-    console.log(`[LLMWhisperer] Poll ${attempt + 1}: ${result.status}`);
+    if (!quiet) {
+      console.log(`[LLMWhisperer] Poll ${attempt + 1}: ${result.status}`);
+    }
 
     if (result.status === 'processed') {
       // Retrieve the result via proxy

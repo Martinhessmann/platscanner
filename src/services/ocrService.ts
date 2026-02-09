@@ -302,12 +302,86 @@ const stripTrailingPrimeComponentWords = (value: string): string => {
 
 const PRIME_COMPONENT_CELL_REGEX = new RegExp(`^(${PRIME_COMPONENT_PATTERN})(?:\\s+Blueprint)?$`, 'i');
 
+type OcrCell = {
+  text: string;
+  start: number;
+  end: number;
+  center: number;
+};
+
+type PrimeColumnCandidate = {
+  candidate: string;
+  lineIndex: number;
+  cellIndex: number;
+  xCenter: number;
+};
+
+type PrimeItemAnchor = {
+  itemName: string;
+  lineIndex: number;
+  cellIndex: number;
+  xCenter: number;
+};
+
+type PrimeExtractionResult = {
+  items: PrimePart[];
+  anchors: PrimeItemAnchor[];
+};
+
+type QuantityBadge = {
+  quantity: number;
+  lineIndex: number;
+  cellIndex: number;
+  xCenter: number;
+};
+
+const splitIntoOcrCellsWithBounds = (line: string): OcrCell[] => {
+  const normalizedLine = line.replace(/\f/g, ' ');
+  const cells: OcrCell[] = [];
+  let cursor = 0;
+
+  while (cursor < normalizedLine.length) {
+    while (cursor < normalizedLine.length && normalizedLine[cursor] === ' ') {
+      cursor++;
+    }
+    if (cursor >= normalizedLine.length) break;
+
+    const start = cursor;
+    while (cursor < normalizedLine.length) {
+      if (normalizedLine[cursor] !== ' ') {
+        cursor++;
+        continue;
+      }
+
+      let gapCursor = cursor;
+      while (gapCursor < normalizedLine.length && normalizedLine[gapCursor] === ' ') {
+        gapCursor++;
+      }
+
+      if (gapCursor - cursor >= 2) {
+        break;
+      }
+
+      cursor = gapCursor;
+    }
+
+    const end = cursor;
+    const text = normalizePrimeText(normalizedLine.slice(start, end));
+    if (text) {
+      cells.push({
+        text,
+        start,
+        end,
+        center: start + (end - start) / 2
+      });
+    }
+  }
+
+  return cells;
+};
+
 const splitIntoOcrCells = (line: string): string[] => {
-  return line
-    .replace(/\f/g, ' ')
-    .split(/\s{2,}/)
-    .map(cell => normalizePrimeText(cell))
-    .filter(Boolean);
+  return splitIntoOcrCellsWithBounds(line).map(cell => cell.text);
 };
 
 const isStandaloneQuantityLine = (line: string): number | null => {
@@ -375,31 +449,32 @@ const combinePrimeNameAndComponentCell = (nameCell: string, componentCell: strin
   return null;
 };
 
-const extractColumnPairedPrimeCandidates = (text: string): string[] => {
-  const lines = text
-    .split('\n')
-    .map(line => line.replace(/\f/g, ' ').trim())
-    .filter(Boolean);
-
-  const candidates: string[] = [];
+const extractColumnPairedPrimeCandidates = (text: string): PrimeColumnCandidate[] => {
+  const lines = text.split('\n').map(line => line.replace(/\f/g, ' '));
+  const candidates: PrimeColumnCandidate[] = [];
 
   for (let i = 0; i < lines.length - 1; i++) {
-    const nameCells = splitIntoOcrCells(lines[i]);
-    const componentCells = splitIntoOcrCells(lines[i + 1]);
+    const nameCells = splitIntoOcrCellsWithBounds(lines[i]);
+    const componentCells = splitIntoOcrCellsWithBounds(lines[i + 1]);
 
     if (nameCells.length === 0 || componentCells.length === 0) continue;
-    if (!nameCells.some(isLikelyPrimeNameCell)) continue;
-    if (!componentCells.some(isPrimeComponentCell)) continue;
+    if (!nameCells.some(cell => isLikelyPrimeNameCell(cell.text))) continue;
+    if (!componentCells.some(cell => isPrimeComponentCell(cell.text))) continue;
 
     const pairCount = Math.min(nameCells.length, componentCells.length);
     for (let j = 0; j < pairCount; j++) {
       const nameCell = nameCells[j];
       const componentCell = componentCells[j];
-      if (!isLikelyPrimeNameCell(nameCell) || !isPrimeComponentCell(componentCell)) continue;
+      if (!isLikelyPrimeNameCell(nameCell.text) || !isPrimeComponentCell(componentCell.text)) continue;
 
-      const combined = combinePrimeNameAndComponentCell(nameCell, componentCell);
+      const combined = combinePrimeNameAndComponentCell(nameCell.text, componentCell.text);
       if (combined) {
-        candidates.push(combined);
+        candidates.push({
+          candidate: combined,
+          lineIndex: i,
+          cellIndex: j,
+          xCenter: nameCell.center
+        });
       }
     }
   }
@@ -407,32 +482,127 @@ const extractColumnPairedPrimeCandidates = (text: string): string[] => {
   return candidates;
 };
 
-const applyCompactQuantityBadges = (items: PrimePart[], text: string): PrimePart[] => {
-  const isCompactSnippet = text.length <= 700 && items.length > 0 && items.length <= 10;
+const extractStandaloneQuantityBadges = (text: string): QuantityBadge[] => {
+  const lines = text.split('\n').map(line => line.replace(/\f/g, ' '));
+  const badges: QuantityBadge[] = [];
+
+  lines.forEach((line, lineIndex) => {
+    const cells = splitIntoOcrCellsWithBounds(line);
+    if (cells.length === 0) return;
+
+    const quantityCells = cells
+      .map((cell, cellIndex) => {
+        const quantity = isStandaloneQuantityLine(cell.text);
+        if (quantity === null) return null;
+        return {
+          quantity,
+          lineIndex,
+          cellIndex,
+          xCenter: cell.center
+        };
+      })
+      .filter((badge): badge is QuantityBadge => badge !== null);
+
+    if (quantityCells.length === 0) return;
+    if (quantityCells.length !== cells.length) return;
+
+    const containsHeaderNumeric = cells.some(cell => /[,]/.test(cell.text));
+    if (containsHeaderNumeric) return;
+
+    badges.push(...quantityCells);
+  });
+
+  return badges;
+};
+
+const applyCompactQuantityBadges = (
+  items: PrimePart[],
+  text: string,
+  anchors: PrimeItemAnchor[] = []
+): PrimePart[] => {
+  if (items.length === 0) return items;
+
+  const isCompactSnippet = text.length <= 1_200 && items.length <= 12;
   if (!isCompactSnippet) return items;
 
-  const quantityBadges = text
-    .split('\n')
-    .map(isStandaloneQuantityLine)
-    .filter((qty): qty is number => qty !== null);
-
+  const quantityBadges = extractStandaloneQuantityBadges(text);
   if (quantityBadges.length === 0) return items;
 
   const adjustedItems = items.map(item => ({ ...item }));
-  let itemCursor = 0;
+  const itemIndexByKey = new Map<string, number>();
+  adjustedItems.forEach((item, index) => {
+    itemIndexByKey.set(normalizePrimeText(item.name).toLowerCase(), index);
+  });
 
-  quantityBadges.forEach(quantity => {
-    while (itemCursor < adjustedItems.length && (adjustedItems[itemCursor].quantity || 1) > 1) {
+  const knownAnchors = anchors
+    .map((anchor, anchorIndex) => ({ ...anchor, anchorIndex }))
+    .filter(anchor => itemIndexByKey.has(normalizePrimeText(anchor.itemName).toLowerCase()));
+
+  if (knownAnchors.length === 0) {
+    let itemCursor = 0;
+    quantityBadges.forEach(badge => {
+      while (itemCursor < adjustedItems.length && (adjustedItems[itemCursor].quantity || 1) > 1) {
+        itemCursor++;
+      }
+      if (itemCursor >= adjustedItems.length) return;
+      adjustedItems[itemCursor].quantity = badge.quantity;
       itemCursor++;
-    }
-    if (itemCursor >= adjustedItems.length) return;
+    });
 
-    adjustedItems[itemCursor].quantity = quantity;
-    itemCursor++;
+    ocrLogger.debug('Parsing', 'Applied compact quantity badges (sequential fallback)', {
+      quantityBadges: quantityBadges.map(badge => badge.quantity),
+      adjustedItems: adjustedItems.map(item => ({ name: item.name, quantity: item.quantity || 1 }))
+    });
+
+    return adjustedItems;
+  }
+
+  const usedAnchors = new Set<number>();
+  const assignments = new Map<string, number>();
+
+  const sortedBadges = [...quantityBadges].sort((a, b) =>
+    a.lineIndex === b.lineIndex ? a.xCenter - b.xCenter : a.lineIndex - b.lineIndex
+  );
+
+  sortedBadges.forEach(badge => {
+    let bestAnchor: (PrimeItemAnchor & { anchorIndex: number }) | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    knownAnchors.forEach(anchor => {
+      const lineDelta = anchor.lineIndex - badge.lineIndex;
+      if (lineDelta < -1 || lineDelta > 4) return;
+
+      const horizontalDelta = Math.abs(anchor.xCenter - badge.xCenter);
+      const linePenalty = lineDelta < 0 ? Math.abs(lineDelta) * 120 : lineDelta * 90;
+      const reusePenalty = usedAnchors.has(anchor.anchorIndex) ? 40 : 0;
+      const score = horizontalDelta + linePenalty + reusePenalty;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestAnchor = anchor;
+      }
+    });
+
+    if (!bestAnchor) return;
+
+    usedAnchors.add(bestAnchor.anchorIndex);
+    const key = normalizePrimeText(bestAnchor.itemName).toLowerCase();
+    const currentAssigned = assignments.get(key) || 1;
+    assignments.set(key, Math.max(currentAssigned, badge.quantity));
+  });
+
+  assignments.forEach((quantity, key) => {
+    const itemIndex = itemIndexByKey.get(key);
+    if (itemIndex === undefined) return;
+    adjustedItems[itemIndex].quantity = Math.max(adjustedItems[itemIndex].quantity || 1, quantity);
   });
 
   ocrLogger.debug('Parsing', 'Applied compact quantity badges', {
-    quantityBadges,
+    quantityBadges: sortedBadges.map(badge => ({
+      quantity: badge.quantity,
+      lineIndex: badge.lineIndex,
+      xCenter: badge.xCenter
+    })),
     adjustedItems: adjustedItems.map(item => ({ name: item.name, quantity: item.quantity || 1 }))
   });
 
@@ -442,27 +612,44 @@ const applyCompactQuantityBadges = (items: PrimePart[], text: string): PrimePart
 const shouldSkipPrimeGridFallback = (
   imageFile: File,
   extractedText: string,
-  baselineItems: PrimePart[]
+  baselineItems: PrimePart[],
+  whisperResult?: WhisperResult
 ): boolean => {
   const isSmallImage = imageFile.size <= 400_000;
   const isCompactText = extractedText.length <= 1_200;
   const hasStandaloneQuantityBadge = extractedText
     .split('\n')
     .some(line => isStandaloneQuantityLine(line) !== null);
+  const lowerText = extractedText.toLowerCase();
+  const lineCount =
+    typeof whisperResult?.metadata?.['0']?.line_count === 'number'
+      ? whisperResult.metadata['0'].line_count
+      : 0;
+  const hasFullInventoryMarkers =
+    /tap on items|tap and hold on items|for more info|only sellable|sell items|total/.test(lowerText);
+  const isLikelyCroppedPrimeSnippet =
+    baselineItems.length > 0 &&
+    baselineItems.length <= 12 &&
+    (extractedText.length <= 900 || (lineCount > 0 && lineCount <= 20)) &&
+    !hasFullInventoryMarkers;
 
   return (
-    isSmallImage &&
-    isCompactText &&
-    baselineItems.length > 0 &&
-    (baselineItems.length <= 3 || hasStandaloneQuantityBadge)
+    isLikelyCroppedPrimeSnippet ||
+    (
+      isSmallImage &&
+      isCompactText &&
+      baselineItems.length > 0 &&
+      (baselineItems.length <= 3 || hasStandaloneQuantityBadge)
+    )
   );
 };
 
-const extractPrimeItemsFromText = (text: string): PrimePart[] => {
+const extractPrimeItemsFromText = (text: string): PrimeExtractionResult => {
   const foundItems: PrimePart[] = [];
   const seenItems = new Set<string>();
   const pendingSetQueue: string[] = [];
   const orphanComponents: Array<{ component: string; includeBlueprint: boolean }> = [];
+  const anchors: PrimeItemAnchor[] = [];
 
   const addPrimeCandidate = (
     candidateRaw: string,
@@ -471,7 +658,8 @@ const extractPrimeItemsFromText = (text: string): PrimePart[] => {
     expectedSetName?: string,
     componentHint?: string,
     includeBlueprint: boolean = false,
-    strictComponentMatch: boolean = false
+    strictComponentMatch: boolean = false,
+    anchor?: Omit<PrimeItemAnchor, 'itemName'>
   ): string | null => {
     const candidate = normalizePrimeText(candidateRaw);
     if (!candidate) return null;
@@ -524,6 +712,14 @@ const extractPrimeItemsFromText = (text: string): PrimePart[] => {
     }
 
     const key = matchedName.toLowerCase();
+    if (anchor) {
+      anchors.push({
+        itemName: matchedName,
+        lineIndex: anchor.lineIndex,
+        cellIndex: anchor.cellIndex,
+        xCenter: anchor.xCenter
+      });
+    }
     if (seenItems.has(key)) return matchedName;
 
     seenItems.add(key);
@@ -546,7 +742,20 @@ const extractPrimeItemsFromText = (text: string): PrimePart[] => {
 
   const columnPairedCandidates = extractColumnPairedPrimeCandidates(text);
   columnPairedCandidates.forEach(candidate => {
-    addPrimeCandidate(candidate, 0.78, 'column-paired-cells');
+    addPrimeCandidate(
+      candidate.candidate,
+      0.78,
+      'column-paired-cells',
+      undefined,
+      undefined,
+      false,
+      false,
+      {
+        lineIndex: candidate.lineIndex,
+        cellIndex: candidate.cellIndex,
+        xCenter: candidate.xCenter
+      }
+    );
   });
 
   lines.forEach(line => {
@@ -625,8 +834,10 @@ const extractPrimeItemsFromText = (text: string): PrimePart[] => {
     }
   });
 
-  ocrLogger.debug('Parsing', 'Prime pending set queue', { pendingSetQueue });
-  ocrLogger.debug('Parsing', 'Prime orphan components', { orphanComponents });
+  if (pendingSetQueue.length > 0 || orphanComponents.length > 0) {
+    ocrLogger.debug('Parsing', 'Prime pending set queue', { pendingSetQueue });
+    ocrLogger.debug('Parsing', 'Prime orphan components', { orphanComponents });
+  }
 
   let componentCursor = 0;
   pendingSetQueue.forEach(setName => {
@@ -659,7 +870,7 @@ const extractPrimeItemsFromText = (text: string): PrimePart[] => {
     }
   });
 
-  return foundItems;
+  return { items: foundItems, anchors };
 };
 
 const mergePrimeItemsByName = (...groups: PrimePart[][]): PrimePart[] => {
@@ -828,7 +1039,8 @@ const extractPrimeTextsFromGridSlices = async (
       );
       const whisperResult = await extractTextWithLLMWhisperer(sliceFile, {
         logRawResponse: false,
-        label: `prime-grid-${orientation}-${index + 1}`
+        label: `prime-grid-${orientation}-${index + 1}`,
+        quiet: true
       });
       const sliceText = getWhisperExtractedText(whisperResult).trim();
       if (sliceText) {
@@ -848,7 +1060,7 @@ const runPrimeGridFallback = async (imageFile: File, baselineItems: PrimePart[])
   try {
     const columnTexts = await extractPrimeTextsFromGridSlices(imageFile, 'columns');
     const columnItems = normalizeBlueprintablePrimeItems(mergePrimeItemsByName(
-      ...columnTexts.map(sliceText => extractPrimeItemsFromText(sliceText))
+      ...columnTexts.map(sliceText => extractPrimeItemsFromText(sliceText).items)
     ));
     let mergedItems = normalizeBlueprintablePrimeItems(mergePrimeItemsByName(baselineItems, columnItems));
 
@@ -864,7 +1076,7 @@ const runPrimeGridFallback = async (imageFile: File, baselineItems: PrimePart[])
 
     const rowTexts = await extractPrimeTextsFromGridSlices(imageFile, 'rows');
     const rowItems = normalizeBlueprintablePrimeItems(mergePrimeItemsByName(
-      ...rowTexts.map(sliceText => extractPrimeItemsFromText(sliceText))
+      ...rowTexts.map(sliceText => extractPrimeItemsFromText(sliceText).items)
     ));
     mergedItems = normalizeBlueprintablePrimeItems(mergePrimeItemsByName(mergedItems, rowItems));
 
@@ -1397,15 +1609,15 @@ const parseDetectedItems = (text: string, screenType?: string, whisperResult?: W
   });
 
   if (screenType === 'prime_parts') {
-    const primeItems = extractPrimeItemsFromText(text);
-    if (primeItems.length > 0) {
-      const normalizedPrimeItems = normalizeBlueprintablePrimeItems(primeItems);
-      const quantityAwareItems = applyCompactQuantityBadges(normalizedPrimeItems, text);
-      ocrLogger.info('Parsing', `Prime extraction found ${primeItems.length} items`, {
-        normalizedItems: quantityAwareItems.length,
-        itemNames: quantityAwareItems.map(item => `${item.name} x${item.quantity || 1}`)
+    const primeExtraction = extractPrimeItemsFromText(text);
+    if (primeExtraction.items.length > 0) {
+      const quantityAwareItems = applyCompactQuantityBadges(primeExtraction.items, text, primeExtraction.anchors);
+      const normalizedPrimeItems = normalizeBlueprintablePrimeItems(quantityAwareItems);
+      ocrLogger.info('Parsing', `Prime extraction found ${primeExtraction.items.length} items`, {
+        normalizedItems: normalizedPrimeItems.length,
+        itemNames: normalizedPrimeItems.map(item => `${item.name} x${item.quantity || 1}`)
       });
-      return quantityAwareItems;
+      return normalizedPrimeItems;
     }
 
     ocrLogger.warn('Parsing', 'Prime extraction returned 0 items, falling back to line parser');
@@ -1631,7 +1843,7 @@ export const analyzeImage = async (
 
     if (screenType === 'prime_parts') {
       const baselinePrimeItems = detectedItems.filter((item): item is PrimePart => item.category === 'prime_parts');
-      const skipGridFallback = shouldSkipPrimeGridFallback(imageFile, extractedText, baselinePrimeItems);
+      const skipGridFallback = shouldSkipPrimeGridFallback(imageFile, extractedText, baselinePrimeItems, whisperResult);
       if (skipGridFallback) {
         ocrLogger.info('Analysis', 'Skipping grid fallback for compact prime snippet', {
           baselineItems: baselinePrimeItems.length,
