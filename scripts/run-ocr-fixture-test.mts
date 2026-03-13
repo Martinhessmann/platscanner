@@ -4,6 +4,7 @@ import path from 'node:path';
 const root = process.cwd();
 
 const fixtureTextPath = path.join(root, 'debug/fixtures/primeparts_inventory_result_text.txt');
+const fixtureWhisperPath = path.join(root, 'debug/fixtures/primeparts_inventory_whisper_result.json');
 const expectedPath = path.join(root, 'debug/primeparts_inventory_expected_output.json');
 const outputDir = path.join(root, 'debug/results');
 const snapshotPath = path.join(outputDir, 'primeparts_inventory_step_snapshot.json');
@@ -65,10 +66,16 @@ const { buildStepSnapshotFromWhisperResult, compareSnapshotWithExpected } = awai
 
 await loadPrimeSetsData();
 
-const fixtureText = await fs.readFile(fixtureTextPath, 'utf8');
 const expected = JSON.parse(await fs.readFile(expectedPath, 'utf8'));
-
-const snapshot = buildStepSnapshotFromWhisperResult({ result_text: fixtureText });
+const whisperFixture = JSON.parse(
+  await fs.readFile(
+    await fs.stat(fixtureWhisperPath).then(() => fixtureWhisperPath).catch(() => fixtureTextPath),
+    'utf8'
+  )
+);
+const snapshot = typeof whisperFixture === 'string'
+  ? buildStepSnapshotFromWhisperResult({ result_text: whisperFixture })
+  : buildStepSnapshotFromWhisperResult(whisperFixture);
 const comparison = compareSnapshotWithExpected(snapshot, expected);
 
 await fs.writeFile(snapshotPath, JSON.stringify(snapshot, null, 2) + '\n', 'utf8');

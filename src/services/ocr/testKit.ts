@@ -1,7 +1,7 @@
 import { DetectedItem } from '../../types';
 import { WhisperResult } from '../llmWhispererService';
 import { parseGenericItemsFromText } from './stepGenericItemsParser';
-import { parsePrimePartsFromText } from './stepPrimePartsParser';
+import { parsePrimePartsFromWhisperResult } from './stepPrimePartsWhisperParser';
 import { determineScreenType, OcrScreenType } from './stepScreenType';
 import { getWhisperExtractedText } from './stepTextExtraction';
 
@@ -38,7 +38,7 @@ export const buildStepSnapshotFromWhisperResult = (whisperResult: WhisperResult)
   const screenType = determineScreenType(extractedText);
 
   const parsed = screenType === 'prime_parts'
-    ? parsePrimePartsFromText(extractedText)
+    ? parsePrimePartsFromWhisperResult(whisperResult)
     : parseGenericItemsFromText(extractedText, screenType);
 
   return {

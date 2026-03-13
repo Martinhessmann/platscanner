@@ -12,9 +12,14 @@ export interface WhisperResult {
   extracted_text?: string;
   text?: string;
   result_text?: string;
+  confidence_metadata?: any[];
+  line_metadata?: any[];
   pages?: any[];
   blocks?: any[];
   metadata?: any;
+  webhook_metadata?: string;
+  whisper_metadata?: any;
+  apiUrl?: string;
 }
 
 export interface ExtractTextOptions {
