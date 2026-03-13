@@ -11,6 +11,7 @@ export interface LogEntry {
 const MAX_LOGS = 500; // Keep last 500 log entries
 const LOG_STORAGE_KEY = 'platscanner_ocr_logs';
 const LOGGING_ENABLED_KEY = 'platscanner_logging_enabled';
+const LOGGING_VERBOSE_KEY = 'platscanner_logging_verbose';
 
 class OCRLogger {
   private logs: LogEntry[] = [];
@@ -54,10 +55,21 @@ class OCRLogger {
     }
   }
 
+  private isVerboseEnabled(): boolean {
+    try {
+      return localStorage.getItem(LOGGING_VERBOSE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  }
+
   private addLog(level: LogEntry['level'], category: string, message: string, data?: any): void {
     // Check if logging is enabled
     if (!this.isLoggingEnabled()) {
       return; // Skip all logging when disabled
+    }
+    if (level === 'debug' && !this.isVerboseEnabled()) {
+      return; // Skip debug logs unless verbose mode is enabled
     }
 
     const entry: LogEntry = {
@@ -119,12 +131,12 @@ class OCRLogger {
 
   // Logging preference management - renamed for clarity
   isVerboseLoggingEnabled(): boolean {
-    return this.isLoggingEnabled();
+    return this.isVerboseEnabled();
   }
 
   setVerboseLogging(enabled: boolean): void {
     try {
-      localStorage.setItem(LOGGING_ENABLED_KEY, enabled ? 'true' : 'false');
+      localStorage.setItem(LOGGING_VERBOSE_KEY, enabled ? 'true' : 'false');
     } catch (error) {
       console.error('Failed to save logging preference:', error);
     }

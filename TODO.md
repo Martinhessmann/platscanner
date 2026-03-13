@@ -8,9 +8,9 @@ This document tracks open issues and follow-up tasks that need to be addressed.
 - **Issue**: Prime Parts flow still has an active bug
 - **Status**: Open
 - **Notes**:
-  - Prime Parts detection used to work reliably
-  - Quantity parsing and inventory updates still work in most cases
-  - There is a regression that still needs investigation
+  - Pipeline was refactored to single-pass parsing after inventory type detection (no grid rerun OCR slices)
+  - Remaining work: tune false-positive/false-negative matching against fixture-based expected JSON outputs
+  - Add/maintain fixture coverage in `debug/*_expected_output.json` and compare with `ocr/testKit.ts`
 
 ### Mods Detection
 - **Issue**: Mods are currently not working

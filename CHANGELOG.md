@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- Refactored OCR into step modules under `src/services/ocr/*` (screen-type detection, cache, parsers, pipeline, test-kit helpers).
+- Prime parts OCR now runs a single-pass parser per image after inventory type detection (removed grid slice fallback reruns).
+- Debug-image uploads (`/debug/*`) continue to bypass cache, and cache writes are skipped for these fixtures.
+- Added OCR step comparison helpers to build step snapshots and compare parsed output against expected JSON fixtures.
+
+### Logging
+- OCR `debug` logs now require the Debug UI `Verbose` toggle; `info/warn/error` logging remains enabled by default.
+
 ## [1.17.4] - 2026-02-09
 
 ### Changed
