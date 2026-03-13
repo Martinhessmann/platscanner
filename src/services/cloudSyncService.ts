@@ -34,6 +34,22 @@ interface SyncStatus {
   conflictResolution: 'ask' | 'local' | 'remote';
 }
 
+const normalizeSyncError = (error: unknown): string => {
+  const candidate = error as { message?: string; details?: string; code?: string };
+  const message = candidate?.message || '';
+  const details = candidate?.details || '';
+
+  if (
+    /Failed to fetch/i.test(message) ||
+    /ERR_NAME_NOT_RESOLVED/i.test(details) ||
+    /NetworkError/i.test(message)
+  ) {
+    return 'Cloud sync backend is unreachable. If Supabase was paused or just resumed, wait a moment and retry, or disable cloud sync for now.';
+  }
+
+  return message || 'Cloud sync request failed';
+};
+
 class CloudSyncService {
   private supabase: any;
   private isConfigured: boolean;
@@ -267,7 +283,7 @@ class CloudSyncService {
 
       if (error) {
         console.error('Upload error:', error);
-        return { success: false, error: error.message };
+        return { success: false, error: normalizeSyncError(error) };
       }
 
       // Update local sync timestamp
@@ -282,7 +298,7 @@ class CloudSyncService {
       console.error('Failed to upload to cloud:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Upload failed'
+        error: normalizeSyncError(error)
       };
     } finally {
       this.isSyncing = false;
@@ -380,7 +396,7 @@ class CloudSyncService {
           return { success: false, error: 'No cloud data found' };
         }
         console.error('Download error:', error);
-        return { success: false, error: error.message };
+        return { success: false, error: normalizeSyncError(error) };
       }
 
       if (!data) {
@@ -418,7 +434,7 @@ class CloudSyncService {
       console.error('Failed to download from cloud:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Download failed'
+        error: normalizeSyncError(error)
       };
     } finally {
       this.isSyncing = false;

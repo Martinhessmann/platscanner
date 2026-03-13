@@ -75,6 +75,7 @@ const parseProxyError = async (response: Response): Promise<{ message: string; r
   try {
     const errorData = await response.json();
     let message = errorData?.error || fallback;
+    const hint = typeof errorData?.hint === 'string' ? errorData.hint : null;
 
     if (typeof errorData?.details === 'string') {
       try {
@@ -85,6 +86,10 @@ const parseProxyError = async (response: Response): Promise<{ message: string; r
       } catch {
         // Keep original message if details is not JSON
       }
+    }
+
+    if (hint) {
+      message = `${message} ${hint}`;
     }
 
     return { message, raw: errorData };
@@ -149,7 +154,7 @@ export const extractTextWithLLMWhisperer = async (
     console.error('[LLMWhisperer] API error:', response.status, parsed.raw);
 
     if (response.status === 401) {
-      throw new Error('LLMWhisperer authentication failed (401): API key is invalid or expired. Open API Settings and update your key.');
+      throw new Error(`LLMWhisperer authentication failed (401): ${parsed.message}`);
     }
 
     throw new Error(`LLMWhisperer API error (${response.status}): ${parsed.message}`);

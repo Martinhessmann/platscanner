@@ -1,9 +1,13 @@
 // Netlify Function for LLMWhisperer API Proxy
 // Handles CORS and forwards requests to LLMWhisperer API
 
-import type { Handler, HandlerEvent, HandlerContext } from '@netlify/functions';
+import type { Handler, HandlerEvent } from '@netlify/functions';
 
-const LLMWHISPERER_API_URL = 'https://llmwhisperer-api.eu-west.unstract.com/api/v2';
+const DEFAULT_LLMWHISPERER_API_URLS = [
+  process.env.LLMWHISPERER_API_URL,
+  'https://llmwhisperer-api.us-central.unstract.com/api/v2',
+  'https://llmwhisperer-api.eu-west.unstract.com/api/v2',
+].filter((value, index, values): value is string => !!value && values.indexOf(value) === index);
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,7 +15,62 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, X-LLMWhisperer-Key',
 };
 
-const handler: Handler = async (event: HandlerEvent, context: HandlerContext) => {
+interface RegionAttemptError {
+  apiUrl: string;
+  body: string;
+  status: number;
+}
+
+const getApiUrls = (event: HandlerEvent): string[] => {
+  const requestedApiUrl = event.queryStringParameters?.api_url;
+  if (requestedApiUrl) {
+    return [requestedApiUrl, ...DEFAULT_LLMWHISPERER_API_URLS.filter(url => url !== requestedApiUrl)];
+  }
+  return DEFAULT_LLMWHISPERER_API_URLS;
+};
+
+const createRegionHint = (status: number, body: string): string | undefined => {
+  if (status !== 401) return undefined;
+  if (/wrong api endpoint|invalid subscription key/i.test(body)) {
+    return 'The API key may belong to a different LLMWhisperer region. This proxy now supports both us-central and eu-west after redeploy.';
+  }
+  return undefined;
+};
+
+const fetchWithRegionFallback = async (
+  event: HandlerEvent,
+  path: string,
+  initFactory: (apiKey: string) => RequestInit,
+  apiKey: string
+): Promise<{ apiUrl: string; response: Response } | { error: RegionAttemptError }> => {
+  let lastError: RegionAttemptError | null = null;
+
+  for (const apiUrl of getApiUrls(event)) {
+    const response = await fetch(`${apiUrl}${path}`, initFactory(apiKey));
+    if (response.ok) {
+      return { apiUrl, response };
+    }
+
+    const body = await response.text();
+    lastError = { apiUrl, body, status: response.status };
+    console.warn('[LLMWhisperer Proxy] Region attempt failed:', {
+      apiUrl,
+      path,
+      status: response.status,
+      body: body.substring(0, 300),
+    });
+  }
+
+  return {
+    error: lastError || {
+      apiUrl: 'unknown',
+      body: 'No LLMWhisperer API endpoints configured',
+      status: 500,
+    },
+  };
+};
+
+const handler: Handler = async (event: HandlerEvent) => {
   console.log('[LLMWhisperer Proxy] Request received:', event.httpMethod, event.path);
 
   // Handle CORS preflight
@@ -48,34 +107,44 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
 
       console.log('[LLMWhisperer Proxy] Image data size:', imageData.length);
 
-      const response = await fetch(`${LLMWHISPERER_API_URL}/whisper?mode=high_quality&output_mode=layout_preserving`, {
-        method: 'POST',
-        headers: {
-          'unstract-key': apiKey,
-          'Content-Type': 'application/octet-stream',
-        },
-        body: imageData,
-      });
+      const result = await fetchWithRegionFallback(
+        event,
+        '/whisper?mode=high_quality&output_mode=layout_preserving',
+        (key) => ({
+          method: 'POST',
+          headers: {
+            'unstract-key': key,
+            'Content-Type': 'application/octet-stream',
+          },
+          body: imageData,
+        }),
+        apiKey
+      );
 
-      console.log('[LLMWhisperer Proxy] LLMWhisperer response status:', response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[LLMWhisperer Proxy] API error:', response.status, errorText);
+      if ('error' in result) {
+        console.error('[LLMWhisperer Proxy] API error:', result.error.status, result.error.body);
         return {
-          statusCode: response.status,
+          statusCode: result.error.status,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: `LLMWhisperer API error: ${response.status}`, details: errorText }),
+          body: JSON.stringify({
+            error: `LLMWhisperer API error: ${result.error.status}`,
+            details: result.error.body,
+            apiUrl: result.error.apiUrl,
+            hint: createRegionHint(result.error.status, result.error.body),
+          }),
         };
       }
 
-      const result = await response.json();
-      console.log('[LLMWhisperer Proxy] Whisper result:', JSON.stringify(result).substring(0, 200));
+      const payload = await result.response.json();
+      console.log('[LLMWhisperer Proxy] Whisper result:', JSON.stringify(payload).substring(0, 200), 'via', result.apiUrl);
 
       return {
         statusCode: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify(result),
+        body: JSON.stringify({
+          ...payload,
+          apiUrl: result.apiUrl,
+        }),
       };
 
     } else if (action === 'status') {
@@ -90,25 +159,37 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         };
       }
 
-      const response = await fetch(`${LLMWHISPERER_API_URL}/whisper-status?whisper_hash=${whisperHash}`, {
-        headers: { 'unstract-key': apiKey },
-      });
+      const result = await fetchWithRegionFallback(
+        event,
+        `/whisper-status?whisper_hash=${whisperHash}`,
+        (key) => ({
+          headers: { 'unstract-key': key },
+        }),
+        apiKey
+      );
 
-      if (!response.ok) {
+      if ('error' in result) {
         return {
-          statusCode: response.status,
+          statusCode: result.error.status,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: `Status check failed: ${response.status}` }),
+          body: JSON.stringify({
+            error: `Status check failed: ${result.error.status}`,
+            details: result.error.body,
+            apiUrl: result.error.apiUrl,
+          }),
         };
       }
 
-      const result = await response.json();
-      console.log('[LLMWhisperer Proxy] Status result:', result.status);
+      const payload = await result.response.json();
+      console.log('[LLMWhisperer Proxy] Status result:', payload.status, 'via', result.apiUrl);
 
       return {
         statusCode: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify(result),
+        body: JSON.stringify({
+          ...payload,
+          apiUrl: result.apiUrl,
+        }),
       };
 
     } else if (action === 'retrieve') {
@@ -123,26 +204,38 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         };
       }
 
-      const response = await fetch(`${LLMWHISPERER_API_URL}/whisper-retrieve?whisper_hash=${whisperHash}`, {
-        headers: { 'unstract-key': apiKey },
-      });
+      const result = await fetchWithRegionFallback(
+        event,
+        `/whisper-retrieve?whisper_hash=${whisperHash}`,
+        (key) => ({
+          headers: { 'unstract-key': key },
+        }),
+        apiKey
+      );
 
-      if (!response.ok) {
+      if ('error' in result) {
         return {
-          statusCode: response.status,
+          statusCode: result.error.status,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: `Retrieve failed: ${response.status}` }),
+          body: JSON.stringify({
+            error: `Retrieve failed: ${result.error.status}`,
+            details: result.error.body,
+            apiUrl: result.error.apiUrl,
+          }),
         };
       }
 
       // Return the RAW JSON from LLMWhisperer (disable text_only=true)
-      const result = await response.json();
-      console.log('[LLMWhisperer Proxy] Retrieved result keys:', Object.keys(result));
+      const payload = await result.response.json();
+      console.log('[LLMWhisperer Proxy] Retrieved result keys:', Object.keys(payload), 'via', result.apiUrl);
 
       return {
         statusCode: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify(result),
+        body: JSON.stringify({
+          ...payload,
+          apiUrl: result.apiUrl,
+        }),
       };
 
     } else {
