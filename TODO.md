@@ -19,12 +19,12 @@ This document tracks open issues and follow-up tasks that need to be addressed.
   - OCR parsing for mods is currently failing in real usage
   - Needs focused parser and test coverage updates
 
-### Relics Invisible Item Quantity Bug
-- **Issue**: Invisible relics can be counted as quantity `1` but should be `0`
+### Relics Grid Coverage
+- **Issue**: Relic grid parsing still needs broader fixture coverage and tuning
 - **Status**: Open
 - **Notes**:
-  - Unowned/invisible markers are not consistently mapped to zero quantity
-  - Causes false positives in relic inventory totals
+  - Metadata-aware parsing now handles local `Void Relics / Refinement` grid fixtures and omits hidden/unowned slots in those cases
+  - Remaining work: validate larger relic grids, suspicious-slot crop fallback, and additional refinement layouts against real screenshots
 
 ## 🟡 Medium Priority
 

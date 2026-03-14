@@ -8,7 +8,10 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "ocr:fixture": "tsx scripts/run-ocr-fixture-test.mts"
+    "ocr:fixture": "tsx scripts/run-ocr-fixture-test.mts primeparts_inventory debug/primeparts_inventory.png",
+    "ocr:fixture:prime": "tsx scripts/run-ocr-fixture-test.mts primeparts_inventory debug/primeparts_inventory.png",
+    "ocr:fixture:relic": "tsx scripts/run-ocr-fixture-test.mts relic_inventory debug/relicInventory.png",
+    "ocr:fixture:relic-multi": "tsx scripts/run-ocr-fixture-test.mts multi_relics 'debug/multi relics.png'"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.2",

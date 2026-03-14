@@ -9,14 +9,14 @@ This file is for coding agents working in this repository. Keep it focused on ex
 - Use `TODO.md` for open issues and follow-ups.
 - Keep this file concise and agent-specific.
 
-## Current OCR Reality (2026-02-09)
+## Current OCR Reality (2026-03-14)
 
 - OCR is **LLMWhisperer-only** (via `netlify/functions/llmwhisperer.ts`).
 - No active Tesseract or Gemini runtime path.
 - Known issues:
   - Prime Parts has an active bug, but quantity detection/inventory updates mostly still work.
   - Mods are currently not working.
-  - Relics can miscount invisible/unowned entries as quantity `1` instead of `0`.
+  - Relic grid parsing is improved for `Void Relics / Refinement`, but broader relic screenshot coverage still needs tuning and fixtures.
 
 ## Critical Domain Rules
 

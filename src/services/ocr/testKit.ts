@@ -2,18 +2,20 @@ import { DetectedItem } from '../../types';
 import { WhisperResult } from '../llmWhispererService';
 import { parseGenericItemsFromText } from './stepGenericItemsParser';
 import { parsePrimePartsFromWhisperResult } from './stepPrimePartsWhisperParser';
+import { parseRelicsFromWhisperResult } from './stepRelicWhisperParser';
 import { determineScreenType, OcrScreenType } from './stepScreenType';
 import { getWhisperExtractedText } from './stepTextExtraction';
 
 export interface ExpectedOcrItem {
   name: string;
   quantity: number;
+  rarity?: string;
 }
 
 export interface OcrStepSnapshot {
   extractedText: string;
   screenType: OcrScreenType;
-  parsedItems: Array<{ name: string; quantity: number; category: DetectedItem['category'] }>;
+  parsedItems: Array<{ name: string; quantity: number; category: DetectedItem['category']; rarity?: string }>;
 }
 
 export interface OcrComparisonReport {
@@ -23,22 +25,32 @@ export interface OcrComparisonReport {
   missing: ExpectedOcrItem[];
   unexpected: ExpectedOcrItem[];
   quantityMismatches: Array<{ name: string; expected: number; actual: number }>;
+  rarityMismatches: Array<{ name: string; expected: string; actual: string }>;
 }
 
 const normalizeItemName = (value: string): string => value.trim().toLowerCase();
 
-const toExpectedShape = (items: Array<{ name: string; quantity: number }>): ExpectedOcrItem[] => {
+const toExpectedShape = (items: Array<{ name: string; quantity: number; rarity?: string }>): ExpectedOcrItem[] => {
   return items
-    .map((item) => ({ name: item.name.trim(), quantity: Math.max(1, item.quantity || 1) }))
+    .map((item) => ({
+      name: item.name.trim(),
+      quantity: Math.max(1, item.quantity || 1),
+      rarity: item.rarity?.trim().toLowerCase()
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 };
 
-export const buildStepSnapshotFromWhisperResult = (whisperResult: WhisperResult): OcrStepSnapshot => {
+export const buildStepSnapshotFromWhisperResult = async (
+  whisperResult: WhisperResult,
+  imageFile?: File
+): Promise<OcrStepSnapshot> => {
   const extractedText = getWhisperExtractedText(whisperResult);
   const screenType = determineScreenType(extractedText);
 
   const parsed = screenType === 'prime_parts'
     ? parsePrimePartsFromWhisperResult(whisperResult)
+    : screenType === 'relics'
+      ? await parseRelicsFromWhisperResult(whisperResult, imageFile)
     : parseGenericItemsFromText(extractedText, screenType);
 
   return {
@@ -47,7 +59,8 @@ export const buildStepSnapshotFromWhisperResult = (whisperResult: WhisperResult)
     parsedItems: parsed.map((item) => ({
       name: item.name,
       quantity: Math.max(1, item.quantity || 1),
-      category: item.category
+      category: item.category,
+      rarity: 'rarity' in item && typeof item.rarity === 'string' ? item.rarity : undefined
     }))
   };
 };
@@ -59,27 +72,36 @@ export const compareSnapshotWithExpected = (
   const expected = toExpectedShape(expectedItems);
   const actual = toExpectedShape(snapshot.parsedItems);
 
-  const expectedMap = new Map(expected.map((item) => [normalizeItemName(item.name), item.quantity]));
-  const actualMap = new Map(actual.map((item) => [normalizeItemName(item.name), item.quantity]));
+  const expectedMap = new Map(expected.map((item) => [normalizeItemName(item.name), item]));
+  const actualMap = new Map(actual.map((item) => [normalizeItemName(item.name), item]));
 
   const missing: ExpectedOcrItem[] = [];
   const unexpected: ExpectedOcrItem[] = [];
   const quantityMismatches: Array<{ name: string; expected: number; actual: number }> = [];
+  const rarityMismatches: Array<{ name: string; expected: string; actual: string }> = [];
 
   expected.forEach((item) => {
     const key = normalizeItemName(item.name);
-    const actualQuantity = actualMap.get(key);
+    const actualItem = actualMap.get(key);
 
-    if (actualQuantity === undefined) {
+    if (!actualItem) {
       missing.push(item);
       return;
     }
 
-    if (actualQuantity !== item.quantity) {
+    if (actualItem.quantity !== item.quantity) {
       quantityMismatches.push({
         name: item.name,
         expected: item.quantity,
-        actual: actualQuantity
+        actual: actualItem.quantity
+      });
+    }
+
+    if (item.rarity && actualItem.rarity !== item.rarity) {
+      rarityMismatches.push({
+        name: item.name,
+        expected: item.rarity,
+        actual: actualItem.rarity || 'intact'
       });
     }
   });
@@ -92,11 +114,12 @@ export const compareSnapshotWithExpected = (
   });
 
   return {
-    pass: missing.length === 0 && unexpected.length === 0 && quantityMismatches.length === 0,
+    pass: missing.length === 0 && unexpected.length === 0 && quantityMismatches.length === 0 && rarityMismatches.length === 0,
     expectedCount: expected.length,
     actualCount: actual.length,
     missing,
     unexpected,
-    quantityMismatches
+    quantityMismatches,
+    rarityMismatches
   };
 };

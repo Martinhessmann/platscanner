@@ -4,9 +4,15 @@
  * Proxied through Netlify function to avoid CORS issues
  */
 
+const viteEnv = (((import.meta as ImportMeta & { env?: Record<string, unknown> }).env) || {}) as Record<string, unknown>;
+const processEnv = typeof process !== 'undefined' ? process.env || {} : {};
+
 // Netlify function proxy endpoint
 // In local dev, this can be pointed to the production URL via VITE_PROD_FUNCTIONS_URL
-const PROXY_URL = (import.meta.env.VITE_PROD_FUNCTIONS_URL || '') + '/.netlify/functions/llmwhisperer';
+const proxyBaseUrl = typeof viteEnv.VITE_PROD_FUNCTIONS_URL === 'string'
+  ? viteEnv.VITE_PROD_FUNCTIONS_URL
+  : (typeof processEnv.VITE_PROD_FUNCTIONS_URL === 'string' ? processEnv.VITE_PROD_FUNCTIONS_URL : '');
+const PROXY_URL = `${proxyBaseUrl}/.netlify/functions/llmwhisperer`;
 
 export interface WhisperResult {
   extracted_text?: string;
@@ -38,7 +44,9 @@ const getStoredApiKey = (): string | null => {
 };
 
 const getEnvApiKey = (): string | null => {
-  const envKey = import.meta.env.VITE_LLMWHISPERER_API_KEY;
+  const envKey = typeof viteEnv.VITE_LLMWHISPERER_API_KEY === 'string'
+    ? viteEnv.VITE_LLMWHISPERER_API_KEY
+    : processEnv.VITE_LLMWHISPERER_API_KEY;
   return typeof envKey === 'string' && envKey.trim().length > 0 ? envKey.trim() : null;
 };
 

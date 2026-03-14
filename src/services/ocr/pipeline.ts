@@ -12,6 +12,7 @@ import {
 import { parseGenericItemsFromText } from './stepGenericItemsParser';
 import { parsePrimePartsFromText } from './stepPrimePartsParser';
 import { parsePrimePartsFromWhisperResult } from './stepPrimePartsWhisperParser';
+import { parseRelicsFromWhisperResult } from './stepRelicWhisperParser';
 import { determineScreenType, OcrScreenType } from './stepScreenType';
 import { getWhisperExtractedText } from './stepTextExtraction';
 import type { WhisperResult } from '../llmWhispererService';
@@ -56,11 +57,12 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
   return newItems;
 };
 
-const parseDetectedItemsByScreenType = (
+const parseDetectedItemsByScreenType = async (
   whisperResult: WhisperResult,
   text: string,
-  screenType: OcrScreenType
-): DetectedItem[] => {
+  screenType: OcrScreenType,
+  imageFile?: File
+): Promise<DetectedItem[]> => {
   ocrLogger.debug('Parsing', 'Starting item parsing', {
     screenType,
     textLength: text.length,
@@ -69,6 +71,10 @@ const parseDetectedItemsByScreenType = (
 
   if (screenType === 'prime_parts') {
     return parsePrimePartsFromWhisperResult(whisperResult);
+  }
+
+  if (screenType === 'relics') {
+    return await parseRelicsFromWhisperResult(whisperResult, imageFile);
   }
 
   return parseGenericItemsFromText(text, screenType);
@@ -138,7 +144,7 @@ export const analyzeImage = async (
     }
 
     const screenType = determineScreenType(extractedText);
-    const detectedItems = parseDetectedItemsByScreenType(whisperResult, extractedText, screenType);
+    const detectedItems = await parseDetectedItemsByScreenType(whisperResult, extractedText, screenType, imageFile);
 
     if (!isDebugImage) {
       setCachedAnalysis(imageHash, screenType, detectedItems);

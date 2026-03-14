@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Neo R3 Relic",
+    "quantity": 5,
+    "rarity": "intact"
+  },
+  {
+    "name": "Neo T2 Relic",
+    "quantity": 3,
+    "rarity": "intact"
+  },
+  {
+    "name": "Neo T9 Relic",
+    "quantity": 3,
+    "rarity": "intact"
+  },
+  {
+    "name": "Neo W2 Relic",
+    "quantity": 1,
+    "rarity": "radiant"
+  },
+  {
+    "name": "Requiem Relic",
+    "quantity": 1,
+    "rarity": "intact"
+  }
+]

@@ -7,8 +7,14 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - Refactored OCR into step modules under `src/services/ocr/*` (screen-type detection, cache, parsers, pipeline, test-kit helpers).
 - Prime parts OCR now runs a single-pass parser per image after inventory type detection (removed grid slice fallback reruns).
+- Relic OCR for `Void Relics / Refinement` inventory grids now uses a metadata-aware parser instead of the generic text parser.
 - Debug-image uploads (`/debug/*`) continue to bypass cache, and cache writes are skipped for these fixtures.
 - Added OCR step comparison helpers to build step snapshots and compare parsed output against expected JSON fixtures.
+
+### Fixed
+- Relic grid parsing no longer merges adjacent relic names in the local `Void Relics / Refinement` fixtures.
+- Hidden/unowned relic slots are now omitted in metadata-backed relic grid parsing when the card marker is detected from the image crop.
+- Added local relic OCR fixtures covering a multi-card grid and hidden-slot omission.
 
 ### Logging
 - OCR `debug` logs now require the Debug UI `Verbose` toggle; `info/warn/error` logging remains enabled by default.

@@ -2,14 +2,45 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const root = process.cwd();
+const fixtureName = process.argv[2] || 'primeparts_inventory';
+const imagePathArg = process.argv[3];
 
-const fixtureTextPath = path.join(root, 'debug/fixtures/primeparts_inventory_result_text.txt');
-const fixtureWhisperPath = path.join(root, 'debug/fixtures/primeparts_inventory_whisper_result.json');
-const expectedPath = path.join(root, 'debug/primeparts_inventory_expected_output.json');
+const fixtureTextPath = path.join(root, 'debug/fixtures', `${fixtureName}_result_text.txt`);
+const fixtureWhisperPath = path.join(root, 'debug/fixtures', `${fixtureName}_whisper_result.json`);
+const expectedPath = path.join(root, 'debug', `${fixtureName}_expected_output.json`);
 const outputDir = path.join(root, 'debug/results');
-const snapshotPath = path.join(outputDir, 'primeparts_inventory_step_snapshot.json');
-const comparisonPath = path.join(outputDir, 'primeparts_inventory_comparison.json');
-const summaryPath = path.join(outputDir, 'primeparts_inventory_summary.txt');
+const snapshotPath = path.join(outputDir, `${fixtureName}_step_snapshot.json`);
+const comparisonPath = path.join(outputDir, `${fixtureName}_comparison.json`);
+const summaryPath = path.join(outputDir, `${fixtureName}_summary.txt`);
+
+const resolveOptionalImagePath = async (): Promise<string | null> => {
+  if (imagePathArg) {
+    return path.isAbsolute(imagePathArg) ? imagePathArg : path.join(root, imagePathArg);
+  }
+
+  const candidates = [
+    path.join(root, 'debug', `${fixtureName}.png`),
+    path.join(root, 'debug', `${fixtureName}.jpg`),
+    path.join(root, 'debug', `${fixtureName}.jpeg`)
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // Keep searching
+    }
+  }
+
+  return null;
+};
+
+const mimeTypeForImagePath = (imagePath: string): string => {
+  const extension = path.extname(imagePath).toLowerCase();
+  if (extension === '.jpg' || extension === '.jpeg') return 'image/jpeg';
+  return 'image/png';
+};
 
 await fs.mkdir(outputDir, { recursive: true });
 
@@ -61,39 +92,51 @@ const nativeFetch = globalThis.fetch.bind(globalThis);
   return nativeFetch(input as any, init);
 };
 
-const { loadPrimeSetsData } = await import('../src/services/staticDataService.ts');
+const { loadPrimeSetsData, loadRelicsData } = await import('../src/services/staticDataService.ts');
 const { buildStepSnapshotFromWhisperResult, compareSnapshotWithExpected } = await import('../src/services/ocr/testKit.ts');
 
-await loadPrimeSetsData();
+await Promise.all([
+  loadPrimeSetsData(),
+  loadRelicsData()
+]);
 
 const expected = JSON.parse(await fs.readFile(expectedPath, 'utf8'));
-const whisperFixture = JSON.parse(
-  await fs.readFile(
-    await fs.stat(fixtureWhisperPath).then(() => fixtureWhisperPath).catch(() => fixtureTextPath),
-    'utf8'
-  )
-);
+const fixtureSourcePath = await fs.stat(fixtureWhisperPath).then(() => fixtureWhisperPath).catch(() => fixtureTextPath);
+const fixtureRaw = await fs.readFile(fixtureSourcePath, 'utf8');
+const whisperFixture = JSON.parse(fixtureRaw);
+const imagePath = await resolveOptionalImagePath();
+const imageFile = imagePath
+  ? new File(
+      [await fs.readFile(imagePath)],
+      path.basename(imagePath),
+      { type: mimeTypeForImagePath(imagePath) }
+    )
+  : undefined;
+
 const snapshot = typeof whisperFixture === 'string'
-  ? buildStepSnapshotFromWhisperResult({ result_text: whisperFixture })
-  : buildStepSnapshotFromWhisperResult(whisperFixture);
+  ? await buildStepSnapshotFromWhisperResult({ result_text: whisperFixture }, imageFile)
+  : await buildStepSnapshotFromWhisperResult(whisperFixture, imageFile);
 const comparison = compareSnapshotWithExpected(snapshot, expected);
 
 await fs.writeFile(snapshotPath, JSON.stringify(snapshot, null, 2) + '\n', 'utf8');
 await fs.writeFile(comparisonPath, JSON.stringify(comparison, null, 2) + '\n', 'utf8');
 
 const summary = [
+  `fixture=${fixtureName}`,
   `pass=${comparison.pass}`,
   `screenType=${snapshot.screenType}`,
   `expectedCount=${comparison.expectedCount}`,
   `actualCount=${comparison.actualCount}`,
   `missing=${comparison.missing.length}`,
   `unexpected=${comparison.unexpected.length}`,
-  `quantityMismatches=${comparison.quantityMismatches.length}`
+  `quantityMismatches=${comparison.quantityMismatches.length}`,
+  `rarityMismatches=${comparison.rarityMismatches.length}`
 ].join('\n');
 
 await fs.writeFile(summaryPath, summary + '\n', 'utf8');
 
 console.log('Fixture OCR test completed.');
+console.log(`- Fixture: ${fixtureName}`);
 console.log(`- Snapshot: ${snapshotPath}`);
 console.log(`- Comparison: ${comparisonPath}`);
 console.log(`- Summary: ${summaryPath}`);

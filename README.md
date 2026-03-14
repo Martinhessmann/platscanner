@@ -35,11 +35,11 @@ A powerful OCR-based tool that scans Warframe Prime parts inventory screenshots 
 - Paste your key and click Save
 - OCR scanning requires this key in the current implementation
 
-## 📌 Current OCR Status (2026-02-09)
+## 📌 Current OCR Status (2026-03-14)
 
 - **Prime Parts**: Mostly working, including quantity detection and inventory updates, but there is an active bug.
 - **Mods**: Currently not working.
-- **Relics**: Active bug where invisible relics can be counted as quantity `1` when they should be `0`.
+- **Relics**: `Void Relics / Refinement` grid parsing now uses a metadata-aware relic parser. Hidden/unowned slots are handled in local grid fixtures, but larger relic screenshot coverage still needs tuning.
 - **Tesseract**: Fully removed from the active OCR pipeline; OCR is LLMWhisperer-only.
 - **Pipeline behavior**: OCR now uses inventory-type detection first, then a single parser path per type (no grid rerun OCR slices).
 - **Debug fixtures**: `/debug/*` uploads bypass OCR cache and are not written back into cache.
