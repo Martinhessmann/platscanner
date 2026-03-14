@@ -4,8 +4,10 @@ import { OcrScreenType } from './stepScreenType';
 
 const IMAGE_CACHE_KEY = 'platscanner_image_cache';
 const CACHE_EXPIRY_HOURS = 24;
+const IMAGE_CACHE_VERSION = 2;
 
 interface ImageCacheEntry {
+  version: number;
   hash: string;
   timestamp: number;
   screenType: OcrScreenType;
@@ -38,9 +40,15 @@ export const getCachedAnalysis = (imageHash: string): DetectedItem[] | null => {
     const now = Date.now();
     const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
 
-    const entry = cache.find(
-      (item) => item.hash === imageHash && now - item.timestamp < expiryTime
+    const validCache = cache.filter(
+      (item) => item.version === IMAGE_CACHE_VERSION && now - item.timestamp < expiryTime
     );
+
+    if (validCache.length !== cache.length) {
+      localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(validCache));
+    }
+
+    const entry = validCache.find((item) => item.hash === imageHash);
 
     if (entry) {
       ocrLogger.info('Cache', `Found cached result for image hash ${imageHash}`);
@@ -83,6 +91,7 @@ export const setCachedAnalysis = (
     cache = cache.filter((entry) => now - entry.timestamp < expiryTime);
 
     const newEntry: ImageCacheEntry = {
+      version: IMAGE_CACHE_VERSION,
       hash: imageHash,
       timestamp: now,
       screenType,
