@@ -105,10 +105,13 @@ const RELIC_UI_SEGMENTS = [
   /<<<+/g
 ];
 
-const STANDARD_RELIC_REGEX = /\b(Lith|Meso|Neo|Axi)\s+([A-Z]\d+)(?:\s+Relic)?(?:\s{0,3}[\[\(]\s*(Intact|Exceptional|Flawless|Radiant)\s*[\]\)])?/gi;
+const STANDARD_RELIC_REGEX = /\b(Lith|Meso|Neo|Axi)\s+([A-Z0-9][A-Z0-9]*)(?:\s+Relic)?(?:\s{0,3}[\[\(]\s*(Intact|Exceptional|Flawless|Radiant)\s*[\]\)])?/gi;
 const REQUIEM_RELIC_REGEX = /\b(Requiem)(?:\s+([IVX]+))?(?:\s+Relic)?(?:\s{0,3}[\[\(]\s*(Intact|Exceptional|Flawless|Radiant)\s*[\]\)])?/gi;
 const REFINEMENT_REGEX = /\b(Intact|Exceptional|Flawless|Radiant)\b/gi;
-const RELIC_NAME_REGEX = /\b(?:Lith|Meso|Neo|Axi)\s+[A-Z]\d+\b/i;
+const RELIC_NAME_REGEX = /\b(?:Lith|Meso|Neo|Axi)\s+[A-Z0-9][A-Z0-9]*\b/i;
+const RELIC_NAME_ALIASES = new Map<string, string>([
+  ['neo o3 relic', 'Neo O3 Relic']
+]);
 
 let knownRelicNamesPromise: Promise<Map<string, string>> | null = null;
 
@@ -140,6 +143,27 @@ const normalizeRarity = (value: string | null | undefined): RelicRarity | null =
   return null;
 };
 
+const normalizeRelicCode = (value: string): string | null => {
+  const compact = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (compact.length < 2) return null;
+
+  const chars = compact.split('');
+
+  if (/^\d/.test(chars[0])) {
+    if (chars[0] === '0') chars[0] = 'O';
+    else if (chars[0] === '1') chars[0] = 'I';
+  }
+
+  for (let index = 1; index < chars.length; index += 1) {
+    if (chars[index] === 'O' || chars[index] === 'D' || chars[index] === 'Q') chars[index] = '0';
+    if (chars[index] === 'I' || chars[index] === 'L') chars[index] = '1';
+    if (!/\d/.test(chars[index])) return null;
+  }
+
+  if (!/[A-Z]/.test(chars[0])) return null;
+  return chars.join('');
+};
+
 const canonicalizeKnownRelicName = (rawName: string): string | null => {
   const clean = normalizeWhitespace(
     rawName
@@ -147,10 +171,12 @@ const canonicalizeKnownRelicName = (rawName: string): string | null => {
       .replace(/\b(Intact|Exceptional|Flawless|Radiant)\b/gi, ' ')
   );
 
-  let match = clean.match(/^(Lith|Meso|Neo|Axi)\s+([A-Z]\d+)(?:\s+Relic)?$/i);
+  let match = clean.match(/^(Lith|Meso|Neo|Axi)\s+([A-Z0-9][A-Z0-9]*)(?:\s+Relic)?$/i);
   if (match) {
     const era = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
-    return `${era} ${match[2].toUpperCase()} Relic`;
+    const normalizedCode = normalizeRelicCode(match[2]);
+    if (!normalizedCode) return null;
+    return `${era} ${normalizedCode} Relic`;
   }
 
   match = clean.match(/^Requiem\s+([IVX]+)(?:\s+Relic)?$/i);
@@ -173,6 +199,10 @@ const getKnownRelicNameMap = async (): Promise<Map<string, string>> => {
         );
         if (!canonical) return;
         map.set(normalizeRelicKey(canonical), canonical);
+      });
+
+      RELIC_NAME_ALIASES.forEach((canonical, key) => {
+        map.set(key, canonical);
       });
 
       return map;
@@ -320,7 +350,7 @@ const extractRelicFragments = (
     const canonical = canonicalizeKnownRelicName(`${match[1]} ${match[2]} Relic`);
     const validated = canonical ? knownRelics.get(normalizeRelicKey(canonical)) || null : null;
     fragments.push({
-      text: validated || `${match[1]} ${match[2]} Relic`,
+      text: validated || canonical || `${match[1]} ${match[2]} Relic`,
       start: match.index ?? 0,
       end: (match.index ?? 0) + match[0].length,
       lineIndex: line.lineIndex,
@@ -618,9 +648,11 @@ const detectHiddenMarker = (canvas: CanvasLike): boolean => {
   const ctx = canvas.getContext('2d');
   if (!ctx) return false;
 
-  const sampleWidth = Math.max(24, Math.floor(canvas.width * 0.3));
-  const sampleHeight = Math.max(18, Math.floor(canvas.height * 0.18));
-  const { data } = ctx.getImageData(0, 0, sampleWidth, sampleHeight);
+  const sampleX = Math.max(0, Math.floor(canvas.width * 0.1));
+  const sampleY = 0;
+  const sampleWidth = Math.max(24, Math.floor(canvas.width * 0.16));
+  const sampleHeight = Math.max(14, Math.floor(canvas.height * 0.1));
+  const { data } = ctx.getImageData(sampleX, sampleY, sampleWidth, sampleHeight);
 
   let warmGoldPixels = 0;
   for (let index = 0; index < data.length; index += 4) {
@@ -634,7 +666,7 @@ const detectHiddenMarker = (canvas: CanvasLike): boolean => {
     }
   }
 
-  return warmGoldPixels > Math.max(24, (sampleWidth * sampleHeight) * 0.01);
+  return warmGoldPixels > Math.max(10, (sampleWidth * sampleHeight) * 0.012);
 };
 
 const shouldCropCandidate = (candidate: ResolvedRelicCandidate): boolean => {
@@ -756,6 +788,15 @@ const applyRuntimeRelicFallbacks = async (
   try {
     const resolved: VoidRelic[] = [];
     const canCrop = isLLMWhispererConfigured();
+    const explicitQuantityCountsByGroup = new Map<number, number>();
+
+    candidates.forEach((candidate) => {
+      if (!candidate.explicitQuantity) return;
+      explicitQuantityCountsByGroup.set(
+        candidate.groupIndex,
+        (explicitQuantityCountsByGroup.get(candidate.groupIndex) || 0) + 1
+      );
+    });
 
     for (const candidate of candidates) {
       let current = candidate.item ? { ...candidate.item } : null;
@@ -772,7 +813,10 @@ const applyRuntimeRelicFallbacks = async (
         continue;
       }
 
-      if (!candidate.explicitQuantity && detectHiddenMarker(canvas)) {
+      const groupExplicitQuantities = explicitQuantityCountsByGroup.get(candidate.groupIndex) || 0;
+      const shouldCheckHiddenMarker = !candidate.explicitQuantity && groupExplicitQuantities <= 1;
+
+      if (shouldCheckHiddenMarker && detectHiddenMarker(canvas)) {
         continue;
       }
 

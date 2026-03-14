@@ -1,0 +1,23 @@
+[
+  { "name": "Lith D7 Relic", "quantity": 25, "rarity": "intact" },
+  { "name": "Meso A9 Relic", "quantity": 9, "rarity": "intact" },
+  { "name": "Meso X1 Relic", "quantity": 15, "rarity": "intact" },
+  { "name": "Lith E2 Relic", "quantity": 22, "rarity": "intact" },
+  { "name": "Meso H8 Relic", "quantity": 1, "rarity": "intact" },
+  { "name": "Meso Y1 Relic", "quantity": 19, "rarity": "intact" },
+  { "name": "Lith G14 Relic", "quantity": 11, "rarity": "intact" },
+  { "name": "Meso P16 Relic", "quantity": 3, "rarity": "intact" },
+  { "name": "Neo C6 Relic", "quantity": 8, "rarity": "intact" },
+  { "name": "Lith K12 Relic", "quantity": 28, "rarity": "intact" },
+  { "name": "Meso P17 Relic", "quantity": 21, "rarity": "intact" },
+  { "name": "Neo C7 Relic", "quantity": 14, "rarity": "intact" },
+  { "name": "Lith L7 Relic", "quantity": 23, "rarity": "intact" },
+  { "name": "Meso V11 Relic", "quantity": 23, "rarity": "intact" },
+  { "name": "Neo K9 Relic", "quantity": 4, "rarity": "intact" },
+  { "name": "Lith N18 Relic", "quantity": 17, "rarity": "intact" },
+  { "name": "Meso V12 Relic", "quantity": 20, "rarity": "intact" },
+  { "name": "Neo O3 Relic", "quantity": 8, "rarity": "intact" },
+  { "name": "Lith Q2 Relic", "quantity": 4, "rarity": "intact" },
+  { "name": "Meso V13 Relic", "quantity": 8, "rarity": "intact" },
+  { "name": "Neo P9 Relic", "quantity": 5, "rarity": "intact" }
+]

@@ -16,12 +16,15 @@ debug/*
 !debug/fixtures/primeparts_inventory_whisper_result.json
 !debug/fixtures/primeparts_inventory_result_text.txt
 !debug/fixtures/relic_inventory_whisper_result.json
+!debug/fixtures/relics_inventory_whisper_result.json
 !debug/fixtures/multi_relics_whisper_result.json
 !debug/primeparts_inventory_expected_output.json
 !debug/relic_inventory_expected_output.json
+!debug/relics_inventory_expected_output.json
 !debug/multi_relics_expected_output.json
 !debug/primeparts_inventory.png
 !debug/relicInventory.png
+!debug/relics_inventory.jpg
 !debug/multi relics.png
 
 # Editor directories and files

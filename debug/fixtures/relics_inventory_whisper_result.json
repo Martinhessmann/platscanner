@@ -1,0 +1,375 @@
+{
+  "confidence_metadata": [
+    [],
+    [],
+    [
+      {
+        "confidence": "0.667",
+        "offset": 2138,
+        "text": "1641",
+        "width": 78
+      }
+    ],
+    [],
+    [],
+    [],
+    [],
+    [
+      {
+        "confidence": "0.576",
+        "offset": 109,
+        "text": "×25",
+        "width": 55
+      },
+      {
+        "confidence": "0.613",
+        "offset": 332,
+        "text": "×22",
+        "width": 59
+      },
+      {
+        "confidence": "0.582",
+        "offset": 557,
+        "text": "×11",
+        "width": 53
+      },
+      {
+        "confidence": "0.573",
+        "offset": 782,
+        "text": "×28",
+        "width": 55
+      },
+      {
+        "confidence": "0.652",
+        "offset": 1006,
+        "text": "×23",
+        "width": 57
+      },
+      {
+        "confidence": "0.677",
+        "offset": 1231,
+        "text": "×17",
+        "width": 57
+      },
+      {
+        "confidence": "0.595",
+        "offset": 1457,
+        "text": "×4",
+        "width": 38
+      }
+    ],
+    [],
+    [
+      {
+        "confidence": "0.874",
+        "offset": 169,
+        "text": "D7",
+        "width": 30
+      }
+    ],
+    [],
+    [
+      {
+        "confidence": "0.823",
+        "offset": 108,
+        "text": "x9",
+        "width": 39
+      },
+      {
+        "confidence": "0.584",
+        "offset": 559,
+        "text": "×3",
+        "width": 38
+      },
+      {
+        "confidence": "0.603",
+        "offset": 780,
+        "text": "×21",
+        "width": 58
+      },
+      {
+        "confidence": "0.538",
+        "offset": 1007,
+        "text": "×23",
+        "width": 56
+      },
+      {
+        "confidence": "0.679",
+        "offset": 1231,
+        "text": "×20",
+        "width": 58
+      },
+      {
+        "confidence": "0.667",
+        "offset": 1457,
+        "text": "×8",
+        "width": 37
+      }
+    ],
+    [],
+    [
+      {
+        "confidence": "0.826",
+        "offset": 1814,
+        "text": "Select",
+        "width": 74
+      }
+    ],
+    [],
+    [],
+    [],
+    [
+      {
+        "confidence": "0.611",
+        "offset": 108,
+        "text": "×15",
+        "width": 56
+      },
+      {
+        "confidence": "0.568",
+        "offset": 332,
+        "text": "×19",
+        "width": 61
+      },
+      {
+        "confidence": "0.645",
+        "offset": 559,
+        "text": "×8",
+        "width": 36
+      },
+      {
+        "confidence": "0.561",
+        "offset": 779,
+        "text": "×14",
+        "width": 61
+      },
+      {
+        "confidence": "0.648",
+        "offset": 1008,
+        "text": "×4",
+        "width": 37
+      },
+      {
+        "confidence": "0.652",
+        "offset": 1232,
+        "text": "×8",
+        "width": 38
+      },
+      {
+        "confidence": "0.645",
+        "offset": 1455,
+        "text": "×5",
+        "width": 41
+      }
+    ],
+    [],
+    [
+      {
+        "confidence": "0.796",
+        "offset": 404,
+        "text": "Y1",
+        "width": 27
+      },
+      {
+        "confidence": "0.803",
+        "offset": 1070,
+        "text": "K9",
+        "width": 27
+      }
+    ],
+    [],
+    [],
+    [],
+    []
+  ],
+  "line_metadata": [
+    [
+      0,
+      0,
+      0,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      84,
+      54,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      143,
+      28,
+      1135
+    ],
+    [
+      0,
+      183,
+      24,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      245,
+      34,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      383,
+      28,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      550,
+      34,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      600,
+      33,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      689,
+      27,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      856,
+      35,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      994,
+      26,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      1077,
+      35,
+      1135
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0
+    ]
+  ],
+  "metadata": {
+    "0": {
+      "font_info": {
+        "average_char_height": 26.757009345794394,
+        "average_char_width": 14.119395777178797,
+        "std_dev_char_height": 5.424979573818627,
+        "std_dev_char_width": 4.168832335251845
+      },
+      "line_count": 24,
+      "line_end": 24,
+      "line_start": 0,
+      "page_number": 0,
+      "potential_subtitles": [
+        {
+          "page": 0,
+          "position": 2,
+          "section_length": 0,
+          "text": "681,956"
+        },
+        {
+          "page": 0,
+          "position": 2,
+          "section_length": 6,
+          "text": "1641 / 1,250"
+        },
+        {
+          "page": 0,
+          "position": 13,
+          "section_length": 4,
+          "text": "Select a Relic to view its rewards."
+        }
+      ]
+    }
+  },
+  "result_text": "\n\n       +   VOID RELICS /REFINEMENT                                                                                        681,956            1641 / 1,250 \n\nALL                                                                          COLLECTED 22/731 RADIANT 0/731 \n CO                                                                     REFINEMENT         SEARCH ... \n\n ×25            ×22             ×11             ×28            ×23             ×17            ×4 \n\n  Lith D7 Relic   Lith E2 Relic Lith G14 Relic Lith K12 Relic   Lith L7 Relic Lith N18 Relic   Lith Q2 Relic \n\n x9                             ×3             ×21             ×23             ×20            ×8 \n\n                                                                                                                       Select a Relic to view its rewards. \n\n  Meso A9 Relic Meso H8 Relic   Meso P16 Relic Meso P17 Relic Meso V11 Relic   Meso V12 Relic Meso V13 Relic \n\n ×15            ×19             ×8             ×14             ×4              ×8             ×5 \n\n  Meso X1 Relic Meso Y1 Relic    Neo C6 Relic    Neo C7 Relic   Neo K9 Relic    Neo 03 Relic   Neo P9 Relic \n\n  ...                                                                                                                                  VISIT VARZIA      EXIT \n<<<\f",
+  "webhook_metadata": "",
+  "whisper_metadata": {
+    "avg_page_processing_time": 3,
+    "mode": "high_quality",
+    "processed_page_count": 1,
+    "requested_page_count": 1,
+    "total_page_count": 1
+  },
+  "apiUrl": "https://llmwhisperer-api.eu-west.unstract.com/api/v2"
+}

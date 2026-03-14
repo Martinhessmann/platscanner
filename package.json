@@ -10,8 +10,9 @@
     "preview": "vite preview",
     "ocr:fixture": "tsx scripts/run-ocr-fixture-test.mts primeparts_inventory debug/primeparts_inventory.png",
     "ocr:fixture:prime": "tsx scripts/run-ocr-fixture-test.mts primeparts_inventory debug/primeparts_inventory.png",
-    "ocr:fixture:relic": "tsx scripts/run-ocr-fixture-test.mts relic_inventory debug/relicInventory.png",
-    "ocr:fixture:relic-multi": "tsx scripts/run-ocr-fixture-test.mts multi_relics 'debug/multi relics.png'"
+    "ocr:fixture:relic": "tsx scripts/run-ocr-fixture-test.mts relics_inventory debug/relics_inventory.jpg",
+    "ocr:fixture:relic-multi": "tsx scripts/run-ocr-fixture-test.mts multi_relics 'debug/multi relics.png'",
+    "ocr:fixture:relics-inventory": "tsx scripts/run-ocr-fixture-test.mts relics_inventory debug/relics_inventory.jpg"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.2",
