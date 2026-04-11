@@ -2,7 +2,7 @@ import {
   isLLMWhispererConfigured,
   setLLMWhispererApiKey
 } from './llmWhispererService';
-import { analyzeImage as analyzeImagePipeline } from './ocr/pipeline';
+import { analyzeImage as analyzeImagePipeline, type AnalyzeImageResult } from './ocr/pipeline';
 import {
   clearCachedAnalysis,
   clearImageCache,
@@ -12,6 +12,7 @@ import {
 } from './ocr/stepCache';
 
 export const analyzeImage = analyzeImagePipeline;
+export type { AnalyzeImageResult };
 
 export { clearCachedAnalysis, clearImageCache, fileToBase64, generateImageHash, getCacheStats };
 export { buildStepSnapshotFromWhisperResult, compareSnapshotWithExpected } from './ocr/testKit';

@@ -4,7 +4,7 @@ import ProcessingPanel from '../components/ProcessingPanel';
 import InventorySection from '../components/InventorySection';
 import SyndicateRewardsSection from '../components/SyndicateRewardsSection';
 import ModDuplicatesSection from '../components/ModDuplicatesSection';
-import { analyzeImage, isOcrConfigured } from '../services/ocrService';
+import { analyzeImage, isOcrConfigured, type AnalyzeImageResult } from '../services/ocrService';
 import { fetchSinglePriceData, fetchSinglePriceOnly } from '../services/warframeMarketService';
 import { isPrimePartTradeable } from '../services/primeSetService';
 import { cloudSyncService } from '../services/cloudSyncService';
@@ -443,7 +443,8 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
 
       // Extract items using OCR
       const isDebugImage = typeof imageState.file.path === 'string' && imageState.file.path.startsWith('/debug/');
-      const analysisResult = await analyzeImage(imageState.file, isDebugImage);
+      const analysisResult: AnalyzeImageResult = await analyzeImage(imageState.file, isDebugImage);
+      const parsedItemCount = analysisResult.parsedItemCount ?? (analysisResult.items || []).length;
       const detectedItems = analysisResult.items || [];
       const screenType = analysisResult.screenType || 'unknown';
 
@@ -473,8 +474,12 @@ const HomePage: React.FC<HomePageProps> = ({ isConfigured, onOpenSettings, refre
       const existingItemNames = new Set(currentInventory.items.map(item => item.name));
       const newItems = Array.isArray(detectedItems) ? detectedItems.filter(item => !existingItemNames.has(item.name)) : [];
       const duplicatesCount = Array.isArray(detectedItems) ? detectedItems.length - newItems.length : 0;
+      const notInCategorizedCount = Array.isArray(detectedItems) ? detectedItems.length : 0;
 
-      console.log(`>>> [AI Analysis] Detected ${Array.isArray(detectedItems) ? detectedItems.length : 0} items, ${newItems.length} are new, ${duplicatesCount} duplicates <<<`);
+      console.log(
+        `>>> [AI Analysis] OCR parsed ${parsedItemCount} item(s); ${notInCategorizedCount} not already in categorized inventory; ` +
+          `${newItems.length} new by name (${duplicatesCount} name duplicates vs flat inventory list) <<<`
+      );
 
       setProcessingMetadata(current => ({
         ...current,

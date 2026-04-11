@@ -14,7 +14,7 @@ This file is for coding agents working in this repository. Keep it focused on ex
 - OCR is **LLMWhisperer-only** (via `netlify/functions/llmwhisperer.ts`).
 - No active Tesseract or Gemini runtime path.
 - Known issues:
-  - Prime Parts has an active bug, but quantity detection/inventory updates mostly still work.
+  - Prime Parts: `npm run ocr:fixture:prime` passes on `primeparts_inventory`; other screenshots may still mis-parse (mods unchanged below).
   - Mods are currently not working.
   - Relic grid parsing is improved for `Void Relics / Refinement`, but broader relic screenshot coverage still needs tuning and fixtures.
 
@@ -32,6 +32,7 @@ This file is for coding agents working in this repository. Keep it focused on ex
 
 - OCR entrypoint: `src/services/ocrService.ts`
 - LLMWhisperer client: `src/services/llmWhispererService.ts`
+- Netlify body limit (large screenshots): `src/services/imageNetlifyLimit.ts` (downscale/JPEG before POST; Netlify buffers binary with base64 overhead ~4.5MB effective)
 - LLMWhisperer proxy: `netlify/functions/llmwhisperer.ts`
 - Main processing orchestration: `src/pages/HomePage.tsx`
 - Pricing: `src/services/warframeMarketService.ts`

@@ -1,0 +1,200 @@
+{
+  "confidence_metadata": [
+    [],
+    [],
+    [
+      {
+        "confidence": "0.562",
+        "offset": 4540,
+        "text": "5",
+        "width": 69
+      }
+    ],
+    [],
+    [],
+    [],
+    [
+      {
+        "confidence": "0.456",
+        "offset": 1900,
+        "text": "03",
+        "width": 107
+      },
+      {
+        "confidence": "0.681",
+        "offset": 2407,
+        "text": "3",
+        "width": 29
+      },
+      {
+        "confidence": "0.588",
+        "offset": 2841,
+        "text": "3",
+        "width": 29
+      },
+      {
+        "confidence": "0.587",
+        "offset": 3194,
+        "text": "03",
+        "width": 110
+      }
+    ],
+    [],
+    [],
+    [],
+    [],
+    [],
+    [
+      {
+        "confidence": "0.595",
+        "offset": 179,
+        "text": "03",
+        "width": 105
+      },
+      {
+        "confidence": "0.664",
+        "offset": 2790,
+        "text": "23",
+        "width": 81
+      },
+      {
+        "confidence": "0.505",
+        "offset": 4538,
+        "text": "O",
+        "width": 54
+      }
+    ],
+    [],
+    [
+      {
+        "confidence": "0.836",
+        "offset": 3853,
+        "text": "TAP",
+        "width": 109
+      }
+    ],
+    [],
+    [],
+    [],
+    [],
+    [
+      {
+        "confidence": "0.589",
+        "offset": 1492,
+        "text": "02",
+        "width": 90
+      },
+      {
+        "confidence": "0.673",
+        "offset": 2411,
+        "text": "2",
+        "width": 33
+      }
+    ],
+    [],
+    [
+      {
+        "confidence": "0.701",
+        "offset": 4577,
+        "text": "0",
+        "width": 28
+      }
+    ],
+    [],
+    [],
+    [
+      {
+        "confidence": "0.75",
+        "offset": 638,
+        "text": "22",
+        "width": 83
+      },
+      {
+        "confidence": "0.846",
+        "offset": 1070,
+        "text": "22",
+        "width": 83
+      },
+      {
+        "confidence": "0.595",
+        "offset": 1476,
+        "text": "02",
+        "width": 108
+      },
+      {
+        "confidence": "0.673",
+        "offset": 1915,
+        "text": "02",
+        "width": 103
+      }
+    ],
+    [
+      {
+        "confidence": "0.68",
+        "offset": 615,
+        "text": "Øl",
+        "width": 41
+      }
+    ],
+    [],
+    [],
+    [],
+    []
+  ],
+  "line_metadata": [
+    [0, 0, 0, 2247],
+    [0, 0, 0, 0],
+    [0, 176, 100, 2247],
+    [0, 0, 0, 0],
+    [0, 368, 53, 2247],
+    [0, 0, 0, 0],
+    [0, 480, 56, 2247],
+    [0, 0, 0, 0],
+    [0, 719, 50, 2247],
+    [0, 767, 55, 2247],
+    [0, 813, 48, 2247],
+    [0, 0, 0, 0],
+    [0, 963, 61, 2247],
+    [0, 0, 0, 0],
+    [0, 1098, 59, 2247],
+    [0, 1173, 58, 2247],
+    [0, 1228, 52, 2247],
+    [0, 1276, 52, 2247],
+    [0, 0, 0, 0],
+    [0, 1418, 55, 2247],
+    [0, 0, 0, 0],
+    [0, 1691, 53, 2247],
+    [0, 1738, 51, 2247],
+    [0, 0, 0, 0],
+    [0, 1888, 84, 2247],
+    [0, 1954, 30, 2247],
+    [0, 0, 0, 0],
+    [0, 2148, 48, 2247],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0]
+  ],
+  "metadata": {
+    "0": {
+      "font_info": {
+        "average_char_height": 49.575044240695476,
+        "average_char_width": 28.259823901356658,
+        "std_dev_char_height": 9.364283103840576,
+        "std_dev_char_width": 9.504312895522103
+      },
+      "line_count": 30,
+      "line_end": 30,
+      "line_start": 0,
+      "page_number": 0,
+      "potential_subtitles": []
+    }
+  },
+  "result_text": "\n\n       +    INVENTORY / SELL                                                                                                             500,290     5 \n\nPRIME PARTS                                                               OWNED                 SEARCH ... \n\n   4             4              4                          03               3              3           03 \n\n                 Gyre Prime                                  Afuris Prime Braton Prime   Burston Prime   Cedo Prime \nDual Kamas Prime Neuroptics Paris Prime Upper Zylok Prime \n    Handle        Blueprint       Limb         Receiver        Barrel         Stock         Stock         Receiver \n\n 03               3             3              3              3                          23              3                  TAP ON ITEMS TO SELECT O \n\n                                                                                                                             TAP AND HOLD ON ITEMS \n                                                                                                                               FOR MORE INFO \n Dual Zoren Prime Epitaph Prime Gauss Prime Nautilus Prime   Nikana Prime   Nova Prime    Orthos Prime Phantasma Prime \n    Handle         Barrel        Blueprint     Carapace       Blueprint      Blueprint      Blade         Blueprint \n\n   3              3             3            02               2             2              2              2 \n\n Quassus Prime Sevagoth Prime Vadarya Prime   Akarius Prime Akarius Prime Alternox Prime Braton Prime   Bronco Prime                                  0 \n    Handle     Systems Blueprint Receiver       Barrel          Link          Barrel       Blueprint       Barrel         TOTAL \n\n   2            22             22            02             02              2              2              2                        SELL ITEMS \n               Øl \n\n                                                                                                                          ONLY SELLABLE          EXIT \n<<<\f",
+  "webhook_metadata": "",
+  "whisper_metadata": {
+    "avg_page_processing_time": 4,
+    "mode": "high_quality",
+    "processed_page_count": 1,
+    "requested_page_count": 1,
+    "total_page_count": 1
+  }
+}

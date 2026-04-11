@@ -11,8 +11,9 @@
     "ocr:fixture": "tsx scripts/run-ocr-fixture-test.mts primeparts_inventory debug/primeparts_inventory.png",
     "ocr:fixture:prime": "tsx scripts/run-ocr-fixture-test.mts primeparts_inventory debug/primeparts_inventory.png",
     "ocr:fixture:relic": "tsx scripts/run-ocr-fixture-test.mts relics_inventory debug/relics_inventory.jpg",
-    "ocr:fixture:relic-multi": "tsx scripts/run-ocr-fixture-test.mts multi_relics 'debug/multi relics.png'",
-    "ocr:fixture:relics-inventory": "tsx scripts/run-ocr-fixture-test.mts relics_inventory debug/relics_inventory.jpg"
+    "ocr:fixture:relic-multi": "tsx scripts/run-ocr-fixture-test.mts multi_relics",
+    "ocr:fixture:relics-inventory": "tsx scripts/run-ocr-fixture-test.mts relics_inventory debug/relics_inventory.jpg",
+    "ocr:fixture:all": "npm run ocr:fixture:prime && npm run ocr:fixture:relic && npm run ocr:fixture:relic-multi && tsx scripts/run-ocr-fixture-test.mts relic_inventory"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.50.2",

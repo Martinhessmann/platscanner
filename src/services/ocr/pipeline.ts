@@ -57,6 +57,14 @@ const filterNewItems = (detectedItems: DetectedItem[]): DetectedItem[] => {
   return newItems;
 };
 
+export type AnalyzeImageResult = {
+  items: DetectedItem[];
+  screenType: OcrScreenType;
+  wasCached: boolean;
+  /** Raw count from the parser before inventory duplicate filtering */
+  parsedItemCount?: number;
+};
+
 const parseDetectedItemsByScreenType = async (
   whisperResult: WhisperResult,
   text: string,
@@ -83,7 +91,7 @@ const parseDetectedItemsByScreenType = async (
 export const analyzeImage = async (
   imageFile: File,
   forceRetry: boolean = false
-): Promise<{ items: DetectedItem[]; screenType: OcrScreenType; wasCached: boolean }> => {
+): Promise<AnalyzeImageResult> => {
   const analysisStartTime = Date.now();
   const isDebugImage = isDebugFixtureImage(imageFile);
   const bypassCache = forceRetry || isDebugImage;
@@ -106,7 +114,12 @@ export const analyzeImage = async (
       if (cachedResult) {
         const items = filterNewItems(cachedResult);
         if (items.length > 0) {
-          return { items, screenType: 'unknown', wasCached: true };
+          return {
+            items,
+            screenType: 'unknown',
+            wasCached: true,
+            parsedItemCount: cachedResult.length
+          };
         }
       }
     } else {
@@ -144,10 +157,10 @@ export const analyzeImage = async (
     }
 
     const screenType = determineScreenType(extractedText);
-    const detectedItems = await parseDetectedItemsByScreenType(whisperResult, extractedText, screenType, imageFile);
+    const parsedItems = await parseDetectedItemsByScreenType(whisperResult, extractedText, screenType, imageFile);
 
     if (!isDebugImage) {
-      setCachedAnalysis(imageHash, screenType, detectedItems);
+      setCachedAnalysis(imageHash, screenType, parsedItems);
     } else {
       ocrLogger.info('Cache', 'Skipped storing OCR cache for debug upload image', {
         fileName: imageFile.name,
@@ -155,14 +168,19 @@ export const analyzeImage = async (
       });
     }
 
-    const newItems = filterNewItems(detectedItems);
+    const newItems = filterNewItems(parsedItems);
     const duration = Date.now() - analysisStartTime;
     ocrLogger.info('Analysis', `Completed in ${duration}ms`, {
-      totalItems: detectedItems.length,
+      totalItems: parsedItems.length,
       newItems: newItems.length
     });
 
-    return { items: newItems, screenType, wasCached: false };
+    return {
+      items: newItems,
+      screenType,
+      wasCached: false,
+      parsedItemCount: parsedItems.length
+    };
   } catch (error) {
     const duration = Date.now() - analysisStartTime;
     ocrLogger.error('Analysis', 'Failed', {

@@ -4,14 +4,29 @@
  * Proxied through Netlify function to avoid CORS issues
  */
 
+import { ensureImageUnderNetlifyBodyLimit } from './imageNetlifyLimit';
+
 const viteEnv = (((import.meta as ImportMeta & { env?: Record<string, unknown> }).env) || {}) as Record<string, unknown>;
 const processEnv = typeof process !== 'undefined' ? process.env || {} : {};
 
-// Netlify function proxy endpoint
-// In local dev, this can be pointed to the production URL via VITE_PROD_FUNCTIONS_URL
-const proxyBaseUrl = typeof viteEnv.VITE_PROD_FUNCTIONS_URL === 'string'
-  ? viteEnv.VITE_PROD_FUNCTIONS_URL
-  : (typeof processEnv.VITE_PROD_FUNCTIONS_URL === 'string' ? processEnv.VITE_PROD_FUNCTIONS_URL : '');
+// Netlify function proxy endpoint.
+// In Vite dev we use a same-origin relative path so the browser does not cross-origin fetch
+// the deployed site; `vite.config.ts` proxies `/.netlify/functions/llmwhisperer` to Netlify.
+// Outside dev, optional VITE_PROD_FUNCTIONS_URL can override the origin (empty = same origin as the app).
+const getProxyBaseUrl = (): string => {
+  if (import.meta.env?.DEV) {
+    return '';
+  }
+  const fromVite =
+    typeof viteEnv.VITE_PROD_FUNCTIONS_URL === 'string' ? String(viteEnv.VITE_PROD_FUNCTIONS_URL).trim() : '';
+  const fromProcess =
+    typeof processEnv.VITE_PROD_FUNCTIONS_URL === 'string' ? String(processEnv.VITE_PROD_FUNCTIONS_URL).trim() : '';
+  const fromEnv = fromVite || fromProcess;
+  if (!fromEnv) return '';
+  return fromEnv.replace(/\/$/, '');
+};
+
+const proxyBaseUrl = getProxyBaseUrl();
 const PROXY_URL = `${proxyBaseUrl}/.netlify/functions/llmwhisperer`;
 
 export interface WhisperResult {
@@ -145,8 +160,16 @@ export const extractTextWithLLMWhisperer = async (
     console.log('[LLMWhisperer] Starting OCR for:', imageFile.name, `(${imageFile.size} bytes)`);
   }
 
+  const { file: preparedFile, wasResized } = await ensureImageUnderNetlifyBodyLimit(imageFile);
+  if (!quiet && wasResized) {
+    console.warn('[LLMWhisperer] Image downscaled for Netlify proxy body limit', {
+      fromBytes: imageFile.size,
+      toBytes: preparedFile.size,
+    });
+  }
+
   // Get file as ArrayBuffer
-  const arrayBuffer = await imageFile.arrayBuffer();
+  const arrayBuffer = await preparedFile.arrayBuffer();
 
   // Call LLMWhisperer via Netlify proxy
   let effectiveApiKey = apiKey;

@@ -23,5 +23,20 @@
     "name": "Requiem Relic",
     "quantity": 1,
     "rarity": "intact"
+  },
+  {
+    "name": "Axi A1 Relic",
+    "quantity": 1,
+    "rarity": "intact"
+  },
+  {
+    "name": "Axi A2 Relic",
+    "quantity": 1,
+    "rarity": "intact"
+  },
+  {
+    "name": "Axi A3 Relic",
+    "quantity": 1,
+    "rarity": "intact"
   }
 ]

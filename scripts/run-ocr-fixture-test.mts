@@ -15,7 +15,14 @@ const summaryPath = path.join(outputDir, `${fixtureName}_summary.txt`);
 
 const resolveOptionalImagePath = async (): Promise<string | null> => {
   if (imagePathArg) {
-    return path.isAbsolute(imagePathArg) ? imagePathArg : path.join(root, imagePathArg);
+    const resolved = path.isAbsolute(imagePathArg) ? imagePathArg : path.join(root, imagePathArg);
+    try {
+      await fs.access(resolved);
+      return resolved;
+    } catch {
+      console.warn(`Fixture image not found (parsing without image): ${resolved}`);
+      return null;
+    }
   }
 
   const candidates = [

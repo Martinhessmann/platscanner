@@ -1,5 +1,5 @@
 import { DetectedItem } from '../../types';
-import { WhisperResult } from '../llmWhispererService';
+import type { WhisperResult } from '../llmWhispererService';
 import { parseGenericItemsFromText } from './stepGenericItemsParser';
 import { parsePrimePartsFromWhisperResult } from './stepPrimePartsWhisperParser';
 import { parseRelicsFromWhisperResult } from './stepRelicWhisperParser';
