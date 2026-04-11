@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+- Cursor debug-session HTTP ingest hooks from `stepPrimePartsWhisperParser` (no more side-channel telemetry to a local ingest server).
+- Ad-hoc OCR utility scripts: `scripts/inspect-prime-grid-crops.mjs` and `scripts/test-ocr-parsing.ts` (manual experiments; use `npm run ocr:fixture:*` for regression).
+
 ### Changed
 - Refactored OCR into step modules under `src/services/ocr/*` (screen-type detection, cache, parsers, pipeline, test-kit helpers).
 - Prime parts OCR now runs a single-pass parser per image after inventory type detection (removed grid slice fallback reruns).

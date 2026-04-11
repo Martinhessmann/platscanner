@@ -31,11 +31,20 @@ type PhraseFragment = {
   lineIndex: number;
 };
 
+type QuantityBadgeCandidate = {
+  rawText: string;
+  quantity: number;
+  normalized: number;
+  start: number;
+  lineIndex: number;
+  ambiguous: boolean;
+};
+
 type PrimeCardSlot = {
   sets: PhraseFragment[];
   fullItems: PhraseFragment[];
   components: PhraseFragment[];
-  quantities: Array<{ quantity: number; start: number; lineIndex: number }>;
+  quantities: QuantityBadgeCandidate[];
 };
 
 type PrimeItemCandidate = {
@@ -43,6 +52,31 @@ type PrimeItemCandidate = {
   key: string;
   xStart: number;
   lineIndex: number;
+  slotIndex: number;
+};
+
+type SlotQuantityResolution = {
+  rawText: string | null;
+  normalized: number | null;
+  chosen: number | null;
+  ambiguous: boolean;
+  promoted: boolean;
+};
+
+type PrimeRowQuantityDebug = {
+  rawTokens: Array<string | null>;
+  normalized: Array<number | null>;
+  chosen: Array<number | null>;
+  ambiguousSlots: number[];
+  promotedSlots: number[];
+  missingSlots: number[];
+  weak: boolean;
+};
+
+type PrimeRowLayoutParseResult = {
+  items: PrimePart[];
+  tailQuantity: number | null;
+  quantityDebug: PrimeRowQuantityDebug;
 };
 
 type BoundaryCleanupResult = {
@@ -312,13 +346,14 @@ const splitPrimeRowGroups = (text: string): PrimeRowGroup[] => {
     const previous = current[current.length - 1];
     const currentHasNameOrComponent = current.some((l) => !l.quantityOnly);
     // - Split on large line gaps (UI between grid rows).
-    // - Split when a quantity row ends and the next line is non-quantity *and* we already have
-    //   name/component lines in this group (completed one grid row). Otherwise the first header
-    //   qty row would form its own group and get filtered out, orphaning counts from row 1.
-    // Do NOT split when the current line is quantity-only (keep qty with name/component lines above).
+    // - In Whisper sell-screen OCR, quantity-only rows visually belong to the grid row *below* them,
+    //   so once we already captured a row's names/components, a new quantity-only line starts the next group.
+    // - Still split when a quantity row ends and the next line is non-quantity, so a leading quantity row
+    //   stays attached to the row below rather than getting orphaned.
     const shouldStartNewGroup = !previous
       ? false
       : line.lineIndex - previous.lineIndex > 4 ||
+        (line.quantityOnly && currentHasNameOrComponent) ||
         (previous.quantityOnly && !line.quantityOnly && currentHasNameOrComponent);
 
     if (shouldStartNewGroup && current.length > 0) {
@@ -607,15 +642,54 @@ const extractComponentFragments = (line: PrimeRowLine, fullItems: PhraseFragment
   return fragments;
 };
 
-const extractQuantityStarts = (line: PrimeRowLine): Array<{ quantity: number; start: number }> => {
+const normalizeQuantityToken = (
+  rawText: string
+): { normalized: number | null; ambiguous: boolean } => {
+  const trimmed = rawText.trim();
+  if (!trimmed) return { normalized: null, ambiguous: false };
+
+  if (/^0([2-9])$/.test(trimmed)) {
+    return { normalized: parseInt(trimmed[1], 10), ambiguous: false };
+  }
+
+  if (/^[2-9]$/.test(trimmed)) {
+    return { normalized: parseInt(trimmed, 10), ambiguous: false };
+  }
+
+  if (trimmed === '22') {
+    return { normalized: 2, ambiguous: true };
+  }
+
+  if (trimmed === '23') {
+    return { normalized: 3, ambiguous: true };
+  }
+
+  if (/^[1-9]\d$/.test(trimmed)) {
+    return { normalized: parseInt(trimmed, 10), ambiguous: false };
+  }
+
+  return { normalized: null, ambiguous: false };
+};
+
+const extractQuantityBadges = (line: PrimeRowLine): QuantityBadgeCandidate[] => {
   if (!line.rawLine.trim()) return [];
-  const matches: Array<{ quantity: number; start: number }> = [];
-  const regex = /\b0?([2-9]|[1-9]\d)\b/g;
+
+  const matches: QuantityBadgeCandidate[] = [];
+  const lineText = stripTrailingPrimeQtyRowUi(line.rawLine);
+  const regex = /\b(?:0[2-9]|[2-9]|[1-9]\d)\b/g;
   let match: RegExpExecArray | null;
-  while ((match = regex.exec(line.rawLine)) !== null) {
+  while ((match = regex.exec(lineText)) !== null) {
+    const rawText = match[0];
+    const normalized = normalizeQuantityToken(rawText);
+    if (normalized.normalized === null) continue;
+
     matches.push({
-      quantity: parseInt(match[1], 10),
-      start: match.index ?? 0
+      rawText,
+      quantity: parseInt(rawText.replace(/^0+/, '') || rawText, 10),
+      normalized: normalized.normalized,
+      start: match.index ?? 0,
+      lineIndex: line.lineIndex,
+      ambiguous: normalized.ambiguous
     });
   }
   return matches;
@@ -787,6 +861,7 @@ const pushCandidate = (
   parsed: PrimePart | null,
   xStart: number,
   lineIndex: number,
+  slotIndex: number,
   ocrFullText: string = ''
 ): void => {
   if (!parsed) return;
@@ -803,7 +878,8 @@ const pushCandidate = (
     item: { ...parsed, quantity: 1 },
     key,
     xStart,
-    lineIndex
+    lineIndex,
+    slotIndex
   });
 };
 
@@ -833,89 +909,182 @@ const combineSequenceComponentRefs = (
   return merged;
 };
 
-const assignQuantitiesToCandidates = (
+const getSlotAnchorLineIndex = (slot: PrimeCardSlot): number | null => {
+  const lines = [
+    ...slot.fullItems.map((fragment) => fragment.lineIndex),
+    ...slot.sets.map((fragment) => fragment.lineIndex),
+    ...slot.components.map((fragment) => fragment.lineIndex)
+  ].sort((a, b) => a - b);
+  return lines[0] ?? null;
+};
+
+const choosePrimarySlotBadge = (
+  slot: PrimeCardSlot,
+  slotIndex: number,
+  layout: ColumnLayout
+): QuantityBadgeCandidate | null => {
+  if (slot.quantities.length === 0) return null;
+
+  const anchorLineIndex = getSlotAnchorLineIndex(slot) ?? slot.quantities[0].lineIndex;
+  const anchorStart = layout.columnStarts[slotIndex] ?? slot.quantities[0].start;
+
+  let bestBadge: QuantityBadgeCandidate | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  slot.quantities.forEach((badge) => {
+    const score = Math.abs(badge.lineIndex - anchorLineIndex) * 100 + Math.abs(badge.start - anchorStart);
+    if (score < bestScore) {
+      bestScore = score;
+      bestBadge = badge;
+    }
+  });
+
+  return bestBadge;
+};
+
+const getSlotQuantityAnchor = (
+  slot: PrimeCardSlot,
+  slotIndex: number,
+  layout: ColumnLayout
+): number => {
+  const centers = [
+    ...slot.fullItems.map((fragment) => fragmentCenter(fragment)),
+    ...slot.sets.map((fragment) => fragmentCenter(fragment)),
+    ...slot.components.map((fragment) => fragmentCenter(fragment))
+  ];
+  const center = median(centers);
+  return center ?? layout.columnStarts[slotIndex] ?? 0;
+};
+
+const assignSparseBadgesToSlotsByOrder = (
+  badges: QuantityBadgeCandidate[],
+  slotAnchors: number[]
+): Array<{ slotIndex: number; badge: QuantityBadgeCandidate }> => {
+  if (badges.length === 0) return [];
+
+  const assignments: Array<{ slotIndex: number; badge: QuantityBadgeCandidate }> = [];
+  let minSlotIndex = 0;
+
+  badges.forEach((badge, badgeIndex) => {
+    const remainingBadges = badges.length - badgeIndex;
+    const maxSlotIndex = slotAnchors.length - remainingBadges;
+
+    let bestSlotIndex: number | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (let slotIndex = minSlotIndex; slotIndex <= maxSlotIndex; slotIndex += 1) {
+      const score = Math.abs(slotAnchors[slotIndex] - badge.start);
+      if (score < bestScore) {
+        bestScore = score;
+        bestSlotIndex = slotIndex;
+      }
+    }
+
+    if (bestSlotIndex === null) return;
+
+    assignments.push({ slotIndex: bestSlotIndex, badge });
+    minSlotIndex = bestSlotIndex + 1;
+  });
+
+  return assignments;
+};
+
+const resolveSlotLocalQuantities = (
+  slots: PrimeCardSlot[],
   candidates: PrimeItemCandidate[],
-  quantities: Array<{ quantity: number; start: number; lineIndex: number }>,
-  layout: ColumnLayout | null
-): PrimePart[] => {
-  if (candidates.length === 0) return [];
+  layout: ColumnLayout,
+  previousRowTailQuantity: number | null,
+  assumeOwnedSorted: boolean
+): { quantitiesBySlot: Array<number | null>; debug: PrimeRowQuantityDebug; tailQuantity: number | null } => {
+  const hasItemBySlot = Array.from({ length: 8 }, (_, slotIndex) =>
+    candidates.some((candidate) => candidate.slotIndex === slotIndex)
+  );
+  const primaryBadges = slots.map((slot, slotIndex) => choosePrimarySlotBadge(slot, slotIndex, layout));
+  const rawTokens = primaryBadges.map((badge) => badge?.rawText ?? null);
+  const normalized = primaryBadges.map((badge) => badge?.normalized ?? null);
+  const resolved: SlotQuantityResolution[] = primaryBadges.map((badge) => ({
+    rawText: badge?.rawText ?? null,
+    normalized: badge?.normalized ?? null,
+    chosen: badge?.normalized ?? null,
+    ambiguous: !!badge?.ambiguous,
+    promoted: false
+  }));
 
-  const assigned = candidates.map((candidate) => ({ ...candidate.item, quantity: 1 }));
-  const usedIndexes = new Set<number>();
+  if (assumeOwnedSorted) {
+    const lastItemSlot = hasItemBySlot.reduce((lastIndex, hasItem, index) => hasItem ? index : lastIndex, -1);
+    const lastAmbiguousSlot = primaryBadges.reduce((lastIndex, badge, index) => badge?.ambiguous ? index : lastIndex, -1);
+    const rowHasSuspicious = lastAmbiguousSlot !== -1;
+    let current = previousRowTailQuantity;
 
-  quantities
-    .slice()
-    .sort((a, b) => a.lineIndex === b.lineIndex ? a.start - b.start : a.lineIndex - b.lineIndex)
-    .forEach((badge) => {
-      let bestIndex = -1;
-      let bestScore = Number.POSITIVE_INFINITY;
+    for (let slotIndex = 0; slotIndex < resolved.length; slotIndex += 1) {
+      if (!hasItemBySlot[slotIndex]) continue;
 
-      const badgeCol = layout ? quantizeToColumn(badge.start, layout, true) : null;
+      const slotResolution = resolved[slotIndex];
+      const laterAmbiguous = resolved
+        .slice(slotIndex + 1, lastItemSlot + 1)
+        .some((entry, relativeIndex) => hasItemBySlot[slotIndex + relativeIndex + 1] && entry.ambiguous);
 
-      const consider = (mode: 'column' | 'rightOf' | 'abs') => {
-        candidates.forEach((candidate, index) => {
-          if (usedIndexes.has(index)) return;
-
-          const lineDelta = candidate.lineIndex - badge.lineIndex;
-          if (mode !== 'abs' && lineDelta < 0) return;
-
-          if (mode === 'column' && layout && badgeCol !== null) {
-            const candCol = quantizeToColumn(candidate.xStart, layout, true);
-            if (candCol === null || candCol !== badgeCol) return;
-            const score = lineDelta * 100 + Math.abs(candidate.xStart - badge.start);
-            if (score < bestScore) {
-              bestScore = score;
-              bestIndex = index;
-            }
-            return;
-          }
-
-          if (mode === 'rightOf') {
-            const horizontalDelta = candidate.xStart - badge.start;
-            if (horizontalDelta < 0) return;
-            const score = lineDelta * 100 + horizontalDelta;
-            if (score < bestScore) {
-              bestScore = score;
-              bestIndex = index;
-            }
-            return;
-          }
-
-          const absLine = Math.abs(candidate.lineIndex - badge.lineIndex);
-          const absHoriz = Math.abs(candidate.xStart - badge.start);
-          const score = absLine * 120 + absHoriz;
-          if (score < bestScore) {
-            bestScore = score;
-            bestIndex = index;
-          }
-        });
-      };
-
-      if (layout && badgeCol !== null) {
-        consider('column');
-      }
-      if (bestIndex === -1) {
-        consider('rightOf');
-      }
-      if (bestIndex === -1) {
-        consider('abs');
+      if (slotResolution.chosen === null) {
+        if (current !== null) {
+          slotResolution.chosen = current;
+        }
+        continue;
       }
 
-      if (bestIndex === -1) {
-        return;
+      if (slotResolution.ambiguous) {
+        if (current !== null && current >= 2 && current <= 3) {
+          slotResolution.chosen = current;
+        }
+        current = slotResolution.chosen;
+        continue;
       }
-      usedIndexes.add(bestIndex);
-      assigned[bestIndex].quantity = Math.max(assigned[bestIndex].quantity || 1, badge.quantity);
-    });
 
-  return assigned;
+      if (
+        slotResolution.chosen === 2 &&
+        current === 3 &&
+        rowHasSuspicious &&
+        slotIndex <= lastAmbiguousSlot &&
+        laterAmbiguous
+      ) {
+        slotResolution.chosen = 3;
+        slotResolution.promoted = true;
+      }
+
+      current = slotResolution.chosen;
+    }
+  }
+
+  const quantitiesBySlot = resolved.map((entry, slotIndex) => {
+    if (!hasItemBySlot[slotIndex]) return null;
+    return entry.chosen ?? entry.normalized ?? 1;
+  });
+  const tailQuantity = quantitiesBySlot.reduce((last, quantity) => quantity ?? last, null as number | null);
+  const ambiguousSlots = resolved.flatMap((entry, index) => entry.ambiguous ? [index] : []);
+  const promotedSlots = resolved.flatMap((entry, index) => entry.promoted ? [index] : []);
+  const missingSlots = resolved.flatMap((entry, index) => hasItemBySlot[index] && !entry.rawText ? [index] : []);
+
+  return {
+    quantitiesBySlot,
+    tailQuantity,
+    debug: {
+      rawTokens,
+      normalized,
+      chosen: resolved.map((entry, index) => hasItemBySlot[index] ? entry.chosen ?? entry.normalized ?? 1 : null),
+      ambiguousSlots,
+      promotedSlots,
+      missingSlots,
+      weak: ambiguousSlots.length > 0 || promotedSlots.length > 0 || missingSlots.length > 0
+    }
+  };
 };
 
 const parseRowGroupWithLayout = (
   group: PrimeRowGroup,
   layout: ColumnLayout,
-  ocrFullText: string
-): PrimePart[] => {
+  ocrFullText: string,
+  previousRowTailQuantity: number | null,
+  assumeOwnedSorted: boolean
+): PrimeRowLayoutParseResult => {
   const slots: PrimeCardSlot[] = Array.from({ length: 8 }, () => ({
     sets: [],
     fullItems: [],
@@ -945,10 +1114,25 @@ const parseRowGroupWithLayout = (
       appendUniqueFragment(slots[columnIndex].components, fragment);
     });
 
-    extractQuantityStarts(line).forEach(({ quantity, start }) => {
-      const columnIndex = quantizeToColumn(start, layout, true);
+  });
+
+  const slotAnchors = slots.map((slot, slotIndex) => getSlotQuantityAnchor(slot, slotIndex, layout));
+
+  group.lines.forEach((line) => {
+    const badges = extractQuantityBadges(line);
+    if (badges.length === 0) return;
+
+    if (badges.length <= 4) {
+      assignSparseBadgesToSlotsByOrder(badges, slotAnchors).forEach(({ slotIndex, badge }) => {
+        slots[slotIndex].quantities.push(badge);
+      });
+      return;
+    }
+
+    badges.forEach((badge) => {
+      const columnIndex = quantizeToColumn(badge.start, layout, true);
       if (columnIndex === null) return;
-      slots[columnIndex].quantities.push({ quantity, start, lineIndex: line.lineIndex });
+      slots[columnIndex].quantities.push(badge);
     });
   });
 
@@ -996,7 +1180,7 @@ const parseRowGroupWithLayout = (
             matchingComponent.consumed = true;
           }
         }
-        pushCandidate(candidates, seen, parsed, fragment.start, fragment.lineIndex, ocrFullText);
+        pushCandidate(candidates, seen, parsed, fragment.start, fragment.lineIndex, slotIndex, ocrFullText);
       });
 
     const primarySet = sortedSets.find(Boolean);
@@ -1026,6 +1210,7 @@ const parseRowGroupWithLayout = (
           parsePrimeCardText(`${setText} ${componentRef.text}`, 1),
           slot.sets[0]?.start ?? componentRef.start,
           componentRef.lineIndex,
+          slotIndex,
           ocrFullText
         );
       });
@@ -1040,6 +1225,7 @@ const parseRowGroupWithLayout = (
         parsePrimeCardText(primarySet, 1),
         slot.sets[0].start,
         slot.sets[0].lineIndex,
+        slotIndex,
         ocrFullText
       );
       return;
@@ -1063,31 +1249,58 @@ const parseRowGroupWithLayout = (
         parsePrimeCardText(`${primarySet} ${componentRef.text}`, 1),
         slot.sets[0].start,
         componentRef.lineIndex || slot.sets[0].lineIndex,
+        slotIndex,
         ocrFullText
       );
     });
   });
 
-  const quantities = slots.flatMap((slot) => slot.quantities);
-  return assignQuantitiesToCandidates(candidates, quantities, layout);
+  const quantityResolution = resolveSlotLocalQuantities(
+    slots,
+    candidates,
+    layout,
+    previousRowTailQuantity,
+    assumeOwnedSorted
+  );
+
+  const items = candidates
+    .slice()
+    .sort((a, b) => a.slotIndex === b.slotIndex
+      ? (a.lineIndex === b.lineIndex ? a.xStart - b.xStart : a.lineIndex - b.lineIndex)
+      : a.slotIndex - b.slotIndex
+    )
+    .map((candidate) => ({
+      ...candidate.item,
+      quantity: Math.max(1, quantityResolution.quantitiesBySlot[candidate.slotIndex] || 1)
+    }));
+
+  return {
+    items,
+    tailQuantity: quantityResolution.tailQuantity,
+    quantityDebug: quantityResolution.debug
+  };
 };
 
 const applyQuantitiesByVisualOrder = (items: PrimePart[], group: PrimeRowGroup, layout: ColumnLayout | null): PrimePart[] => {
   if (items.length === 0 || !layout) return items;
 
   const adjusted = items.map((item) => ({ ...item, quantity: Math.max(1, item.quantity || 1) }));
-  const quantityColumns = group.lines
-    .flatMap((line) => extractQuantityStarts(line).map(({ quantity, start }) => ({
-      quantity,
-      columnIndex: quantizeToColumn(start, layout, true)
-    })))
-    .filter((entry): entry is { quantity: number; columnIndex: number } => entry.columnIndex !== null)
-    .sort((a, b) => a.columnIndex - b.columnIndex);
+  group.lines.forEach((line) => {
+    const badges = extractQuantityBadges(line);
+    if (badges.length === 0) return;
 
-  quantityColumns.forEach(({ quantity, columnIndex }) => {
-    if (columnIndex < adjusted.length) {
-      adjusted[columnIndex].quantity = Math.max(adjusted[columnIndex].quantity || 1, quantity);
-    }
+    const assignments = badges.length <= 4
+      ? assignSparseBadgesToSlotsByOrder(badges, layout.columnStarts.slice(0, adjusted.length))
+      : badges.flatMap((badge) => {
+          const columnIndex = quantizeToColumn(badge.start, layout, true);
+          return columnIndex === null ? [] : [{ slotIndex: columnIndex, badge }];
+        });
+
+    assignments.forEach(({ slotIndex, badge }) => {
+      if (slotIndex < adjusted.length) {
+        adjusted[slotIndex].quantity = Math.max(adjusted[slotIndex].quantity || 1, badge.normalized);
+      }
+    });
   });
 
   return adjusted;
@@ -1181,36 +1394,10 @@ const healStaggeredPrimeInventoryNameRows = (text: string): string => {
 };
 
 const applyPrimeInventoryWhisperTextHeals = (text: string): string => {
-  let t = text;
-  const afterSplit = healSplitZeroThreeQuantity(t);
-  t = afterSplit;
-  const afterGyre = healGyreStandaloneDualKamasJammedNameRow(t);
-  t = afterGyre;
-  const afterStaggered = healStaggeredPrimeInventoryNameRows(t);
-  t = afterStaggered;
-  t = healDualKamasFirstRowComponentLine(t);
-  // #region agent log
-  fetch('http://127.0.0.1:7727/ingest/c6beddf5-a845-44b4-bcea-428191d5fac8', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '57c1b8' },
-    body: JSON.stringify({
-      sessionId: '57c1b8',
-      hypothesisId: 'H1',
-      location: 'stepPrimePartsWhisperParser.ts:applyPrimeInventoryWhisperTextHeals',
-      message: 'prime inventory whisper heals applied',
-      data: {
-        changedSplit: afterSplit !== text,
-        changedGyre: afterGyre !== afterSplit,
-        changedStaggered: afterStaggered !== afterGyre,
-        changedComponent: t !== afterStaggered,
-        lenIn: text.length,
-        lenOut: t.length
-      },
-      timestamp: Date.now()
-    })
-  }).catch(() => {});
-  // #endregion
-  return t;
+  let t = healSplitZeroThreeQuantity(text);
+  t = healGyreStandaloneDualKamasJammedNameRow(t);
+  t = healStaggeredPrimeInventoryNameRows(t);
+  return healDualKamasFirstRowComponentLine(t);
 };
 
 /** Fallback text path doubles Khora chassis qty when OCR jams "Chassis Khora" on one line. */
@@ -1233,36 +1420,23 @@ export const parsePrimePartsFromWhisperResult = (whisperResult: WhisperResult): 
   const extractedText = applyPrimeInventoryWhisperTextHeals(rawExtracted);
 
   const rowGroups = splitPrimeRowGroups(extractedText);
-  // #region agent log
-  fetch('http://127.0.0.1:7727/ingest/c6beddf5-a845-44b4-bcea-428191d5fac8', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '57c1b8' },
-    body: JSON.stringify({
-      sessionId: '57c1b8',
-      hypothesisId: 'H4',
-      location: 'stepPrimePartsWhisperParser.ts:parsePrimePartsFromWhisperResult',
-      message: 'splitPrimeRowGroups result',
-      data: {
-        rowGroupCount: rowGroups.length,
-        lineCounts: rowGroups.map((g) => g.lines.length)
-      },
-      timestamp: Date.now()
-    })
-  }).catch(() => {});
-  // #endregion
   if (rowGroups.length === 0) {
     return parsePrimePartsFromText(extractedText);
   }
 
   const globalLayout = inferColumnLayout(rowGroups);
+  const assumeOwnedSorted = /\bOWNED\b/i.test(extractedText);
   const perGroupDebug: Array<{
     layoutLen: number;
     fallbackLen: number;
     outLen: number;
     branch: string;
+    quantityDebug?: PrimeRowQuantityDebug;
   }> = [];
+  const parsedGroups: PrimePart[][] = [];
+  let previousRowTailQuantity: number | null = null;
 
-  const parsedGroups = rowGroups.map((group) => {
+  rowGroups.forEach((group) => {
     const groupLayout = inferComponentAnchoredLayout(group) || inferColumnLayout([group]) || globalLayout;
     const groupText = group.lines.map((line) => line.rawLine).join('\n');
     const fallbackItems = applyQuantitiesByVisualOrder(
@@ -1278,10 +1452,19 @@ export const parsePrimePartsFromWhisperResult = (whisperResult: WhisperResult): 
         outLen: fallbackItems.length,
         branch: 'no_layout_fallback'
       });
-      return fallbackItems;
+      parsedGroups.push(fallbackItems);
+      previousRowTailQuantity = fallbackItems.reduce((last, item) => item.quantity || last, previousRowTailQuantity);
+      return;
     }
 
-    const layoutItems = parseRowGroupWithLayout(group, groupLayout, extractedText);
+    const layoutResult = parseRowGroupWithLayout(
+      group,
+      groupLayout,
+      extractedText,
+      previousRowTailQuantity,
+      assumeOwnedSorted
+    );
+    const layoutItems = layoutResult.items;
 
     if (layoutItems.length < 4) {
       const out =
@@ -1290,9 +1473,12 @@ export const parsePrimePartsFromWhisperResult = (whisperResult: WhisperResult): 
         layoutLen: layoutItems.length,
         fallbackLen: fallbackItems.length,
         outLen: out.length,
-        branch: 'lt4_pick_richer'
+        branch: 'lt4_pick_richer',
+        quantityDebug: layoutResult.quantityDebug.weak ? layoutResult.quantityDebug : undefined
       });
-      return out;
+      parsedGroups.push(out);
+      previousRowTailQuantity = out.reduce((last, item) => item.quantity || last, previousRowTailQuantity);
+      return;
     }
 
     if (layoutItems.length >= 6 && layoutItems.length < 8) {
@@ -1301,9 +1487,12 @@ export const parsePrimePartsFromWhisperResult = (whisperResult: WhisperResult): 
         layoutLen: layoutItems.length,
         fallbackLen: fallbackItems.length,
         outLen: out.length,
-        branch: 'merge_6_7'
+        branch: 'merge_6_7',
+        quantityDebug: layoutResult.quantityDebug.weak ? layoutResult.quantityDebug : undefined
       });
-      return out;
+      parsedGroups.push(out);
+      previousRowTailQuantity = out.reduce((last, item) => item.quantity || last, layoutResult.tailQuantity ?? previousRowTailQuantity);
+      return;
     }
 
     const preferLayout =
@@ -1315,9 +1504,11 @@ export const parsePrimePartsFromWhisperResult = (whisperResult: WhisperResult): 
       layoutLen: layoutItems.length,
       fallbackLen: fallbackItems.length,
       outLen: out.length,
-      branch: preferLayout ? 'prefer_layout' : 'prefer_fallback'
+      branch: preferLayout ? 'prefer_layout' : 'prefer_fallback',
+      quantityDebug: preferLayout && layoutResult.quantityDebug.weak ? layoutResult.quantityDebug : undefined
     });
-    return out;
+    parsedGroups.push(out);
+    previousRowTailQuantity = out.reduce((last, item) => item.quantity || last, layoutResult.tailQuantity ?? previousRowTailQuantity);
   });
 
   const merged = applyKhoraChassisJamQuantityFix(mergePrimeItems(parsedGroups), rawExtracted);
@@ -1330,24 +1521,6 @@ export const parsePrimePartsFromWhisperResult = (whisperResult: WhisperResult): 
     });
   }
 
-  // #region agent log
-  fetch('http://127.0.0.1:7727/ingest/c6beddf5-a845-44b4-bcea-428191d5fac8', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '57c1b8' },
-    body: JSON.stringify({
-      sessionId: '57c1b8',
-      hypothesisId: 'H5',
-      location: 'stepPrimePartsWhisperParser.ts:parsePrimePartsFromWhisperResult',
-      message: 'per-group parse sizes before merge',
-      data: {
-        mergedLen: merged.length,
-        perGroup: parsedGroups.map((pg) => pg.length),
-        perGroupDetail: perGroupDebug
-      },
-      timestamp: Date.now()
-    })
-  }).catch(() => {});
-  // #endregion
   if (merged.length === 0) {
     return parsePrimePartsFromText(extractedText);
   }
@@ -1357,21 +1530,6 @@ export const parsePrimePartsFromWhisperResult = (whisperResult: WhisperResult): 
     usedLayout: !!globalLayout,
     parsedItems: merged.map((item) => `${item.name} x${item.quantity || 1}`)
   });
-
-  // #region agent log
-  fetch('http://127.0.0.1:7727/ingest/c6beddf5-a845-44b4-bcea-428191d5fac8', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '57c1b8' },
-    body: JSON.stringify({
-      sessionId: '57c1b8',
-      hypothesisId: 'H2',
-      location: 'stepPrimePartsWhisperParser.ts:parsePrimePartsFromWhisperResult',
-      message: 'prime whisper merged item count',
-      data: { itemCount: merged.length, rowGroups: rowGroups.length },
-      timestamp: Date.now()
-    })
-  }).catch(() => {});
-  // #endregion
 
   return merged;
 };
