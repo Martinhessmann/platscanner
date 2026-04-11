@@ -31,6 +31,7 @@ This file is for coding agents working in this repository. Keep it focused on ex
 ## Key Code Paths
 
 - OCR entrypoint: `src/services/ocrService.ts`
+- Image OCR result cache (`localStorage`): keyed by `platscanner_image_cache_${__APP_VERSION__}` in `src/services/ocr/stepCache.ts` so bumping `package.json` version invalidates cached analysis for the same screenshot hash.
 - OCR fixture regression: `scripts/run-ocr-fixture-test.mts` (`npm run ocr:fixture:prime`, etc.); frozen Whisper JSON under `debug/fixtures/` (see `.gitignore` whitelist).
 - LLMWhisperer client: `src/services/llmWhispererService.ts`
 - Netlify body limit (large screenshots): `src/services/imageNetlifyLimit.ts` (downscale/JPEG before POST; Netlify buffers binary with base64 overhead ~4.5MB effective)

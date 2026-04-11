@@ -2,9 +2,31 @@ import { DetectedItem } from '../../types';
 import { ocrLogger } from '../ocrLogger';
 import { OcrScreenType } from './stepScreenType';
 
-const IMAGE_CACHE_KEY = 'platscanner_image_cache';
+/** Pre-versioned key; removed on first cache access after upgrade. */
+const LEGACY_IMAGE_CACHE_KEY = 'platscanner_image_cache';
+
 const CACHE_EXPIRY_HOURS = 24;
+/** Entry payload schema within a versioned storage blob. */
 const IMAGE_CACHE_VERSION = 2;
+
+/** OCR results are stored per app version so parser/cache behavior changes invalidate old entries. */
+const getImageCacheStorageKey = (): string => `platscanner_image_cache_${__APP_VERSION__}`;
+
+const removeLegacyImageCacheOnce = (() => {
+  let done = false;
+  return (): void => {
+    if (done) return;
+    done = true;
+    try {
+      if (localStorage.getItem(LEGACY_IMAGE_CACHE_KEY)) {
+        localStorage.removeItem(LEGACY_IMAGE_CACHE_KEY);
+        ocrLogger.info('Cache', 'Removed legacy image OCR cache (unversioned key)');
+      }
+    } catch {
+      // ignore
+    }
+  };
+})();
 
 interface ImageCacheEntry {
   version: number;
@@ -33,7 +55,9 @@ export const generateImageHash = async (imageBase64: string): Promise<string> =>
 
 export const getCachedAnalysis = (imageHash: string): DetectedItem[] | null => {
   try {
-    const cacheData = localStorage.getItem(IMAGE_CACHE_KEY);
+    removeLegacyImageCacheOnce();
+    const key = getImageCacheStorageKey();
+    const cacheData = localStorage.getItem(key);
     if (!cacheData) return null;
 
     const cache: ImageCacheEntry[] = JSON.parse(cacheData);
@@ -45,7 +69,7 @@ export const getCachedAnalysis = (imageHash: string): DetectedItem[] | null => {
     );
 
     if (validCache.length !== cache.length) {
-      localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(validCache));
+      localStorage.setItem(key, JSON.stringify(validCache));
     }
 
     const entry = validCache.find((item) => item.hash === imageHash);
@@ -64,12 +88,14 @@ export const getCachedAnalysis = (imageHash: string): DetectedItem[] | null => {
 
 export const clearCachedAnalysis = (imageHash: string): void => {
   try {
-    const stored = localStorage.getItem(IMAGE_CACHE_KEY);
+    removeLegacyImageCacheOnce();
+    const key = getImageCacheStorageKey();
+    const stored = localStorage.getItem(key);
     if (!stored) return;
 
     const cache: ImageCacheEntry[] = JSON.parse(stored);
     const filteredCache = cache.filter((entry) => entry.hash !== imageHash);
-    localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(filteredCache));
+    localStorage.setItem(key, JSON.stringify(filteredCache));
 
     ocrLogger.info('Cache', `Cleared cached result for image hash ${imageHash}`);
   } catch (error) {
@@ -83,7 +109,9 @@ export const setCachedAnalysis = (
   detectedItems: DetectedItem[]
 ): void => {
   try {
-    const cacheData = localStorage.getItem(IMAGE_CACHE_KEY);
+    removeLegacyImageCacheOnce();
+    const key = getImageCacheStorageKey();
+    const cacheData = localStorage.getItem(key);
     let cache: ImageCacheEntry[] = cacheData ? JSON.parse(cacheData) : [];
 
     const now = Date.now();
@@ -103,7 +131,7 @@ export const setCachedAnalysis = (
       cache = cache.slice(-50);
     }
 
-    localStorage.setItem(IMAGE_CACHE_KEY, JSON.stringify(cache));
+    localStorage.setItem(key, JSON.stringify(cache));
     ocrLogger.info('Cache', `Stored result for image hash ${imageHash}`);
   } catch (error) {
     ocrLogger.error('Cache', 'Failed to store image cache', { error: String(error) });
@@ -112,8 +140,14 @@ export const setCachedAnalysis = (
 
 export const clearImageCache = (): void => {
   try {
-    localStorage.removeItem(IMAGE_CACHE_KEY);
-    ocrLogger.info('Cache', 'Cleared image cache');
+    localStorage.removeItem(LEGACY_IMAGE_CACHE_KEY);
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('platscanner_image_cache_')) {
+        localStorage.removeItem(k);
+      }
+    }
+    ocrLogger.info('Cache', 'Cleared image OCR cache (all app versions)');
   } catch (error) {
     ocrLogger.error('Cache', 'Failed to clear image cache', { error: String(error) });
   }
@@ -121,7 +155,8 @@ export const clearImageCache = (): void => {
 
 export const getCacheStats = (): { entries: number; oldestEntry?: Date; newestEntry?: Date } => {
   try {
-    const cacheData = localStorage.getItem(IMAGE_CACHE_KEY);
+    removeLegacyImageCacheOnce();
+    const cacheData = localStorage.getItem(getImageCacheStorageKey());
     if (!cacheData) return { entries: 0 };
 
     const cache: ImageCacheEntry[] = JSON.parse(cacheData);

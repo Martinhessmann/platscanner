@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- OCR image analysis cache: `localStorage` key now includes the app version (`platscanner_image_cache_<version>`), so releases invalidate cached OCR results for the same image without manual cache bumps. Legacy unversioned key is removed on first access; “clear cache” removes all versioned OCR cache keys.
+
+## [1.17.5] - 2026-04-11
+
 ### Removed
 - Cursor debug-session HTTP ingest hooks from `stepPrimePartsWhisperParser` (no more side-channel telemetry to a local ingest server).
 - Ad-hoc OCR utility scripts: `scripts/inspect-prime-grid-crops.mjs` and `scripts/test-ocr-parsing.ts` (manual experiments; use `npm run ocr:fixture:*` for regression).
